@@ -1,0 +1,45 @@
+/**
+ * google.js
+ * AI provider implementation for Google AI models using Vercel AI SDK.
+ */
+
+import { createGoogleGenerativeAI } from '@ai-sdk/google';
+import { BaseAIProvider } from './base-provider.js';
+
+export class GoogleAIProvider extends BaseAIProvider {
+	constructor() {
+		super();
+		this.name = 'Google';
+	}
+
+	/**
+	 * Returns the environment variable name required for this provider's API key.
+	 * @returns {string} The environment variable name for the Google API key
+	 */
+	getRequiredApiKeyName() {
+		return 'GOOGLE_API_KEY';
+	}
+
+	/**
+	 * Creates and returns a Google AI client instance.
+	 * @param {object} params - Parameters for client initialization
+	 * @param {string} params.apiKey - Google API key
+	 * @param {string} [params.baseURL] - Optional custom API endpoint
+	 * @returns {Function} Google AI client function
+	 * @throws {Error} If initialization fails
+	 */
+	getClient(params) {
+		try {
+			const { apiKey, baseURL } = params;
+			const fetchImpl = this.createProxyFetch();
+
+			return createGoogleGenerativeAI({
+				apiKey,
+				...(baseURL && { baseURL }),
+				...(fetchImpl && { fetch: fetchImpl })
+			});
+		} catch (error) {
+			this.handleError('client initialization', error);
+		}
+	}
+}
