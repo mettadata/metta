@@ -1,0 +1,259 @@
+# 02 — Architecture Overview
+
+## System Layers
+
+```
+┌─────────────────────────────────────────────────────┐
+│                    CLI / MCP / API                    │  ← User-facing
+├─────────────────────────────────────────────────────┤
+│                  Command Delivery                    │  ← Multi-tool adapters
+├──────────┬──────────┬───────────┬───────────────────┤
+│ Workflow │ Context  │  Agent    │    Execution       │  ← Core engines
+│ Engine   │ Engine   │  System   │    Engine          │
+├──────────┴──────────┴───────────┴───────────────────┤
+│                   Plugin System                      │  ← Extension points
+├──────────┬──────────┬───────────┬───────────────────┤
+│ Artifact │  State   │ Provider  │     Gate           │  ← Data & services
+│ Store    │  Store   │ Registry  │     Registry       │
+├──────────┴──────────┴───────────┴───────────────────┤
+│                  File System / Git                    │  ← Persistence
+└─────────────────────────────────────────────────────┘
+```
+
+---
+
+## Layer Responsibilities
+
+### 1. CLI / MCP / API
+
+Three entry points, one core:
+
+**CLI** (`metta` command): Human-facing. Commands map 1:1 to workflow operations. Commander.js with rich output (colors, tables, progress). Shell completion for Bash/Zsh.
+
+**MCP Server**: Machine-facing. Tiered tool loading (core/standard/extended) to optimize context usage. FastMCP wrapper. Exposes all workflow operations as MCP tools.
+
+**API** (programmatic): Library-facing. The `Metta` class exposes the same operations as CLI/MCP for embedding in custom tools, CI pipelines, or dashboards.
+
+All three call the same core engines. No logic duplication.
+
+### 2. Command Delivery
+
+Generates and installs slash commands/skills for AI tools. Adapter pattern with one interface:
+
+```typescript
+interface ToolAdapter {
+  id: string
+  skillsDir(root: string): string
+  commandsDir(root: string): string
+  formatSkill(content: SkillContent): string
+  formatCommand(content: CommandContent): string
+}
+```
+
+Adapters for: Claude Code, Cursor, Copilot, Codex, Gemini, Windsurf, OpenCode, and a `GenericAdapter` for anything else. Adding a new tool = ~50 lines implementing the interface.
+
+Commands are **external markdown/YAML files** in `templates/commands/`, never string literals in code. The delivery layer processes templates (placeholder substitution, path rewriting, format conversion) and writes to tool-specific locations.
+
+### 3. Workflow Engine
+
+Manages the artifact dependency graph. Given a workflow definition (YAML), computes build order, tracks completion status, and determines what's ready to build next.
+
+```
+WorkflowEngine
+  ├── loadWorkflow(name) → WorkflowGraph
+  ├── getStatus(change) → ArtifactStatus[]
+  ├── getNext(change) → Artifact[]
+  ├── markComplete(artifact) → void
+  └── validate(change) → ValidationResult
+```
+
+No hardcoded phases. The engine operates on any DAG of artifacts. "Quick mode" and "full ceremony" are just different workflow YAML files.
+
+See [03-workflow-engine.md](03-workflow-engine.md).
+
+### 4. Context Engine
+
+Determines what context to load for a given operation. Enforces context budgets. Handles truncation, extraction, and freshness.
+
+```
+ContextEngine
+  ├── resolve(phase, artifact) → ContextManifest
+  ├── load(manifest) → LoadedContext
+  ├── budget(agent) → TokenBudget
+  ├── truncate(content, budget) → TruncatedContent
+  └── extract(content, section) → ExtractedContent
+```
+
+See [04-context-engine.md](04-context-engine.md).
+
+### 5. Agent System
+
+Manages agent personas, capabilities, and subagent orchestration.
+
+```
+AgentSystem
+  ├── resolve(capability) → Agent
+  ├── spawn(agent, task, context) → SubagentHandle
+  ├── fanOut(agents[], tasks[]) → Promise<Result[]>
+  └── scopeTools(agent) → AllowedTools
+```
+
+See [05-agent-system.md](05-agent-system.md).
+
+### 6. Execution Engine
+
+Handles the actual running of work: wave-based parallelism, backpressure gates, deviation rules, and worktree isolation.
+
+```
+ExecutionEngine
+  ├── plan(tasks[]) → WavePlan
+  ├── execute(wave) → WaveResult
+  ├── gate(artifact, gates[]) → GateResult
+  └── deviate(rule, context) → DeviationDecision
+```
+
+See [07-execution-engine.md](07-execution-engine.md).
+
+### 7. Plugin System
+
+Five extension points, each with a registry and manifest contract:
+
+```
+PluginSystem
+  ├── WorkflowPluginRegistry   → custom artifact types
+  ├── AgentPluginRegistry      → custom personas
+  ├── ProviderPluginRegistry   → custom AI backends
+  ├── GatePluginRegistry       → custom verification checks
+  └── HookPluginRegistry       → before/after event handlers
+```
+
+See [08-plugins.md](08-plugins.md).
+
+### 8. Data Layer
+
+**Artifact Store**: Manages spec files, proposals, designs, tasks, and archives. Handles versioning with content hashes. Supports delta operations (ADDED/MODIFIED/REMOVED) at requirement and scenario level.
+
+**State Store**: Typed, schema-validated state with optimistic locking. Every read validates against Zod schema. Every write validates before persisting. Migrations handle schema evolution.
+
+**Provider Registry**: Dynamic AI provider registration. Dependency-injected (not singleton). Role-based model selection (main/research/fallback). Retry with exponential backoff.
+
+**Gate Registry**: Verification gates (test runners, linters, type-checkers, custom validators). Each gate produces a typed result that feeds back into the execution loop.
+
+---
+
+## Directory Structure
+
+### Framework Installation (global)
+```
+~/.metta/
+  config.yaml              # Global user config
+  providers.yaml           # AI provider credentials
+  agents/                  # Global agent definitions
+  plugins/                 # Global plugins
+  templates/               # Global template overrides
+```
+
+### Project Layout
+```
+.metta/
+  config.yaml              # Project config (overrides global)
+  workflows/               # Workflow definitions (YAML DAGs)
+    quick.yaml
+    standard.yaml
+    full.yaml
+    custom.yaml            # User-defined
+  agents/                  # Project agent definitions
+  plugins/                 # Project plugins
+  templates/               # Project template overrides
+  state.yaml               # Current state (schema-validated)
+
+metta/
+  specs/                   # Living specifications
+    <capability>/
+      spec.md              # Current spec
+      spec.lock            # Content hash + version
+  changes/                 # Active changes
+    <change-name>/
+      .metta.yaml          # Change metadata (workflow, base versions)
+      intent.md            # What and why
+      spec.md              # Delta spec (ADDED/MODIFIED/REMOVED)
+      design.md            # Technical approach
+      tasks.md             # Implementation checklist
+      summary.md           # Post-execution summary
+  archive/                 # Completed changes
+    YYYY-MM-DD-<name>/
+```
+
+---
+
+## Data Flow
+
+### Happy Path (Standard Workflow)
+
+```
+User: metta propose "add payment processing"
+  │
+  ├── WorkflowEngine.loadWorkflow("standard")
+  ├── ArtifactStore.createChange("add-payment-processing")
+  ├── ContextEngine.resolve(phase: "propose", artifact: "intent")
+  ├── AgentSystem.resolve(capability: "propose")
+  ├── CommandDelivery.generateInstructions(agent, context, template)
+  │
+  └── AI Tool executes instructions
+      ├── Reads: metta status --json
+      ├── Reads: metta instructions intent --json
+      ├── Writes: metta/changes/add-payment-processing/intent.md
+      └── Writes: metta/changes/add-payment-processing/spec.md
+  │
+User: metta plan
+  │
+  ├── WorkflowEngine.getNext() → [design, tasks] (spec is done)
+  ├── ContextEngine.resolve(phase: "plan", artifact: "design")
+  ├── ContextEngine.load() → intent.md + spec.md + relevant specs/
+  │
+  └── AI Tool produces design.md + tasks.md
+  │
+User: metta execute
+  │
+  ├── ExecutionEngine.plan(tasks) → WavePlan { waves: [[1,2], [3]] }
+  ├── For each wave:
+  │   ├── ExecutionEngine.checkOverlap(tasks) → safe to parallelize?
+  │   ├── AgentSystem.fanOut(executors, tasks, worktrees)
+  │   ├── Each executor: fresh context, scoped tools, atomic commits
+  │   └── GateRegistry.run(gates) → pass/fail
+  ├── StateStore.update(progress)
+  │
+User: metta verify
+  │
+  ├── GateRegistry.runAll(change) → GateResults
+  ├── AgentSystem.resolve(capability: "verify")
+  ├── Interactive walkthrough of deliverables
+  │
+User: metta ship
+  │
+  ├── ArtifactStore.archive(change)
+  ├── ArtifactStore.mergeSpecs(deltas, baseVersions) → conflict check
+  └── Git: commit, tag, optional PR creation
+```
+
+---
+
+## Key Architectural Decisions
+
+### ADR-001: ESM Only
+No CommonJS. No mixed module systems. All code is ESM TypeScript. This avoids Taskmaster's technical debt.
+
+### ADR-002: Dependency Injection Over Singletons
+Provider Registry, Gate Registry, and Agent System are instantiated and injected, not global singletons. This enables testing without mocks and parallel execution without shared state.
+
+### ADR-003: Templates as External Files
+All command templates, skill templates, and artifact templates live as markdown/YAML files in `templates/`. Never as string literals in TypeScript. This avoids OpenSpec's customization friction.
+
+### ADR-004: Schema Validation on Every State Transition
+Every read from and write to the State Store goes through Zod validation. This prevents the silent corruption that plagues GSD and Ralph.
+
+### ADR-005: Conflict Detection at Merge Time
+Changes declare their base spec versions (content hashes). When archiving/merging, the framework detects if the base has changed and surfaces conflicts interactively. This solves OpenSpec's critical parallel collision bug.
+
+### ADR-006: No Git Assumption
+Git is preferred but not required. The Artifact Store and State Store abstract over persistence. A `GitBackend` and `FileBackend` are provided. Teams using other VCS can implement the backend interface.
