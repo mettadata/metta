@@ -1,0 +1,3521 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>The Ralph Playbook</title>
+    <meta
+      name="description"
+      content="A comprehensive guide to running AI coding loops with Geoff Huntley's Ralph methodology."
+    />
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+
+    <style>
+      /* ==========================================================================
+       CSS Custom Properties
+       ========================================================================== */
+      :root {
+        /* Font Families */
+        --font-heading: "Space Grotesk", sans-serif;
+        --font-body: "Plus Jakarta Sans", sans-serif;
+        --font-mono: "JetBrains Mono", monospace;
+
+        /* Type Scale (Minor Third ~1.2) */
+        --text-xs: 0.75rem; /* 12-13px */
+        --text-sm: 0.875rem; /* 14-15px */
+        --text-base: 1rem; /* 16-17px body */
+        --text-lg: 1.125rem; /* 18-19px leads */
+        --text-xl: 1.3rem; /* ~22px h4 */
+        --text-2xl: 1.55rem; /* ~26px h3 */
+        --text-3xl: 1.875rem; /* ~32px h2 */
+        --text-4xl: 2.25rem; /* ~38px h1 */
+
+        /* Line Heights - Calibrated Per Size */
+        --leading-tight: 1.15; /* display headings */
+        --leading-snug: 1.25; /* subheadings h3-h4 */
+        --leading-normal: 1.55; /* body text */
+        --leading-relaxed: 1.65; /* lead paragraphs */
+        --leading-code: 1.5;
+
+        /* Spacing */
+        --space-xs: 0.25rem;
+        --space-sm: 0.5rem;
+        --space-md: 1rem;
+        --space-lg: 1.5rem;
+        --space-xl: 2rem;
+        --space-2xl: 2.5rem;
+        --space-3xl: 4rem;
+        --space-4xl: 6rem;
+
+        /* Colors - Near monochrome with muted green accent */
+        --color-text: #333;
+        --color-text-muted: #555;
+        --color-text-faint: #888;
+        --color-heading: #1a1a1a;
+        --color-link: #2d5a27;
+        --color-link-hover: #1e3d1a;
+        --color-accent: #2d5a27;
+        --color-accent-light: #e8f0e7;
+        --color-bg: #ffffff;
+        --color-bg-subtle: #fafaf9;
+        --color-bg-code: #1e1e1e;
+        --color-border: #e5e5e3;
+        --color-border-strong: #d1d1cf;
+
+        /* Callout Colors - Desaturated/Lighter */
+        --color-note-bg: #f5f8fb;
+        --color-note-border: #5588bb;
+        --color-warning-bg: #fdfaf4;
+        --color-warning-border: #b89a50;
+        --color-danger-bg: #fdf7f7;
+        --color-danger-border: #b85555;
+        --color-tip-bg: #f6faf7;
+        --color-tip-border: #5a9a6a;
+
+        /* Content Width */
+        --content-width: 720px;
+        --content-width-wide: 900px;
+        --toc-width: 220px;
+      }
+
+      /* ==========================================================================
+       Base Styles
+       ========================================================================== */
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+
+      html {
+        font-size: 15px;
+        scroll-behavior: smooth;
+      }
+
+      @media (min-width: 640px) {
+        html {
+          font-size: 15px;
+        }
+      }
+
+      @media (min-width: 1024px) {
+        html {
+          font-size: 15px;
+        }
+      }
+
+      body {
+        font-family: var(--font-body);
+        font-size: var(--text-base);
+        font-weight: 400;
+        line-height: 1.65;
+        font-optical-sizing: auto;
+        color: var(--color-text);
+        background: var(--color-bg);
+        margin: 0;
+        padding: 0;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        font-feature-settings: "kern" 1, "liga" 1;
+        letter-spacing: 0;
+        text-rendering: optimizeLegibility;
+      }
+
+      /* Hyphenation control */
+      p,
+      li {
+        hyphens: auto;
+        text-wrap: pretty;
+      }
+
+      h1,
+      h2,
+      h3,
+      h4,
+      h5,
+      h6,
+      code,
+      pre {
+        hyphens: none;
+      }
+
+      :target {
+        scroll-margin-top: 2rem;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
+        }
+        * {
+          transition-duration: 0ms !important;
+        }
+      }
+
+      /* ==========================================================================
+       Layout
+       ========================================================================== */
+      .page-wrapper {
+        display: flex;
+        justify-content: center;
+        min-height: 100vh;
+      }
+
+      .content-wrapper {
+        display: flex;
+        max-width: 1200px;
+        width: 100%;
+        padding: 0 var(--space-lg);
+      }
+
+      .main-content {
+        flex: 1;
+        min-width: 0;
+        max-width: var(--content-width);
+        padding: var(--space-xl) 0;
+      }
+
+      @media (min-width: 1024px) {
+        .main-content {
+          padding: var(--space-4xl) var(--space-xl);
+        }
+      }
+
+      /* Sidebar TOC */
+      .toc-sidebar {
+        display: none;
+      }
+
+      @media (min-width: 960px) {
+        .toc-sidebar {
+          display: block;
+          width: var(--toc-width);
+          flex-shrink: 0;
+          padding-left: var(--space-2xl);
+        }
+
+        .toc-nav {
+          position: sticky;
+          top: var(--space-4xl);
+          max-height: calc(100vh - var(--space-4xl));
+          overflow-y: auto;
+          padding-right: var(--space-md);
+        }
+      }
+
+      .toc-title {
+        font-size: var(--text-sm);
+        font-weight: 500;
+        letter-spacing: 0.01em;
+        color: var(--color-text-faint);
+        margin-bottom: var(--space-md);
+      }
+
+      .toc-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+      }
+
+      .toc-link {
+        display: block;
+        padding: var(--space-xs) 0;
+        padding-left: var(--space-sm);
+        font-size: var(--text-sm);
+        color: var(--color-text-faint);
+        text-decoration: none;
+        border-left: 2px solid transparent;
+        transition: all 150ms ease;
+      }
+
+      .toc-link:hover {
+        color: var(--color-text-muted);
+      }
+
+      .toc-link.active {
+        color: var(--color-text-muted);
+        border-left-color: var(--color-border-strong);
+        font-weight: 500;
+      }
+
+      .toc-link--nested {
+        padding-left: var(--space-lg);
+        font-size: var(--text-xs);
+      }
+
+      /* ==========================================================================
+       Typography - Headings
+       ========================================================================== */
+      .article-header {
+        margin-bottom: var(--space-3xl);
+      }
+
+      .article-title {
+        font-family: var(--font-heading);
+        font-size: var(--text-4xl);
+        font-weight: 700;
+        line-height: var(--leading-tight);
+        letter-spacing: -0.025em;
+        color: var(--color-heading);
+        margin: 0 0 var(--space-lg);
+        text-wrap: balance;
+      }
+
+      .article-subtitle {
+        text-wrap: balance;
+        font-size: var(--text-lg);
+        font-weight: 400;
+        line-height: var(--leading-relaxed);
+        color: var(--color-text-muted);
+        margin: 0;
+      }
+
+      .article-meta {
+        margin-top: var(--space-lg);
+        font-size: var(--text-sm);
+        color: var(--color-text-faint);
+      }
+
+      h2 {
+        font-family: var(--font-heading);
+        font-size: var(--text-3xl);
+        font-weight: 600;
+        line-height: var(--leading-tight);
+        letter-spacing: -0.02em;
+        color: var(--color-heading);
+        margin-top: 3.5rem;
+        margin-bottom: 1.25rem;
+        padding-top: var(--space-lg);
+        border-top: 1px solid var(--color-border);
+        text-wrap: balance;
+      }
+
+      h2:first-of-type {
+        margin-top: 0;
+        padding-top: 0;
+        border-top: none;
+      }
+
+      h3 {
+        font-family: var(--font-heading);
+        font-size: var(--text-2xl);
+        font-weight: 600;
+        line-height: var(--leading-snug);
+        letter-spacing: -0.015em;
+        color: var(--color-heading);
+        margin-top: var(--space-2xl);
+        text-wrap: balance;
+      }
+
+      h4 {
+        font-family: var(--font-heading);
+        font-size: var(--text-xl);
+        font-weight: 500;
+        line-height: var(--leading-snug);
+        letter-spacing: -0.01em;
+        color: var(--color-heading);
+        margin-top: var(--space-xl);
+        text-wrap: balance;
+      }
+
+      h5 {
+        font-family: var(--font-heading);
+        font-size: var(--text-base);
+        font-weight: 500;
+        line-height: var(--leading-normal);
+        color: var(--color-heading);
+        margin-top: var(--space-lg);
+        margin-bottom: var(--space-md);
+        text-wrap: balance;
+      }
+
+      /* ==========================================================================
+       Typography - Body
+       ========================================================================== */
+      p {
+        margin: 0 0 1.25rem;
+      }
+
+      .lead {
+        font-size: var(--text-lg);
+        line-height: var(--leading-relaxed);
+        color: var(--color-text-muted);
+        margin-bottom: var(--space-xl);
+        text-wrap: balance;
+      }
+
+      a {
+        color: var(--color-link);
+        text-decoration: underline;
+        text-decoration-thickness: 1px;
+        text-underline-offset: 2px;
+        transition: color 150ms ease;
+      }
+
+      a:hover {
+        color: var(--color-link-hover);
+      }
+
+      strong,
+      b {
+        font-weight: 600;
+      }
+
+      em {
+        font-style: italic;
+      }
+
+      small {
+        font-size: var(--text-sm);
+      }
+
+      /* ==========================================================================
+       TL;DR Box
+       ========================================================================== */
+      .tldr {
+        background: var(--color-accent-light);
+        border-radius: 3px;
+        border-left: 3px solid var(--color-accent);
+        padding: var(--space-lg) var(--space-xl);
+        margin-bottom: var(--space-3xl);
+      }
+
+      .tldr-title {
+        font-size: var(--text-sm);
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--color-accent);
+        margin-bottom: var(--space-sm);
+      }
+
+      .tldr p:last-child {
+        margin-bottom: 0;
+      }
+
+      /* ==========================================================================
+       Code
+       ========================================================================== */
+      code {
+        font-family: var(--font-mono);
+        font-size: 0.85em;
+        background: var(--color-bg-subtle);
+        padding: 0.15em 0.4em;
+        border-radius: 3px;
+        color: var(--color-text);
+      }
+
+      pre {
+        font-family: var(--font-mono);
+        font-size: 0.875rem;
+        line-height: var(--leading-code);
+        background: var(--color-bg-code);
+        color: #d4d4d4;
+        padding: var(--space-lg);
+        border-radius: 4px;
+        overflow-x: auto;
+        margin: var(--space-xl) 0;
+      }
+
+      pre code {
+        background: none;
+        padding: 0;
+        color: inherit;
+        font-size: 0.8125rem;
+        border-radius: 0;
+      }
+
+      .code-block {
+        position: relative;
+        margin: var(--space-xl) 0;
+      }
+
+      .code-block-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: #2d2d2d;
+        padding: var(--space-sm) var(--space-md);
+        border-radius: 4px 4px 0 0;
+        font-size: var(--text-sm);
+        color: #999;
+      }
+
+      .code-block-header + pre {
+        margin-top: 0;
+        border-radius: 0 0 4px 4px;
+      }
+
+      .copy-btn {
+        background: transparent;
+        border: 1px solid #555;
+        color: #999;
+        padding: var(--space-xs) var(--space-sm);
+        border-radius: 4px;
+        font-size: var(--text-xs);
+        cursor: pointer;
+        transition: all 150ms ease;
+      }
+
+      .copy-btn:hover {
+        background: #555;
+        color: #fff;
+      }
+
+      /* Syntax highlighting (minimal) */
+      .token-comment {
+        color: #6a9955;
+      }
+      .token-string {
+        color: #ce9178;
+      }
+      .token-keyword {
+        color: #569cd6;
+      }
+      .token-function {
+        color: #dcdcaa;
+      }
+      .token-variable {
+        color: #9cdcfe;
+      }
+
+      /* ==========================================================================
+       Lists
+       ========================================================================== */
+      ul,
+      ol {
+        margin: 0 0 var(--space-lg);
+        padding-left: var(--space-lg);
+      }
+
+      li {
+        margin-bottom: var(--space-sm);
+        line-height: var(--leading-normal);
+      }
+
+      li > ul,
+      li > ol {
+        margin: var(--space-sm) 0 0;
+      }
+
+      /* ==========================================================================
+       Tables
+       ========================================================================== */
+      .table-wrapper {
+        overflow-x: auto;
+        margin: var(--space-xl) 0;
+        border-radius: 4px;
+        border: 1px solid var(--color-border);
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: var(--text-sm);
+        font-feature-settings: "tnum" 1, "lnum" 1;
+      }
+
+      thead {
+        border-bottom: 2px solid var(--color-border);
+      }
+
+      th {
+        text-align: left;
+        padding: var(--space-sm) var(--space-md);
+        background: var(--color-bg-subtle);
+        font-weight: 600;
+        font-size: var(--text-xs);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--color-text-muted);
+        text-wrap: pretty;
+      }
+
+      td {
+        padding: var(--space-sm) var(--space-md);
+        border-bottom: 1px solid var(--color-border);
+        vertical-align: top;
+        text-wrap: pretty;
+      }
+
+      tr:last-child td {
+        border-bottom: none;
+      }
+
+      td:first-child {
+        font-weight: 500;
+      }
+
+      td code {
+        font-size: 0.85em;
+      }
+
+      /* ==========================================================================
+       Blockquotes & Callouts
+       ========================================================================== */
+      blockquote {
+        margin: var(--space-xl) 0;
+        padding: 0 0 0 var(--space-lg);
+        border-left: 2px solid var(--color-border-strong);
+        color: var(--color-text-muted);
+        font-style: italic;
+      }
+
+      blockquote p:last-child {
+        margin-bottom: 0;
+      }
+
+      .callout {
+        margin: var(--space-xl) 0;
+        padding: var(--space-lg) var(--space-xl);
+        border-radius: 2px;
+        border-left: 2px solid;
+      }
+
+      .callout > *:last-child {
+        margin-bottom: 0;
+      }
+
+      .callout-title {
+        font-weight: 600;
+        /* font-size: var(--text-sm); */
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
+        gap: var(--space-sm);
+      }
+
+      .callout-note {
+        background: var(--color-note-bg);
+        border-color: var(--color-note-border);
+      }
+      .callout-note .callout-title {
+        color: var(--color-note-border);
+      }
+
+      .callout-warning {
+        background: var(--color-warning-bg);
+        border-color: var(--color-warning-border);
+      }
+      .callout-warning .callout-title {
+        color: var(--color-warning-border);
+      }
+
+      .callout-danger {
+        background: var(--color-danger-bg);
+        border-color: var(--color-danger-border);
+      }
+      .callout-danger .callout-title {
+        color: var(--color-danger-border);
+      }
+
+      .callout-tip {
+        background: var(--color-tip-bg);
+        border-color: var(--color-tip-border);
+      }
+      .callout-tip .callout-title {
+        color: var(--color-tip-border);
+      }
+
+      /* ==========================================================================
+       Figures & Images
+       ========================================================================== */
+      figure {
+        margin: var(--space-xl) 0;
+      }
+
+      figure img {
+        max-width: 100%;
+        height: auto;
+        border-radius: 4px;
+        border: 1px solid var(--color-border);
+      }
+
+      figcaption {
+        margin-top: var(--space-sm);
+        font-size: var(--text-sm);
+        font-weight: 450;
+        letter-spacing: 0.01em;
+        color: var(--color-text-faint);
+        text-align: left;
+      }
+
+      small,
+      .text-sm {
+        font-weight: 450;
+        letter-spacing: 0.01em;
+      }
+
+      /* ==========================================================================
+       Horizontal Rules
+       ========================================================================== */
+      hr {
+        border: none;
+        border-top: 1px solid var(--color-border);
+        margin: var(--space-3xl) 0;
+      }
+
+      /* ==========================================================================
+       Section Headers with Emoji Icons
+       ========================================================================== */
+      .section-icon {
+        margin-right: var(--space-sm);
+      }
+
+      /* ==========================================================================
+       Collapsible Sections (Details/Summary)
+       ========================================================================== */
+      details {
+        margin: var(--space-lg) 0;
+        border: 1px solid var(--color-border);
+        border-radius: 3px;
+        background: var(--color-bg);
+      }
+
+      summary {
+        padding: var(--space-md) var(--space-lg);
+        padding-right: calc(var(--space-lg) + 1.5rem);
+        cursor: pointer;
+        font-weight: 500;
+        list-style: none;
+        display: flex;
+        position: relative;
+        user-select: none;
+      }
+
+      summary::-webkit-details-marker {
+        display: none;
+      }
+
+      summary::after {
+        content: "+";
+        font-size: 1.25rem;
+        color: var(--color-text-muted);
+        font-weight: 400;
+        position: absolute;
+        right: var(--space-lg);
+        top: var(--space-md);
+      }
+
+      details[open] summary::after {
+        content: "−";
+        color: #fff;
+      }
+
+      details[open] summary {
+        border-bottom: 1px solid var(--color-border);
+        background: var(--color-heading);
+        color: #fff;
+      }
+
+      details[open] summary .summary-desc {
+        color: rgba(255, 255, 255, 0.7);
+      }
+
+      .details-content {
+        padding: var(--space-lg);
+      }
+
+      .details-content > *:last-child {
+        margin-bottom: 0;
+      }
+
+      /* Summary with title and description */
+      summary {
+        flex-wrap: wrap;
+      }
+
+      .summary-title {
+        flex: 1 1 100%;
+        display: block;
+      }
+
+      .summary-desc {
+        flex: 1 1 100%;
+        display: block;
+        font-size: var(--text-sm);
+        font-weight: 400;
+        color: var(--color-text-muted);
+        margin-top: var(--space-xs);
+      }
+
+      /* Expanded panels (non-collapsible, same appearance as details) */
+      .expanded-panel {
+        margin: var(--space-lg) 0;
+        border: 1px solid var(--color-border);
+        border-radius: 3px;
+        background: var(--color-bg);
+      }
+
+      .expanded-panel-header {
+        padding: var(--space-md) var(--space-lg);
+        font-weight: 500;
+        border-bottom: 1px solid var(--color-border);
+      }
+
+      /* Colored check/x marks */
+      .mark-pass {
+        color: #2d7a3a;
+      }
+
+      .mark-fail {
+        color: #c53030;
+      }
+
+      /* ==========================================================================
+       Enhancement Section (Experimental)
+       ========================================================================== */
+      .enhancements-section {
+        background: var(--color-bg-subtle);
+        border-radius: 4px;
+        padding: var(--space-xl);
+        margin-top: var(--space-3xl);
+      }
+
+      .experimental-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--space-xs);
+        background: var(--color-warning-bg);
+        color: var(--color-warning-border);
+        padding: var(--space-xs) var(--space-sm);
+        border-radius: 3px;
+        font-size: var(--text-xs);
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        margin-bottom: var(--space-md);
+      }
+
+      .enhancements-section h2 {
+        margin-top: 0;
+        padding-top: 0;
+        border-top: none;
+      }
+
+      /* ==========================================================================
+       Inline TOC (Mobile)
+       ========================================================================== */
+      .inline-toc {
+        background: var(--color-bg-subtle);
+        border-radius: 4px;
+        padding: var(--space-lg);
+        margin-bottom: var(--space-xl);
+      }
+
+      @media (min-width: 960px) {
+        .inline-toc {
+          display: none;
+        }
+      }
+
+      .inline-toc-title {
+        font-size: var(--text-sm);
+        font-weight: 600;
+        margin-bottom: var(--space-md);
+        color: var(--color-text-muted);
+      }
+
+      .inline-toc ul {
+        margin: 0;
+        padding-left: var(--space-lg);
+      }
+
+      .inline-toc li {
+        margin-bottom: var(--space-xs);
+      }
+
+      .inline-toc a {
+        font-size: var(--text-sm);
+        text-decoration: none;
+      }
+
+      .inline-toc a:hover {
+        text-decoration: underline;
+      }
+
+      /* ==========================================================================
+       Footer
+       ========================================================================== */
+      .article-footer {
+        margin-top: var(--space-4xl);
+        padding-top: var(--space-xl);
+        border-top: 1px solid var(--color-border);
+        font-size: var(--text-sm);
+        color: var(--color-text-faint);
+      }
+
+      /* ==========================================================================
+       Print Styles
+       ========================================================================== */
+      @media print {
+        .toc-sidebar,
+        .copy-btn,
+        .inline-toc {
+          display: none !important;
+        }
+
+        details {
+          display: block !important;
+        }
+
+        details[open] summary::after {
+          display: none;
+        }
+
+        .main-content {
+          max-width: 100%;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <!--
+  =====================================================================
+  SYNC GUIDE FOR CLAUDE
+  =====================================================================
+
+  This HTML mirrors README.md content with styled presentation.
+
+  SOURCE OF TRUTH: README.md
+
+  SYNC RULES:
+  - Content inside !-- HTML-ONLY: description --
+    blocks is NOT in README → Preserve these blocks exactly when syncing - All
+    other content should match README.md → Update to match README when syncing -
+    Preserve HTML structure/styling (classes, wrappers) while syncing text
+    HTML-ONLY CONTENT TYPES: - TL;DR summary box - Lead paragraphs (.lead class)
+    under major section headings - Article header/subtitle/meta - Inline TOC
+    (mobile) - Figure captions - Files table with "Modified By" column - Styled
+    callout wrappers (content comes from README, styling is HTML-only) TO SYNC:
+    "Update index.html to match README.md - preserve HTML-ONLY blocks"
+    ===================================================================== -->
+    <div class="page-wrapper">
+      <div class="content-wrapper">
+        <main class="main-content">
+          <!-- HTML-ONLY: Article header with subtitle and source link -->
+          <header id="intro" class="article-header">
+            <h1 class="article-title">The Ralph Playbook</h1>
+            <p class="article-subtitle">
+              A comprehensive guide to running autonomous AI coding loops.
+            </p>
+            <div class="article-meta">
+              <p style="margin-bottom: .5rem;">
+                Thought up by
+                <a href="https://x.com/GeoffreyHuntley">Geoff Huntley</a> &nbsp;&middot;&nbsp; Regurgitated by
+                <a href="https://x.com/ClaytonFarr">Clayton Farr</a>
+              </p>
+              <p>
+                Original source -
+                <a href="https://ghuntley.com/ralph/">ghuntley.com/ralph</a>
+              </p>
+            </div>
+          </header>
+          <!-- /HTML-ONLY -->
+
+          <!-- HTML-ONLY: TL;DR summary box -->
+          <div class="tldr">
+            <div class="tldr-title">TL;DR</div>
+            <p>
+              <strong>Ralph</strong> is an autonomous coding methodology that
+              runs Claude in a continuous loop, using file-based state to
+              maintain context across iterations. Each loop: read plan → pick
+              task → implement → test → commit → clear context → repeat.
+            </p>
+            <p>
+              <strong>Why it works:</strong> Fresh context each iteration keeps
+              the AI in its "smart zone." File-based memory (specs, plan, agents
+              file) persists learnings. Backpressure (utilities, tests, builds)
+              forces self-correction.
+            </p>
+            <p>
+              <strong>Key files:</strong> <code>PROMPT.md</code> (instructions)
+              + <code>AGENTS.md</code> (operational guide) +
+              <code>IMPLEMENTATION_PLAN.md</code> (task list) +
+              <code>specs/*</code> (requirements)
+            </p>
+          </div>
+          <!-- /HTML-ONLY -->
+
+          <!-- HTML-ONLY: Inline TOC for mobile -->
+          <nav class="inline-toc" aria-label="Table of contents">
+            <div class="inline-toc-title">On This Page</div>
+            <ul>
+              <li><a href="#workflow">Workflow</a></li>
+              <li><a href="#key-principles">Key Principles</a></li>
+              <li><a href="#loop-mechanics">Loop Mechanics</a></li>
+              <li><a href="#files">Files</a></li>
+              <li><a href="#enhancements">Enhancements?</a></li>
+            </ul>
+          </nav>
+          <!-- /HTML-ONLY -->
+
+          <!-- Introduction -->
+          <section>
+            <p>
+              December 2025 boiled
+              <a href="https://ghuntley.com/ralph/">Ralph's</a> powerful yet
+              dumb little face to the top of most AI-related timelines.
+            </p>
+
+            <p>
+              I try to pay attention to the crazy-smart insights
+              <a href="https://x.com/GeoffreyHuntley">@GeoffreyHuntley</a>
+              shares, but I can't say Ralph really clicked for me this summer.
+              Now, all of the recent hubbub has made it hard to ignore.
+            </p>
+
+            <p>
+              <a href="https://x.com/mattpocockuk/status/2008200878633931247"
+                >@mattpocockuk</a
+              >
+              and
+              <a href="https://x.com/ryancarson/status/2008548371712135632"
+                >@ryancarson</a
+              >'s overviews helped a lot – right until Geoff came in and
+              <a href="https://x.com/GeoffreyHuntley/status/2008731415312236984"
+                >said 'nah'</a
+              >.
+            </p>
+
+            <figure>
+              <img
+                src="https://raw.githubusercontent.com/ClaytonFarr/ralph-playbook/main/references/nah.png"
+                alt="Geoff Huntley responding 'nah' to various Ralph interpretations"
+                width="500"
+              />
+            </figure>
+
+            <h3>So what is the optimal way to Ralph?</h3>
+
+            <p>
+              Many folks seem to be getting good results with various shapes –
+              but I wanted to read the tea leaves as closely as possible from
+              the person who not only captured this approach but also has had
+              the most ass-time in the seat putting it through its paces.
+            </p>
+
+            <p>
+              So I dug in to really <em>RTFM</em> on
+              <a href="https://www.youtube.com/watch?v=O2bBWDoxO4s"
+                >recent videos</a
+              >
+              and Geoff's
+              <a href="https://ghuntley.com/ralph/">original post</a> to try and
+              untangle for myself what works best.
+            </p>
+
+            <p>
+              Below is the result – a (likely OCD-fueled) Ralph Playbook that
+              organizes the miscellaneous details for putting this all into
+              practice w/o hopefully neutering it in the process.
+            </p>
+
+            <div class="callout callout-note">
+              <div class="callout-title">Note</div>
+              <p>
+                Digging into all of this has also brought to mind some possibly
+                valuable <a href="#enhancements">additional enhancements</a> to
+                the core approach that aim to stay aligned with the guidelines
+                that make Ralph work so well.
+              </p>
+            </div>
+          </section>
+
+          <p>Hope this helps you out - <a href="https://x.com/ClaytonFarr">Clayton</a></p>
+
+          <hr />
+
+          <!-- Workflow -->
+          <section id="workflow">
+            <h2>Workflow</h2>
+
+            <p>
+              A picture is worth a thousand tweets and an hour-long video.
+              Geoff's
+              <a href="https://ghuntley.com/ralph/">overview here</a> (sign up
+              to his newsletter to see full article) really helped clarify the
+              workflow details for moving from 1) idea → 2) individual
+              JTBD-aligned specs → 3) comprehensive implementation plan → 4)
+              Ralph work loops.
+            </p>
+
+            <figure>
+              <a
+                href="https://raw.githubusercontent.com/ClaytonFarr/ralph-playbook/main/references/ralph-diagram.png"
+                target="_blank"
+                rel="noopener"
+              >
+                <img
+                  src="https://raw.githubusercontent.com/ClaytonFarr/ralph-playbook/main/references/ralph-diagram.png"
+                  alt="Ralph workflow diagram showing the three phases"
+                />
+              </a>
+              <!-- HTML-ONLY: Figure caption -->
+              <figcaption>
+                The Ralph Process: From idea to implementation through specs,
+                planning, and building loops
+              </figcaption>
+              <!-- /HTML-ONLY -->
+            </figure>
+
+            <h3>
+              <span class="section-icon">🗘</span> Three Phases, Two Prompts, One
+              Loop
+            </h3>
+
+            <h4>Phase 1: Define Requirements (LLM conversation)</h4>
+            <ul>
+              <li>Discuss project ideas → identify Jobs to Be Done (JTBD)</li>
+              <li>Break individual JTBD into topic(s) of concern</li>
+              <li>Use subagents to load info from URLs into context</li>
+              <li>
+                LLM understands JTBD topic of concern: subagent writes
+                <code>specs/FILENAME.md</code> for each topic
+              </li>
+            </ul>
+
+            <h4>Phase 2 / 3: Run Ralph Loop</h4>
+            <p>
+              Same loop mechanism, different prompts for different objectives:
+            </p>
+
+            <div class="table-wrapper">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Mode</th>
+                    <th>When to use</th>
+                    <th>Prompt focus</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><em>PLANNING</em></td>
+                    <td>No plan exists, or plan is stale/wrong</td>
+                    <td>
+                      Generate/update <code>IMPLEMENTATION_PLAN.md</code> only
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><em>BUILDING</em></td>
+                    <td>Plan exists</td>
+                    <td>
+                      Implement from plan, commit, update plan as side effect
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <h5>Prompt differences per mode:</h5>
+            <ul>
+              <li>
+                <strong>PLANNING</strong> prompt does gap analysis (specs vs
+                code) and outputs a prioritized TODO list – no implementation,
+                no commits.
+              </li>
+              <li>
+                <strong>BUILDING</strong> prompt assumes plan exists, picks
+                tasks from it, implements, runs tests (backpressure), commits.
+              </li>
+            </ul>
+
+            <h5>Why use the loop for both modes?</h5>
+            <ul>
+              <li>
+                <strong>BUILDING requires it:</strong> inherently iterative
+                (many tasks × fresh context = isolation)
+              </li>
+              <li>
+                <strong>PLANNING uses it for consistency:</strong> same
+                execution model, though often completes in 1-2 iterations
+              </li>
+              <li>
+                <strong>Flexibility:</strong> if plan needs refinement, loop
+                allows multiple passes reading its own output
+              </li>
+              <li>
+                <strong>Simplicity:</strong> one mechanism for everything; clean
+                file I/O; easy stop/restart
+              </li>
+            </ul>
+
+            <p>
+              <strong>Context loaded each iteration:</strong>
+              <code>PROMPT.md</code> + <code>AGENTS.md</code>
+            </p>
+
+            <div class="expanded-panel">
+              <div class="expanded-panel-header">
+                PLANNING mode loop lifecycle
+              </div>
+              <div class="details-content">
+                <ol>
+                  <li>
+                    Subagents study <code>specs/*</code> and existing
+                    <code>/src</code>
+                  </li>
+                  <li>Compare specs against code (gap analysis)</li>
+                  <li>
+                    Create/update <code>IMPLEMENTATION_PLAN.md</code> with
+                    prioritized tasks
+                  </li>
+                  <li>No implementation</li>
+                </ol>
+              </div>
+            </div>
+
+            <div class="expanded-panel">
+              <div class="expanded-panel-header">
+                BUILDING mode loop lifecycle
+              </div>
+              <div class="details-content">
+                <ol>
+                  <li>
+                    <strong>Orient</strong> – subagents study
+                    <code>specs/*</code> (requirements)
+                  </li>
+                  <li>
+                    <strong>Read plan</strong> – study
+                    <code>IMPLEMENTATION_PLAN.md</code>
+                  </li>
+                  <li>
+                    <strong>Select</strong> – pick the most important task
+                  </li>
+                  <li>
+                    <strong>Investigate</strong> – subagents study relevant
+                    <code>/src</code> ("don't assume not implemented")
+                  </li>
+                  <li>
+                    <strong>Implement</strong> – N subagents for file operations
+                  </li>
+                  <li>
+                    <strong>Validate</strong> – 1 subagent for build/tests
+                    (backpressure)
+                  </li>
+                  <li>
+                    <strong>Update <code>IMPLEMENTATION_PLAN.md</code></strong>
+                    – mark task done, note discoveries/bugs
+                  </li>
+                  <li>
+                    <strong>Update <code>AGENTS.md</code></strong> – if
+                    operational learnings
+                  </li>
+                  <li><strong>Commit</strong></li>
+                  <li>
+                    <strong>Loop ends</strong> → context cleared → next
+                    iteration starts fresh
+                  </li>
+                </ol>
+              </div>
+            </div>
+
+            <h3>Concepts</h3>
+
+            <div class="table-wrapper">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Term</th>
+                    <th>Definition</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><em>Job to be Done (JTBD)</em></td>
+                    <td>High-level user need or outcome</td>
+                  </tr>
+                  <tr>
+                    <td><em>Topic of Concern</em></td>
+                    <td>A distinct aspect/component within a JTBD</td>
+                  </tr>
+                  <tr>
+                    <td><em>Spec</em></td>
+                    <td>
+                      Requirements doc for one topic of concern
+                      (<code>specs/FILENAME.md</code>)
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><em>Task</em></td>
+                    <td>Unit of work derived from comparing specs to code</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <p><strong>Relationships:</strong></p>
+            <ul>
+              <li>1 JTBD → multiple topics of concern</li>
+              <li>1 topic of concern → 1 spec</li>
+              <li>1 spec → multiple tasks (specs are larger than tasks)</li>
+            </ul>
+
+            <div class="expanded-panel">
+              <div class="expanded-panel-header">Example: JTBD breakdown</div>
+              <div class="details-content">
+                <ul>
+                  <li>
+                    <strong>JTBD:</strong> "Help designers create mood boards"
+                  </li>
+                  <li>
+                    <strong>Topics:</strong> image collection, color extraction,
+                    layout, sharing
+                  </li>
+                  <li><strong>Each topic</strong> → one spec file</li>
+                  <li>
+                    <strong>Each spec</strong> → many tasks in implementation
+                    plan
+                  </li>
+                </ul>
+              </div>
+            </div>
+
+            <div class="callout callout-tip">
+              <div class="callout-title">Topic Scope Test</div>
+              <p>
+                <strong>"One Sentence Without 'And'"</strong> – Can you describe
+                the topic of concern in one sentence without conjoining
+                unrelated capabilities?
+              </p>
+              <ul>
+                <li>
+                  <span class="mark-pass">✓</span> "The color extraction system
+                  analyzes images to identify dominant colors"
+                </li>
+                <li>
+                  <span class="mark-fail">✗</span> "The user system handles
+                  authentication, profiles, and billing" → 3 topics
+                </li>
+              </ul>
+              <p>
+                If you need "and" to describe what it does, it's probably
+                multiple topics.
+              </p>
+            </div>
+          </section>
+
+          <hr />
+
+          <!-- Key Principles -->
+          <section id="key-principles">
+            <h2>Key Principles</h2>
+
+            <!-- HTML-ONLY: Section lead paragraph -->
+            <p class="lead">
+              Four principles drive Ralph's effectiveness: constrained context,
+              backpressure, autonomous action, and human oversight over the loop
+              - not in it.
+            </p>
+            <!-- /HTML-ONLY -->
+
+            <h3>
+              <span class="section-icon">⏳</span> Context Is
+              <em>Everything</em>
+            </h3>
+
+            <ul>
+              <li>When 200K+ tokens advertised = ~176K truly usable</li>
+              <li>And 40-60% context utilization for "smart zone"</li>
+              <li>
+                Tight tasks + 1 task per loop =
+                <strong>100% smart zone context utilization</strong>
+              </li>
+            </ul>
+
+            <p>This informs and drives everything else:</p>
+
+            <ul>
+              <li>
+                <strong>Use the main agent/context as a scheduler</strong> –
+                Don't allocate expensive work to main context; spawn subagents
+                whenever possible instead
+              </li>
+              <li>
+                <strong>Use subagents as memory extension</strong> – Each
+                subagent gets ~156kb that's garbage collected. Fan out to avoid
+                polluting main context
+              </li>
+              <li>
+                <strong>Simplicity and brevity win</strong> – Applies to number
+                of parts in system, loop config, and content. Verbose inputs
+                degrade determinism
+              </li>
+              <li>
+                <strong>Prefer Markdown over JSON</strong> – To define and track
+                work, for better token efficiency
+              </li>
+            </ul>
+
+            <h3>
+              <span class="section-icon">🧭</span> Steering Ralph: Patterns +
+              Backpressure
+            </h3>
+
+            <p>
+              Creating the right signals &amp; gates to steer Ralph's successful
+              output is <strong>critical</strong>. You can steer from two
+              directions:
+            </p>
+
+            <h5>Steer upstream</h5>
+            <ul>
+              <li>
+                Ensure deterministic setup:
+                <ul>
+                  <li>Allocate first ~5,000 tokens for specs</li>
+                  <li>
+                    Every loop's context is allocated with the same files so
+                    model starts from known state (<code>PROMPT.md</code> +
+                    <code>AGENTS.md</code>)
+                  </li>
+                </ul>
+              </li>
+              <li>Your existing code shapes what gets used and generated</li>
+              <li>
+                If Ralph is generating wrong patterns, add/update utilities and
+                existing code patterns to steer it toward correct ones
+              </li>
+            </ul>
+
+            <h5>Steer downstream</h5>
+            <ul>
+              <li>Create backpressure to reject invalid work</li>
+              <li>
+                Wire in whatever validates your code: tests, typechecks, lints,
+                builds, etc.
+              </li>
+              <li>
+                Prompt says "run tests" generically.
+                <code>AGENTS.md</code> specifies actual commands to make
+                backpressure project-specific
+              </li>
+              <li>
+                Backpressure can extend beyond code validation: some acceptance
+                criteria resist programmatic checks - creative quality,
+                aesthetics, UX feel. LLM-as-judge tests can provide backpressure
+                for subjective criteria with binary pass/fail. (<a
+                  href="#non-deterministic-backpressure"
+                  >More detailed thoughts below</a
+                >
+                on how to approach this with Ralph.)
+              </li>
+            </ul>
+
+            <div class="callout callout-note">
+              <div class="callout-title">
+                Remind Ralph in Prompt.md to use backpressure:
+              </div>
+              <p>
+                "Important: When authoring documentation, capture the why -
+                tests and implementation importance."
+              </p>
+            </div>
+
+            <h3><span class="section-icon">🙏</span> Let Ralph Ralph</h3>
+
+            <p>
+              Ralph's effectiveness comes from how much you trust it do the
+              right thing (eventually) and engender its ability to do so.
+            </p>
+
+            <h5>Let Ralph Ralph</h5>
+            <ul>
+              <li>
+                Lean into LLM's ability to self-identify, self-correct and
+                self-improve.
+              </li>
+              <li>
+                Applies to implementation plan, task definition and
+                prioritization.
+              </li>
+              <li>Eventual consistency achieved through iteration.</li>
+            </ul>
+
+            <h5>
+              Use Protection (<span style="color: var(--color-danger-border)"
+                >Really</span
+              >)
+            </h5>
+            <ul>
+              <li>
+                To operate autonomously, Ralph requires
+                <code>--dangerously-skip-permissions</code> - asking for
+                approval on every tool call would break the loop. This bypasses
+                Claude's permission system entirely - so a sandbox becomes your
+                only security boundary.
+              </li>
+              <li>
+                <em>Philosophy</em> - "It's not if it gets popped, it's when.
+                And what is the blast radius?"
+              </li>
+              <li>
+                Running without a sandbox exposes credentials, browser cookies,
+                SSH keys, and access tokens on your machine.
+              </li>
+              <li>
+                Run in isolated environments with minimum viable access:
+                <ul>
+                  <li>Only the API keys and deploy keys needed for the task</li>
+                  <li>No access to private data beyond requirements</li>
+                  <li>Restrict network connectivity where possible</li>
+                </ul>
+              </li>
+              <li>
+                <em>Options</em> - Docker sandboxes (local), Fly
+                Sprites/E2B/etc. (remote/production).
+                <a href="references/sandbox-environments.md"
+                  >Additional notes on options.</a
+                >
+              </li>
+              <li>
+                <em>Additional escape hatches</em> - Ctrl+C stops the loop;
+                <code>git reset --hard</code> reverts uncommitted changes;
+                regenerate plan if trajectory goes wrong.
+              </li>
+            </ul>
+
+            <h3><span class="section-icon">🚦</span> Move Outside the Loop</h3>
+
+            <p>
+              To get the most out of Ralph, you need to get out of his way.
+              Ralph should be doing <em>all</em> of the work, including decided
+              which planned work to implement next and how to implement it. Your
+              job is now to sit on the loop, not in it – to engineer the setup
+              and environment that will allow Ralph to succeed.
+            </p>
+
+            <p>
+              <strong>Observe and course correct</strong> – especially early on,
+              sit and watch. What patterns emerge? Where does Ralph go wrong?
+              What signs does he need? The prompts you start with won't be the
+              prompts you end with – they evolve through observed failure
+              patterns.
+            </p>
+
+            <p>
+              <strong>Tune it like a guitar</strong> – instead of prescribing
+              everything upfront, observe and adjust reactively. When Ralph
+              fails a specific way, add a sign to help him next time.
+            </p>
+
+            <p>
+              But signs aren't just prompt text. They're <em>anything</em> Ralph
+              can discover:
+            </p>
+            <ul>
+              <li>
+                <strong>Prompt guardrails</strong> – explicit instructions like
+                "don't assume not implemented"
+              </li>
+              <li>
+                <strong><code>AGENTS.md</code></strong> – operational learnings
+                about how to build/test
+              </li>
+              <li>
+                <strong>Utilities in your codebase</strong> – when you add a
+                pattern, Ralph discovers it and follows it
+              </li>
+              <li>Other discoverable, relevant inputs…</li>
+            </ul>
+
+            <div class="callout callout-tip">
+              <div class="callout-title">The plan is designed to be disposable…</div>
+              <ul>
+                <li>If it's wrong, throw it out and start over</li>
+                <li>
+                  Regeneration cost is one Planning loop; cheap compared to
+                  Ralph going in circles
+                </li>
+                <li>
+                  Regenerate when:
+                  <ul>
+                    <li>
+                      Ralph is going off track (implementing wrong things,
+                      duplicating work)
+                    </li>
+                    <li>Plan feels stale or doesn't match current state</li>
+                    <li>Too much clutter from completed items</li>
+                    <li>You've made significant spec changes</li>
+                    <li>You're confused about what's actually done</li>
+                  </ul>
+                </li>
+              </ul>
+            </div>
+          </section>
+
+          <hr />
+
+          <!-- Loop Mechanics -->
+          <section id="loop-mechanics">
+            <h2>Loop Mechanics</h2>
+
+            <!-- HTML-ONLY: Section lead paragraph -->
+            <p class="lead">
+              The mechanical details of how the outer bash loop and inner task
+              execution work together.
+            </p>
+            <!-- /HTML-ONLY -->
+
+            <h3><span class="section-icon">🔄</span> Outer Loop Control</h3>
+
+            <p>Geoff's initial minimal form of `loop.sh` script:</p>
+
+            <div class="code-block">
+              <div class="code-block-header">
+                <span>bash</span>
+                <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              </div>
+              <pre><code>while :; do cat PROMPT.md | claude ; done</code></pre>
+            </div>
+
+            <p>
+              <em>Note:</em> The same approach can be used with other CLIs; e.g.
+              <code>amp</code>, <code>codex</code>, <code>opencode</code>, etc.
+            </p>
+
+            <h4>What controls task continuation?</h4>
+
+            <p>The continuation mechanism is elegantly simple:</p>
+            <ol>
+              <li>
+                <strong>Bash loop runs</strong> → feeds
+                <code>PROMPT.md</code> to claude
+              </li>
+              <li>
+                <strong>PROMPT.md instructs</strong> → "Study
+                IMPLEMENTATION_PLAN.md and choose the most important thing"
+              </li>
+              <li>
+                <strong>Agent completes one task</strong> → updates
+                IMPLEMENTATION_PLAN.md on disk, commits, exits
+              </li>
+              <li>
+                <strong>Bash loop restarts immediately</strong> → fresh context
+                window
+              </li>
+              <li>
+                <strong>Agent reads updated plan</strong> → picks next most
+                important thing
+              </li>
+            </ol>
+
+            <div class="callout callout-note">
+              <div class="callout-title">Key insight</div>
+              <p>
+                The IMPLEMENTATION_PLAN.md file persists on disk between
+                iterations and acts as shared state between otherwise isolated
+                loop executions. Each iteration deterministically loads the same
+                files (<code>PROMPT.md</code> + <code>AGENTS.md</code> +
+                <code>specs/*</code>) and reads the current state from disk.
+              </p>
+              <p>
+                No sophisticated orchestration needed – just a dumb bash loop
+                that keeps restarting the agent, and the agent figures out what
+                to do next by reading the plan file each time.
+              </p>
+            </div>
+
+            <h3>Inner Loop Control (Task Execution)</h3>
+
+            <p>
+              A single task execution has no hard technical limit. Control
+              relies on:
+            </p>
+            <ul>
+              <li>
+                <strong>Scope discipline</strong> – PROMPT.md instructs "one
+                task" and "commit when tests pass"
+              </li>
+              <li>
+                <strong>Backpressure</strong> – tests/build failures force the
+                agent to fix issues before committing
+              </li>
+              <li>
+                <strong>Natural completion</strong> – agent exits after
+                successful commit
+              </li>
+            </ul>
+
+            <p>
+              <strong
+                >Ralph can go in circles, ignore instructions, or take wrong
+                directions</strong
+              >
+              – this is expected and part of the tuning process. When Ralph
+              "tests you" by failing in specific ways, you add guardrails to the
+              prompt or adjust backpressure mechanisms. The nondeterminism is
+              manageable through observation and iteration.
+            </p>
+
+            <h3>Enhanced Loop Code Example</h3>
+
+            <p>
+              Wraps core loop with mode selection (plan/build), max-iterations
+              support, and git push after each iteration.
+            </p>
+
+            <p><em>This enhancement uses two saved prompt files:</em></p>
+            <ul>
+              <li>
+                <code>PROMPT_plan.md</code> – Planning mode (gap analysis,
+                generates/updates plan)
+              </li>
+              <li>
+                <code>PROMPT_build.md</code> – Building mode (implements from
+                plan)
+              </li>
+            </ul>
+
+            <details>
+              <summary>Enhanced `loop.sh` script</summary>
+              <div class="details-content">
+                <div class="code-block">
+                  <div class="code-block-header">
+                    <span>loop.sh</span>
+                    <button class="copy-btn" onclick="copyCode(this)">
+                      Copy
+                    </button>
+                  </div>
+                  <pre><code><span class="token-comment">#!/bin/bash</span>
+<span class="token-comment"># Usage: ./loop.sh [plan] [max_iterations]</span>
+<span class="token-comment"># Examples:</span>
+<span class="token-comment">#   ./loop.sh              # Build mode, unlimited iterations</span>
+<span class="token-comment">#   ./loop.sh 20           # Build mode, max 20 iterations</span>
+<span class="token-comment">#   ./loop.sh plan         # Plan mode, unlimited iterations</span>
+<span class="token-comment">#   ./loop.sh plan 5       # Plan mode, max 5 iterations</span>
+
+<span class="token-comment"># Parse arguments</span>
+<span class="token-keyword">if</span> [ <span class="token-string">"$1"</span> = <span class="token-string">"plan"</span> ]; <span class="token-keyword">then</span>
+    <span class="token-comment"># Plan mode</span>
+    MODE=<span class="token-string">"plan"</span>
+    PROMPT_FILE=<span class="token-string">"PROMPT_plan.md"</span>
+    MAX_ITERATIONS=<span class="token-variable">${2:-0}</span>
+<span class="token-keyword">elif</span> [[ <span class="token-string">"$1"</span> =~ ^[0-9]+$ ]]; <span class="token-keyword">then</span>
+    <span class="token-comment"># Build mode with max iterations</span>
+    MODE=<span class="token-string">"build"</span>
+    PROMPT_FILE=<span class="token-string">"PROMPT_build.md"</span>
+    MAX_ITERATIONS=$1
+<span class="token-keyword">else</span>
+    <span class="token-comment"># Build mode, unlimited</span>
+    MODE=<span class="token-string">"build"</span>
+    PROMPT_FILE=<span class="token-string">"PROMPT_build.md"</span>
+    MAX_ITERATIONS=0
+<span class="token-keyword">fi</span>
+
+ITERATION=0
+CURRENT_BRANCH=$(<span class="token-function">git branch --show-current</span>)
+
+<span class="token-function">echo</span> <span class="token-string">"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"</span>
+<span class="token-function">echo</span> <span class="token-string">"Mode:   $MODE"</span>
+<span class="token-function">echo</span> <span class="token-string">"Prompt: $PROMPT_FILE"</span>
+<span class="token-function">echo</span> <span class="token-string">"Branch: $CURRENT_BRANCH"</span>
+[ $MAX_ITERATIONS -gt 0 ] && <span class="token-function">echo</span> <span class="token-string">"Max:    $MAX_ITERATIONS iterations"</span>
+<span class="token-function">echo</span> <span class="token-string">"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"</span>
+
+<span class="token-comment"># Verify prompt file exists</span>
+<span class="token-keyword">if</span> [ ! -f <span class="token-string">"$PROMPT_FILE"</span> ]; <span class="token-keyword">then</span>
+    <span class="token-function">echo</span> <span class="token-string">"Error: $PROMPT_FILE not found"</span>
+    exit 1
+<span class="token-keyword">fi</span>
+
+<span class="token-keyword">while</span> true; <span class="token-keyword">do</span>
+    <span class="token-keyword">if</span> [ $MAX_ITERATIONS -gt 0 ] && [ $ITERATION -ge $MAX_ITERATIONS ]; <span class="token-keyword">then</span>
+        <span class="token-function">echo</span> <span class="token-string">"Reached max iterations: $MAX_ITERATIONS"</span>
+        <span class="token-keyword">break</span>
+    <span class="token-keyword">fi</span>
+
+    <span class="token-comment"># Run Ralph iteration with selected prompt</span>
+    <span class="token-comment"># -p: Headless mode (non-interactive, reads from stdin)</span>
+    <span class="token-comment"># --dangerously-skip-permissions: Auto-approve all tool calls (YOLO mode)</span>
+    <span class="token-comment"># --output-format=stream-json: Structured output for logging/monitoring</span>
+    <span class="token-comment"># --model opus: Primary agent uses Opus for complex reasoning (task selection, prioritization)</span>
+    <span class="token-comment">#               Can use 'sonnet' in build mode for speed if plan is clear and tasks well-defined</span>
+    <span class="token-comment"># --verbose: Detailed execution logging</span>
+    <span class="token-function">cat</span> <span class="token-string">"$PROMPT_FILE"</span> | claude -p \
+        --dangerously-skip-permissions \
+        --output-format=stream-json \
+        --model opus \
+        --verbose
+
+    <span class="token-comment"># Push changes after each iteration</span>
+    <span class="token-function">git push</span> origin <span class="token-string">"$CURRENT_BRANCH"</span> || {
+        <span class="token-function">echo</span> <span class="token-string">"Failed to push. Creating remote branch..."</span>
+        <span class="token-function">git push</span> -u origin <span class="token-string">"$CURRENT_BRANCH"</span>
+    }
+
+    ITERATION=$((ITERATION + 1))
+    <span class="token-function">echo</span> -e <span class="token-string">"\n\n======================== LOOP $ITERATION ========================\n"</span>
+<span class="token-keyword">done</span></code></pre>
+                </div>
+              </div>
+            </details>
+
+            <h4>Mode Selection</h4>
+            <ul>
+              <li>
+                No keyword → Uses <code>PROMPT_build.md</code> for building
+                (implementation)
+              </li>
+              <li>
+                <code>plan</code> keyword → Uses <code>PROMPT_plan.md</code> for
+                planning (gap analysis, plan generation)
+              </li>
+            </ul>
+
+            <h4>Max-Iterations</h4>
+            <ul>
+              <li>
+                Limits the <em>outer loop</em> (number of tasks attempted; NOT
+                tool calls within a single task)
+              </li>
+              <li>
+                Each iteration = one fresh context window = one task from
+                IMPLEMENTATION_PLAN.md = one commit
+              </li>
+              <li>
+                <code>./loop.sh</code> runs unlimited (manual stop with Ctrl+C)
+              </li>
+              <li>
+                <code>./loop.sh 20</code> runs max 20 iterations then stops
+              </li>
+            </ul>
+
+            <h4>Claude CLI Flags Explained</h4>
+            <ul>
+              <li>
+                <code>-p</code> (headless mode): Enables non-interactive
+                operation, reads prompt from stdin
+              </li>
+              <li>
+                <code>--dangerously-skip-permissions</code>: Bypasses all
+                permission prompts for fully automated runs
+              </li>
+              <li>
+                <code>--output-format=stream-json</code>: Outputs structured
+                JSON for logging/monitoring/visualization
+              </li>
+              <li>
+                <code>--model opus</code>: Primary agent uses Opus for task
+                selection, prioritization, and coordination (can use
+                <code>sonnet</code> for speed if tasks are clear)
+              </li>
+              <li>
+                <code>--verbose</code>: Provides detailed execution logging
+              </li>
+            </ul>
+          </section>
+
+          <hr />
+
+          <!-- Files -->
+          <section id="files">
+            <h2><span class="section-icon">📁</span> Files</h2>
+
+            <!-- HTML-ONLY: Section lead paragraph -->
+            <p class="lead">
+              The file structure and templates that make Ralph work.
+            </p>
+            <!-- /HTML-ONLY -->
+
+            <div class="code-block">
+              <div class="code-block-header">
+                <span>structure</span>
+                <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              </div>
+              <pre><code>project-root/
+├── loop.sh                         <span class="token-comment"># Ralph loop script</span>
+├── PROMPT_build.md                 <span class="token-comment"># Build mode instructions</span>
+├── PROMPT_plan.md                  <span class="token-comment"># Plan mode instructions</span>
+├── AGENTS.md                       <span class="token-comment"># Operational guide loaded each iteration</span>
+├── IMPLEMENTATION_PLAN.md          <span class="token-comment"># Prioritized task list (generated/updated by Ralph)</span>
+├── specs/                          <span class="token-comment"># Requirement specs (one per JTBD topic)</span>
+│   ├── [jtbd-topic-a].md
+│   └── [jtbd-topic-b].md
+├── src/                            <span class="token-comment"># Application source code</span>
+└── src/lib/                        <span class="token-comment"># Shared utilities & components</span></code></pre>
+            </div>
+
+            <!-- HTML-ONLY: Files table with Modified By column -->
+            <div class="table-wrapper">
+              <table>
+                <thead>
+                  <tr>
+                    <th>File</th>
+                    <th>Purpose</th>
+                    <th>Modified By</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><code>loop.sh</code></td>
+                    <td>Outer loop orchestration</td>
+                    <td>You (setup)</td>
+                  </tr>
+                  <tr>
+                    <td><code>PROMPT_*.md</code></td>
+                    <td>Instructions per mode</td>
+                    <td>You (tuning)</td>
+                  </tr>
+                  <tr>
+                    <td><code>AGENTS.md</code></td>
+                    <td>Operational guide</td>
+                    <td>Ralph + You</td>
+                  </tr>
+                  <tr>
+                    <td><code>IMPLEMENTATION_PLAN.md</code></td>
+                    <td>Prioritized task list</td>
+                    <td>Ralph</td>
+                  </tr>
+                  <tr>
+                    <td><code>specs/*</code></td>
+                    <td>Requirements per topic</td>
+                    <td>You + Ralph</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <!-- /HTML-ONLY -->
+
+            <h3><code>loop.sh</code></h3>
+            <p>The outer loop script that orchestrates Ralph iterations.</p>
+            <p>
+              See <a href="#loop-mechanics">Loop Mechanics</a> section for
+              detailed implementation examples and configuration options.
+            </p>
+            <p><em>Setup:</em> Make the script executable before first use:</p>
+            <div class="code-block">
+              <div class="code-block-header">
+                <span>bash</span>
+                <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              </div>
+              <pre><code>chmod +x loop.sh</code></pre>
+            </div>
+            <p>
+              <em>Core function:</em> Continuously feeds prompt file to claude,
+              manages iteration limits, and pushes changes after each task
+              completion.
+            </p>
+
+            <h3>PROMPTS</h3>
+
+            <p style="text-wrap: balance">
+              The instruction set for each loop iteration. Swap between PLANNING
+              and BUILDING versions as needed.
+            </p>
+
+            <h4>Prompt Structure</h4>
+
+            <div class="table-wrapper">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Section</th>
+                    <th>Purpose</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Phase 0 (0a, 0b, 0c)</td>
+                    <td>Orient: study specs, source location, current plan</td>
+                  </tr>
+                  <tr>
+                    <td>Phase 1-4</td>
+                    <td>Main instructions: task, validation, commit</td>
+                  </tr>
+                  <tr>
+                    <td>999... numbering</td>
+                    <td>
+                      Guardrails/invariants (higher number = more critical)
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <h4>Key Language Patterns (Geoff's specific phrasing)</h4>
+            <ul>
+              <li>"study" (not "read" or "look at")</li>
+              <li>
+                "don't assume not implemented" (critical – the Achilles' heel)
+              </li>
+              <li>"using parallel subagents" / "up to N subagents"</li>
+              <li>"only 1 subagent for build/tests" (backpressure control)</li>
+              <li>"Think extra hard" (now "Ultrathink")</li>
+              <li>"capture the why"</li>
+              <li>"keep it up to date"</li>
+              <li>
+                "if functionality is missing then it's your job to add it"
+              </li>
+              <li>"resolve them or document them"</li>
+            </ul>
+
+            <h4><code>PROMPT_*.md</code> Templates</h4>
+
+            <p><em>Notes:</em></p>
+            <ul>
+              <li>Update [project-specific goal] placeholder below.</li>
+              <li>Current subagents names presume using Claude.</li>
+            </ul>
+
+            <details>
+              <summary>PROMPT_plan.md Template</summary>
+              <div class="details-content">
+                <div class="code-block">
+                  <div class="code-block-header">
+                    <span>PROMPT_plan.md</span>
+                    <button class="copy-btn" onclick="copyCode(this)">
+                      Copy
+                    </button>
+                  </div>
+                  <pre><code>0a. Study `specs/*` with up to 250 parallel Sonnet subagents to learn the application specifications.
+0b. Study @IMPLEMENTATION_PLAN.md (if present) to understand the plan so far.
+0c. Study `src/lib/*` with up to 250 parallel Sonnet subagents to understand shared utilities & components.
+0d. For reference, the application source code is in `src/*`.
+
+1. Study @IMPLEMENTATION_PLAN.md (if present; it may be incorrect) and use up to 500 Sonnet subagents to study existing source code in `src/*` and compare it against `specs/*`. Use an Opus subagent to analyze findings, prioritize tasks, and create/update @IMPLEMENTATION_PLAN.md as a bullet point list sorted in priority of items yet to be implemented. Ultrathink. Consider searching for TODO, minimal implementations, placeholders, skipped/flaky tests, and inconsistent patterns. Study @IMPLEMENTATION_PLAN.md to determine starting point for research and keep it up to date with items considered complete/incomplete using subagents.
+
+IMPORTANT: Plan only. Do NOT implement anything. Do NOT assume functionality is missing; confirm with code search first. Treat `src/lib` as the project's standard library for shared utilities and components. Prefer consolidated, idiomatic implementations there over ad-hoc copies.
+
+ULTIMATE GOAL: We want to achieve [project-specific goal]. Consider missing elements and plan accordingly. If an element is missing, search first to confirm it doesn't exist, then if needed author the specification at specs/FILENAME.md. If you create a new element then document the plan to implement it in @IMPLEMENTATION_PLAN.md using a subagent.</code></pre>
+                </div>
+              </div>
+            </details>
+
+            <details>
+              <summary>PROMPT_build.md Template</summary>
+              <div class="details-content">
+                <div class="code-block">
+                  <div class="code-block-header">
+                    <span>PROMPT_build.md</span>
+                    <button class="copy-btn" onclick="copyCode(this)">
+                      Copy
+                    </button>
+                  </div>
+                  <pre><code>0a. Study `specs/*` with up to 500 parallel Sonnet subagents to learn the application specifications.
+0b. Study @IMPLEMENTATION_PLAN.md.
+0c. For reference, the application source code is in `src/*`.
+
+1. Your task is to implement functionality per the specifications using parallel subagents. Follow @IMPLEMENTATION_PLAN.md and choose the most important item to address. Before making changes, search the codebase (don't assume not implemented) using Sonnet subagents. You may use up to 500 parallel Sonnet subagents for searches/reads and only 1 Sonnet subagent for build/tests. Use Opus subagents when complex reasoning is needed (debugging, architectural decisions).
+2. After implementing functionality or resolving problems, run the tests for that unit of code that was improved. If functionality is missing then it's your job to add it as per the application specifications. Ultrathink.
+3. When you discover issues, immediately update @IMPLEMENTATION_PLAN.md with your findings using a subagent. When resolved, update and remove the item.
+4. When the tests pass, update @IMPLEMENTATION_PLAN.md, then `git add -A` then `git commit` with a message describing the changes. After the commit, `git push`.
+
+99999. Important: When authoring documentation, capture the why – tests and implementation importance.
+999999. Important: Single sources of truth, no migrations/adapters. If tests unrelated to your work fail, resolve them as part of the increment.
+9999999. As soon as there are no build or test errors create a git tag. If there are no git tags start at 0.0.0 and increment patch by 1 for example 0.0.1  if 0.0.0 does not exist.
+99999999. You may add extra logging if required to debug issues.
+999999999. Keep @IMPLEMENTATION_PLAN.md current with learnings using a subagent – future work depends on this to avoid duplicating efforts. Update especially after finishing your turn.
+9999999999. When you learn something new about how to run the application, update @AGENTS.md using a subagent but keep it brief. For example if you run commands multiple times before learning the correct command then that file should be updated.
+99999999999. For any bugs you notice, resolve them or document them in @IMPLEMENTATION_PLAN.md using a subagent even if it is unrelated to the current piece of work.
+999999999999. Implement functionality completely. Placeholders and stubs waste efforts and time redoing the same work.
+9999999999999. When @IMPLEMENTATION_PLAN.md becomes large periodically clean out the items that are completed from the file using a subagent.
+99999999999999. If you find inconsistencies in the specs/* then use an Opus 4.5 subagent with 'ultrathink' requested to update the specs.
+999999999999999. IMPORTANT: Keep @AGENTS.md operational only – status updates and progress notes belong in `IMPLEMENTATION_PLAN.md`. A bloated AGENTS.md pollutes every future loop's context.</code></pre>
+                </div>
+              </div>
+            </details>
+
+            <h3><code>AGENTS.md</code></h3>
+
+            <p>
+              Single, canonical "heart of the loop" – a concise, operational
+              "how to run/build" guide.
+            </p>
+
+            <ul>
+              <li><strong>NOT</strong> a changelog or progress diary</li>
+              <li>Describes how to build/run the project</li>
+              <li>Captures operational learnings that improve the loop</li>
+              <li>Keep brief (~60 lines)</li>
+            </ul>
+
+            <p>
+              Status, progress, and planning belong in
+              <code>IMPLEMENTATION_PLAN.md</code>, not here.
+            </p>
+
+            <h5>Loopback / Immediate Self-Evaluation</h5>
+            <p>
+              AGENTS.md should contain the project-specific commands that enable
+              loopback – the ability for Ralph to immediately evaluate his work
+              within the same loop. This includes:
+            </p>
+            <ul>
+              <li>Build commands</li>
+              <li>Test commands (targeted and full suite)</li>
+              <li>Typecheck/lint commands</li>
+              <li>Any other validation tools</li>
+            </ul>
+            <p>
+              The BUILDING prompt says "run tests" generically; AGENTS.md
+              specifies the actual commands. This is how backpressure gets wired
+              in per-project.
+            </p>
+
+            <details>
+              <summary>AGENTS.md Example Structure</summary>
+              <div class="details-content">
+                <div class="code-block">
+                  <div class="code-block-header">
+                    <span>AGENTS.md</span>
+                    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                  </div>
+                  <pre><code>## Build & Run
+
+Succinct rules for how to BUILD the project:
+
+## Validation
+
+Run these after implementing to get immediate feedback:
+
+- Tests: `[test command]`
+- Typecheck: `[typecheck command]`
+- Lint: `[lint command]`
+
+## Operational Notes
+
+Succinct learnings about how to RUN the project:
+
+...
+
+### Codebase Patterns
+
+...</code></pre>
+                </div>
+              </div>
+            </details>
+
+            <h3><code>IMPLEMENTATION_PLAN.md</code></h3>
+
+            <p>
+              Prioritized bullet-point list of tasks derived from gap analysis
+              (specs vs code) – generated by Ralph.
+            </p>
+
+            <ul>
+              <li><strong>Created</strong> via PLANNING mode</li>
+              <li>
+                <strong>Updated</strong> during BUILDING mode (mark complete,
+                add discoveries, note bugs)
+              </li>
+              <li>
+                <strong>Can be regenerated</strong> – Geoff: "I have deleted the
+                TODO list multiple times" → switch to PLANNING mode
+              </li>
+              <li>
+                <strong>Self-correcting</strong> – BUILDING mode can even create
+                new specs if missing
+              </li>
+            </ul>
+
+            <p>
+              The circularity is intentional: eventual consistency through
+              iteration.
+            </p>
+
+            <p>
+              <em>No pre-specified template</em> – let Ralph/LLM dictate and
+              manage format that works best for it.
+            </p>
+
+            <h3><code>specs/*</code></h3>
+
+            <p>
+              One markdown file per topic of concern. These are the source of
+              truth for what should be built.
+            </p>
+
+            <ul>
+              <li>
+                Created during Requirements phase (human + LLM conversation)
+              </li>
+              <li>Consumed by both PLANNING and BUILDING modes</li>
+              <li>
+                Can be updated if inconsistencies discovered (rare, use
+                subagent)
+              </li>
+            </ul>
+
+            <p>
+              <em>No pre-specified template</em> – let Ralph/LLM dictate and
+              manage format that works best for it.
+            </p>
+
+            <h3><code>src/</code> and <code>src/lib/</code></h3>
+            <p>Application source code and shared utilities/components.</p>
+            <p>
+              Referenced in <code>PROMPT.md</code> templates for orientation
+              steps.
+            </p>
+          </section>
+
+          <hr />
+
+          <!-- Enhancements -->
+          <section id="enhancements" class="enhancements-section">
+            <h2>Enhancements?</h2>
+
+            <!-- HTML-ONLY: Section lead paragraph -->
+            <p class="lead">
+              Clayton: I'm still determining the value/viability of these, but
+              the opportunities sound promising:
+            </p>
+            <!-- /HTML-ONLY -->
+
+            <details>
+              <summary>
+                <span class="summary-title"
+                  >Use Claude's AskUserQuestionTool for Planning</span
+                >
+                <span class="summary-desc"
+                  >Use Claude's built-in interview tool to systematically
+                  clarify JTBD, edge cases, and acceptance criteria for
+                  specs.</span
+                >
+              </summary>
+              <div class="details-content">
+                <p>
+                  During Phase 1 (Define Requirements), use Claude's built-in
+                  <code>AskUserQuestionTool</code> to systematically explore
+                  JTBD, topics of concern, edge cases, and acceptance criteria
+                  through structured interview before writing specs.
+                </p>
+
+                <p>
+                  <strong>When to use:</strong> Minimal/vague initial
+                  requirements, need to clarify constraints, or multiple valid
+                  approaches exist.
+                </p>
+
+                <p>
+                  <strong>Invoke:</strong> "Interview me using AskUserQuestion
+                  to understand [JTBD/topic/acceptance criteria/...]"
+                </p>
+
+                <p>
+                  Claude will ask targeted questions to clarify requirements and
+                  ensure alignment before producing
+                  <code>specs/*.md</code> files.
+                </p>
+
+                <p><strong>Flow:</strong></p>
+                <ol>
+                  <li>Start with known information →</li>
+                  <li>Claude interviews via AskUserQuestion →</li>
+                  <li>Iterate until clear →</li>
+                  <li>Claude writes specs with acceptance criteria →</li>
+                  <li>Proceed to planning/building</li>
+                </ol>
+
+                <p>
+                  No code or prompt changes needed – this simply enhances Phase
+                  1 using existing Claude Code capabilities.
+                </p>
+
+                <p>
+                  <em>Inspiration</em> -
+                  <a href="https://x.com/trq212/status/2005315275026260309"
+                    >Thariq's X post</a
+                  >
+                </p>
+              </div>
+            </details>
+
+            <details>
+              <summary>
+                <span class="summary-title"
+                  >Acceptance-Driven Backpressure</span
+                >
+                <span class="summary-desc"
+                  >Derive test requirements during planning from acceptance
+                  criteria. Prevents "cheating" - can't claim done without
+                  appropriate tests passing.</span
+                >
+              </summary>
+              <div class="details-content">
+                <p>
+                  Geoff's Ralph <em>implicitly</em> connects specs →
+                  implementation → tests through emergent iteration. This
+                  enhancement would make that connection <em>explicit</em> by
+                  deriving test requirements during planning, creating a direct
+                  line from "what success looks like" to "what verifies it."
+                </p>
+
+                <p>
+                  This enhancement connects acceptance criteria (in specs)
+                  directly to test requirements (in implementation plan),
+                  improving backpressure quality by:
+                </p>
+                <ul>
+                  <li>
+                    <strong>Preventing "no cheating"</strong> – Can't claim done
+                    without required tests derived from acceptance criteria
+                  </li>
+                  <li>
+                    <strong>Enabling TDD workflow</strong> – Test requirements
+                    known before implementation starts
+                  </li>
+                  <li>
+                    <strong>Improving convergence</strong> – Clear completion
+                    signal (required tests pass) vs ambiguous ("seems done?")
+                  </li>
+                  <li>
+                    <strong>Maintaining determinism</strong> – Test requirements
+                    in plan (known state) not emergent (probabilistic)
+                  </li>
+                </ul>
+
+                <h5>Compatibility with Core Philosophy</h5>
+                <div class="table-wrapper">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Principle</th>
+                        <th>Maintained?</th>
+                        <th>How</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td>Monolithic operation</td>
+                        <td>✅ Yes</td>
+                        <td>One agent, one task, one loop at a time</td>
+                      </tr>
+                      <tr>
+                        <td>Backpressure critical</td>
+                        <td>✅ Yes</td>
+                        <td>
+                          Tests are the mechanism, just derived explicitly now
+                        </td>
+                      </tr>
+                      <tr>
+                        <td>Context efficiency</td>
+                        <td>✅ Yes</td>
+                        <td>
+                          Planning decides tests once vs building rediscovering
+                        </td>
+                      </tr>
+                      <tr>
+                        <td>Deterministic setup</td>
+                        <td>✅ Yes</td>
+                        <td>
+                          Test requirements in plan (known state) not emergent
+                        </td>
+                      </tr>
+                      <tr>
+                        <td>Let Ralph Ralph</td>
+                        <td>✅ Yes</td>
+                        <td>
+                          Ralph still prioritizes and chooses implementation
+                          approach
+                        </td>
+                      </tr>
+                      <tr>
+                        <td>Plan is disposable</td>
+                        <td>✅ Yes</td>
+                        <td>Wrong test requirements? Regenerate plan</td>
+                      </tr>
+                      <tr>
+                        <td>"Capture the why"</td>
+                        <td>✅ Yes</td>
+                        <td>
+                          Test intent documented in plan before implementation
+                        </td>
+                      </tr>
+                      <tr>
+                        <td>No cheating</td>
+                        <td>✅ Yes</td>
+                        <td>
+                          Required tests prevent placeholder implementations
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <h5>The Prescriptiveness Balance</h5>
+
+                <p><em>The critical distinction:</em></p>
+                <p>
+                  Acceptance criteria (in specs) = Behavioral outcomes,
+                  observable results
+                </p>
+                <ul>
+                  <li>
+                    ✓ "Extracts 5-10 dominant colors from any uploaded image"
+                  </li>
+                  <li>✓ "Processes images &lt;5MB in &lt;100ms"</li>
+                  <li>
+                    ✓ "Handles edge cases: grayscale, single-color, transparent
+                    backgrounds"
+                  </li>
+                </ul>
+
+                <p>
+                  Test requirements (in plan) = Verification points derived from
+                  acceptance criteria
+                </p>
+                <ul>
+                  <li>
+                    ✓ "Required tests: Extract 5-10 colors, Performance
+                    &lt;100ms"
+                  </li>
+                </ul>
+
+                <p>
+                  Implementation approach (up to Ralph) = Technical decisions
+                </p>
+                <ul>
+                  <li>✗ "Use K-means clustering with 3 iterations"</li>
+                </ul>
+
+                <p>
+                  <em>
+                    <strong>The key:</strong> Specify WHAT to verify (outcomes),
+                    not HOW to implement (approach).</em
+                  >
+                </p>
+
+                <p>
+                  This maintains "Let Ralph Ralph" principle - Ralph decides
+                  implementation details while having clear success signals.
+                </p>
+
+                <h5>Architecture: Three-Phase Connection</h5>
+                <div class="code-block">
+                  <div class="code-block-header">
+                    <span>diagram</span>
+                    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                  </div>
+                  <pre><code>Phase 1: Requirements Definition
+    specs/*.md + Acceptance Criteria
+    ↓
+Phase 2: Planning (derives test requirements)
+    IMPLEMENTATION_PLAN.md + Required Tests
+    ↓
+Phase 3: Building (implements with tests)
+    Implementation + Tests → Backpressure</code></pre>
+                </div>
+
+                <h5>Phase 1: Requirements Definition</h5>
+                <p>During the human + LLM conversation that produces specs:</p>
+                <ul>
+                  <li>Discuss JTBD and break into topics of concern</li>
+                  <li>Use subagents to load external context as needed</li>
+                  <li>
+                    <em>Discuss and define acceptance criteria</em> – what
+                    observable, verifiable outcomes indicate success
+                  </li>
+                  <li>
+                    Keep criteria behavioral (outcomes), not implementation (how
+                    to build it)
+                  </li>
+                  <li>
+                    LLM writes specs including acceptance criteria however makes
+                    most sense for the spec
+                  </li>
+                  <li>
+                    Acceptance criteria become the foundation for deriving test
+                    requirements in planning phase
+                  </li>
+                </ul>
+
+                <h5>Phase 2: Planning Mode Enhancement</h5>
+                <p>
+                  Modify <code>PROMPT_plan.md</code> instruction 1 to include
+                  test derivation. Add after the first sentence:
+                </p>
+                <div class="code-block">
+                  <div class="code-block-header">
+                    <span>instruction</span>
+                    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                  </div>
+                  <pre><code>For each task in the plan, derive required tests from acceptance criteria in specs - what specific outcomes need verification (behavior, performance, edge cases). Tests verify WHAT works, not HOW it's implemented. Include as part of task definition.</code></pre>
+                </div>
+
+                <h5>Phase 3: Building Mode Enhancement</h5>
+                <p>Modify <code>PROMPT_build.md</code> instructions:</p>
+                <p>
+                  <em>Instruction 1:</em> Add after "choose the most important
+                  item to address":
+                </p>
+                <div class="code-block">
+                  <div class="code-block-header">
+                    <span>instruction</span>
+                    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                  </div>
+                  <pre><code>Tasks include required tests - implement tests as part of task scope.</code></pre>
+                </div>
+                <p>
+                  <em>Instruction 2:</em> Replace "run the tests for that unit
+                  of code" with:
+                </p>
+                <div class="code-block">
+                  <div class="code-block-header">
+                    <span>instruction</span>
+                    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                  </div>
+                  <pre><code>run all required tests specified in the task definition. All required tests must exist and pass before the task is considered complete.</code></pre>
+                </div>
+                <p><em>Prepend new guardrail</em> (in the 9s sequence):</p>
+                <div class="code-block">
+                  <div class="code-block-header">
+                    <span>instruction</span>
+                    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                  </div>
+                  <pre><code>999. Required tests derived from acceptance criteria must exist and pass before committing. Tests are part of implementation scope, not optional. Test-driven development approach: tests can be written first or alongside implementation.</code></pre>
+                </div>
+              </div>
+            </details>
+
+            <details>
+              <summary>
+                <span class="summary-title"
+                  >Non-Deterministic Backpressure</span
+                >
+                <span class="summary-desc"
+                  >Using LLM-as-judge for tests against subjective tasks (tone,
+                  aesthetics, UX). Binary pass/fail reviews that iterate until
+                  pass.</span
+                >
+              </summary>
+              <div class="details-content">
+                <p>Some acceptance criteria resist programmatic validation:</p>
+                <ul>
+                  <li>
+                    <strong>Creative quality</strong> – Writing tone, narrative
+                    flow, engagement
+                  </li>
+                  <li>
+                    <strong>Aesthetic judgments</strong> – Visual harmony,
+                    design balance, brand consistency
+                  </li>
+                  <li>
+                    <strong>UX quality</strong> – Intuitive navigation, clear
+                    information hierarchy
+                  </li>
+                  <li>
+                    <strong>Content appropriateness</strong> – Context-aware
+                    messaging, audience fit
+                  </li>
+                </ul>
+
+                <p>
+                  <strong>Solution:</strong> Add LLM-as-Judge tests as
+                  backpressure with binary pass/fail.
+                </p>
+
+                <p>
+                  LLM reviews are non-deterministic (same artifact may receive
+                  different judgments across runs). This aligns with Ralph
+                  philosophy: "deterministically bad in an undeterministic
+                  world." The loop provides eventual consistency through
+                  iteration–reviews run until pass, accepting natural variance.
+                </p>
+
+                <h5>What Needs to Be Created (First Step)</h5>
+
+                <p>Create two files in <code>src/lib/</code>:</p>
+                <div class="code-block">
+                  <div class="code-block-header">
+                    <span>structure</span>
+                    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                  </div>
+                  <pre><code>src/lib/
+  llm-review.ts          # Core fixture - single function, clean API
+  llm-review.test.ts     # Reference examples showing the pattern (Ralph learns from these)</code></pre>
+                </div>
+
+                <h5>
+                  <code>llm-review.ts</code> - Binary pass/fail API Ralph
+                  discovers:
+                </h5>
+
+                <div class="code-block">
+                  <div class="code-block-header">
+                    <span>llm-review.ts</span>
+                  </div>
+                  <pre><code>interface ReviewResult {
+  pass: boolean;
+  feedback?: string; // Only present when pass=false
+}
+
+function createReview(config: {
+  criteria: string;    // What to evaluate
+  artifact: string;    // Text content OR screenshot path
+  intelligence?: "fast" | "smart";
+}): Promise&lt;ReviewResult&gt;;</code></pre>
+                </div>
+
+                <p>
+                  <strong>Multimodal support:</strong> Both intelligence levels
+                  use multimodal models (text + vision). Artifact type detection
+                  is automatic:
+                </p>
+                <ul>
+                  <li>
+                    Text evaluation:
+                    <code>artifact: "Your content here"</code> → Routes as text
+                    input
+                  </li>
+                  <li>
+                    Vision evaluation:
+                    <code>artifact: "./tmp/screenshot.png"</code> → Routes as
+                    vision input (detects .png, .jpg, .jpeg extensions)
+                  </li>
+                </ul>
+
+                <p>
+                  <strong>Intelligence levels</strong> (quality of judgment, not
+                  capability type):
+                </p>
+                <ul>
+                  <li>
+                    <code>fast</code> (default): Quick, cost-effective models
+                    for straightforward evaluations (e.g., Gemini 3.0 Flash)
+                  </li>
+                  <li>
+                    <code>smart</code>: Higher-quality models for nuanced
+                    aesthetic/creative judgment (e.g., GPT 5.1)
+                  </li>
+                </ul>
+                <p>
+                  The fixture implementation selects appropriate models.
+                  (Examples are current options, not requirements.)
+                </p>
+
+                <h5>
+                  <code>llm-review.test.ts</code> - Shows Ralph how to use it
+                  (text and vision examples):
+                </h5>
+                <div class="code-block">
+                  <div class="code-block-header">
+                    <span>llm-review.test.ts examples</span>
+                  </div>
+                  <pre><code>import { createReview } from "@/lib/llm-review";
+
+// Example 1: Text evaluation
+test("welcome message tone", async () =&gt; {
+  const message = generateWelcomeMessage();
+  const result = await createReview({
+    criteria: "Message uses warm, conversational tone appropriate for design professionals while clearly conveying value proposition",
+    artifact: message, // Text content
+  });
+  expect(result.pass).toBe(true);
+});
+
+// Example 2: Vision evaluation (screenshot path)
+test("dashboard visual hierarchy", async () =&gt; {
+  await page.screenshot({ path: "./tmp/dashboard.png" });
+  const result = await createReview({
+    criteria: "Layout demonstrates clear visual hierarchy with obvious primary action",
+    artifact: "./tmp/dashboard.png", // Screenshot path
+  });
+  expect(result.pass).toBe(true);
+});
+
+// Example 3: Smart intelligence for complex judgment
+test("brand visual consistency", async () =&gt; {
+  await page.screenshot({ path: "./tmp/homepage.png" });
+  const result = await createReview({
+    criteria: "Visual design maintains professional brand identity suitable for financial services while avoiding corporate sterility",
+    artifact: "./tmp/homepage.png",
+    intelligence: "smart", // Complex aesthetic judgment
+  });
+  expect(result.pass).toBe(true);
+});</code></pre>
+                </div>
+
+                <p>
+                  <em>Ralph learns from these examples:</em> Both text and
+                  screenshots work as artifacts. Choose based on what needs
+                  evaluation. The fixture handles the rest internally.
+                </p>
+
+                <p>
+                  <em>Future extensibility:</em> Current design uses single
+                  <code>artifact: string</code> for simplicity. Can expand to
+                  <code>artifact: string | string[]</code> if clear patterns
+                  emerge requiring multiple artifacts (before/after comparisons,
+                  consistency across items, multi-perspective evaluation).
+                  Composite screenshots or concatenated text could handle most
+                  multi-item needs.
+                </p>
+
+                <h5>Integration with Ralph Workflow</h5>
+                <p>
+                  <em>Planning Phase</em> - Update <code>PROMPT_plan.md</code>:
+                </p>
+                <p>
+                  After "...Study @IMPLEMENTATION_PLAN.md to determine starting
+                  point for research and keep it up to date with items
+                  considered complete/incomplete using subagents." insert:
+                </p>
+                <div class="code-block">
+                  <div class="code-block-header">
+                    <span>instruction</span>
+                    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                  </div>
+                  <pre><code>When deriving test requirements from acceptance criteria, identify whether verification requires programmatic validation (measurable, inspectable) or human-like judgment (perceptual quality, tone, aesthetics). Both types are equally valid backpressure mechanisms. For subjective criteria that resist programmatic validation, explore src/lib for non-deterministic evaluation patterns.</code></pre>
+                </div>
+                <p>
+                  <em>Building Phase</em> - Update <code>PROMPT_build.md</code>:
+                </p>
+                <p>Prepend new guardrail (in the 9s sequence):</p>
+                <div class="code-block">
+                  <div class="code-block-header">
+                    <span>instruction</span>
+                    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                  </div>
+                  <pre><code>9999. Create tests to verify implementation meets acceptance criteria and include both conventional tests (behavior, performance, correctness) and perceptual quality tests (for subjective criteria, see src/lib patterns).</code></pre>
+                </div>
+                <p>
+                  <em>Discovery, not documentation:</em> Ralph learns LLM review
+                  patterns from <code>llm-review.test.ts</code> examples during
+                  <code>src/lib</code> exploration (Phase 0c). No AGENTS.md
+                  updates needed - the code examples are the documentation.
+                </p>
+
+                <h5>Compatibility with Core Philosophy</h5>
+                <div class="table-wrapper">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Principle</th>
+                        <th>Maintained?</th>
+                        <th>How</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td>Backpressure critical</td>
+                        <td>✅ Yes</td>
+                        <td>
+                          Extends backpressure to non-programmatic acceptance
+                        </td>
+                      </tr>
+                      <tr>
+                        <td>Deterministic setup</td>
+                        <td>⚠️ Partial</td>
+                        <td>
+                          Criteria in plan (deterministic), evaluation
+                          non-deterministic but converges through iteration
+                        </td>
+                      </tr>
+                      <tr>
+                        <td>Context efficiency</td>
+                        <td>✅ Yes</td>
+                        <td>
+                          Fixture reused via src/lib, small test definitions
+                        </td>
+                      </tr>
+                      <tr>
+                        <td>Let Ralph Ralph</td>
+                        <td>✅ Yes</td>
+                        <td>
+                          Ralph discovers pattern, chooses when to use, writes
+                          criteria
+                        </td>
+                      </tr>
+                      <tr>
+                        <td>Plan is disposable</td>
+                        <td>✅ Yes</td>
+                        <td>
+                          Review requirements part of plan, regenerate if wrong
+                        </td>
+                      </tr>
+                      <tr>
+                        <td>Simplicity wins</td>
+                        <td>✅ Yes</td>
+                        <td>
+                          Single function, binary result, no scoring complexity
+                        </td>
+                      </tr>
+                      <tr>
+                        <td>Add signs for Ralph</td>
+                        <td>✅ Yes</td>
+                        <td>
+                          Light prompt additions, learning from code exploration
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </details>
+
+            <details>
+              <summary>
+                <span class="summary-title">Ralph-Friendly Work Branches</span>
+                <span class="summary-desc"
+                  >Asking Ralph to "filter to feature X" at runtime is
+                  unreliable. Instead, create scoped plan per branch
+                  upfront.</span
+                >
+              </summary>
+              <div class="details-content">
+                <p>
+                  <strong>The Critical Principle:</strong> Geoff's Ralph works
+                  from a single, disposable plan where Ralph picks "most
+                  important." To use branches with Ralph while maintaining this
+                  pattern, you must scope at plan creation, not at task
+                  selection.
+                </p>
+
+                <ul>
+                  <li>
+                    ❌ &nbsp;<em> Wrong Approach:</em> Create full plan, then
+                    ask Ralph to "filter" tasks at runtime → unreliable
+                    (70-80%), violates determinism
+                  </li>
+                  <li>
+                    ✓ &nbsp;<em>Right Approach:</em> Create a scoped plan
+                    upfront for each work branch → deterministic, simple,
+                    maintains "plan is disposable"
+                  </li>
+                </ul>
+
+                <p>
+                  <strong>Solution:</strong> Add a <code>plan-work</code> mode
+                  to create a work-scoped <code>IMPLEMENTATION_PLAN.md</code> on
+                  the current branch. User creates work branch, then runs
+                  <code>plan-work</code> with a natural language description of
+                  the work focus. The LLM uses this description to scope the
+                  plan. Post planning, Ralph builds from this already-scoped
+                  plan with zero semantic filtering – just picks "most
+                  important" as always.
+                </p>
+
+                <p>
+                  "Work" is intentionally a broad term – it can describe
+                  features, topics of concern, refactoring efforts,
+                  infrastructure changes, bug fixes, or any coherent body of
+                  related changes. The work description you pass to
+                  <code>plan-work</code> is natural language for the LLM – it
+                  can be prose, not constrained by git branch naming rules.
+                </p>
+
+                <h5>Design Principles</h5>
+                <ul>
+                  <li>
+                    ✅
+                    <em>Each Ralph session operates monolithically</em> on ONE
+                    body of work per branch
+                  </li>
+                  <li>
+                    ✅ <em>User creates branches manually</em> - full control
+                    over naming conventions and strategy (e.g. worktrees)
+                  </li>
+                  <li>
+                    ✅ <em>Natural language work descriptions</em> - pass prose
+                    to LLM, unconstrained by git naming rules
+                  </li>
+                  <li>
+                    ✅ <em>Scoping at plan creation</em> (deterministic) not
+                    task selection (probabilistic)
+                  </li>
+                  <li>
+                    ✅ <em>Single plan per branch</em> - one
+                    IMPLEMENTATION_PLAN.md per branch
+                  </li>
+                  <li>
+                    ✅ <em>Plan remains disposable</em> - regenerate scoped plan
+                    when wrong/stale for a branch
+                  </li>
+                  <li>✅ No dynamic branch switching within a loop session</li>
+                  <li>✅ Maintains simplicity and determinism</li>
+                  <li>✅ Optional - main branch workflow still works</li>
+                  <li>
+                    ✅ No semantic filtering at build time - Ralph just picks
+                    "most important"
+                  </li>
+                </ul>
+
+                <p><strong>Workflow:</strong></p>
+                <ol>
+                  <li>
+                    <p><em>Full Planning (on main branch)</em></p>
+                    <div class="code-block">
+                      <div class="code-block-header">
+                        <span>bash</span>
+                        <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                      </div>
+                      <pre><code>./loop.sh plan
+# Generate full IMPLEMENTATION_PLAN.md for entire project</code></pre>
+                    </div>
+                  </li>
+                  <li>
+                    <p><em>Create Work Branch</em></p>
+                    <p>User performs:</p>
+                    <div class="code-block">
+                      <div class="code-block-header">
+                        <span>bash</span>
+                        <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                      </div>
+                      <pre><code>git checkout -b ralph/user-auth-oauth
+# Create branch with whatever naming convention you prefer
+# Suggestion: ralph/* prefix for work branches</code></pre>
+                    </div>
+                  </li>
+                  <li>
+                    <p><em>Scoped Planning (on work branch)</em></p>
+                    <div class="code-block">
+                      <div class="code-block-header">
+                        <span>bash</span>
+                        <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                      </div>
+                      <pre><code>./loop.sh plan-work "user authentication system with OAuth and session management"
+# Pass natural language description - LLM uses this to scope the plan
+# Creates focused IMPLEMENTATION_PLAN.md with only tasks for this work</code></pre>
+                    </div>
+                  </li>
+                  <li>
+                    <p><em>Build from Plan (on work branch)</em></p>
+                    <div class="code-block">
+                      <div class="code-block-header">
+                        <span>bash</span>
+                        <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                      </div>
+                      <pre><code>./loop.sh
+# Ralph builds from scoped plan (no filtering needed)
+# Picks most important task from already-scoped plan</code></pre>
+                    </div>
+                  </li>
+                  <li>
+                    <p><em>PR Creation (when work complete)</em></p>
+                    <p>User performs:</p>
+                    <div class="code-block">
+                      <div class="code-block-header">
+                        <span>bash</span>
+                        <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                      </div>
+                      <pre><code>gh pr create --base main --head ralph/user-auth --fill</code></pre>
+                    </div>
+                  </li>
+                </ol>
+
+                <h5>Work-Scoped <code>loop.sh</code></h5>
+                <p>
+                  Extends the base enhanced loop script to add work branch
+                  support with scoped planning:
+                </p>
+                <div class="code-block">
+                  <div class="code-block-header">
+                    <span>loop.sh</span>
+                    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                  </div>
+                  <pre><code>#!/bin/bash
+set -euo pipefail
+
+# Usage:
+#   ./loop.sh [plan] [max_iterations]       # Plan/build on current branch
+#   ./loop.sh plan-work "work description"  # Create scoped plan on current branch
+
+# Parse arguments
+MODE="build"
+PROMPT_FILE="PROMPT_build.md"
+
+if [ "$1" = "plan" ]; then
+    MODE="plan"
+    PROMPT_FILE="PROMPT_plan.md"
+    MAX_ITERATIONS=${2:-0}
+elif [ "$1" = "plan-work" ]; then
+    if [ -z "$2" ]; then
+        echo "Error: plan-work requires a work description"
+        exit 1
+    fi
+    MODE="plan-work"
+    WORK_DESCRIPTION="$2"
+    PROMPT_FILE="PROMPT_plan_work.md"
+    MAX_ITERATIONS=${3:-5}
+elif [[ "$1" =~ ^[0-9]+$ ]]; then
+    MAX_ITERATIONS=$1
+else
+    MAX_ITERATIONS=0
+fi
+
+# ... (see README for full script)</code></pre>
+                </div>
+
+                <h5><code>PROMPT_plan_work.md</code> Template</h5>
+
+                <p>
+                  <em>Note:</em> Identical to <code>PROMPT_plan.md</code> but
+                  with scoping instructions and <code>WORK_SCOPE</code>
+                  env var substituted (automatically by the loop script).
+                </p>
+                <div class="code-block">
+                  <div class="code-block-header">
+                    <span>PROMPT_plan_work.md</span>
+                    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                  </div>
+                  <pre><code>0a. Study `specs/*` with up to 250 parallel Sonnet subagents to learn the application specifications.
+0b. Study @IMPLEMENTATION_PLAN.md (if present) to understand the plan so far.
+0c. Study `src/lib/*` with up to 250 parallel Sonnet subagents to understand shared utilities &amp; components.
+0d. For reference, the application source code is in `src/*`.
+
+1. You are creating a SCOPED implementation plan for work: "${WORK_SCOPE}". Study @IMPLEMENTATION_PLAN.md (if present; it may be incorrect) and use up to 500 Sonnet subagents to study existing source code in `src/*` and compare it against `specs/*`. Use an Opus subagent to analyze findings, prioritize tasks, and create/update @IMPLEMENTATION_PLAN.md as a bullet point list sorted in priority of items yet to be implemented. Ultrathink. Consider searching for TODO, minimal implementations, placeholders, skipped/flaky tests, and inconsistent patterns. Study @IMPLEMENTATION_PLAN.md to determine starting point for research and keep it up to date with items considered complete/incomplete using subagents.
+
+IMPORTANT: This is SCOPED PLANNING for "${WORK_SCOPE}" only. Create a plan containing ONLY tasks directly related to this work scope. Be conservative - if uncertain whether a task belongs to this work, exclude it. The plan can be regenerated if too narrow. Plan only. Do NOT implement anything. Do NOT assume functionality is missing; confirm with code search first. Treat `src/lib` as the project's standard library for shared utilities and components. Prefer consolidated, idiomatic implementations there over ad-hoc copies.
+
+ULTIMATE GOAL: We want to achieve the scoped work "${WORK_SCOPE}". Consider missing elements related to this work and plan accordingly. If an element is missing, search first to confirm it doesn't exist, then if needed author the specification at specs/FILENAME.md. If you create a new element then document the plan to implement it in @IMPLEMENTATION_PLAN.md using a subagent.</code></pre>
+                </div>
+
+                <h5>Compatibility with Core Philosophy</h5>
+                <div class="table-wrapper">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Principle</th>
+                        <th>Maintained?</th>
+                        <th>How</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td>Monolithic operation</td>
+                        <td>✅ Yes</td>
+                        <td>
+                          Ralph still operates as single process within branch
+                        </td>
+                      </tr>
+                      <tr>
+                        <td>One task per loop</td>
+                        <td>✅ Yes</td>
+                        <td>Unchanged</td>
+                      </tr>
+                      <tr>
+                        <td>Fresh context</td>
+                        <td>✅ Yes</td>
+                        <td>Unchanged</td>
+                      </tr>
+                      <tr>
+                        <td>Deterministic</td>
+                        <td>✅ Yes</td>
+                        <td>
+                          Scoping at plan creation (deterministic), not runtime
+                        </td>
+                      </tr>
+                      <tr>
+                        <td>Simple</td>
+                        <td>✅ Yes</td>
+                        <td>Optional enhancement, main workflow still works</td>
+                      </tr>
+                      <tr>
+                        <td>Plan-driven</td>
+                        <td>✅ Yes</td>
+                        <td>One IMPLEMENTATION_PLAN.md per branch</td>
+                      </tr>
+                      <tr>
+                        <td>Single source of truth</td>
+                        <td>✅ Yes</td>
+                        <td>
+                          One plan per branch – scoped plan replaces full plan
+                          on branch
+                        </td>
+                      </tr>
+                      <tr>
+                        <td>Plan is disposable</td>
+                        <td>✅ Yes</td>
+                        <td>
+                          Regenerate scoped plan anytime:
+                          <code>./loop.sh plan-work "work description"</code>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td>Markdown over JSON</td>
+                        <td>✅ Yes</td>
+                        <td>Still markdown plans</td>
+                      </tr>
+                      <tr>
+                        <td>Let Ralph Ralph</td>
+                        <td>✅ Yes</td>
+                        <td>
+                          Ralph picks "most important" from already-scoped plan
+                          – no filter
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </details>
+
+            <details>
+              <summary>
+                <span class="summary-title"
+                  >JTBD → Story Map → SLC Release</span
+                >
+                <span class="summary-desc"
+                  >Push the power of "Letting Ralph Ralph" to connect JTBD's
+                  audience and activities to Simple/Lovable/Complete
+                  releases.</span
+                >
+              </summary>
+              <div class="details-content">
+                <h5>Topics of Concern → Activities</h5>
+                <p>
+                  Geoff's
+                  <a
+                    href="https://ghuntley.com/content/images/size/w2400/2025/07/The-ralph-Process.png"
+                    >suggested workflow</a
+                  >
+                  already aligns planning with Jobs-to-be-Done – breaking JTBDs
+                  into topics of concern, which in turn become specs. I think
+                  there's an opportunity to lean further into the product
+                  benefits this approach affords by reframing
+                  <em>topics of concern</em> as <em>activities</em>.
+                </p>
+                <p>
+                  Activities are verbs in a journey ("upload photo", "extract
+                  colors") rather than capabilities ("color extraction system").
+                  They're naturally scoped by user intent.
+                </p>
+                <blockquote>
+                  <p style="margin-bottom: 0.5rem">
+                    Topics: "color extraction", "layout engine" →
+                    capability-oriented
+                  </p>
+                  <p>
+                    Activities: "upload photo", "see extracted colors", "arrange
+                    layout" → journey-oriented
+                  </p>
+                </blockquote>
+                <h5>Activities → User Journey</h5>
+                <p>
+                  Activities – and their constituent steps – sequence naturally
+                  into a user flow, creating a <em>journey structure</em> that
+                  makes gaps and dependencies visible. A
+                  <a href="https://www.nngroup.com/articles/user-story-mapping/"
+                    >User Story Map</a
+                  >
+                  organizes activities as columns (the journey backbone) with
+                  capability depths as rows – the full space of what
+                  <em>could</em> be built:
+                </p>
+                <div class="code-block">
+                  <div class="code-block-header">
+                    <span>diagram</span>
+                    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                  </div>
+                  <pre><code>UPLOAD    →   EXTRACT    →   ARRANGE     →   SHARE
+
+basic         auto           manual          export
+bulk          palette        templates       collab
+batch         AI themes      auto-layout     embed</code></pre>
+                </div>
+
+                <h5>User Journey → Release Slices</h5>
+                <p>
+                  Horizontal slices through the map become candidate releases.
+                  Not every activity needs new capability in every release —
+                  some cells stay empty, and that's fine if the slice is still
+                  coherent:
+                </p>
+                <div class="code-block">
+                  <div class="code-block-header">
+                    <span>diagram</span>
+                    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                  </div>
+                  <pre><code>              UPLOAD    →   EXTRACT    →   ARRANGE     →   SHARE
+
+Release 1:    basic         auto                           export
+              ───────────────────────────────────────────────────
+Release 2:                  palette        manual
+              ───────────────────────────────────────────────────
+Release 3:    batch         AI themes      templates       embed</code></pre>
+                </div>
+
+                <h5>Release Slices → SLC Releases</h5>
+                <p>
+                  The story map gives you <em>structure</em> for slicing. Jason
+                  Cohen's
+                  <a href="https://longform.asmartbear.com/slc/"
+                    >Simple, Lovable, Complete (SLC)</a
+                  >
+                  gives you <em>criteria</em> for what makes a slice good:
+                </p>
+                <ul>
+                  <li>
+                    <em>Simple</em> – Narrow scope you can ship fast. Not every
+                    activity, not every depth.
+                  </li>
+                  <li>
+                    <em>Complete</em> – Fully accomplishes a job within that
+                    scope. Not a broken preview.
+                  </li>
+                  <li>
+                    <em>Lovable</em> – People actually want to use it.
+                    Delightful within its boundaries.
+                  </li>
+                </ul>
+
+                <p>
+                  <strong>Why SLC over MVP?</strong> MVPs optimize for learning
+                  at the customer's expense – "minimum" often means broken or
+                  frustrating. SLC flips this: learn in-market
+                  <em>while</em> delivering real value. If it succeeds, you have
+                  optionality. If it fails, you still treated users well.
+                </p>
+
+                <p>
+                  Each slice can become a release with a clear value and
+                  identity:
+                </p>
+                <div class="code-block">
+                  <div class="code-block-header">
+                    <span>diagram</span>
+                    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                  </div>
+                  <pre><code>                 UPLOAD  →   EXTRACT    →   ARRANGE     →   SHARE
+
+Palette Picker:  basic       auto                           export
+                 ───────────────────────────────────────────────────
+Mood Board:                  palette        manual
+                ───────────────────────────────────────────────────
+Design Studio:   batch       AI themes      templates       embed</code></pre>
+                </div>
+                <ul>
+                  <li>
+                    <em>Palette Picker</em> – Upload, extract, export. Instant
+                    value from day one.
+                  </li>
+                  <li>
+                    <em>Mood Board</em> – Adds arrangement. Creative expression
+                    enters the journey.
+                  </li>
+                  <li>
+                    <em>Design Studio</em> – Professional features: batch
+                    processing, AI themes, embeddable output.
+                  </li>
+                </ul>
+
+                <h5>Operationalizing with Ralph</h5>
+                <p>
+                  The concepts above – activities, story maps, SLC releases –
+                  are the <em>thinking tools</em>. How do we translate them into
+                  Ralph's workflow?
+                </p>
+
+                <p><em>Default Ralph approach:</em></p>
+                <ol>
+                  <li>
+                    <em>Define Requirements</em>: Human + LLM define JTBD topics
+                    of concern → <code>specs/*.md</code>
+                  </li>
+                  <li>
+                    <em>Create Tasks Plan</em>: LLM analyzes all specs + current
+                    code → <code>IMPLEMENTATION_PLAN.md</code>
+                  </li>
+                  <li><em>Build</em>: Ralph builds against full scope</li>
+                </ol>
+
+                <p>
+                  This works well for capability-focused work (features,
+                  refactors, infrastructure). But it doesn't naturally produce
+                  valuable (SLC) product releases – it produces "whatever the
+                  specs describe".
+                </p>
+
+                <p><em>Activities → SLC Release approach:</em></p>
+                <p>
+                  To get SLC releases, we need to ground activities in audience
+                  context. Audience defines WHO has the JTBDs, which in turn
+                  informs WHAT activities matter and what "lovable" means.
+                </p>
+                <div class="code-block">
+                  <div class="code-block-header">
+                    <span>diagram</span>
+                    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                  </div>
+                  <pre><code>Audience (who)
+    └── has JTBDs (why)
+            └── fulfilled by Activities (how)</code></pre>
+                </div>
+
+                <h5>Workflow</h5>
+                <p><em>I. Requirements Phase (2 steps):</em></p>
+                <p>
+                  Still performed in LLM conversations with the human, similar
+                  to the default Ralph approach.
+                </p>
+                <ol>
+                  <li>
+                    <em>Define audience and their JTBDs</em> – WHO are we
+                    building for and what OUTCOMES do they want?
+                    <ul>
+                      <li>
+                        Human + LLM discuss and determine the audience(s) and
+                        their JTBDs (outcomes they want)
+                      </li>
+                      <li>
+                        May contain multiple connected audiences (e.g.
+                        "designer" creates, "client" reviews)
+                      </li>
+                      <li>Generates <code>AUDIENCE_JTBD.md</code></li>
+                    </ul>
+                  </li>
+                  <li>
+                    <em>Define activities</em> – WHAT do users do to accomplish
+                    their JTBDs?
+                    <ul>
+                      <li>Informed by <code>AUDIENCE_JTBD.md</code></li>
+                      <li>
+                        For each JTBD, identify activities necessary to
+                        accomplish it
+                      </li>
+                      <li>
+                        For each activity, determine:
+                        <ul>
+                          <li>
+                            Capability depths (basic → enhanced) – levels of
+                            sophistication
+                          </li>
+                          <li>
+                            Desired outcome(s) at each depth – what does success
+                            look like?
+                          </li>
+                        </ul>
+                      </li>
+                      <li>
+                        Generates <code>specs/*.md</code> (one per activity)
+                      </li>
+                    </ul>
+                  </li>
+                </ol>
+                <p>
+                  The discrete steps within activities are implicit and LLM can
+                  infer them during planning.
+                </p>
+
+                <p><em>II. Planning Phase:</em></p>
+                <p>
+                  Performed in Ralph loop with <em>updated</em> planning prompt.
+                </p>
+                <ul>
+                  <li>
+                    LLM analyzes:
+                    <ul>
+                      <li>
+                        <code>AUDIENCE_JTBD.md</code> (who, desired outcomes)
+                      </li>
+                      <li><code>specs/*</code> (what could be built)</li>
+                      <li>Current code state (what exists)</li>
+                    </ul>
+                  </li>
+                  <li>
+                    LLM determines next SLC slice (which activities, at what
+                    capability depths) and plans tasks for that slice
+                  </li>
+                  <li>LLM generates <code>IMPLEMENTATION_PLAN.md</code></li>
+                  <li>
+                    <em>Human verifies</em> plan before building:
+                    <ul>
+                      <li>Does the scope represent a coherent SLC release?</li>
+                      <li>
+                        Are the right activities included at the right depths?
+                      </li>
+                      <li>
+                        If wrong → re-run planning loop to regenerate plan,
+                        optionally updating inputs or planning prompt
+                      </li>
+                      <li>If right → proceed to building</li>
+                    </ul>
+                  </li>
+                </ul>
+
+                <p>
+                  <em>III. Building Phase:</em> Performed in Ralph loop with
+                  standard building prompt.
+                </p>
+
+                  <h5>Updated <code></code>PROMPT_plan_slc.md</code> Template</h5>
+                    <p>
+                      Variant of <code>PROMPT_plan.md</code> that adds audience
+                      context and SLC-oriented slice recommendation.
+                    </p>
+                    <p>
+                      <em>Notes:</em>
+                      <ul>
+                        <li>Unlike the default template, this does not
+                      have a <code>[project-specific goal]</code> placeholder –
+                      the goal is implicit: recommend the most valuable next
+                      release for the audience.
+                      </li>
+                      <li>
+                        Current subagents names presume using Claude.
+                      </li>
+                    </ul>
+                    </p>
+                    <div class="code-block">
+                      <div class="code-block-header">
+                        <span>PROMPT_plan_slc.md</span>
+                        <button class="copy-btn" onclick="copyCode(this)">
+                          Copy
+                        </button>
+                      </div>
+                      <pre><code>0a. Study @AUDIENCE_JTBD.md to understand who we're building for and their Jobs to Be Done.
+0b. Study `specs/*` with up to 250 parallel Sonnet subagents to learn JTBD activities.
+0c. Study @IMPLEMENTATION_PLAN.md (if present) to understand the plan so far.
+0d. Study `src/lib/*` with up to 250 parallel Sonnet subagents to understand shared utilities &amp; components.
+0e. For reference, the application source code is in `src/*`.
+
+1. Sequence the activities in `specs/*` into a user journey map for the audience in @AUDIENCE_JTBD.md. Consider how activities flow into each other and what dependencies exist.
+
+2. Determine the next SLC release. Use up to 500 Sonnet subagents to compare `src/*` against `specs/*`. Use an Opus subagent to analyze findings. Ultrathink. Given what's already implemented recommend which activities (at what capability depths) form the most valuable next release. Prefer thin horizontal slices - the narrowest scope that still delivers real value. A good slice is Simple (narrow, achievable), Lovable (people want to use it), and Complete (fully accomplishes a meaningful job, not a broken preview).
+
+3. Use an Opus subagent (ultrathink) to analyze and synthesize the findings, prioritize tasks, and create/update @IMPLEMENTATION_PLAN.md as a bullet point list sorted in priority of items yet to be implemented for the recommended SLC release. Begin plan with a summary of the recommended SLC release (what's included and why), then list prioritized tasks for that scope. Consider TODOs, placeholders, minimal implementations, skipped tests - but scoped to the release. Note discoveries outside scope as future work.
+
+IMPORTANT: Plan only. Do NOT implement anything. Do NOT assume functionality is missing; confirm with code search first. Treat `src/lib` as the project's standard library for shared utilities and components. Prefer consolidated, idiomatic implementations there over ad-hoc copies.
+
+ULTIMATE GOAL: We want to achieve the most valuable next release for the audience in @AUDIENCE_JTBD.md. Consider missing elements and plan accordingly. If an element is missing, search first to confirm it doesn't exist, then if needed author the specification at specs/FILENAME.md. If you create a new element then document the plan to implement it in @IMPLEMENTATION_PLAN.md using a subagent.</code></pre>
+                    </div>
+
+                <h5>Notes</h5>
+                <p>
+                  <em
+                    >Why <code>AUDIENCE_JTBD.md</code> as a separate
+                    artifact:</em
+                  >
+                </p>
+                <ul>
+                  <li>Single source of truth – prevents drift across specs</li>
+                  <li>
+                    Enables holistic reasoning: "What does this audience need
+                    MOST?"
+                  </li>
+                  <li>
+                    JTBDs captured alongside audience (the "why" lives with the
+                    "who")
+                  </li>
+                  <li>
+                    Referenced twice: during spec creation AND SLC planning
+                  </li>
+                  <li>
+                    Keeps activity specs focused on WHAT, not repeating WHO
+                  </li>
+                </ul>
+
+                <p><em>Cardinalities:</em></p>
+                <ul>
+                  <li>
+                    One audience → many JTBDs ("Designer" has "capture space",
+                    "explore concepts", "present to client")
+                  </li>
+                  <li>
+                    One JTBD → many activities ("capture space" includes upload,
+                    measurements, room detection)
+                  </li>
+                  <li>
+                    One activity → can serve multiple JTBDs ("upload photo"
+                    serves both "capture" and "gather inspiration")
+                  </li>
+                </ul>
+              </div>
+            </details>
+          </section>
+
+          <!-- Footer -->
+          <footer class="article-footer">
+            <p>
+              View source on
+              <a href="https://github.com/ClaytonFarr/ralph-playbook">GitHub</a
+              >.
+            </p>
+          </footer>
+        </main>
+
+        <!-- Sidebar TOC -->
+        <aside class="toc-sidebar">
+          <nav class="toc-nav" aria-label="Table of contents">
+            <ul class="toc-list">
+              <li><a href="#intro" class="toc-link">Intro</a></li>
+              <li><a href="#workflow" class="toc-link">Workflow</a></li>
+              <li>
+                <a href="#key-principles" class="toc-link">Key Principles</a>
+              </li>
+              <li>
+                <a href="#loop-mechanics" class="toc-link">Loop Mechanics</a>
+              </li>
+              <li><a href="#files" class="toc-link">Files</a></li>
+              <li>
+                <a href="#enhancements" class="toc-link">Enhancements?</a>
+              </li>
+            </ul>
+          </nav>
+        </aside>
+      </div>
+    </div>
+
+    <script>
+      // Copy to clipboard functionality
+      function copyCode(button) {
+        const codeBlock = button
+          .closest(".code-block")
+          .querySelector("pre code");
+        const text = codeBlock.textContent;
+
+        navigator.clipboard.writeText(text).then(() => {
+          const originalText = button.textContent;
+          button.textContent = "Copied!";
+          button.style.color = "#00aa44";
+          setTimeout(() => {
+            button.textContent = originalText;
+            button.style.color = "";
+          }, 2000);
+        });
+      }
+
+      // Highlight current TOC item on scroll
+      const tocLinks = document.querySelectorAll(".toc-link");
+      const sections = document.querySelectorAll("section[id], header[id]");
+
+      function updateTocHighlight() {
+        const scrollPos = window.scrollY + 100;
+        let activeSet = false;
+
+        // Check if we're at the very top (intro section)
+        if (scrollPos < 200) {
+          tocLinks.forEach((link) => {
+            link.classList.remove("active");
+            if (link.getAttribute("href") === "#intro") {
+              link.classList.add("active");
+            }
+          });
+          return;
+        }
+
+        sections.forEach((section) => {
+          const sectionTop = section.offsetTop;
+          const sectionHeight = section.offsetHeight;
+          const sectionId = section.getAttribute("id");
+
+          if (
+            scrollPos >= sectionTop &&
+            scrollPos < sectionTop + sectionHeight
+          ) {
+            tocLinks.forEach((link) => {
+              link.classList.remove("active");
+              if (link.getAttribute("href") === "#" + sectionId) {
+                link.classList.add("active");
+                activeSet = true;
+              }
+            });
+          }
+        });
+      }
+
+      window.addEventListener("scroll", updateTocHighlight);
+      updateTocHighlight();
+    </script>
+  </body>
+</html>
