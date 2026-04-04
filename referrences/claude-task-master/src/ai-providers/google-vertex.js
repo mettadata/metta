@@ -1,0 +1,202 @@
+/**
+ * google-vertex.js
+ * AI provider implementation for Google Vertex AI models using Vercel AI SDK.
+ */
+
+import { createVertex } from '@ai-sdk/google-vertex';
+import { resolveEnvVariable } from '../../scripts/modules/utils.js';
+import { log } from '../../scripts/modules/utils.js';
+import { BaseAIProvider } from './base-provider.js';
+
+// Vertex-specific error classes
+class VertexAuthError extends Error {
+	constructor(message) {
+		super(message);
+		this.name = 'VertexAuthError';
+		this.code = 'vertex_auth_error';
+	}
+}
+
+class VertexConfigError extends Error {
+	constructor(message) {
+		super(message);
+		this.name = 'VertexConfigError';
+		this.code = 'vertex_config_error';
+	}
+}
+
+class VertexApiError extends Error {
+	constructor(message, statusCode) {
+		super(message);
+		this.name = 'VertexApiError';
+		this.code = 'vertex_api_error';
+		this.statusCode = statusCode;
+	}
+}
+
+export class VertexAIProvider extends BaseAIProvider {
+	constructor() {
+		super();
+		this.name = 'Google Vertex AI';
+	}
+
+	/**
+	 * Returns the required API key environment variable name for Google Vertex AI.
+	 * @returns {string} The environment variable name
+	 */
+	getRequiredApiKeyName() {
+		return 'GOOGLE_API_KEY';
+	}
+
+	/**
+	 * API key is optional, Service Account credentials can be used instead.
+	 * @returns {boolean}
+	 */
+	isRequiredApiKey() {
+		return false;
+	}
+
+	/**
+	 * API key  or  Service Account  is mandatory.
+	 * @returns {boolean}
+	 */
+	isAuthenticationRequired() {
+		return true;
+	}
+
+	/**
+	 * Validates that a credential value is present and non-empty.
+	 * @private
+	 * @param {string|object|null|undefined} value
+	 * @returns {boolean}
+	 */
+	isValidCredential(value) {
+		if (!value) return false;
+		if (typeof value === 'string') {
+			return value.trim().length > 0;
+		}
+		return typeof value === 'object';
+	}
+
+	/**
+	 * Validates Vertex AI-specific authentication parameters
+	 * @param {object} params - Parameters to validate
+	 * @throws {VertexAuthError|VertexConfigError}
+	 */
+	validateAuth(params) {
+		const { apiKey, projectId, location, credentials } = params;
+
+		// Check for API key OR service account credentials
+		const hasValidApiKey = this.isValidCredential(apiKey);
+		const hasValidCredentials = this.isValidCredential(credentials);
+
+		if (!hasValidApiKey && !hasValidCredentials) {
+			throw new VertexAuthError(
+				'Vertex AI requires authentication. Provide one of the following:\n' +
+					'  • GOOGLE_API_KEY environment variable (typical for API-based auth), OR\n' +
+					'  • GOOGLE_APPLICATION_CREDENTIALS pointing to a service account JSON file (recommended for production)'
+			);
+		}
+
+		// Project ID is required for Vertex AI
+		if (
+			!projectId ||
+			(typeof projectId === 'string' && projectId.trim().length === 0)
+		) {
+			throw new VertexConfigError(
+				'Google Cloud project ID is required for Vertex AI. Set VERTEX_PROJECT_ID environment variable.'
+			);
+		}
+
+		// Location is required for Vertex AI
+		if (
+			!location ||
+			(typeof location === 'string' && location.trim().length === 0)
+		) {
+			throw new VertexConfigError(
+				'Google Cloud location is required for Vertex AI. Set VERTEX_LOCATION environment variable (e.g., "us-central1").'
+			);
+		}
+	}
+
+	/**
+	 * Creates and returns a Google Vertex AI client instance.
+	 * @param {object} params - Parameters for client initialization
+	 * @param {string} [params.apiKey] - Google API key
+	 * @param {string} params.projectId - Google Cloud project ID
+	 * @param {string} params.location - Google Cloud location (e.g., "us-central1")
+	 * @param {object} [params.credentials] - Service account credentials object
+	 * @param {string} [params.baseURL] - Optional custom API endpoint
+	 * @returns {Function} Google Vertex AI client function
+	 * @throws {Error} If required parameters are missing or initialization fails
+	 */
+	getClient(params) {
+		try {
+			const { apiKey, projectId, location, credentials, baseURL } = params;
+			const fetchImpl = this.createProxyFetch();
+
+			// Configure auth options - either API key or service account
+			const authOptions = {};
+			if (apiKey) {
+				// Vercel AI SDK expects googleAuthOptions even when using apiKey for some configurations
+				authOptions.googleAuthOptions = {
+					...credentials,
+					apiKey
+				};
+			} else if (credentials) {
+				authOptions.googleAuthOptions = credentials;
+			}
+
+			// Return Vertex AI client
+			return createVertex({
+				...authOptions,
+				project: projectId,
+				location,
+				...(baseURL && { baseURL }),
+				...(fetchImpl && { fetch: fetchImpl })
+			});
+		} catch (error) {
+			this.handleError('client initialization', error);
+		}
+	}
+
+	/**
+	 * Handle errors from Vertex AI
+	 * @param {string} operation - Description of the operation that failed
+	 * @param {Error} error - The error object
+	 * @throws {Error} Rethrows the error with additional context
+	 */
+	handleError(operation, error) {
+		log('error', `Vertex AI ${operation} error:`, error);
+
+		// Handle known error types
+		if (
+			error.name === 'VertexAuthError' ||
+			error.name === 'VertexConfigError' ||
+			error.name === 'VertexApiError'
+		) {
+			throw error;
+		}
+
+		// Handle network/API errors
+		if (error.response) {
+			const statusCode = error.response.status;
+			const errorMessage = error.response.data?.error?.message || error.message;
+
+			// Categorize by status code
+			if (statusCode === 401 || statusCode === 403) {
+				throw new VertexAuthError(`Authentication failed: ${errorMessage}`);
+			} else if (statusCode === 400) {
+				throw new VertexConfigError(`Invalid request: ${errorMessage}`);
+			} else {
+				throw new VertexApiError(
+					`API error (${statusCode}): ${errorMessage}`,
+					statusCode
+				);
+			}
+		}
+
+		// Generic error handling
+		throw new Error(`Vertex AI ${operation} failed: ${error.message}`);
+	}
+}

@@ -1,0 +1,1027 @@
+/**
+ * @fileoverview Refactored file-based storage implementation for Task Master
+ */
+
+import fs from 'node:fs';
+import path from 'node:path';
+import {
+	ERROR_CODES,
+	TaskMasterError
+} from '../../../../common/errors/task-master-error.js';
+import type {
+	IStorage,
+	LoadTasksOptions,
+	StorageStats,
+	UpdateStatusResult,
+	WatchEvent,
+	WatchOptions,
+	WatchSubscription
+} from '../../../../common/interfaces/storage.interface.js';
+import type {
+	Task,
+	TaskMetadata,
+	TaskStatus
+} from '../../../../common/types/index.js';
+import { ComplexityReportManager } from '../../../reports/managers/complexity-report-manager.js';
+import { FileOperations } from './file-operations.js';
+import { FormatHandler } from './format-handler.js';
+import { PathResolver } from './path-resolver.js';
+
+/**
+ * File-based storage implementation using a single tasks.json file with separated concerns
+ */
+export class FileStorage implements IStorage {
+	private formatHandler: FormatHandler;
+	private fileOps: FileOperations;
+	private pathResolver: PathResolver;
+	private complexityManager: ComplexityReportManager;
+
+	constructor(projectPath: string) {
+		this.formatHandler = new FormatHandler();
+		this.fileOps = new FileOperations();
+		this.pathResolver = new PathResolver(projectPath);
+		this.complexityManager = new ComplexityReportManager(projectPath);
+	}
+
+	/**
+	 * Initialize storage by creating necessary directories
+	 */
+	async initialize(): Promise<void> {
+		await this.fileOps.ensureDir(this.pathResolver.getTasksDir());
+	}
+
+	/**
+	 * Close storage and cleanup resources
+	 */
+	async close(): Promise<void> {
+		await this.fileOps.cleanup();
+	}
+
+	/**
+	 * Get the storage type
+	 */
+	getStorageType(): 'file' {
+		return 'file';
+	}
+
+	/**
+	 * Get the current brief name (not applicable for file storage)
+	 * @returns null (file storage doesn't use briefs)
+	 */
+	getCurrentBriefName(): null {
+		return null;
+	}
+
+	/**
+	 * Get statistics about the storage
+	 */
+	async getStats(): Promise<StorageStats> {
+		const filePath = this.pathResolver.getTasksPath();
+
+		try {
+			const stats = await this.fileOps.getStats(filePath);
+			const data = await this.fileOps.readJson(filePath);
+			const tags = this.formatHandler.extractTags(data);
+
+			let totalTasks = 0;
+			const tagStats = tags.map((tag) => {
+				const tasks = this.formatHandler.extractTasks(data, tag);
+				const taskCount = tasks.length;
+				totalTasks += taskCount;
+
+				return {
+					tag,
+					taskCount,
+					lastModified: stats.mtime.toISOString()
+				};
+			});
+
+			return {
+				totalTasks,
+				totalTags: tags.length,
+				lastModified: stats.mtime.toISOString(),
+				storageSize: 0, // Could calculate actual file sizes if needed
+				tagStats
+			};
+		} catch (error: any) {
+			if (error.code === 'ENOENT') {
+				return {
+					totalTasks: 0,
+					totalTags: 0,
+					lastModified: new Date().toISOString(),
+					storageSize: 0,
+					tagStats: []
+				};
+			}
+			throw new Error(`Failed to get storage stats: ${error.message}`);
+		}
+	}
+
+	/**
+	 * Load tasks from the single tasks.json file for a specific tag
+	 * Enriches tasks with complexity data from the complexity report
+	 */
+	async loadTasks(tag?: string, options?: LoadTasksOptions): Promise<Task[]> {
+		const filePath = this.pathResolver.getTasksPath();
+		const resolvedTag = tag || 'master';
+
+		try {
+			const rawData = await this.fileOps.readJson(filePath);
+			let tasks = this.formatHandler.extractTasks(rawData, resolvedTag);
+
+			// Apply filters if provided
+			if (options) {
+				// Filter by status if specified
+				if (options.status) {
+					tasks = tasks.filter((task) => task.status === options.status);
+				}
+
+				// Exclude subtasks if specified
+				if (options.excludeSubtasks) {
+					tasks = tasks.map((task) => ({
+						...task,
+						subtasks: []
+					}));
+				}
+			}
+
+			return await this.enrichTasksWithComplexity(tasks, resolvedTag);
+		} catch (error: any) {
+			if (error.code === 'ENOENT') {
+				return []; // File doesn't exist, return empty array
+			}
+			throw new Error(`Failed to load tasks: ${error.message}`);
+		}
+	}
+
+	/**
+	 * Load a single task by ID from the tasks.json file
+	 * Handles both regular tasks and subtasks (with dotted notation like "1.2")
+	 */
+	async loadTask(taskId: string, tag?: string): Promise<Task | null> {
+		const tasks = await this.loadTasks(tag);
+
+		// Check if this is a subtask (contains a dot)
+		if (taskId.includes('.')) {
+			const [parentId, subtaskId] = taskId.split('.');
+			const parentTask = tasks.find((t) => String(t.id) === parentId);
+
+			if (!parentTask || !parentTask.subtasks) {
+				return null;
+			}
+
+			const subtask = parentTask.subtasks.find(
+				(st) => String(st.id) === subtaskId
+			);
+			if (!subtask) {
+				return null;
+			}
+
+			const toFullSubId = (maybeDotId: string | number): string => {
+				const depId = String(maybeDotId);
+				return depId.includes('.') ? depId : `${parentTask.id}.${depId}`;
+			};
+			const resolvedDependencies =
+				subtask.dependencies?.map((dep) => toFullSubId(dep)) ?? [];
+
+			// Return a Task-like object for the subtask with the full dotted ID
+			// Following the same pattern as findTaskById in utils.js
+			const subtaskResult = {
+				...subtask,
+				id: taskId, // Use the full dotted ID
+				title: subtask.title || `Subtask ${subtaskId}`,
+				description: subtask.description || '',
+				status: subtask.status || 'pending',
+				priority: subtask.priority || parentTask.priority || 'medium',
+				dependencies: resolvedDependencies,
+				details: subtask.details || '',
+				testStrategy: subtask.testStrategy || '',
+				subtasks: [],
+				tags: parentTask.tags || [],
+				assignee: subtask.assignee || parentTask.assignee,
+				complexity: subtask.complexity || parentTask.complexity,
+				createdAt: subtask.createdAt || parentTask.createdAt,
+				updatedAt: subtask.updatedAt || parentTask.updatedAt,
+				// Add reference to parent task for context (like utils.js does)
+				parentTask: {
+					id: parentTask.id,
+					title: parentTask.title,
+					status: parentTask.status
+				},
+				isSubtask: true
+			};
+
+			return subtaskResult;
+		}
+
+		// Handle regular task lookup
+		return tasks.find((task) => String(task.id) === String(taskId)) || null;
+	}
+
+	/**
+	 * Save tasks for a specific tag in the single tasks.json file
+	 * Uses modifyJson for atomic read-modify-write to prevent lost updates
+	 */
+	async saveTasks(tasks: Task[], tag?: string): Promise<void> {
+		const filePath = this.pathResolver.getTasksPath();
+		const resolvedTag = tag || 'master';
+
+		// Ensure directory exists
+		await this.fileOps.ensureDir(this.pathResolver.getTasksDir());
+
+		// Create metadata for this tag
+		const metadata: TaskMetadata = {
+			version: '1.0.0',
+			lastModified: new Date().toISOString(),
+			taskCount: tasks.length,
+			completedCount: tasks.filter((t) => t.status === 'done').length,
+			tags: [resolvedTag]
+		};
+
+		// Normalize tasks
+		const normalizedTasks = this.normalizeTaskIds(tasks);
+
+		// Use modifyJson for atomic read-modify-write
+		await this.fileOps.modifyJson(filePath, (existingData: any) => {
+			// Update the specific tag in the existing data structure
+			if (
+				this.formatHandler.detectFormat(existingData) === 'legacy' ||
+				Object.keys(existingData).some(
+					(key) => key !== 'tasks' && key !== 'metadata'
+				)
+			) {
+				// Legacy format - update/add the tag
+				existingData[resolvedTag] = {
+					tasks: normalizedTasks,
+					metadata
+				};
+				return existingData;
+			} else if (resolvedTag === 'master') {
+				// Standard format for master tag
+				return {
+					tasks: normalizedTasks,
+					metadata
+				};
+			} else {
+				// Convert to legacy format when adding non-master tags
+				const masterTasks = existingData.tasks || [];
+				const masterMetadata = existingData.metadata || metadata;
+
+				return {
+					master: {
+						tasks: masterTasks,
+						metadata: masterMetadata
+					},
+					[resolvedTag]: {
+						tasks: normalizedTasks,
+						metadata
+					}
+				};
+			}
+		});
+	}
+
+	/**
+	 * Normalize task IDs - keep Task IDs as strings, Subtask IDs as numbers
+	 * Note: Uses spread operator to preserve all task properties including user-defined metadata
+	 */
+	private normalizeTaskIds(tasks: Task[]): Task[] {
+		return tasks.map((task) => ({
+			...task,
+			id: String(task.id), // Task IDs are strings
+			dependencies: task.dependencies?.map((dep) => String(dep)) || [],
+			subtasks:
+				task.subtasks?.map((subtask) => ({
+					...subtask,
+					id: Number(subtask.id), // Subtask IDs are numbers
+					parentId: String(subtask.parentId) // Parent ID is string (Task ID)
+				})) || []
+		}));
+	}
+
+	/**
+	 * Check if the tasks file exists
+	 */
+	async exists(_tag?: string): Promise<boolean> {
+		const filePath = this.pathResolver.getTasksPath();
+		return this.fileOps.exists(filePath);
+	}
+
+	/**
+	 * Get all available tags from the single tasks.json file
+	 */
+	async getAllTags(): Promise<string[]> {
+		try {
+			const filePath = this.pathResolver.getTasksPath();
+			const data = await this.fileOps.readJson(filePath);
+			return this.formatHandler.extractTags(data);
+		} catch (error: any) {
+			if (error.code === 'ENOENT') {
+				return []; // File doesn't exist
+			}
+			throw new Error(`Failed to get tags: ${error.message}`);
+		}
+	}
+
+	/**
+	 * Load metadata from the single tasks.json file for a specific tag
+	 */
+	async loadMetadata(tag?: string): Promise<TaskMetadata | null> {
+		const filePath = this.pathResolver.getTasksPath();
+		const resolvedTag = tag || 'master';
+
+		try {
+			const rawData = await this.fileOps.readJson(filePath);
+			return this.formatHandler.extractMetadata(rawData, resolvedTag);
+		} catch (error: any) {
+			if (error.code === 'ENOENT') {
+				return null;
+			}
+			throw new Error(`Failed to load metadata: ${error.message}`);
+		}
+	}
+
+	/**
+	 * Save metadata (stored with tasks)
+	 */
+	async saveMetadata(_metadata: TaskMetadata, tag?: string): Promise<void> {
+		const tasks = await this.loadTasks(tag);
+		await this.saveTasks(tasks, tag);
+	}
+
+	/**
+	 * Append tasks to existing storage
+	 */
+	async appendTasks(tasks: Task[], tag?: string): Promise<void> {
+		const existingTasks = await this.loadTasks(tag);
+		const allTasks = [...existingTasks, ...tasks];
+		await this.saveTasks(allTasks, tag);
+	}
+
+	/**
+	 * Update a specific task
+	 */
+	async updateTask(
+		taskId: string,
+		updates: Partial<Task>,
+		tag?: string
+	): Promise<void> {
+		const tasks = await this.loadTasks(tag);
+		const taskIndex = tasks.findIndex((t) => String(t.id) === String(taskId));
+
+		if (taskIndex === -1) {
+			throw new Error(`Task ${taskId} not found`);
+		}
+
+		const existingTask = tasks[taskIndex];
+
+		// Preserve subtask metadata when subtasks are updated
+		// AI operations don't include metadata in returned subtasks
+		let mergedSubtasks = updates.subtasks;
+		if (updates.subtasks && existingTask.subtasks) {
+			mergedSubtasks = updates.subtasks.map((updatedSubtask) => {
+				// Type-coerce IDs for comparison; fall back to title match if IDs don't match
+				const originalSubtask = existingTask.subtasks?.find(
+					(st) =>
+						String(st.id) === String(updatedSubtask.id) ||
+						(updatedSubtask.title && st.title === updatedSubtask.title)
+				);
+				// Merge metadata: preserve original and add/override with new
+				if (originalSubtask?.metadata || updatedSubtask.metadata) {
+					return {
+						...updatedSubtask,
+						metadata: {
+							...(originalSubtask?.metadata || {}),
+							...(updatedSubtask.metadata || {})
+						}
+					};
+				}
+				return updatedSubtask;
+			});
+		}
+
+		tasks[taskIndex] = {
+			...existingTask,
+			...updates,
+			...(mergedSubtasks && { subtasks: mergedSubtasks }),
+			id: String(taskId) // Keep consistent with normalizeTaskIds
+		};
+		await this.saveTasks(tasks, tag);
+	}
+
+	/**
+	 * Update task with AI-powered prompt
+	 * For file storage, this should NOT be called - client must handle AI processing first
+	 */
+	async updateTaskWithPrompt(
+		_taskId: string,
+		_prompt: string,
+		_tag?: string,
+		_options?: { useResearch?: boolean; mode?: 'append' | 'update' | 'rewrite' }
+	): Promise<void> {
+		throw new Error(
+			'File storage does not support updateTaskWithPrompt. ' +
+				'Client-side AI logic must process the prompt before calling updateTask().'
+		);
+	}
+
+	/**
+	 * Expand task into subtasks with AI-powered generation
+	 * For file storage, this should NOT be called - client must handle AI processing first
+	 */
+	async expandTaskWithPrompt(
+		_taskId: string,
+		_tag?: string,
+		_options?: {
+			numSubtasks?: number;
+			useResearch?: boolean;
+			additionalContext?: string;
+			force?: boolean;
+		}
+	): Promise<void> {
+		throw new Error(
+			'File storage does not support expandTaskWithPrompt. ' +
+				'Client-side AI logic must process the expansion before calling updateTask().'
+		);
+	}
+
+	/**
+	 * Update task or subtask status by ID - handles file storage logic with parent/subtask relationships
+	 */
+	async updateTaskStatus(
+		taskId: string,
+		newStatus: TaskStatus,
+		tag?: string
+	): Promise<UpdateStatusResult> {
+		const tasks = await this.loadTasks(tag);
+
+		// Check if this is a subtask (contains a dot)
+		if (taskId.includes('.')) {
+			return this.updateSubtaskStatusInFile(tasks, taskId, newStatus, tag);
+		}
+
+		// Handle regular task update
+		const taskIndex = tasks.findIndex((t) => String(t.id) === String(taskId));
+
+		if (taskIndex === -1) {
+			throw new Error(`Task ${taskId} not found`);
+		}
+
+		const oldStatus = tasks[taskIndex].status;
+		if (oldStatus === newStatus) {
+			return {
+				success: true,
+				oldStatus,
+				newStatus,
+				taskId: String(taskId)
+			};
+		}
+
+		tasks[taskIndex] = {
+			...tasks[taskIndex],
+			status: newStatus,
+			updatedAt: new Date().toISOString()
+		};
+
+		await this.saveTasks(tasks, tag);
+
+		return {
+			success: true,
+			oldStatus,
+			newStatus,
+			taskId: String(taskId)
+		};
+	}
+
+	/**
+	 * Update subtask status within file storage - handles parent status auto-adjustment
+	 */
+	private async updateSubtaskStatusInFile(
+		tasks: Task[],
+		subtaskId: string,
+		newStatus: TaskStatus,
+		tag?: string
+	): Promise<UpdateStatusResult> {
+		// Parse the subtask ID to get parent ID and subtask ID
+		const parts = subtaskId.split('.');
+		if (parts.length !== 2) {
+			throw new Error(
+				`Invalid subtask ID format: ${subtaskId}. Expected format: parentId.subtaskId`
+			);
+		}
+
+		const [parentId, subIdRaw] = parts;
+		const subId = subIdRaw.trim();
+		if (!/^\d+$/.test(subId)) {
+			throw new Error(
+				`Invalid subtask ID: ${subId}. Subtask ID must be a positive integer.`
+			);
+		}
+		const subtaskNumericId = Number(subId);
+
+		// Find the parent task
+		const parentTaskIndex = tasks.findIndex(
+			(t) => String(t.id) === String(parentId)
+		);
+
+		if (parentTaskIndex === -1) {
+			throw new Error(`Parent task ${parentId} not found`);
+		}
+
+		const parentTask = tasks[parentTaskIndex];
+
+		// Find the subtask within the parent task
+		const subtaskIndex = parentTask.subtasks.findIndex(
+			(st) => st.id === subtaskNumericId || String(st.id) === subId
+		);
+
+		if (subtaskIndex === -1) {
+			throw new Error(
+				`Subtask ${subtaskId} not found in parent task ${parentId}`
+			);
+		}
+
+		const oldStatus = parentTask.subtasks[subtaskIndex].status || 'pending';
+		if (oldStatus === newStatus) {
+			return {
+				success: true,
+				oldStatus,
+				newStatus,
+				taskId: subtaskId
+			};
+		}
+
+		const now = new Date().toISOString();
+
+		// Update the subtask status
+		parentTask.subtasks[subtaskIndex] = {
+			...parentTask.subtasks[subtaskIndex],
+			status: newStatus,
+			updatedAt: now
+		};
+
+		// Auto-adjust parent status based on subtask statuses
+		const subs = parentTask.subtasks;
+		let parentNewStatus = parentTask.status;
+		if (subs.length > 0) {
+			const norm = (s: any) => s.status || 'pending';
+			const isDoneLike = (s: any) => {
+				const st = norm(s);
+				return st === 'done' || st === 'completed';
+			};
+			const allDone = subs.every(isDoneLike);
+			const anyInProgress = subs.some((s) => norm(s) === 'in-progress');
+			const anyDone = subs.some(isDoneLike);
+			const allPending = subs.every((s) => norm(s) === 'pending');
+
+			if (allDone) parentNewStatus = 'done';
+			else if (anyInProgress || anyDone) parentNewStatus = 'in-progress';
+			else if (allPending) parentNewStatus = 'pending';
+		}
+
+		// Always bump updatedAt; update status only if changed
+		tasks[parentTaskIndex] = {
+			...parentTask,
+			...(parentNewStatus !== parentTask.status
+				? { status: parentNewStatus }
+				: {}),
+			updatedAt: now
+		};
+
+		await this.saveTasks(tasks, tag);
+
+		return {
+			success: true,
+			oldStatus,
+			newStatus,
+			taskId: subtaskId
+		};
+	}
+
+	/**
+	 * Delete a task
+	 */
+	async deleteTask(taskId: string, tag?: string): Promise<void> {
+		const tasks = await this.loadTasks(tag);
+		const filteredTasks = tasks.filter((t) => String(t.id) !== String(taskId));
+
+		if (filteredTasks.length === tasks.length) {
+			throw new Error(`Task ${taskId} not found`);
+		}
+
+		await this.saveTasks(filteredTasks, tag);
+	}
+
+	/**
+	 * Create a new tag in the tasks.json file
+	 * Uses modifyJson for atomic read-modify-write to prevent lost updates
+	 */
+	async createTag(
+		tagName: string,
+		options?: { copyFrom?: string; description?: string }
+	): Promise<void> {
+		const filePath = this.pathResolver.getTasksPath();
+
+		try {
+			await this.fileOps.modifyJson(filePath, (existingData: any) => {
+				const format = this.formatHandler.detectFormat(existingData);
+
+				if (format === 'legacy') {
+					// Legacy format - add new tag key
+					if (tagName in existingData) {
+						throw new TaskMasterError(
+							`Tag ${tagName} already exists`,
+							ERROR_CODES.VALIDATION_ERROR
+						);
+					}
+
+					// Get tasks to copy if specified
+					let tasksToCopy: any[] = [];
+					if (options?.copyFrom) {
+						if (
+							options.copyFrom in existingData &&
+							existingData[options.copyFrom].tasks
+						) {
+							tasksToCopy = JSON.parse(
+								JSON.stringify(existingData[options.copyFrom].tasks)
+							);
+						}
+					}
+
+					// Create new tag structure
+					existingData[tagName] = {
+						tasks: tasksToCopy,
+						metadata: {
+							created: new Date().toISOString(),
+							updatedAt: new Date().toISOString(),
+							description:
+								options?.description ||
+								`Tag created on ${new Date().toLocaleDateString()}`,
+							tags: [tagName]
+						}
+					};
+
+					return existingData;
+				} else {
+					// Standard format - need to convert to legacy format first
+					const masterTasks = existingData.tasks || [];
+					const masterMetadata = existingData.metadata || {};
+
+					// Get tasks to copy (from master in this case)
+					let tasksToCopy: any[] = [];
+					if (options?.copyFrom === 'master' || !options?.copyFrom) {
+						tasksToCopy = JSON.parse(JSON.stringify(masterTasks));
+					}
+
+					return {
+						master: {
+							tasks: masterTasks,
+							metadata: { ...masterMetadata, tags: ['master'] }
+						},
+						[tagName]: {
+							tasks: tasksToCopy,
+							metadata: {
+								created: new Date().toISOString(),
+								updatedAt: new Date().toISOString(),
+								description:
+									options?.description ||
+									`Tag created on ${new Date().toLocaleDateString()}`,
+								tags: [tagName]
+							}
+						}
+					};
+				}
+			});
+		} catch (error: any) {
+			if (error.code === 'ENOENT') {
+				throw new Error('Tasks file not found - initialize project first');
+			}
+			throw error;
+		}
+	}
+
+	/**
+	 * Delete a tag from the single tasks.json file
+	 * Uses modifyJson for atomic read-modify-write to prevent lost updates
+	 */
+	async deleteTag(tag: string): Promise<void> {
+		const filePath = this.pathResolver.getTasksPath();
+
+		try {
+			// Use modifyJson to handle all cases atomically
+			let shouldDeleteFile = false;
+
+			await this.fileOps.modifyJson(filePath, (data: any) => {
+				if (
+					this.formatHandler.detectFormat(data) !== 'legacy' &&
+					tag === 'master'
+				) {
+					// Standard format - mark for file deletion after lock release
+					shouldDeleteFile = true;
+					return data; // Return unchanged, we'll delete the file after
+				}
+
+				if (this.formatHandler.detectFormat(data) === 'legacy') {
+					// Legacy format - remove the tag key
+					if (tag in data) {
+						delete data[tag];
+						return data;
+					} else {
+						throw new Error(`Tag ${tag} not found`);
+					}
+				} else {
+					throw new Error(`Tag ${tag} not found in standard format`);
+				}
+			});
+
+			// Delete the file if we're removing master tag from standard format
+			if (shouldDeleteFile) {
+				await this.fileOps.deleteFile(filePath);
+			}
+		} catch (error: any) {
+			if (error.code === 'ENOENT') {
+				throw new Error(`Tag ${tag} not found - file doesn't exist`);
+			}
+			throw error;
+		}
+	}
+
+	/**
+	 * Rename a tag within the single tasks.json file
+	 * Uses modifyJson for atomic read-modify-write to prevent lost updates
+	 */
+	async renameTag(oldTag: string, newTag: string): Promise<void> {
+		const filePath = this.pathResolver.getTasksPath();
+
+		try {
+			await this.fileOps.modifyJson(filePath, (existingData: any) => {
+				if (this.formatHandler.detectFormat(existingData) === 'legacy') {
+					// Legacy format - rename the tag key
+					if (oldTag in existingData) {
+						existingData[newTag] = existingData[oldTag];
+						delete existingData[oldTag];
+
+						// Update metadata tags array
+						if (existingData[newTag].metadata) {
+							existingData[newTag].metadata.tags = [newTag];
+						}
+
+						return existingData;
+					} else {
+						throw new Error(`Tag ${oldTag} not found`);
+					}
+				} else if (oldTag === 'master') {
+					// Convert standard format to legacy when renaming master
+					const masterTasks = existingData.tasks || [];
+					const masterMetadata = existingData.metadata || {};
+
+					return {
+						[newTag]: {
+							tasks: masterTasks,
+							metadata: { ...masterMetadata, tags: [newTag] }
+						}
+					};
+				} else {
+					throw new Error(`Tag ${oldTag} not found in standard format`);
+				}
+			});
+		} catch (error: any) {
+			if (error.code === 'ENOENT') {
+				throw new Error(`Tag ${oldTag} not found - file doesn't exist`);
+			}
+			throw error;
+		}
+	}
+
+	/**
+	 * Copy a tag within the single tasks.json file
+	 */
+	async copyTag(sourceTag: string, targetTag: string): Promise<void> {
+		const tasks = await this.loadTasks(sourceTag);
+
+		if (tasks.length === 0) {
+			throw new Error(`Source tag ${sourceTag} not found or has no tasks`);
+		}
+
+		await this.saveTasks(tasks, targetTag);
+	}
+
+	/**
+	 * Get all tags with detailed statistics including task counts
+	 * For file storage, reads tags from tasks.json and calculates statistics
+	 */
+	async getTagsWithStats(): Promise<{
+		tags: Array<{
+			name: string;
+			isCurrent: boolean;
+			taskCount: number;
+			completedTasks: number;
+			statusBreakdown: Record<string, number>;
+			subtaskCounts?: {
+				totalSubtasks: number;
+				subtasksByStatus: Record<string, number>;
+			};
+			created?: string;
+			description?: string;
+		}>;
+		currentTag: string | null;
+		totalTags: number;
+	}> {
+		const availableTags = await this.getAllTags();
+
+		// Get active tag from state.json
+		const activeTag = await this.getActiveTagFromState();
+
+		const tagsWithStats = await Promise.all(
+			availableTags.map(async (tagName) => {
+				try {
+					// Load tasks for this tag
+					const tasks = await this.loadTasks(tagName);
+
+					// Calculate statistics
+					const statusBreakdown: Record<string, number> = {};
+					let completedTasks = 0;
+
+					const subtaskCounts = {
+						totalSubtasks: 0,
+						subtasksByStatus: {} as Record<string, number>
+					};
+
+					tasks.forEach((task) => {
+						// Count task status
+						const status = task.status || 'pending';
+						statusBreakdown[status] = (statusBreakdown[status] || 0) + 1;
+
+						if (status === 'done') {
+							completedTasks++;
+						}
+
+						// Count subtasks
+						if (task.subtasks && task.subtasks.length > 0) {
+							subtaskCounts.totalSubtasks += task.subtasks.length;
+
+							task.subtasks.forEach((subtask) => {
+								const subStatus = subtask.status || 'pending';
+								subtaskCounts.subtasksByStatus[subStatus] =
+									(subtaskCounts.subtasksByStatus[subStatus] || 0) + 1;
+							});
+						}
+					});
+
+					// Load metadata to get created date and description
+					const metadata = await this.loadMetadata(tagName);
+
+					return {
+						name: tagName,
+						isCurrent: tagName === activeTag,
+						taskCount: tasks.length,
+						completedTasks,
+						statusBreakdown,
+						subtaskCounts:
+							subtaskCounts.totalSubtasks > 0 ? subtaskCounts : undefined,
+						created: metadata?.created,
+						description: metadata?.description
+					};
+				} catch (error) {
+					// If we can't load tasks for a tag, return it with 0 tasks
+					return {
+						name: tagName,
+						isCurrent: tagName === activeTag,
+						taskCount: 0,
+						completedTasks: 0,
+						statusBreakdown: {}
+					};
+				}
+			})
+		);
+
+		return {
+			tags: tagsWithStats,
+			currentTag: activeTag,
+			totalTags: tagsWithStats.length
+		};
+	}
+
+	/**
+	 * Get the active tag from state.json
+	 * @returns The active tag name or 'master' as default
+	 */
+	private async getActiveTagFromState(): Promise<string> {
+		try {
+			const statePath = path.join(
+				this.pathResolver.getBasePath(),
+				'state.json'
+			);
+			const stateData = await this.fileOps.readJson(statePath);
+			return stateData?.currentTag || 'master';
+		} catch (error) {
+			// If state.json doesn't exist or can't be read, default to 'master'
+			return 'master';
+		}
+	}
+
+	/**
+	 * Watch for changes to tasks file
+	 * Uses fs.watch with debouncing to detect file changes
+	 */
+	async watch(
+		callback: (event: WatchEvent) => void,
+		options?: WatchOptions
+	): Promise<WatchSubscription> {
+		const tasksPath = this.pathResolver.getTasksPath();
+		const debounceMs = options?.debounceMs ?? 100;
+
+		// Ensure file exists before watching
+		const fileExists = await this.fileOps.exists(tasksPath);
+		if (!fileExists) {
+			throw new TaskMasterError(
+				'Tasks file not found. Initialize the project first.',
+				ERROR_CODES.NOT_FOUND,
+				{ path: tasksPath }
+			);
+		}
+
+		let debounceTimer: NodeJS.Timeout | undefined;
+		let closed = false;
+
+		const watcher = fs.watch(tasksPath, (eventType, filename) => {
+			if (closed) return;
+			if (filename && eventType === 'change') {
+				if (debounceTimer) {
+					clearTimeout(debounceTimer);
+				}
+				debounceTimer = setTimeout(() => {
+					if (!closed) {
+						callback({
+							type: 'change',
+							timestamp: new Date()
+						});
+					}
+				}, debounceMs);
+			}
+		});
+
+		watcher.on('error', (error) => {
+			if (!closed) {
+				callback({
+					type: 'error',
+					timestamp: new Date(),
+					error
+				});
+			}
+		});
+
+		return {
+			unsubscribe: () => {
+				closed = true;
+				if (debounceTimer) {
+					clearTimeout(debounceTimer);
+				}
+				watcher.close();
+			}
+		};
+	}
+
+	/**
+	 * Enrich tasks with complexity data from the complexity report
+	 * Private helper method called by loadTasks()
+	 */
+	private async enrichTasksWithComplexity(
+		tasks: Task[],
+		tag: string
+	): Promise<Task[]> {
+		// Get all task IDs for bulk lookup
+		const taskIds = tasks.map((t) => t.id);
+
+		// Load complexity data for all tasks at once (more efficient)
+		const complexityMap = await this.complexityManager.getComplexityForTasks(
+			taskIds,
+			tag
+		);
+
+		// If no complexity data found, return tasks as-is
+		if (complexityMap.size === 0) {
+			return tasks;
+		}
+
+		// Enrich each task with its complexity data
+		return tasks.map((task) => {
+			const complexityData = complexityMap.get(String(task.id));
+			if (!complexityData) {
+				return task;
+			}
+
+			// Merge complexity data into the task
+			return {
+				...task,
+				complexity: complexityData.complexityScore,
+				recommendedSubtasks: complexityData.recommendedSubtasks,
+				expansionPrompt: complexityData.expansionPrompt,
+				complexityReasoning: complexityData.complexityReasoning
+			};
+		});
+	}
+}
+
+// Export as default for convenience
+export default FileStorage;

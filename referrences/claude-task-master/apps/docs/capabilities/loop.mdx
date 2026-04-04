@@ -1,0 +1,441 @@
+---
+title: Loop Command
+sidebarTitle: "Loop Command"
+description: "Run Claude Code in autonomous loops for batch task completion"
+---
+
+# Loop Command
+
+The `loop` command runs Claude Code in autonomous loops, spawning fresh agent sessions for each iteration. This approach, known as the "Ralph Wiggum pattern" (credited to Jeffrey Huntley, popularized by Matt Pocock), maintains context quality by avoiding long-running sessions that accumulate context fatigue.
+
+## Overview
+
+Instead of a single long-running agent session that degrades over time, the loop command:
+
+1. **Spawns fresh sessions** - Each iteration starts with a clean context
+2. **Uses preset prompts** - Built-in or custom prompts guide each iteration
+3. **Tracks progress** - A progress file persists notes across sessions
+4. **Detects completion** - Special markers signal when work is done or blocked
+
+This pattern is ideal for batch operations like clearing task backlogs, improving test coverage, or fixing lint errors across a codebase.
+
+## Basic Usage
+
+Run 10 iterations with the default task-completion preset:
+
+```bash
+task-master loop -n 10
+```
+
+Run 5 iterations with the test-coverage preset:
+
+```bash
+task-master loop -n 5 --prompt test-coverage
+```
+
+Run iterations with a custom prompt file:
+
+```bash
+task-master loop -n 10 --prompt ./my-custom-prompt.md
+```
+
+Filter to specific task tag:
+
+```bash
+task-master loop -n 10 --tag backend
+```
+
+## How It Works
+
+Each loop iteration:
+
+1. Generates a prompt combining context header + preset content
+2. Spawns `claude -p <prompt>` as a fresh subprocess
+3. Captures output and checks for completion markers
+4. Appends progress notes to the progress file
+5. Sleeps before the next iteration (configurable)
+
+The loop exits early when:
+- An agent outputs `<loop-complete>REASON</loop-complete>` - all work done
+- An agent outputs `<loop-blocked>REASON</loop-blocked>` - cannot proceed
+- Maximum iterations reached
+
+## Progress File
+
+Each iteration's agent has access to a shared progress file (default: `.taskmaster/loop-progress.txt`) via the `@` file reference syntax. Agents append notes about what they completed, allowing subsequent iterations to build on previous work.
+
+Example progress file content:
+
+```
+# Loop Progress - Started 2025-01-09 10:30:00
+# Preset: test-coverage | Iterations: 10
+
+[10:30:45] Iteration 1 (Task 5.2): Added unit tests for UserService
+[10:35:22] Iteration 2 (Task 5.3): Added integration tests for auth flow
+[10:40:18] Iteration 3: All pending test tasks complete
+```
+
+## CLI Options
+
+| Option                   | Type   | Default                         | Description                                                                                                   |
+| ------------------------ | ------ | ------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `-n, --iterations`       | number | `10`                            | Maximum number of iterations to run.                                                                          |
+| `-p, --prompt`           | string | `default`                       | Preset name or path to a custom prompt file. Accepts: `default`, `test-coverage`, `linting`, `duplication`, `entropy`, or a file path like `./my-prompt.md`. |
+| `--progress-file`        | string | `.taskmaster/loop-progress.txt` | Path to the progress log file where iteration notes are appended.                                             |
+| `--sleep`                | number | `5`                             | Seconds to wait between iterations. Gives the system time to settle before spawning the next agent.          |
+| `--on-complete`          | string | -                               | Shell command to run when all tasks complete (status becomes `all_complete`). Example: `--on-complete 'notify-send "Done!"'` |
+| `-t, --tag`              | string | -                               | Filter to only work on tasks with this tag.                                                                   |
+| `--status`               | string | `pending`                       | Filter to only work on tasks with this status.                                                                |
+| `--project`              | string | -                               | Project root directory. Auto-detected if not provided.                                                        |
+| `--json`                 | flag   | -                               | Output results as JSON instead of formatted text.                                                             |
+
+### Option Details
+
+**`--prompt` accepts two types of values:**
+- **Preset names**: Use built-in presets like `default`, `test-coverage`, `linting`, `duplication`, or `entropy`
+- **File paths**: Provide a path to a custom prompt file (e.g., `./my-custom-loop.md`)
+
+**`--on-complete` runs only on success:**
+The shell command only executes when `finalStatus` is `all_complete`, meaning an agent output the `<loop-complete>` marker. It does not run on `max_iterations`, `blocked`, or `error` outcomes.
+
+## Built-in Presets
+
+The loop command includes five built-in presets for common development workflows. Each preset guides agents to complete ONE focused task per iteration.
+
+| Preset | Purpose | Completion Marker |
+| ------ | ------- | ----------------- |
+| `default` | Complete tasks from Task Master backlog | `ALL_TASKS_DONE` |
+| `test-coverage` | Write meaningful tests for uncovered code | `COVERAGE_TARGET` |
+| `linting` | Fix lint and type errors one by one | `ZERO_ERRORS` |
+| `duplication` | Refactor duplicated code into shared utilities | `LOW_DUPLICATION` |
+| `entropy` | Clean up code smells (long functions, deep nesting) | `LOW_ENTROPY` |
+
+### default
+
+The standard task completion workflow. Agents work through your Task Master backlog, completing one task per iteration.
+
+```bash
+task-master loop -n 10 --prompt default
+```
+
+**What it does:**
+1. Runs `task-master next` to get the highest priority available task
+2. Reads task details with `task-master show <id>`
+3. Implements the task with the smallest possible change
+4. Runs tests and type checks to verify quality
+5. Marks the task complete with `task-master set-status --id=<id> --status=done`
+6. Commits work with a descriptive message
+
+**Completion criteria:** All pending tasks are complete.
+
+### test-coverage
+
+Improves test coverage by writing meaningful tests for user-facing behavior - not just chasing coverage numbers.
+
+```bash
+task-master loop -n 10 --prompt test-coverage
+```
+
+**What it does:**
+1. Runs the coverage command (`npm run coverage`, etc.)
+2. Identifies the most important user-facing feature lacking tests
+3. Writes ONE meaningful test validating real behavior
+4. Verifies coverage increased as a side effect
+5. Commits with message: `test(<file>): <describe user behavior tested>`
+
+**Philosophy:** Don't write tests just to increase coverage. Use coverage as a guide to find untested user-facing behavior. Prioritize error handling, CLI commands, API endpoints, and file parsing over internal utilities.
+
+**Completion criteria:** Coverage reaches target or 100%.
+
+### linting
+
+Cleans up lint errors and type errors systematically, one fix per iteration.
+
+```bash
+task-master loop -n 20 --prompt linting
+```
+
+**What it does:**
+1. Runs lint command (`npm run lint`, `eslint .`, etc.)
+2. Runs type check (`tsc --noEmit`, etc.)
+3. Picks ONE error to fix, prioritizing:
+   - Type errors (breaks builds)
+   - Security-related lint errors
+   - Errors in frequently-changed files
+4. Fixes with minimal changes - no surrounding refactoring
+5. Commits with message: `fix(<file>): <describe error fixed>`
+
+**Completion criteria:** Zero lint errors and zero type errors.
+
+### duplication
+
+Finds duplicated code using detection tools and refactors into shared utilities.
+
+```bash
+task-master loop -n 10 --prompt duplication
+```
+
+**What it does:**
+1. Runs duplication detection (`npx jscpd .` or similar)
+2. Reviews the report and picks ONE clone to refactor, prioritizing:
+   - Larger clones (more lines = more maintenance burden)
+   - Clones in frequently-changed files
+   - Clones with slight variations
+3. Extracts duplicated code into a shared utility
+4. Updates all clone locations to use the shared utility
+5. Runs tests to verify behavior is preserved
+
+**Completion criteria:** Duplication below threshold (e.g., <3%).
+
+### entropy
+
+Targets code smells that increase cognitive load and maintenance burden.
+
+```bash
+task-master loop -n 10 --prompt entropy
+```
+
+**Code smells targeted:**
+- Long functions (>60 lines) → extract into smaller functions
+- Deep nesting (>3 levels) → use early returns, extract conditions
+- Large files (>500 lines) → split into focused modules
+- Magic numbers → extract into named constants
+- Complex conditionals → extract into well-named functions
+- God classes → split responsibilities
+
+**What it does:**
+1. Scans codebase for code smells (uses judgment or tools like `complexity-report`)
+2. Picks ONE smell to fix, prioritizing smells in critical paths
+3. Refactors with minimal changes - no over-engineering
+4. Runs tests to verify behavior is preserved
+
+**Completion criteria:** No significant code smells remain.
+
+## Custom Prompts
+
+You can create custom prompt files for specialized workflows that aren't covered by the built-in presets.
+
+### Specifying a Custom Prompt
+
+Pass the file path to the `--prompt` option:
+
+```bash
+task-master loop -n 10 --prompt ./my-custom-loop.md
+```
+
+The path can be absolute or relative to the current directory.
+
+### Required Structure
+
+Custom prompts should follow this structure to work effectively with the loop system:
+
+```markdown
+# Your Loop Title
+
+Brief description of what this loop does.
+
+## Files Available
+
+- @.taskmaster/tasks/tasks.json - Your task backlog
+- @.taskmaster/loop-progress.txt - Progress log from previous iterations
+- @path/to/other/file.ts - Any other files the agent needs
+
+## Process
+
+1. Step one of the workflow
+2. Step two of the workflow
+3. ... more steps
+
+## Important
+
+- Complete ONLY ONE task per session
+- Keep changes small and focused
+- Do NOT start another task after completing one
+- If work is complete, output: <loop-complete>REASON</loop-complete>
+- If blocked, output: <loop-blocked>REASON</loop-blocked>
+```
+
+### File References with @ Syntax
+
+The `@` prefix makes files available to the agent. Claude Code will read these files when processing the prompt:
+
+```markdown
+## Files Available
+
+- @src/index.ts - Main entry point
+- @package.json - Dependencies and scripts
+- @.taskmaster/loop-progress.txt - Progress from previous iterations
+```
+
+Without the `@` prefix, file paths are just text. With `@`, the agent can actually read and reference the file contents.
+
+### Completion Markers
+
+The loop watches for two special markers in agent output:
+
+| Marker | Purpose | Example |
+| ------ | ------- | ------- |
+| `<loop-complete>REASON</loop-complete>` | Signal that all work is done | `<loop-complete>ALL_TESTS_PASSING</loop-complete>` |
+| `<loop-blocked>REASON</loop-blocked>` | Signal that work cannot proceed | `<loop-blocked>MISSING_API_KEY</loop-blocked>` |
+
+When either marker is detected, the loop exits early. The reason text is captured in the final result.
+
+**Example usage in a custom prompt:**
+
+```markdown
+## Important
+
+- If all migrations are complete, output: <loop-complete>MIGRATIONS_DONE</loop-complete>
+- If a migration fails with an unrecoverable error, output: <loop-blocked>MIGRATION_FAILED: describe error</loop-blocked>
+```
+
+### Best Practices
+
+1. **Be specific**: Clearly define what "done" means for your workflow
+2. **One task per iteration**: Instruct agents to complete exactly one unit of work
+3. **Use the progress file**: Reference `@.taskmaster/loop-progress.txt` so agents can see what previous iterations accomplished
+4. **Include quality checks**: Add steps for running tests or type checks before completing
+5. **Define completion criteria**: Tell agents exactly when to output `<loop-complete>`
+6. **Handle edge cases**: Define when to output `<loop-blocked>` to avoid infinite loops
+
+## Progress File
+
+The progress file is a shared log that persists notes across loop iterations. Since each iteration spawns a fresh agent session, this file provides continuity.
+
+### Default Location
+
+```
+.taskmaster/loop-progress.txt
+```
+
+Override with the `--progress-file` option:
+
+```bash
+task-master loop -n 10 --progress-file ./my-progress.txt
+```
+
+### How It Works
+
+1. **Initialization**: The loop creates the progress file at the start with a header
+2. **Each iteration**: Agents read the file via `@` reference and append notes about their work
+3. **Context continuity**: Subsequent agents see what previous iterations accomplished
+
+### File Format
+
+The progress file uses a simple timestamped format:
+
+```
+# Loop Progress - Started 2025-01-09 10:30:00
+# Preset: default | Iterations: 10 | Tag: backend
+
+[10:30:45] Iteration 1 (Task 5.2): Implemented user authentication endpoint
+[10:35:22] Iteration 2 (Task 5.3): Added input validation for login form
+[10:40:18] Iteration 3 (Task 5.4): Fixed edge case in token refresh logic
+[10:45:01] Iteration 4: All pending backend tasks complete
+```
+
+**Format breakdown:**
+- **Header**: Timestamp, preset name, max iterations, optional tag filter
+- **Entries**: `[HH:MM:SS] Iteration N (Task ID): Description`
+- **Task ID**: Optional - included when agent worked on a specific task
+
+### Using Progress in Custom Prompts
+
+Always include the progress file in your `## Files Available` section:
+
+```markdown
+## Files Available
+
+- @.taskmaster/loop-progress.txt - Progress log from previous iterations
+```
+
+And instruct agents to append notes:
+
+```markdown
+## Process
+
+...
+7. Append a brief note to the progress file about what was done
+```
+
+This creates a chain of context that helps each iteration build on previous work.
+
+## Real-World Examples
+
+Here are practical scenarios for using the loop command in your development workflow.
+
+### Weekend Automation
+
+Run a loop overnight or over the weekend to clear your task backlog while you're away:
+
+```bash
+task-master loop -n 50 --prompt default --on-complete 'notify-send "Loop complete!"'
+```
+
+This runs up to 50 iterations, completing tasks one by one. When all tasks are done, you'll get a desktop notification.
+
+### Test Coverage Sprint
+
+Push your test coverage from 60% to 80% systematically:
+
+```bash
+task-master loop -n 20 --prompt test-coverage --on-complete 'echo "Coverage target reached!"'
+```
+
+Each iteration identifies the most important untested user-facing behavior and writes a meaningful test. The agent prioritizes error handling, API endpoints, and CLI commands over internal utilities.
+
+### Tech Debt Day
+
+Dedicate a day to cleaning up lint errors across your codebase:
+
+```bash
+task-master loop -n 30 --prompt linting --sleep 3
+```
+
+With `--sleep 3`, iterations run faster for quick fixes. The agent systematically addresses type errors first (they break builds), then security-related lint errors, then others.
+
+### Code Review Prep
+
+Reduce code duplication before opening a PR:
+
+```bash
+task-master loop -n 10 --prompt duplication --tag backend
+```
+
+The `--tag backend` flag focuses the loop on backend code only. Each iteration finds and refactors one instance of duplicated code into a shared utility.
+
+### Multi-Tag Workflow
+
+Process different parts of your codebase in sequence:
+
+```bash
+# First, handle critical backend tasks
+task-master loop -n 10 --tag backend --status pending
+
+# Then, address frontend tasks
+task-master loop -n 10 --tag frontend --status pending
+```
+
+### Custom Migration Script
+
+For complex migrations, create a custom prompt and run it:
+
+```bash
+# Create custom-migration.md with your specific steps
+task-master loop -n 20 --prompt ./custom-migration.md --progress-file ./migration-progress.txt
+```
+
+Use a separate progress file to track migration-specific notes.
+
+---
+
+<Note>
+**Related documentation:**
+- [CLI Root Commands](/capabilities/cli-root-commands) - Full command reference
+- [TDD Workflow](/tdd-workflow/quickstart) - Structured test-driven development
+- [Task Structure](/capabilities/task-structure) - Understanding task organization
+</Note>
+
+<Tip>
+The loop command is perfect for "overnight automation" - start a loop before leaving and return to a cleaned-up codebase.
+</Tip>
