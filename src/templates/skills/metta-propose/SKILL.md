@@ -11,9 +11,16 @@ You are the **orchestrator** for a new spec-driven change. You manage the workfl
 
 ## Steps
 
-1. `metta propose "$ARGUMENTS" --json` → creates change, returns change name + artifact list
+1. `metta propose "$ARGUMENTS" --json` → creates change on branch `metta/<change-name>`
 2. For each artifact, use the Agent Execution Pattern below
-3. After all artifacts: report status to user
+3. When `all_complete: true`:
+   a. `metta finalize --json --change <name>` → runs gates, archives, merges specs
+   b. `git checkout main && git merge metta/<change-name> --no-ff -m "chore: merge <change-name>"`
+4. Report to user what was done
+
+## Critical: You MUST finalize and merge
+
+Do NOT stop after the last artifact. The change is not done until `metta finalize` succeeds and the branch is merged back to main. Every change must end on the main branch with a clean merge commit.
 
 ## Agent Execution Pattern
 
