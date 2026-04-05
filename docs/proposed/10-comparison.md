@@ -4,11 +4,11 @@
 
 | Feature | OpenSpec | Spec Kit | GSD | BMAD | Taskmaster | Ralph | **Metta** |
 |---------|---------|----------|-----|------|------------|-------|-----------|
-| Workflow model | Artifact DAG | Phase-gated | Wave-parallel | Multi-agent SDLC | Task DAG | Loop | **Composable artifact DAG** |
+| Workflow model | Artifact DAG | Phase-gated | Batch-parallel | Multi-agent SDLC | Task DAG | Loop | **Composable artifact DAG** |
 | Custom workflows | Custom schemas | Extensions | No (hardcoded) | Modules | No | Manual | **YAML graphs, extensible** |
 | Context management | Per-artifact | Per-phase | Phase-aware | Full reload | LRU cache | Fresh/iteration | **Budget-enforced, phase-aware** |
 | Agent system | None | None | Tool-scoped | 7 personas | Provider roles | None | **Pluggable personas + scoping** |
-| Parallel execution | No | No | Waves + worktrees | Subagent fan-out | No | Loop | **Waves + worktrees + overlap detect** |
+| Parallel execution | No | No | Batches + worktrees | Subagent fan-out | No | Loop | **Batches + worktrees + overlap detect** |
 | Backpressure gates | Validation only | Checklist | Quality gates | Honor system | None | Tests steer | **Typed gates, pluggable** |
 | Spec evolution | Delta (4 ops) | Replace | N/A | Manual | N/A | Manual | **Delta (6 ops) + conflict detect** |
 | Plugin system | Custom schemas | Extensions+presets | Hooks | Modules | None | None | **5 extension points** |
@@ -35,7 +35,7 @@
 **Improved**: Removed mandatory heavyweight process (quick path is default), made it scripting-friendly (no interactive-only flows), added template composition, reduced to one language (TypeScript vs Python).
 
 ### From GSD
-**Adopted**: Phase-aware context loading, wave-based parallel execution with worktree isolation, intra-wave file overlap detection, thin orchestrator + heavy executor pattern, XML-like task format with verify/done criteria, deviation rules, statusline context warnings.
+**Adopted**: Phase-aware context loading, batch-based parallel execution with worktree isolation, intra-batch file overlap detection, thin orchestrator + heavy executor pattern, XML-like task format with verify/done criteria, deviation rules, statusline context warnings.
 
 **Improved**: Made phase types configurable (not hardcoded enum), added schema validation on state, made deviation rules typed and logged, added formal gate results instead of ad-hoc quality checks.
 

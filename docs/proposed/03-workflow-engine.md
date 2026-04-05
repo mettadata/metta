@@ -66,6 +66,78 @@ artifacts:
 
 ---
 
+## Discovery Gate
+
+Before any workflow proceeds to execution, the agent must fully understand what it's building. Discovery is not optional — it's a **framework-level gate** that applies to every workflow, every mode, every time. No guesswork, no assumptions, no "I'll figure it out as I go."
+
+### Principle: Zero Ambiguity Before Execution
+
+The agent does not write code until it can answer: what are the exact requirements, what are the scenarios, and what is out of scope? If it can't answer, it asks. If the user hasn't decided, the agent surfaces the decision — it doesn't make it.
+
+### How Discovery Works
+
+When any workflow artifact is being built (propose, spec, design), the assigned agent:
+
+1. **Analyzes** the current state — description, existing specs, project context, codebase
+2. **Identifies ambiguity** — missing requirements, undefined edge cases, unstated assumptions, unclear integration points
+3. **Asks adaptive questions** — not from a template, but derived from what the AI actually doesn't know given the specific context
+4. **Iterates** until no open questions remain
+5. **Confirms** — presents a completeness assessment for user approval
+
+Questions are scoped to what matters for that specific change:
+
+- A payment system gets questions about idempotency, retry semantics, currency handling
+- A UI component gets questions about responsive behavior, empty states, accessibility
+- A database migration gets questions about backward compatibility, rollback strategy, data volume
+
+### Completeness Check
+
+Before an artifact clears its discovery gate, the agent runs a self-assessment:
+
+```
+Discovery completeness:
+  ✓ All requirements have at least one scenario
+  ✓ All scenarios have Given/When/Then
+  ✓ No TODO/TBD markers in spec
+  ✓ No ambiguous RFC 2119 keywords (SHOULD without rationale)
+  ✓ Edge cases addressed for each requirement
+  ✓ Integration points identified with existing code
+  ✓ Out-of-scope explicitly declared
+```
+
+If any check fails, the agent must resolve it before proceeding — either by asking the user or by deriving the answer from project context and confirming.
+
+### Discovery Across Workflows
+
+Discovery applies at different depths depending on the workflow:
+
+```
+Quick:     Light discovery during intent (scope + edge cases)
+Standard:  Full discovery during propose + spec (requirements + scenarios + integration)
+Full:      Deep discovery during research + propose + spec (domain + requirements + architecture)
+```
+
+Even `metta quick` asks enough questions to know what it's building. The difference is depth, not whether discovery happens.
+
+### Discovery Modes
+
+```bash
+# Interactive (default): agent asks questions conversationally
+metta propose "add user profiles"
+
+# Batch: agent presents all questions at once
+metta propose --discovery batch "add user profiles"
+
+# Review: agent generates spec draft, user reviews and approves
+metta propose --discovery review "add user profiles"
+```
+
+### Why This Matters
+
+Without discovery, agents guess. Guesses compound — a wrong assumption in the spec becomes a wrong design, wrong tasks, wrong code, wrong tests that pass against the wrong behavior. Discovery is the cheapest place to catch mistakes. Execution is the most expensive.
+
+---
+
 ## Built-in Workflows
 
 ### Quick (2 artifacts)

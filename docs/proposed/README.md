@@ -16,7 +16,7 @@ It synthesizes the best ideas from OpenSpec, Spec Kit, GSD, BMAD, Taskmaster, an
 4. [Context Engine](04-context-engine.md) — Phase-aware loading, budgets, and freshness
 5. [Agent System](05-agent-system.md) — Personas, orchestration, and subagent patterns
 6. [Spec & Artifact Model](06-spec-model.md) — Specs, deltas, schemas, and state
-7. [Execution Engine](07-execution-engine.md) — Wave parallelism, backpressure, and deviation rules
+7. [Execution Engine](07-execution-engine.md) — Batch parallelism, backpressure, and deviation rules
 8. [Plugin Architecture](08-plugins.md) — Extensions, presets, hooks, and providers
 9. [CLI & Integration](09-cli-integration.md) — CLI design, multi-tool delivery, MCP
 10. [Comparison](10-comparison.md) — How Metta differs from existing frameworks

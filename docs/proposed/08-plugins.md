@@ -135,8 +135,8 @@ hooks:
 | `artifact.start` | An artifact begins building | artifact id, agent |
 | `artifact.complete` | An artifact finishes | artifact id, status |
 | `artifact.failed` | An artifact's gates fail | artifact id, failures |
-| `execution.wave.start` | A wave begins | wave id, tasks |
-| `execution.wave.complete` | A wave finishes | wave id, results |
+| `execution.batch.start` | A batch begins | batch id, tasks |
+| `execution.batch.complete` | A batch finishes | batch id, results |
 | `execution.task.start` | A task begins | task id |
 | `execution.task.complete` | A task commits | task id, commit |
 | `gate.pass` | A gate passes | gate name, duration |

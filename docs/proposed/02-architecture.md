@@ -102,12 +102,12 @@ See [05-agent-system.md](05-agent-system.md).
 
 ### 6. Execution Engine
 
-Handles the actual running of work: wave-based parallelism, backpressure gates, deviation rules, and worktree isolation.
+Handles the actual running of work: batch-based parallelism, backpressure gates, deviation rules, and worktree isolation.
 
 ```
 ExecutionEngine
-  ├── plan(tasks[]) → WavePlan
-  ├── execute(wave) → WaveResult
+  ├── plan(tasks[]) → BatchPlan
+  ├── execute(batch) → BatchResult
   ├── gate(artifact, gates[]) → GateResult
   └── deviate(rule, context) → DeviationDecision
 ```
@@ -143,28 +143,37 @@ See [08-plugins.md](08-plugins.md).
 
 ## Directory Structure
 
-### Framework Installation (global)
+### Principle: Global is the Default, Local is the Override
+
+Global (`~/.metta/`) contains everything needed to use Metta in any project — config, workflows, agents, gates, templates. A fresh `metta init` in a project creates a minimal `.metta/` with only project-specific context (name, stack, conventions). You should never need to configure anything locally to start working.
+
+Project `.metta/` exists for **customization only** — a different default workflow, custom agents, project-specific gates, template overrides. Anything not overridden locally is inherited from global.
+
+### Global Installation (`~/.metta/`)
 ```
 ~/.metta/
-  config.yaml              # Global user config
+  config.yaml              # User defaults (workflow, mode, providers, tools)
   providers.yaml           # AI provider credentials
-  agents/                  # Global agent definitions
-  plugins/                 # Global plugins
-  templates/               # Global template overrides
-```
-
-### Project Layout
-```
-.metta/
-  config.yaml              # Project config (overrides global)
-  workflows/               # Workflow definitions (YAML DAGs)
+  workflows/               # Built-in workflow definitions
     quick.yaml
     standard.yaml
     full.yaml
-    custom.yaml            # User-defined
-  agents/                  # Project agent definitions
+  agents/                  # Default agent definitions
+  gates/                   # Default gate definitions
+  plugins/                 # Global plugins
+  templates/               # Default artifact templates
+```
+
+### Project Layout (`.metta/` — overrides only)
+```
+.metta/
+  config.yaml              # Project overrides (only what differs from global)
+  local.yaml               # Personal overrides, gitignored
+  workflows/               # Custom workflows (extends or replaces global)
+  agents/                  # Custom agents (extends or replaces global)
+  gates/                   # Custom gates (extends or replaces global)
   plugins/                 # Project plugins
-  templates/               # Project template overrides
+  templates/               # Template overrides
   state.yaml               # Current state (schema-validated)
 
 metta/
@@ -215,8 +224,8 @@ User: metta plan
   │
 User: metta execute
   │
-  ├── ExecutionEngine.plan(tasks) → WavePlan { waves: [[1,2], [3]] }
-  ├── For each wave:
+  ├── ExecutionEngine.plan(tasks) → BatchPlan { batches: [[1,2], [3]] }
+  ├── For each batch:
   │   ├── ExecutionEngine.checkOverlap(tasks) → safe to parallelize?
   │   ├── AgentSystem.fanOut(executors, tasks, worktrees)
   │   ├── Each executor: fresh context, scoped tools, atomic commits

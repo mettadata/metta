@@ -237,14 +237,31 @@ METTA_MCP_TOOLS=extended # Full
 
 ## Configuration
 
-### Global (`~/.metta/config.yaml`)
+### Principle: Global is the Default, Local is the Override
+
+Global (`~/.metta/`) ships everything needed to work in any project. Project `.metta/` only contains what's different. You should be able to `metta init` and immediately `metta quick "something"` without configuring anything locally.
+
+Resolution order (highest wins):
+```
+Environment variables         METTA_GATE_TIMEOUT=60000
+  ↓ overrides
+Local config (gitignored)     .metta/local.yaml
+  ↓ overrides
+Project config (committed)    .metta/config.yaml
+  ↓ overrides
+Global config                 ~/.metta/config.yaml
+```
+
+### Global (`~/.metta/config.yaml`) — The Defaults
+
+Everything lives here. Workflows, agents, gates, providers, tool preferences. This is what you configure once and use everywhere.
 
 ```yaml
 # User preferences
 defaults:
   workflow: standard
   mode: supervised
-  
+
 # AI provider config
 providers:
   main:
@@ -261,26 +278,8 @@ providers:
 tools:
   - claude-code
   - cursor
-```
 
-### Project (`.metta/config.yaml`)
-
-```yaml
-# Overrides global for this project
-defaults:
-  workflow: full  # This project uses full ceremony
-
-# Project context for agents
-project:
-  name: "My App"
-  description: "E-commerce platform"
-  stack: "Next.js, Prisma, PostgreSQL"
-  conventions: |
-    - Use server components by default
-    - All API routes in src/app/api/
-    - Prisma for all database access
-
-# Gate configuration
+# Gate defaults (used when project doesn't specify)
 gates:
   tests:
     command: npm test
@@ -291,9 +290,50 @@ gates:
   typecheck:
     command: npx tsc --noEmit
     timeout: 60000
+
+# Auto mode defaults
+auto:
+  max_cycles: 10
+  ship_on_success: false
 ```
 
-### Local (`.metta/local.yaml`, gitignored)
+### Project (`.metta/config.yaml`) — Overrides Only
+
+Only what differs from global. A minimal project config might just be the project context:
+
+```yaml
+# Project context for agents (required — tells agents what they're working on)
+project:
+  name: "My App"
+  description: "E-commerce platform"
+  stack: "Next.js, Prisma, PostgreSQL"
+  conventions: |
+    - Use server components by default
+    - All API routes in src/app/api/
+    - Prisma for all database access
+```
+
+A project that needs customization adds only what's different:
+
+```yaml
+project:
+  name: "My App"
+  description: "E-commerce platform"
+  stack: "Next.js, Prisma, PostgreSQL"
+
+# Override: this project uses full ceremony
+defaults:
+  workflow: full
+
+# Override: different test command
+gates:
+  tests:
+    command: pnpm test
+```
+
+Everything not overridden inherits from global.
+
+### Local (`.metta/local.yaml`, gitignored) — Personal Preferences
 
 ```yaml
 # Personal overrides, not committed
