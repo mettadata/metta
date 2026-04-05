@@ -1,0 +1,28 @@
+name: quick
+description: Quick workflow for small, well-understood changes
+version: 1
+
+artifacts:
+  - id: intent
+    type: intent
+    template: intent.md
+    generates: intent.md
+    requires: []
+    agents: [proposer]
+    gates: []
+
+  - id: implementation
+    type: execution
+    template: execute.md
+    generates: "**/*"
+    requires: [intent]
+    agents: [executor]
+    gates: [tests, lint, typecheck]
+
+  - id: verification
+    type: verification
+    template: verify.md
+    generates: summary.md
+    requires: [implementation]
+    agents: [verifier]
+    gates: [uat]

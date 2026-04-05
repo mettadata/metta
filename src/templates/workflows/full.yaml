@@ -1,0 +1,84 @@
+name: full
+description: Full ceremony workflow for complex systems
+version: 1
+
+artifacts:
+  - id: domain-research
+    type: domain-research
+    template: domain-research.md
+    generates: domain-research.md
+    requires: []
+    agents: [researcher]
+    gates: []
+
+  - id: intent
+    type: intent
+    template: intent.md
+    generates: intent.md
+    requires: [domain-research]
+    agents: [proposer]
+    gates: []
+
+  - id: spec
+    type: spec
+    template: spec.md
+    generates: spec.md
+    requires: [intent]
+    agents: [specifier]
+    gates: [spec-quality]
+
+  - id: research
+    type: research
+    template: research.md
+    generates: research.md
+    requires: [spec]
+    agents: [researcher]
+    gates: []
+
+  - id: design
+    type: design
+    template: design.md
+    generates: design.md
+    requires: [research]
+    agents: [architect]
+    gates: [design-review]
+
+  - id: architecture
+    type: architecture
+    template: architecture.md
+    generates: architecture.md
+    requires: [design]
+    agents: [architect]
+    gates: []
+
+  - id: tasks
+    type: tasks
+    template: tasks.md
+    generates: tasks.md
+    requires: [design]
+    agents: [planner]
+    gates: [task-quality]
+
+  - id: ux-spec
+    type: ux-spec
+    template: ux-spec.md
+    generates: ux-spec.md
+    requires: [design]
+    agents: [architect]
+    gates: []
+
+  - id: implementation
+    type: execution
+    template: execute.md
+    generates: "**/*"
+    requires: [tasks, architecture]
+    agents: [executor]
+    gates: [tests, lint, typecheck]
+
+  - id: verification
+    type: verification
+    template: verify.md
+    generates: summary.md
+    requires: [implementation]
+    agents: [verifier]
+    gates: [uat]

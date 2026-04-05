@@ -1,0 +1,60 @@
+name: standard
+description: Standard workflow for medium-complexity features
+version: 1
+
+artifacts:
+  - id: intent
+    type: intent
+    template: intent.md
+    generates: intent.md
+    requires: []
+    agents: [proposer]
+    gates: []
+
+  - id: spec
+    type: spec
+    template: spec.md
+    generates: spec.md
+    requires: [intent]
+    agents: [specifier]
+    gates: [spec-quality]
+
+  - id: research
+    type: research
+    template: research.md
+    generates: research.md
+    requires: [spec]
+    agents: [researcher]
+    gates: []
+
+  - id: design
+    type: design
+    template: design.md
+    generates: design.md
+    requires: [research]
+    agents: [architect]
+    gates: [design-review]
+
+  - id: tasks
+    type: tasks
+    template: tasks.md
+    generates: tasks.md
+    requires: [design]
+    agents: [planner]
+    gates: [task-quality]
+
+  - id: implementation
+    type: execution
+    template: execute.md
+    generates: "**/*"
+    requires: [tasks]
+    agents: [executor]
+    gates: [tests, lint, typecheck]
+
+  - id: verification
+    type: verification
+    template: verify.md
+    generates: summary.md
+    requires: [implementation]
+    agents: [verifier]
+    gates: [uat]
