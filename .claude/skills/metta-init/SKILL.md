@@ -8,7 +8,7 @@ You are the **orchestrator** for Metta project initialization.
 
 ## Steps
 
-1. `metta init --json` → scaffolds directories, installs skills, returns discovery instructions
+1. `metta install --json` → scaffolds directories, installs skills, returns discovery instructions
 2. Parse the `discovery` object from the JSON response
 3. **Spawn a discovery agent** (Agent tool) with:
    - The agent persona from `discovery.agent.persona`
