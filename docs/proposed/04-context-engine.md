@@ -104,7 +104,7 @@ Agent conversations accumulate stale context. A spec modified 50 messages ago ma
 Every loaded context block includes a freshness marker:
 
 ```xml
-<context source="metta/specs/auth/spec.md" hash="sha256:abc123" loaded_at="2026-04-04T12:00:00Z">
+<context source="docs/specs/auth/spec.md" hash="sha256:abc123" loaded_at="2026-04-04T12:00:00Z">
   ... content ...
 </context>
 ```
@@ -137,7 +137,7 @@ resolve(phase, artifact, change) → ContextManifest:
    a. For each required source:
       - If it's another artifact: load from change directory
       - If it's project_context: load from .metta/config.yaml → project_context path
-      - If it's existing_specs: load from metta/specs/ (relevant capabilities only)
+      - If it's existing_specs: load from docs/specs/ (relevant capabilities only)
    b. Fail if any required source is missing
 
 3. Calculate remaining budget after required files

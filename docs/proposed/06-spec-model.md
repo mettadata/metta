@@ -41,7 +41,7 @@ The system SHOULD expire sessions after 24 hours of inactivity.
 ### Key Properties
 - **RFC 2119 keywords**: MUST, SHOULD, MAY for requirement strength
 - **Scenario-driven**: Every requirement has concrete Given/When/Then scenarios
-- **One capability per file**: `metta/specs/<capability>/spec.md`
+- **One capability per file**: `docs/specs/<capability>/spec.md`
 - **Human-readable**: Plain markdown, no special syntax beyond conventions
 
 ---
@@ -51,7 +51,7 @@ The system SHOULD expire sessions after 24 hours of inactivity.
 Every spec file has a companion lock file:
 
 ```yaml
-# metta/specs/auth/spec.lock
+# docs/specs/auth/spec.lock
 version: 3
 hash: "sha256:e3b0c44298..."
 updated: "2026-04-04T12:00:00Z"
@@ -134,7 +134,7 @@ This is finer-grained than OpenSpec's 4 operations (which only work at requireme
 Each active change has metadata:
 
 ```yaml
-# metta/changes/add-mfa/.metta.yaml
+# docs/changes/add-mfa/.metta.yaml
 workflow: standard
 created: "2026-04-04T12:00:00Z"
 status: in_progress
@@ -265,10 +265,10 @@ Templates use `{placeholder}` syntax. The framework substitutes values from chan
 
 ## Living Specs vs Archived Specs
 
-### Living Specs (`metta/specs/`)
+### Living Specs (`docs/specs/`)
 The current truth. Updated when changes are merged. Always reflect the latest agreed-upon behavior.
 
-### Archived Changes (`metta/archive/`)
+### Archived Changes (`docs/archive/`)
 Historical record of what changed, when, and why. Each archive contains the original intent, delta spec, design, tasks, and summary. Useful for understanding past decisions.
 
 ### Spec Discovery

@@ -21,6 +21,7 @@ It synthesizes the best ideas from OpenSpec, Spec Kit, GSD, BMAD, Taskmaster, an
 8. [Plugin Architecture](08-plugins.md) — Extensions, presets, hooks, and providers
 9. [CLI & Integration](09-cli-integration.md) — CLI design, multi-tool delivery, MCP
 10. [Comparison](10-comparison.md) — How Metta differs from existing frameworks
+11. [Brownfield Adoption](11-brownfield.md) — Onboarding into existing codebases
 
 ---
 

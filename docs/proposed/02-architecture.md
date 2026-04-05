@@ -164,10 +164,14 @@ Project `.metta/` exists for **customization only** — a different default work
   templates/               # Default artifact templates
 ```
 
-### Project Layout (`.metta/` — overrides only)
+### Project Layout
+
+`.metta/` is for **framework state only** — config, state, workflows, agents, gates, plugins, templates. Nothing human-readable lives here.
+
+`docs/` (configurable) is for **project documents** — constitution, specs, generated docs, change artifacts. Everything a human or AI would read.
+
 ```
-.metta/
-  project.md               # Project constitution (source of truth for AI context)
+.metta/                            # Framework state (hidden)
   config.yaml              # Project overrides (only what differs from global)
   local.yaml               # Personal overrides, gitignored
   workflows/               # Custom workflows (extends or replaces global)
@@ -177,7 +181,8 @@ Project `.metta/` exists for **customization only** — a different default work
   templates/               # Template overrides
   state.yaml               # Current state (schema-validated)
 
-metta/
+docs/                              # Project documents (configurable path)
+  project.md               # Project constitution (source of truth for AI context)
   specs/                   # Living specifications
     <capability>/
       spec.md              # Current spec
@@ -192,6 +197,10 @@ metta/
       summary.md           # Post-execution summary
   archive/                 # Completed changes
     YYYY-MM-DD-<name>/
+  architecture.md          # Generated — system design and ADRs
+  api.md                   # Generated — public API documentation
+  changelog.md             # Generated — what changed and why
+  getting-started.md       # Generated — setup and usage
 ```
 
 ---
@@ -212,8 +221,8 @@ User: metta propose "add payment processing"
   └── AI Tool executes instructions
       ├── Reads: metta status --json
       ├── Reads: metta instructions intent --json
-      ├── Writes: metta/changes/add-payment-processing/intent.md
-      └── Writes: metta/changes/add-payment-processing/spec.md
+      ├── Writes: docs/changes/add-payment-processing/intent.md
+      └── Writes: docs/changes/add-payment-processing/spec.md
   │
 User: metta plan
   │

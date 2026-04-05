@@ -44,12 +44,74 @@ Setting up project constitution...
 ```
 
 Metta creates:
-- `.metta/project.md` — your project constitution (single source of truth)
+- `docs/project.md` — your project constitution (single source of truth)
 - `.metta/config.yaml` — minimal project config (overrides only)
 - `CLAUDE.md`, `.cursorrules`, etc. — lightweight pointer files for detected AI tools
 - Slash commands/skills installed for each detected tool
 
 You're ready to work.
+
+---
+
+## Brownfield Projects (Existing Code)
+
+`metta init` detects existing code and switches to brownfield mode automatically. Instead of asking everything from scratch, it **reads the codebase first and infers** conventions, stack, patterns, and quality standards.
+
+```bash
+cd existing-project
+metta init
+```
+
+```
+Detected existing project (brownfield mode):
+
+Scanning codebase...
+  Language:    TypeScript (strict mode)
+  Framework:   Next.js 15 (App Router)
+  ORM:         Prisma (47 models)
+  Testing:     Vitest (347 tests, 82% coverage)
+
+Analyzing conventions...
+  ✓ Server components dominant (89%)
+  ✓ API routes in src/app/api/
+  ✓ Prisma for all DB access (no raw SQL)
+  ✓ Named exports preferred (94%)
+
+Generating constitution draft from codebase...
+
+? Anything to add or correct?
+> We're migrating away from barrel exports — don't create new ones.
+
+? Any constraints not visible in code?
+> No client-side state management. Keep bundle under 200KB per route.
+```
+
+The constitution is inferred from evidence, corrected by you, and locked.
+
+### Scan Existing Behavior Into Specs
+
+Don't write specs from scratch when the behavior already exists in code:
+
+```bash
+metta scan auth                # Analyze auth code → generate spec draft
+metta scan --all               # Scan entire codebase
+metta scan src/app/api/payments  # Scan specific directory
+```
+
+Metta reads routes, middleware, models, tests, and types to produce spec drafts with requirements and scenarios. Behaviors without test coverage are flagged.
+
+### Incremental Adoption
+
+You don't have to spec everything. Adopt gradually:
+
+| Level | What | Command |
+|-------|------|---------|
+| 0 | Constitution only — better AI context immediately | `metta init` |
+| 1 | Scan what you're about to touch, build on top | `metta scan payments` then `metta propose` |
+| 2 | Full spec coverage — scan everything, review over time | `metta scan --all` |
+| 3 | Full ceremony for major changes | `metta auto --workflow full` |
+
+See [11-brownfield.md](11-brownfield.md) for the full brownfield adoption guide.
 
 ---
 
@@ -348,7 +410,7 @@ Metta generates and maintains two kinds of output:
 
 ### Tool Context Files (CLAUDE.md, .cursorrules, etc.)
 
-Lightweight pointer tables — conventions inlined, everything else is links. Agents follow links to load what they need. Never edit these directly — edit `.metta/project.md` and run `metta refresh`.
+Lightweight pointer tables — conventions inlined, everything else is links. Agents follow links to load what they need. Never edit these directly — edit `docs/project.md` and run `metta refresh`.
 
 ### Project Documentation
 
