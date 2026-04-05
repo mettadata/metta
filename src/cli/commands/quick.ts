@@ -1,6 +1,10 @@
 import { Command } from 'commander'
 import { join } from 'node:path'
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
 import { createCliContext, outputJson } from '../helpers.js'
+
+const execAsync = promisify(execFile)
 
 export function registerQuickCommand(program: Command): void {
   program
@@ -18,15 +22,30 @@ export function registerQuickCommand(program: Command): void {
         const artifactIds = graph.buildOrder
         const result = await ctx.artifactStore.createChange(description, 'quick', artifactIds)
 
+        // Create worktree branch
+        const branchName = `metta/${result.name}`
+        let branchCreated = false
+        try {
+          const config = await ctx.configLoader.load()
+          if (config.git?.enabled !== false) {
+            await execAsync('git', ['checkout', '-b', branchName], { cwd: ctx.projectRoot })
+            branchCreated = true
+          }
+        } catch {
+          // Branch may already exist or git not available
+        }
+
         if (json) {
           outputJson({
             change: result.name,
             workflow: 'quick',
             path: result.path,
             artifacts: artifactIds,
+            branch: branchCreated ? branchName : null,
           })
         } else {
           console.log(`Quick change created: ${result.name}`)
+          if (branchCreated) console.log(`  Branch: ${branchName}`)
           console.log(`  Artifacts: ${artifactIds.join(' → ')}`)
         }
       } catch (err) {

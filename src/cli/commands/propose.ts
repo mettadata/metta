@@ -1,6 +1,10 @@
 import { Command } from 'commander'
 import { join } from 'node:path'
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
 import { createCliContext, outputJson } from '../helpers.js'
+
+const execAsync = promisify(execFile)
 
 export function registerProposeCommand(program: Command): void {
   program
@@ -29,20 +33,35 @@ export function registerProposeCommand(program: Command): void {
         const artifactIds = graph.buildOrder
         const result = await ctx.artifactStore.createChange(description, workflowName, artifactIds)
 
+        // Create worktree branch (all work happens off main)
+        const branchName = `metta/${result.name}`
+        let branchCreated = false
+        try {
+          const config = await ctx.configLoader.load()
+          if (config.git?.enabled !== false) {
+            await execAsync('git', ['checkout', '-b', branchName], { cwd: ctx.projectRoot })
+            branchCreated = true
+          }
+        } catch {
+          // Branch may already exist or git not available
+        }
+
         if (json) {
           outputJson({
             change: result.name,
             workflow: workflowName,
             path: result.path,
             artifacts: artifactIds,
-            next: 'Run `metta instructions intent --json` to get guidance',
+            branch: branchCreated ? branchName : null,
+            next: `Run \`metta instructions intent --json --change ${result.name}\` to get guidance`,
           })
         } else {
           console.log(`Change created: ${result.name}`)
           console.log(`  Workflow: ${workflowName}`)
+          if (branchCreated) console.log(`  Branch: ${branchName}`)
           console.log(`  Artifacts: ${artifactIds.join(' → ')}`)
           console.log('')
-          console.log('Next: run metta plan or metta instructions intent')
+          console.log(`Next: metta instructions intent --change ${result.name}`)
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
