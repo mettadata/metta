@@ -1,7 +1,10 @@
 import { Command } from 'commander'
 import { mkdir, writeFile, stat } from 'node:fs/promises'
 import { join } from 'node:path'
+import { existsSync } from 'node:fs'
 import { createCliContext, outputJson } from '../helpers.js'
+import { claudeCodeAdapter } from '../../delivery/claude-code-adapter.js'
+import { installCommands } from '../../delivery/command-installer.js'
 
 export function registerInitCommand(program: Command): void {
   program
@@ -78,18 +81,41 @@ Banned patterns and forbidden operations.
 `
         await writeFile(join(root, '.metta', '.gitignore'), gitignoreContent, { flag: 'wx' }).catch(() => {})
 
+        // Detect AI tools and install slash commands
+        const detectedTools: string[] = []
+        const installedCommands: string[] = []
+
+        // Claude Code
+        if (existsSync(join(root, '.claude')) || existsSync(join(root, 'CLAUDE.md'))) {
+          detectedTools.push('Claude Code')
+          const installed = await installCommands(claudeCodeAdapter, root)
+          installedCommands.push(...installed)
+        } else {
+          // Create .claude dir and install by default since it's v0.1 Claude Code only
+          await mkdir(join(root, '.claude'), { recursive: true })
+          detectedTools.push('Claude Code')
+          const installed = await installCommands(claudeCodeAdapter, root)
+          installedCommands.push(...installed)
+        }
+
         if (json) {
           outputJson({
             status: 'initialized',
             mode: isBrownfield ? 'brownfield' : 'greenfield',
             directories: ['.metta/', 'spec/'],
             constitution: 'spec/project.md',
+            detected_tools: detectedTools,
+            installed_commands: installedCommands,
           })
         } else {
           console.log(`Metta initialized (${isBrownfield ? 'brownfield' : 'greenfield'} mode)`)
           console.log('  Created: .metta/')
           console.log('  Created: spec/')
           console.log('  Created: spec/project.md (constitution)')
+          if (detectedTools.length > 0) {
+            console.log(`  Detected: ${detectedTools.join(', ')}`)
+            console.log(`  Installed: ${installedCommands.length} slash commands`)
+          }
           console.log('')
           console.log('Next: edit spec/project.md, then run metta propose')
         }
