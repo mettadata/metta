@@ -169,7 +169,7 @@ Project `.metta/` exists for **customization only** — a different default work
 Three directories, clear separation:
 
 - **`.metta/`** — framework state only (config, state, workflows, agents, gates, plugins, templates). Hidden, not for humans.
-- **`spec/`** (configurable) — all Metta working artifacts. Input to development. Specs, changes, constitution, gaps, ideas, bugs, archive.
+- **`spec/`** (configurable) — all Metta working artifacts. Input to development. Specs, changes, constitution, gaps, ideas, issues, backlog, archive.
 - **`docs/`** (configurable) — generated project documentation. Output of development. Architecture, API, changelog, getting-started.
 
 ```
@@ -203,8 +203,11 @@ spec/                              # Metta working artifacts (configurable path)
     <gap-name>.md          # Auto-removed when resolved
   ideas/                   # Feature ideas (backlog, capture-now process-later)
     <idea-name>.md
-  bugs/                    # Known issues (logged, not fixed inline)
-    <bug-name>.md
+  issues/                  # Known issues (logged, not fixed inline)
+    <issue-name>.md
+  backlog/                 # Backlog items for future planning
+    <item-name>.md
+  roadmap.md               # Current roadmap and milestones
 
 docs/                              # Generated project documentation (configurable path)
   architecture.md          # Generated — system design and ADRs
@@ -224,8 +227,8 @@ User: metta propose "add payment processing"
   │
   ├── WorkflowEngine.loadWorkflow("standard")
   ├── ArtifactStore.createChange("add-payment-processing")
-  ├── ContextEngine.resolve(phase: "propose", artifact: "intent")
   ├── AgentSystem.resolve(capability: "propose")
+  ├── ContextEngine.resolve(phase: "propose", artifact: "intent", budget: agent.context_budget)
   ├── CommandDelivery.generateInstructions(agent, context, template)
   │
   └── AI Tool executes instructions
@@ -258,7 +261,7 @@ User: metta verify
   ├── AgentSystem.resolve(capability: "verify")
   ├── Interactive walkthrough of deliverables
   │
-User: metta documentation
+User: metta finalize
   │
   ├── ArtifactStore.archive(change)        → spec/archive/
   ├── ArtifactStore.mergeSpecs(deltas)     → spec/specs/ (conflict check)
@@ -293,3 +296,18 @@ Changes declare their base spec versions (content hashes). When archiving/mergin
 
 ### ADR-006: Git-Aware as a Config Toggle
 Git integration is controlled by `git.enabled` in config. When enabled (default), Metta manages commits (following Conventional Commits by default), worktree isolation, branch protection, and merge safety. When disabled, Metta operates purely on the filesystem — no commits, no worktrees, sequential execution only. The Artifact Store and State Store abstract over persistence so both modes use the same core engines. See [07-execution-engine.md § Git Configuration](07-execution-engine.md) for details.
+
+### ADR-007: Dual-Mode Architecture
+Metta supports two execution modes that share the same core engines:
+
+**Instruction mode (v1)**: Metta generates instructions that an external AI tool (Claude Code, Cursor, etc.) executes. The AI tool calls back into Metta via CLI/MCP for status, instructions, and completion signals. The framework is passive — Command Delivery serves this mode.
+
+**Orchestrator mode (future)**: Metta drives the AI directly through the Provider Registry. The execution loop is: Context Engine prepares context, Provider generates output, Framework validates output, Gates run, next step. This mode powers `metta auto` and standalone `metta quick` when no external AI tool is present.
+
+Both modes use the same Workflow, Context, Agent, and Execution engines underneath.
+
+### ADR-008: Schema Migration on Update
+On startup, Metta checks the schema version in `.metta/state.yaml` against the current framework version. If the schema is older, migrations run automatically (Zod schemas define the migration path). If the schema is newer (user downgraded), Metta refuses to run with a clear error. `metta doctor` includes a schema version check.
+
+### ADR-009: Team Model
+`.metta/state.yaml` is **gitignored** — it is local execution state, not shared. Each developer has their own. `spec/` is **committed** — this is how developers see each other's in-flight work, specs, and changes. Change ownership is implicit via an `owner` field in `.metta.yaml` (git username).

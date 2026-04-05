@@ -145,7 +145,7 @@ metta quick "add dark mode toggle"
 Light discovery (a few scoping questions), then straight to execution. Best for bug fixes, small features, and changes where you already know what you want.
 
 ```
-Flow: discovery → intent → execute → verify
+Flow: discovery → intent → execution → verification
 ```
 
 ### 2. Standard Mode — Features That Need a Spec
@@ -160,12 +160,12 @@ Full discovery — adaptive questions until requirements are clear and complete.
 metta plan            # Design + task decomposition into batches
 metta execute         # Batched execution with backpressure gates
 metta verify          # Check deliverables against spec scenarios
-metta documentation   # Archive, merge specs, generate docs, refresh
+metta finalize        # Archive, merge specs, generate docs, refresh
 metta ship            # Merge worktree branch to main (or create PR)
 ```
 
 ```
-Flow: discovery → intent → spec → design → tasks → execute → verify → documentation → ship
+Flow: discovery → intent → spec → design → tasks → execute → verify → finalize → ship
 ```
 
 ### 3. Auto Mode — Spec It and Walk Away
@@ -340,7 +340,7 @@ Changes are expressed as deltas (ADDED/MODIFIED/REMOVED) against existing specs.
 metta specs list              # List all capabilities
 metta specs show auth         # Show current auth spec
 metta specs diff auth         # Show pending changes
-metta documentation --dry-run  # Preview doc generation
+metta finalize --dry-run  # Preview doc generation
 metta ship --dry-run          # Preview merge before applying
 ```
 
@@ -351,8 +351,8 @@ metta ship --dry-run          # Preview merge before applying
 Three built-in workflows, plus custom:
 
 ```
-Quick (2 artifacts):
-  intent ──→ execution
+Quick (3 artifacts):
+  intent ──→ execution ──→ verification
 
 Standard (6 artifacts):
   intent → spec → design → tasks → execution → verification
@@ -441,7 +441,7 @@ After work is shipped, Metta generates docs from specs, designs, and archived ch
 # .metta/config.yaml
 docs:
   output: ./docs
-  generate_on: ship
+  generate_on: finalize
   types: [architecture, api, changelog, getting-started]
 ```
 
@@ -464,8 +464,8 @@ metta auto --resume               # Resume interrupted auto run
 metta plan                        # Build planning artifacts
 metta execute                     # Run implementation
 metta verify                      # Check against spec
-metta documentation               # Archive, merge specs, generate docs
-metta documentation --dry-run     # Preview what would change
+metta finalize                    # Archive, merge specs, generate docs
+metta finalize --dry-run          # Preview what would change
 metta ship                        # Merge worktree branch to main
 metta ship --dry-run              # Preview merge
 
@@ -492,9 +492,23 @@ metta config get <key>            # Read config
 metta config set <key> <value>    # Set config
 metta config edit constitution    # Edit project constitution
 
+# Roadmap
+metta roadmap                     # Show current roadmap status
+metta roadmap add <feature>       # Add specced feature to milestone
+metta roadmap reorder             # Interactive reordering
+metta roadmap next                # Activate next feature into changes/
+
+# Gates
+metta gate run <name>             # Run a specific gate manually
+metta gate list                   # List all configured gates
+metta gate show <name>            # Show gate config and last result
+
 # Plugins
 metta plugin list                 # Installed plugins
 metta plugin install <name>       # Install from registry
+
+# Maintenance
+metta cleanup                     # Clean orphaned worktrees and tags
 
 # System
 metta update                      # Update Metta framework

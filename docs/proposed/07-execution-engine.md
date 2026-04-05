@@ -161,6 +161,40 @@ interface GateFailure {
 
 Gate results are stored in the change's summary and available to the verification agent.
 
+### Spec-Compliance Gate
+
+The spec-compliance gate is fundamentally different from other gates — it uses **3-layer verification**, not a single shell command:
+
+**Layer 1: Test-mapped (automatic)** — Every Given/When/Then scenario in the spec has a corresponding passing test. The gate maps scenario IDs to test names and checks coverage. If a scenario has no mapped test, it fails.
+
+**Layer 2: AI-powered review (automatic)** — The Provider calls the AI with a verification prompt asking it to check each scenario against the implementation code. Output is a structured `GateResult` with per-scenario pass/fail and evidence (file + line where the behavior is implemented, or "not found"). This consumes provider tokens — it is not free like `npm test`.
+
+**Layer 3: User checklist (interactive)** — Manual sign-off on subjective criteria (UX quality, naming conventions, architectural fit) before finalize. Presented as an interactive checklist derived from the spec's requirements.
+
+If the provider is unavailable for Layer 2, the gate degrades to Layers 1 + 3 only (test coverage + manual checklist). This gate is required for standard/full workflows and opt-in for quick mode.
+
+---
+
+## Provider Resilience
+
+AI provider failures are a distinct failure mode from gate failures. The Provider Registry handles resilience; engines receive clean results and route based on error type.
+
+### Retry Policy
+
+Configurable retry count per provider (default: 1 retry). On failure, retry once, then stop. No exponential backoff chains — fail fast and surface to the user.
+
+### Failure Behavior
+
+On provider failure after retries are exhausted, the default behavior is **explicit pause**: stop the current task, save state, and surface the error to the user. This is configurable but is the default because silent fallback chains can mask quality degradation.
+
+### Rate Limit Handling
+
+If the provider returns 429 (rate limited), respect the `Retry-After` header and pause the entire batch, not just the current task. Rate limits are provider-level, not task-level.
+
+### Garbage Detection
+
+If the AI returns output that fails Zod schema validation (for structured output) or is empty/truncated, treat it as a **provider failure**, not a gate failure. The distinction matters: gate failures mean the code is wrong; provider failures mean the AI response is wrong. Provider failures trigger the retry policy, not the gate's `on_failure` handler.
+
 ---
 
 ## Deviation Rules
@@ -580,19 +614,19 @@ State is updated atomically after each task completion. Schema-validated on ever
 
 ---
 
-## Documentation (Prepare for Ship)
+## Finalize (Prepare for Ship)
 
-After `metta verify` passes, `metta documentation` handles all the bookkeeping — spec merging, doc generation, context refresh — **on the worktree branch**. This keeps the merge to main clean and atomic.
+After `metta verify` passes, `metta finalize` handles all the bookkeeping — spec merging, doc generation, context refresh — **on the worktree branch**. This keeps the merge to main clean and atomic.
 
 ```bash
 metta verify          # Gates pass, spec compliance confirmed
-metta documentation   # Archive, merge specs, generate docs, refresh
+metta finalize   # Archive, merge specs, generate docs, refresh
 metta ship            # Merge to main
 ```
 
 Three explicit steps. No hidden logic.
 
-### What `metta documentation` Does (on worktree branch)
+### What `metta finalize` Does (on worktree branch)
 
 ```
 1. Archive change       — move spec/changes/<name>/ to spec/archive/YYYY-MM-DD-<name>/
@@ -603,7 +637,7 @@ Three explicit steps. No hidden logic.
 5. Refresh              — regenerate CLAUDE.md, .cursorrules, etc. (marker sections)
 6. Surface captures     — report ideas and bugs logged during this change
 7. Cleanup              — remove snapshot tags, clean temp state
-8. Commit               — conventional commit: docs(<change>): archive and generate documentation
+8. Commit               — conventional commit: docs(<change>): archive and finalize
 ```
 
 Everything is committed on the worktree branch. Main is untouched until `metta ship`.
@@ -613,7 +647,7 @@ Everything is committed on the worktree branch. Main is untouched until `metta s
 If another change has been shipped while this one was in flight, the delta spec merge may hit conflicts:
 
 ```
-metta documentation
+metta finalize
 
 Merging delta specs...
   ✓ auth/user-login — clean merge (base unchanged)
@@ -630,14 +664,14 @@ Documentation pauses for conflict resolution. The user resolves on the branch, c
 ### Dry Run
 
 ```bash
-metta documentation --dry-run   # Preview what would change without applying
+metta finalize --dry-run   # Preview what would change without applying
 ```
 
 ---
 
 ## Ship (Merge to Main)
 
-`metta ship` is **only the merge**. All preparation happened in `metta documentation`. Ship is the safe landing on main.
+`metta ship` is **only the merge**. All preparation happened in `metta finalize`. Ship is the safe landing on main.
 
 ```bash
 metta ship              # Merge worktree branch → main
@@ -660,7 +694,7 @@ metta ship --dry-run    # Preview merge without applying
                            PR body generated from change artifacts
 
 That's it. No bookkeeping, no spec merging, no doc generation.
-Those all happened in metta documentation, on the branch.
+Those all happened in metta finalize, on the branch.
 ```
 
 ### Ship Configuration
@@ -677,9 +711,9 @@ When `create_pr: true`, ship creates a PR instead of merging directly. The PR bo
 ### What Ship Does NOT Do
 
 - **No git tags** — tagging is a CI/CD concern, not a framework concern
-- **No spec merging** — that's `metta documentation`
-- **No doc generation** — that's `metta documentation`
-- **No cleanup** — that's `metta documentation`
+- **No spec merging** — that's `metta finalize`
+- **No doc generation** — that's `metta finalize`
+- **No cleanup** — that's `metta finalize`
 - **No deployment** — Metta is a development framework, not a CD pipeline
 
 ---

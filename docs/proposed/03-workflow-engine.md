@@ -140,11 +140,11 @@ Without discovery, agents guess. Guesses compound — a wrong assumption in the 
 
 ## Built-in Workflows
 
-### Quick (2 artifacts)
+### Quick (3 artifacts)
 ```
-intent ──→ execution
+intent ──→ execution ──→ verification
 ```
-For small, well-understood changes. Skip planning, trust the agent, verify with backpressure.
+For small, well-understood changes. Skip planning, trust the agent, verify with backpressure gates.
 
 ### Standard (6 artifacts)
 ```
@@ -231,7 +231,7 @@ Validated at workflow load time. If a cycle is detected, the workflow fails to l
 
 ### Partial Execution
 
-Users can target a specific artifact: `metta build design`. The engine computes the minimal subgraph needed and only builds missing dependencies.
+`metta plan` builds all planning artifacts in one pass. The engine computes the minimal subgraph needed and only builds missing dependencies.
 
 ---
 

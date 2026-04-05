@@ -60,6 +60,7 @@ metta propose "payment processing system"
 metta plan
 metta execute
 metta verify
+metta finalize
 metta ship
 ```
 

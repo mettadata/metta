@@ -83,7 +83,7 @@ Spec Kit requires constitution + specify + plan + tasks + implement for any work
 Metta's default is the **quick path**: describe what you want, get a lightweight spec, execute, verify. The full ceremony is opt-in, not opt-out. Each additional phase is a choice, not a requirement.
 
 ```
-Quick:    intent -> spec -> execute -> verify
+Quick:    intent -> execute -> verify
 Standard: intent -> spec -> design -> tasks -> execute -> verify
 Full:     research -> intent -> spec -> design -> architecture -> tasks -> execute -> verify -> ship
 ```

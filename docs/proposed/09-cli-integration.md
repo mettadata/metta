@@ -10,7 +10,7 @@ metta init --skip-scan             # Force greenfield-style init
 metta propose <description>        # Start a new change (standard workflow)
 metta propose --from-gap <gap>     # Create change from a gap
 metta propose --from-idea <idea>   # Create change from a backlog idea
-metta propose --from-bug <bug>     # Create change from a logged bug
+metta propose --from-issue <issue>  # Create change from a logged issue
 metta quick <description>          # Quick mode (skip planning)
 metta auto <description>           # Full lifecycle loop (discover → build → verify)
 metta auto --resume                # Resume interrupted auto run
@@ -18,8 +18,8 @@ metta plan                         # Build next planning artifacts
 metta execute                      # Run implementation
 metta verify                       # Run verification
 metta verify --gaps                # Re-run reconciliation, update gaps report
-metta documentation                # Archive, merge specs, generate docs, refresh
-metta documentation --dry-run      # Preview what would change
+metta finalize                     # Archive, merge specs, generate docs, refresh
+metta finalize --dry-run           # Preview what would change
 metta ship                         # Merge worktree branch to main
 metta ship --dry-run               # Preview merge without applying
 
@@ -49,14 +49,23 @@ metta idea                         # Interactive: add detail to an idea
 metta ideas list                   # List all ideas
 metta ideas show <idea>            # Show a specific idea
 
-metta bug <description>            # Log a bug or issue
-metta bug                          # Interactive: add detail to a bug
-metta bugs list                    # List all bugs
-metta bugs show <bug>              # Show a specific bug
+metta issue <description>          # Log an issue
+metta issue                        # Interactive: add detail to an issue
+metta issues list                  # List all issues
+metta issues show <issue>          # Show a specific issue
 
 metta changes list                 # List active changes
 metta changes show <name>          # Show change details
 metta changes abandon <name>       # Abandon a change
+
+metta roadmap                      # Show current roadmap status
+metta roadmap add <feature>        # Add specced feature to milestone
+metta roadmap reorder              # Interactive reordering
+metta roadmap next                 # Activate next feature into changes/
+
+metta gate run <name>              # Run a specific gate manually
+metta gate list                    # List all configured gates
+metta gate show <name>             # Show gate config and last result
 
 metta context stats                # Show context budget usage
 metta context check                # Check for stale context
@@ -75,6 +84,7 @@ metta config edit                  # Open config in editor
 
 metta refresh                      # Regenerate all derived files from constitution
 metta refresh --dry-run            # Show what would change without writing
+metta cleanup                      # Clean orphaned worktrees and tags
 metta update                       # Update Metta framework to latest version
 metta doctor                       # Diagnose common issues
 ```
@@ -436,16 +446,13 @@ context_sections:
 
 ### Project Documentation
 
-Generated project documentation lives in a configurable output directory (default `./docs`). Spec working artifacts (constitution, specs, changes, gaps, ideas, bugs) live in a separate directory (default `./spec`). After work is built and verified, `metta documentation` writes human-readable docs from specs, designs, and archived changes.
+Generated project documentation lives in a configurable output directory (default `./docs`). Spec working artifacts (constitution, specs, changes, gaps, ideas, issues) live in `./spec` (hardcoded for v1). After work is built and verified, `metta finalize` writes human-readable docs from specs, designs, and archived changes.
 
 ```yaml
 # .metta/config.yaml (or ~/.metta/config.yaml for global default)
-spec:
-  output: ./spec              # Metta working artifacts (constitution, specs, changes, gaps, ideas, bugs)
-
 docs:
   output: ./docs              # Generated project documentation
-  generate_on: documentation  # documentation | verify | manual
+  generate_on: finalize       # finalize | verify | manual
   types:
     - architecture            # From design artifacts + ADRs
     - api                     # From specs + implementation
@@ -464,8 +471,8 @@ docs:
 
 #### When Docs Generate
 
-- **`generate_on: ship`** (default) — docs update when a change is archived. Specs are merged, so docs reflect the new truth.
-- **`generate_on: verify`** — docs update after verification passes. Useful if you want docs before the formal ship step.
+- **`generate_on: finalize`** (default) — docs update when a change is finalized. Specs are merged, so docs reflect the new truth.
+- **`generate_on: verify`** — docs update after verification passes. Useful if you want docs before the formal finalize step.
 - **`generate_on: manual`** — only via `metta refresh` or `metta docs generate`.
 
 ```bash
@@ -494,13 +501,13 @@ metta refresh --dry-run    # Preview changes without writing
 ```
 
 **Automatic refresh** runs after:
-- `metta ship` — specs merged, context files and docs are stale
+- `metta finalize` / `metta ship` — specs merged, context files and docs are stale
 - `metta init` — initial generation
 - `metta config edit constitution` — constitution changed
 
 ---
 
-## Ideas & Bugs — Capture Without Breaking Flow
+## Ideas & Issues — Capture Without Breaking Flow
 
 Two lightweight capture mechanisms for things you notice while working but don't want to deal with right now. Zero friction, zero ceremony — just dump it and keep going.
 
@@ -532,21 +539,21 @@ media query and sync with system setting.
 
 The file might be a one-liner or a full write-up — whatever the person (or agent) captures in the moment. Detail can be added later.
 
-### `metta bug` — Issue Log
+### `metta issue` — Issue Log
 
 ```bash
 # One-liner dump
-metta bug "login form flashes on hydration"
+metta issue "login form flashes on hydration"
 
 # With severity
-metta bug --severity critical "payments silently fail for amounts over 10k"
+metta issue --severity critical "payments silently fail for amounts over 10k"
 
-# Agent logs bugs discovered during execution
+# Agent logs issues discovered during execution
 # Instead of fixing inline (Deviation Rule 1), log and keep going:
-# Agent calls: metta bug "null check missing in auth middleware for expired tokens"
+# Agent calls: metta issue "null check missing in auth middleware for expired tokens"
 ```
 
-Creates `spec/bugs/<slug>.md`:
+Creates `spec/issues/<slug>.md`:
 
 ```markdown
 # Login form flashes on hydration
@@ -566,8 +573,8 @@ CSS-only initial state.
 Agents can log ideas and bugs during any workflow phase. This is especially useful during execution when an agent encounters something outside its current task scope:
 
 - **Discovery**: agent notices a feature opportunity → `metta idea`
-- **Execution**: agent discovers a bug but it's not in scope → `metta bug`  
-- **Verification**: agent finds an edge case not covered → `metta bug`
+- **Execution**: agent discovers an issue but it's not in scope → `metta issue`  
+- **Verification**: agent finds an edge case not covered → `metta issue`
 
 This gives agents an alternative to Deviation Rules 1-2 (auto-fix) — sometimes logging is better than fixing, especially when the fix is out of scope or risky.
 
@@ -577,7 +584,7 @@ Ideas and bugs are promotable to full changes when you're ready:
 
 ```bash
 metta propose --from-idea "dark-mode-system-preference"
-metta propose --from-bug "login-hydration-flash"
+metta propose --from-issue "login-hydration-flash"
 ```
 
 The discovery gate pre-populates with the captured context, so it starts with what you already know.
@@ -587,11 +594,11 @@ The discovery gate pre-populates with the captured context, so it starts with wh
 ```bash
 metta ideas list                 # List all ideas with status
 metta ideas show <idea>          # Show details
-metta bugs list                  # List all bugs with status/severity
-metta bugs show <bug>            # Show details
+metta issues list                # List all issues with status/severity
+metta issues show <issue>        # Show details
 ```
 
-Ideas and bugs also show up in the generated CLAUDE.md (via the `metta:gaps-start` marker section) so agents are aware of known issues and planned features.
+Ideas and issues also show up in the generated CLAUDE.md (via the `metta:gaps-start` marker section) so agents are aware of known issues and planned features.
 
 ---
 
@@ -723,14 +730,10 @@ git:
   enabled: true
   commit_convention: conventional  # conventional | none | custom
 
-# Spec working artifacts directory
-spec:
-  output: ./spec              # Constitution, specs, changes, gaps, ideas, bugs
-
 # Generated project documentation
 docs:
   output: ./docs              # Architecture, API, changelog, getting-started
-  generate_on: documentation  # documentation | verify | manual
+  generate_on: finalize       # finalize | verify | manual
   types: [architecture, api, changelog, getting-started]
 
 # Auto mode defaults

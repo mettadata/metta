@@ -61,6 +61,10 @@ ContextEngine.load(manifest) → LoadedContext
 
 Budget overruns are warnings, not errors — the engine truncates gracefully rather than failing.
 
+### Token Counting
+
+Token counting uses a **character-based estimator** as the default: 4 characters ≈ 1 token. This is fast, has no dependencies, and is accurate enough for budget enforcement where the goal is "don't waste context," not "hit exactly 40,000 tokens." Model-specific tokenizers can be provided via the Provider Registry as an optional enhancement. Budgets in context manifests are approximate targets, not hard limits — the engine logs actual vs budget for tuning over time.
+
 ---
 
 ## Loading Strategies
