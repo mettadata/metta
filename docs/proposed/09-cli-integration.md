@@ -27,6 +27,7 @@ metta status                       # Show current change status
 metta status --json                # Machine-readable status
 metta instructions <artifact>      # Generate AI instructions for an artifact
 metta instructions <artifact> --json
+metta answer --change <name> --artifact <artifact>  # Submit user answers to discovery questions
 
 metta specs list                   # List all capabilities (shows draft/approved status)
 metta specs show <capability>      # Show current spec
@@ -204,7 +205,88 @@ interface ToolAdapter {
   formatSkill(content: SkillContent): string     // Tool-specific skill format
   formatCommand(content: CommandContent): string // Tool-specific command format
   formatContext(context: ProjectContext): string  // Tool-specific context format
+  questionCapability(): QuestionCapability       // How this tool asks users questions
 }
+```
+
+### Question Capability
+
+Metta needs user input at many points — discovery, spec approval, conflict resolution, verification checklist, deduplication, gap review. Each AI tool has a different mechanism for asking users structured questions.
+
+The adapter declares its tool's question capability so `metta instructions --json` can include questions in the right format:
+
+```typescript
+interface QuestionCapability {
+  tool: string                // Tool-specific skill name (e.g., "AskUserQuestion")
+  supportsOptions: boolean    // Can present multiple choice?
+  supportsMultiSelect: boolean
+  supportsPreview: boolean
+  fallback: "freeform"        // If tool has no native questions, use text
+  formatQuestion(question: MettaQuestion): string
+}
+
+interface MettaQuestion {
+  question: string            // The question text
+  header: string              // Short label (max 12 chars)
+  options: MettaOption[]      // Available choices
+  multiSelect: boolean        // Allow multiple selections
+}
+
+interface MettaOption {
+  label: string               // Display text
+  description: string         // What this option means
+  preview?: string            // Optional preview content
+}
+```
+
+### Question Capability per Tool
+
+| Tool | Mechanism | Options | Multi-select | Preview |
+|------|-----------|---------|-------------|---------|
+| Claude Code | `AskUserQuestion` | Yes (2-4) | Yes | Yes |
+| Cursor | Inline prompt | Yes | No | No |
+| Copilot | Chat response | Freeform | No | No |
+| Codex | Inline prompt | Yes | No | No |
+| Gemini | Chat response | Freeform | No | No |
+| Generic | Freeform text | No | No | No |
+
+For tools without native structured questions, the adapter formats questions as readable text and parses the freeform response:
+
+```
+Discovery question:
+
+Which authentication approach should we use?
+  [1] JWT with refresh tokens (Recommended) — Stateless, scalable, standard approach
+  [2] Session cookies — Server-side sessions, simpler but requires session store
+  [3] OAuth2 only — Delegate to third-party providers, no local credentials
+
+Enter 1, 2, or 3:
+```
+
+### Questions in `metta instructions --json`
+
+When `metta instructions` returns questions that need user input, they appear in a `questions` field:
+
+```json
+{
+  "artifact": "spec",
+  "status": "needs_input",
+  "questions": [
+    {
+      "question": "Should refunds support partial amounts or full-only?",
+      "header": "Refunds",
+      "options": [
+        { "label": "Full and partial", "description": "Users can request any amount up to the original" },
+        { "label": "Full only", "description": "Simpler — refund the entire transaction or nothing" }
+      ],
+      "multiSelect": false
+    }
+  ],
+  "submit_answers": "metta answer --change add-refunds --artifact spec"
+}
+```
+
+The AI tool presents the questions using its native mechanism, collects answers, and submits them back via `metta answer`. The framework records answers and continues generating the artifact.
 ```
 
 ### Built-in Adapters
