@@ -1,0 +1,4 @@
+.metta/state.yaml
+.metta/local.yaml
+.metta/logs/
+.metta/state.lock
