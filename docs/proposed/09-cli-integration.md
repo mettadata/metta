@@ -18,7 +18,9 @@ metta plan                         # Build next planning artifacts
 metta execute                      # Run implementation
 metta verify                       # Run verification
 metta verify --gaps                # Re-run reconciliation, update gaps report
-metta ship                         # Archive change, merge specs
+metta documentation                # Archive, merge specs, generate docs, refresh
+metta documentation --dry-run      # Preview what would change
+metta ship                         # Merge worktree branch to main
 metta ship --dry-run               # Preview merge without applying
 
 metta status                       # Show current change status
@@ -206,7 +208,7 @@ Slash commands don't contain workflow logic. They tell the AI tool to call `mett
 
 ## Project Constitution
 
-### `docs/project.md` — The Single Source
+### `spec/project.md` — The Single Source
 
 The project constitution is the single source of truth for all AI context. It captures everything an agent needs to know about how this project works — principles, conventions, constraints, standards. Every tool-specific context file (CLAUDE.md, .cursorrules, etc.) is **derived from the constitution**, never edited directly.
 
@@ -243,7 +245,7 @@ Setting up project constitution...
 > No eval(), no dynamic requires, no secrets in code, no console.log in production
 ```
 
-Metta generates `docs/project.md`:
+Metta generates `spec/project.md`:
 
 ```markdown
 # My Shop — Project Constitution
@@ -291,11 +293,11 @@ The constitution is loaded by the Context Engine and used across the framework:
 ### Editing the Constitution
 
 ```bash
-metta config edit constitution    # Open docs/project.md in editor
+metta config edit constitution    # Open spec/project.md in editor
 metta refresh                     # Regenerate all derived files
 ```
 
-Direct edits to `docs/project.md` are the way to change project context. Never edit CLAUDE.md or .cursorrules directly — changes will be overwritten on the next refresh.
+Direct edits to `spec/project.md` are the way to change project context. Never edit CLAUDE.md or .cursorrules directly — changes will be overwritten on the next refresh.
 
 ---
 
@@ -320,7 +322,7 @@ Content within markers is lightweight — key conventions inlined, everything el
 Example generated `CLAUDE.md`:
 
 ```markdown
-<!-- metta:project-start source:docs/project.md -->
+<!-- metta:project-start source:spec/project.md -->
 ## Project
 
 **My Shop** — E-commerce platform for handmade goods.
@@ -328,7 +330,7 @@ Example generated `CLAUDE.md`:
 Stack: Next.js 15, Prisma, PostgreSQL, Tailwind CSS
 <!-- metta:project-end -->
 
-<!-- metta:conventions-start source:docs/project.md -->
+<!-- metta:conventions-start source:spec/project.md -->
 ## Conventions
 
 - Use server components by default
@@ -338,7 +340,7 @@ Stack: Next.js 15, Prisma, PostgreSQL, Tailwind CSS
 - No eval(), no dynamic requires, no console.log in production
 <!-- metta:conventions-end -->
 
-<!-- metta:specs-start source:docs/specs/ -->
+<!-- metta:specs-start source:spec/specs/ -->
 ## Active Specs
 
 | Capability | Requirements | Status |
@@ -347,10 +349,10 @@ Stack: Next.js 15, Prisma, PostgreSQL, Tailwind CSS
 | payments | 6 requirements, 18 scenarios | draft |
 | profiles | 3 requirements, 7 scenarios | draft |
 
-See [docs/specs/](docs/specs/) for full specifications.
+See [spec/specs/](spec/specs/) for full specifications.
 <!-- metta:specs-end -->
 
-<!-- metta:gaps-start source:docs/gaps/ -->
+<!-- metta:gaps-start source:spec/gaps/ -->
 ## Known Gaps
 
 3 gaps found — run `metta gaps list` for details.
@@ -362,10 +364,10 @@ See [docs/specs/](docs/specs/) for full specifications.
 <!-- metta:reference-start -->
 ## Reference
 
-- [Project Constitution](docs/project.md) — full principles, constraints, quality standards
-- [Active Specs](docs/specs/) — current requirements and scenarios
-- [Active Changes](docs/changes/) — work in flight
-- [Gaps](docs/gaps/) — spec-to-code reconciliation gaps
+- [Project Constitution](spec/project.md) — full principles, constraints, quality standards
+- [Active Specs](spec/specs/) — current requirements and scenarios
+- [Active Changes](spec/changes/) — work in flight
+- [Gaps](spec/gaps/) — spec-to-code reconciliation gaps
 - [Architecture](docs/architecture.md) — system design and ADRs
 - [API Reference](docs/api.md) — public API documentation
 - [Changelog](docs/changelog.md) — what changed and why
@@ -409,13 +411,13 @@ metta refresh will never touch this section.
 
 | Section | Source | Contains |
 |---------|--------|----------|
-| `project` | `docs/project.md` | Name, description, stack |
-| `conventions` | `docs/project.md` | Coding conventions, constraints, off-limits |
-| `specs` | `docs/specs/` | Summary table of active specs |
-| `gaps` | `docs/gaps/` | Count and list of reconciliation gaps |
+| `project` | `spec/project.md` | Name, description, stack |
+| `conventions` | `spec/project.md` | Coding conventions, constraints, off-limits |
+| `specs` | `spec/specs/` | Summary table of active specs |
+| `gaps` | `spec/gaps/` | Count and list of reconciliation gaps |
 | `reference` | All docs | Pointer links to project documents |
 | `workflow` | Framework | Metta command entry points and enforcement |
-| `changes` | `docs/changes/` | Active changes in flight (optional) |
+| `changes` | `spec/changes/` | Active changes in flight (optional) |
 | `profile` | User profile | Developer preferences (optional) |
 
 Sections are configurable — add or remove from `.metta/config.yaml`:
@@ -434,13 +436,16 @@ context_sections:
 
 ### Project Documentation
 
-All project documents live in a configurable output directory (default `./docs`). This includes the constitution, specs, changes, archives, and generated docs. After work is built and verified, the framework writes human-readable docs from specs, designs, and archived changes.
+Generated project documentation lives in a configurable output directory (default `./docs`). Spec working artifacts (constitution, specs, changes, gaps, ideas, bugs) live in a separate directory (default `./spec`). After work is built and verified, `metta documentation` writes human-readable docs from specs, designs, and archived changes.
 
 ```yaml
 # .metta/config.yaml (or ~/.metta/config.yaml for global default)
+spec:
+  output: ./spec              # Metta working artifacts (constitution, specs, changes, gaps, ideas, bugs)
+
 docs:
-  output: ./docs              # All project documents (constitution, specs, changes, generated docs)
-  generate_on: ship           # ship | verify | manual
+  output: ./docs              # Generated project documentation
+  generate_on: documentation  # documentation | verify | manual
   types:
     - architecture            # From design artifacts + ADRs
     - api                     # From specs + implementation
@@ -475,7 +480,7 @@ Every generated doc includes a header:
 
 ```markdown
 <!-- Generated by Metta — do not edit directly -->
-<!-- Source: docs/specs/auth/, docs/archive/2026-04-05-add-mfa/ -->
+<!-- Source: spec/specs/auth/, spec/archive/2026-04-05-add-mfa/ -->
 <!-- Run `metta docs generate` to regenerate -->
 ```
 
@@ -512,7 +517,7 @@ metta idea
 # Agent calls: metta idea "bulk export would simplify migration workflow"
 ```
 
-Creates `docs/ideas/<slug>.md`:
+Creates `spec/ideas/<slug>.md`:
 
 ```markdown
 # Dark mode should respect system preference
@@ -541,7 +546,7 @@ metta bug --severity critical "payments silently fail for amounts over 10k"
 # Agent calls: metta bug "null check missing in auth middleware for expired tokens"
 ```
 
-Creates `docs/bugs/<slug>.md`:
+Creates `spec/bugs/<slug>.md`:
 
 ```markdown
 # Login form flashes on hydration
@@ -718,10 +723,14 @@ git:
   enabled: true
   commit_convention: conventional  # conventional | none | custom
 
-# Project documents directory
+# Spec working artifacts directory
+spec:
+  output: ./spec              # Constitution, specs, changes, gaps, ideas, bugs
+
+# Generated project documentation
 docs:
-  output: ./docs              # Constitution, specs, changes, generated docs all live here
-  generate_on: ship           # ship | verify | manual
+  output: ./docs              # Architecture, API, changelog, getting-started
+  generate_on: documentation  # documentation | verify | manual
   types: [architecture, api, changelog, getting-started]
 
 # Auto mode defaults

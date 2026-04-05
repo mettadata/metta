@@ -166,9 +166,11 @@ Project `.metta/` exists for **customization only** — a different default work
 
 ### Project Layout
 
-`.metta/` is for **framework state only** — config, state, workflows, agents, gates, plugins, templates. Nothing human-readable lives here.
+Three directories, clear separation:
 
-`docs/` (configurable) is for **project documents** — constitution, specs, generated docs, change artifacts. Everything a human or AI would read.
+- **`.metta/`** — framework state only (config, state, workflows, agents, gates, plugins, templates). Hidden, not for humans.
+- **`spec/`** (configurable) — all Metta working artifacts. Input to development. Specs, changes, constitution, gaps, ideas, bugs, archive.
+- **`docs/`** (configurable) — generated project documentation. Output of development. Architecture, API, changelog, getting-started.
 
 ```
 .metta/                            # Framework state (hidden)
@@ -181,7 +183,7 @@ Project `.metta/` exists for **customization only** — a different default work
   templates/               # Template overrides
   state.yaml               # Current state (schema-validated)
 
-docs/                              # Project documents (configurable path)
+spec/                              # Metta working artifacts (configurable path)
   project.md               # Project constitution (source of truth for AI context)
   specs/                   # Living specifications
     <capability>/
@@ -203,6 +205,8 @@ docs/                              # Project documents (configurable path)
     <idea-name>.md
   bugs/                    # Known issues (logged, not fixed inline)
     <bug-name>.md
+
+docs/                              # Generated project documentation (configurable path)
   architecture.md          # Generated — system design and ADRs
   api.md                   # Generated — public API documentation
   changelog.md             # Generated — what changed and why
@@ -227,8 +231,8 @@ User: metta propose "add payment processing"
   └── AI Tool executes instructions
       ├── Reads: metta status --json
       ├── Reads: metta instructions intent --json
-      ├── Writes: docs/changes/add-payment-processing/intent.md
-      └── Writes: docs/changes/add-payment-processing/spec.md
+      ├── Writes: spec/changes/add-payment-processing/intent.md
+      └── Writes: spec/changes/add-payment-processing/spec.md
   │
 User: metta plan
   │
@@ -254,11 +258,18 @@ User: metta verify
   ├── AgentSystem.resolve(capability: "verify")
   ├── Interactive walkthrough of deliverables
   │
+User: metta documentation
+  │
+  ├── ArtifactStore.archive(change)        → spec/archive/
+  ├── ArtifactStore.mergeSpecs(deltas)     → spec/specs/ (conflict check)
+  ├── DocsGenerator.generate()             → docs/ (architecture, API, changelog)
+  ├── ContextRefresh.refresh()             → CLAUDE.md, .cursorrules, etc.
+  ├── Git: commit on worktree branch
+  │
 User: metta ship
   │
-  ├── ArtifactStore.archive(change)
-  ├── ArtifactStore.mergeSpecs(deltas, baseVersions) → conflict check
-  └── Git: commit, tag, optional PR creation
+  ├── MergeSafety.pipeline()               → 7-step merge to main
+  └── Optional: create PR (if git.create_pr: true)
 ```
 
 ---

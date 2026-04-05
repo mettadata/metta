@@ -580,6 +580,110 @@ State is updated atomically after each task completion. Schema-validated on ever
 
 ---
 
+## Documentation (Prepare for Ship)
+
+After `metta verify` passes, `metta documentation` handles all the bookkeeping — spec merging, doc generation, context refresh — **on the worktree branch**. This keeps the merge to main clean and atomic.
+
+```bash
+metta verify          # Gates pass, spec compliance confirmed
+metta documentation   # Archive, merge specs, generate docs, refresh
+metta ship            # Merge to main
+```
+
+Three explicit steps. No hidden logic.
+
+### What `metta documentation` Does (on worktree branch)
+
+```
+1. Archive change       — move spec/changes/<name>/ to spec/archive/YYYY-MM-DD-<name>/
+2. Merge delta specs    — apply deltas to living specs in spec/specs/
+                          (conflict detection, dry-run, requirement-level merge)
+3. Generate changelog   — append entry to docs/changelog.md from change artifacts
+4. Generate docs        — update docs/ (architecture, API, etc.)
+5. Refresh              — regenerate CLAUDE.md, .cursorrules, etc. (marker sections)
+6. Surface captures     — report ideas and bugs logged during this change
+7. Cleanup              — remove snapshot tags, clean temp state
+8. Commit               — conventional commit: docs(<change>): archive and generate documentation
+```
+
+Everything is committed on the worktree branch. Main is untouched until `metta ship`.
+
+### Conflict Handling During Spec Merge
+
+If another change has been shipped while this one was in flight, the delta spec merge may hit conflicts:
+
+```
+metta documentation
+
+Merging delta specs...
+  ✓ auth/user-login — clean merge (base unchanged)
+  ✗ auth/session-management — CONFLICT
+    Base version: sha256:abc123
+    Current version: sha256:def456 (changed by "add-session-refresh" shipped yesterday)
+    This change modifies: session expiry scenario
+
+  Resolve interactively before documentation can complete.
+```
+
+Documentation pauses for conflict resolution. The user resolves on the branch, commits, and retries.
+
+### Dry Run
+
+```bash
+metta documentation --dry-run   # Preview what would change without applying
+```
+
+---
+
+## Ship (Merge to Main)
+
+`metta ship` is **only the merge**. All preparation happened in `metta documentation`. Ship is the safe landing on main.
+
+```bash
+metta ship              # Merge worktree branch → main
+metta ship --dry-run    # Preview merge without applying
+```
+
+### What Ship Does
+
+```
+1. Merge safety pipeline  — full 7-step verification:
+   a. Base drift check    — has main advanced?
+   b. Dry-run merge       — does it apply cleanly?
+   c. Scope check         — only expected files changed?
+   d. Gate verification   — all gates passed on branch?
+   e. Snapshot            — tag main HEAD for rollback
+   f. Merge               — fast-forward or merge commit
+   g. Post-merge gates    — re-run gates on main (auto-rollback on failure)
+
+2. Create PR             — if configured (git.create_pr: true)
+                           PR body generated from change artifacts
+
+That's it. No bookkeeping, no spec merging, no doc generation.
+Those all happened in metta documentation, on the branch.
+```
+
+### Ship Configuration
+
+```yaml
+# .metta/config.yaml
+git:
+  create_pr: false          # true = create PR instead of direct merge
+  pr_base: main             # target branch for PRs
+```
+
+When `create_pr: true`, ship creates a PR instead of merging directly. The PR body is generated from the change's intent, spec, and summary artifacts. The actual merge happens through your normal PR review process (GitHub, CI, etc.).
+
+### What Ship Does NOT Do
+
+- **No git tags** — tagging is a CI/CD concern, not a framework concern
+- **No spec merging** — that's `metta documentation`
+- **No doc generation** — that's `metta documentation`
+- **No cleanup** — that's `metta documentation`
+- **No deployment** — Metta is a development framework, not a CD pipeline
+
+---
+
 ## Auto Mode
 
 Auto mode is the outer loop that chains the full lifecycle — propose, plan, execute, verify — and keeps going until the spec is satisfied. It's the Ralph pattern with Metta's structure around it.

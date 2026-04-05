@@ -44,7 +44,7 @@ Setting up project constitution...
 ```
 
 Metta creates:
-- `docs/project.md` — your project constitution (single source of truth)
+- `spec/project.md` — your project constitution (single source of truth)
 - `.metta/config.yaml` — minimal project config (overrides only)
 - `CLAUDE.md`, `.cursorrules`, etc. — lightweight pointer files for detected AI tools
 - Slash commands/skills installed for each detected tool
@@ -110,7 +110,7 @@ metta import auth                # Import a specific capability
 metta import --all               # Import entire codebase
 ```
 
-It finds existing specs first (the claims), then analyzes code (the evidence), then reconciles. The output is verified spec drafts plus a **gaps report** (`docs/gaps.md`) showing what's claimed but not built, what's built but not documented, and what diverges.
+It finds existing specs first (the claims), then analyzes code (the evidence), then reconciles. The output is verified spec drafts plus a **gaps report** (`spec/gaps/`) showing what's claimed but not built, what's built but not documented, and what diverges.
 
 Gaps can be promoted into new specs and changes:
 
@@ -157,14 +157,15 @@ metta propose "user profile system"
 Full discovery — adaptive questions until requirements are clear and complete. Then step through manually:
 
 ```bash
-metta plan          # Design + task decomposition into batches
-metta execute       # Batched execution with backpressure gates
-metta verify        # Check deliverables against spec scenarios
-metta ship          # Archive change, merge specs, generate docs
+metta plan            # Design + task decomposition into batches
+metta execute         # Batched execution with backpressure gates
+metta verify          # Check deliverables against spec scenarios
+metta documentation   # Archive, merge specs, generate docs, refresh
+metta ship            # Merge worktree branch to main (or create PR)
 ```
 
 ```
-Flow: discovery → intent → spec → design → tasks → execute → verify → ship
+Flow: discovery → intent → spec → design → tasks → execute → verify → documentation → ship
 ```
 
 ### 3. Auto Mode — Spec It and Walk Away
@@ -339,6 +340,7 @@ Changes are expressed as deltas (ADDED/MODIFIED/REMOVED) against existing specs.
 metta specs list              # List all capabilities
 metta specs show auth         # Show current auth spec
 metta specs diff auth         # Show pending changes
+metta documentation --dry-run  # Preview doc generation
 metta ship --dry-run          # Preview merge before applying
 ```
 
@@ -429,7 +431,7 @@ Metta generates and maintains two kinds of output:
 
 ### Tool Context Files (CLAUDE.md, .cursorrules, etc.)
 
-Lightweight pointer tables — conventions inlined, everything else is links. Agents follow links to load what they need. Never edit these directly — edit `docs/project.md` and run `metta refresh`.
+Lightweight pointer tables — conventions inlined, everything else is links. Agents follow links to load what they need. Never edit these directly — edit `spec/project.md` and run `metta refresh`.
 
 ### Project Documentation
 
@@ -462,7 +464,9 @@ metta auto --resume               # Resume interrupted auto run
 metta plan                        # Build planning artifacts
 metta execute                     # Run implementation
 metta verify                      # Check against spec
-metta ship                        # Archive + merge specs + generate docs
+metta documentation               # Archive, merge specs, generate docs
+metta documentation --dry-run     # Preview what would change
+metta ship                        # Merge worktree branch to main
 metta ship --dry-run              # Preview merge
 
 # Status
