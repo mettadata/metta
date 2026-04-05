@@ -46,6 +46,9 @@
 - Merge operations protected by snapshot/rollback safety net
 
 ## Off-Limits
+- **No CommonJS**: ESM only throughout the codebase; no `require()`, no `module.exports`
+- **No singletons**: use dependency injection and class instantiation, not global singleton patterns
+- **No unvalidated state writes**: all mutations to `.metta/` state files must pass through Zod schema validation
 - **Never auto-push to remote**: all `git push` operations require explicit user confirmation
 - **Never delete state without confirmation**: `.metta/` state files are never removed or overwritten destructively without user approval
 - **No force pushes**: `git push --force` is forbidden in automated workflows

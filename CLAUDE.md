@@ -16,8 +16,12 @@ Stack: TypeScript (strict, ES2022), Node.js >= 22, ESM, Commander.js, Zod, YAML 
 - Validate all state and config with Zod schemas
 - Use custom error classes with typed hierarchies
 - Follow conventional commits: `feat:`, `fix:`, `chore:`, `refactor:`, `test:`, `docs:`
+- Barrel exports via `index.ts` at `src/` root
+- Template files (YAML workflows, gates, artifacts, skills) copied to `dist/` at build time
 - Write tests in Vitest using `describe`/`it`/`expect` with temp dir isolation
 - Maintain near 1:1 test-to-source file ratio
+- Functional core, imperative shell: pure logic in modules, I/O at the edges
+- No CommonJS, no singletons, no unvalidated state writes
 - Never auto-push to remote or delete state without explicit user confirmation
 - No `--force` pushes, no `--no-verify`, no destructive git ops without user request
 <!-- metta:conventions-end -->
