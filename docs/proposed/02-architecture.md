@@ -167,6 +167,7 @@ Project `.metta/` exists for **customization only** — a different default work
 ### Project Layout (`.metta/` — overrides only)
 ```
 .metta/
+  project.md               # Project constitution (source of truth for AI context)
   config.yaml              # Project overrides (only what differs from global)
   local.yaml               # Personal overrides, gitignored
   workflows/               # Custom workflows (extends or replaces global)

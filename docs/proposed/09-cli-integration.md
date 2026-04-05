@@ -8,6 +8,8 @@
 metta init                          # Initialize project
 metta propose <description>        # Start a new change (standard workflow)
 metta quick <description>          # Quick mode (skip planning)
+metta auto <description>           # Full lifecycle loop (discover → build → verify)
+metta auto --resume                # Resume interrupted auto run
 metta plan                         # Build next planning artifacts
 metta execute                      # Run implementation
 metta verify                       # Run verification
@@ -39,7 +41,9 @@ metta config get <key>             # Read config value
 metta config set <key> <value>     # Set config value
 metta config edit                  # Open config in editor
 
-metta update                       # Refresh tool commands/skills
+metta refresh                      # Regenerate all derived files from constitution
+metta refresh --dry-run            # Show what would change without writing
+metta update                       # Update Metta framework to latest version
 metta doctor                       # Diagnose common issues
 ```
 
@@ -72,26 +76,28 @@ Dynamic completions for change names, capability names, and artifact IDs.
 interface ToolAdapter {
   id: string
   name: string
-  detect(projectRoot: string): boolean        // Auto-detect tool presence
-  skillsDir(root: string): string | null      // Where to write skills
-  commandsDir(root: string): string | null    // Where to write commands
-  formatSkill(content: SkillContent): string  // Tool-specific skill format
-  formatCommand(content: CommandContent): string  // Tool-specific command format
+  detect(projectRoot: string): boolean           // Auto-detect tool presence
+  skillsDir(root: string): string | null         // Where to write skills
+  commandsDir(root: string): string | null       // Where to write commands
+  contextFile(root: string): string | null       // Where to write context (e.g., "CLAUDE.md")
+  formatSkill(content: SkillContent): string     // Tool-specific skill format
+  formatCommand(content: CommandContent): string // Tool-specific command format
+  formatContext(context: ProjectContext): string  // Tool-specific context format
 }
 ```
 
 ### Built-in Adapters
 
-| Tool | Skills Dir | Commands Dir | Format |
-|------|-----------|-------------|--------|
-| Claude Code | `.claude/skills/metta-*/SKILL.md` | `.claude/commands/metta/*.md` | Markdown + YAML frontmatter |
-| Cursor | `.cursor/skills/metta-*/SKILL.md` | `.cursor/commands/metta/*.md` | Markdown + YAML frontmatter |
-| Copilot | `.github/agents/metta.*.agent.md` | — | Markdown + companion prompts |
-| Codex | `.codex/skills/metta-*/SKILL.md` | — | Markdown + TOML config |
-| Gemini | — | `.gemini/commands/metta.*.toml` | TOML with multiline prompt |
-| Windsurf | `.windsurf/skills/metta-*/SKILL.md` | — | Markdown + YAML frontmatter |
-| OpenCode | — | `.config/opencode/commands/metta/*.md` | Markdown |
-| Generic | — | User-specified | Markdown |
+| Tool | Skills Dir | Commands Dir | Context File | Format |
+|------|-----------|-------------|-------------|--------|
+| Claude Code | `.claude/skills/metta-*/SKILL.md` | `.claude/commands/metta/*.md` | `CLAUDE.md` | Markdown + YAML frontmatter |
+| Cursor | `.cursor/skills/metta-*/SKILL.md` | `.cursor/commands/metta/*.md` | `.cursorrules` | Markdown + YAML frontmatter |
+| Copilot | `.github/agents/metta.*.agent.md` | — | `.github/copilot-instructions.md` | Markdown + companion prompts |
+| Codex | `.codex/skills/metta-*/SKILL.md` | — | `AGENTS.md` | Markdown + TOML config |
+| Gemini | — | `.gemini/commands/metta.*.toml` | `.gemini/instructions.md` | TOML with multiline prompt |
+| Windsurf | `.windsurf/skills/metta-*/SKILL.md` | — | `.windsurfrules` | Markdown + YAML frontmatter |
+| OpenCode | — | `.config/opencode/commands/metta/*.md` | — | Markdown |
+| Generic | — | User-specified | User-specified | Markdown |
 
 ### Adding a New Tool
 
@@ -124,7 +130,7 @@ Found: .cursor/ → Install Cursor skills? [Y/n]
 Not found: .github/agents → Skip Copilot
 ```
 
-During `metta update`, re-scan and offer to install/remove for detected tools.
+During `metta refresh`, re-scan and offer to install/remove for detected tools.
 
 ---
 
@@ -163,8 +169,154 @@ You are starting a new change using the Metta spec-driven development framework.
 Slash commands don't contain workflow logic. They tell the AI tool to call `metta` CLI commands, which return structured instructions. This means:
 
 - **Single source of truth**: Logic lives in the framework, not in 8 tool-specific command files
-- **Instant updates**: `metta update` refreshes skills without framework version bump
+- **Instant updates**: `metta refresh` regenerates skills without framework version bump
 - **Consistent behavior**: All tools get identical instructions via `metta instructions --json`
+
+---
+
+## Project Constitution
+
+### `.metta/project.md` — The Single Source
+
+The project constitution is the single source of truth for all AI context. It captures everything an agent needs to know about how this project works — principles, conventions, constraints, standards. Every tool-specific context file (CLAUDE.md, .cursorrules, etc.) is **derived from the constitution**, never edited directly.
+
+### Generated During `metta init`
+
+When initializing a project, Metta runs discovery to build the constitution:
+
+```bash
+metta init
+```
+
+```
+Detecting AI tools... found Claude Code, Cursor
+Setting up project constitution...
+
+? What does this project do?
+> E-commerce platform for handmade goods
+
+? What's the tech stack?
+> Next.js 15, Prisma, PostgreSQL, Tailwind
+
+? What coding conventions matter most?
+> Server components by default, all API routes in src/app/api/,
+  Prisma for all DB access, no direct SQL
+
+? Any architectural constraints?
+> No ORMs besides Prisma, no client-side state management libraries,
+  keep bundle under 200KB
+
+? Quality standards?
+> 80% test coverage, all public APIs documented, WCAG 2.1 AA accessibility
+
+? What's off-limits?
+> No eval(), no dynamic requires, no secrets in code, no console.log in production
+```
+
+Metta generates `.metta/project.md`:
+
+```markdown
+# My Shop — Project Constitution
+
+## Project
+E-commerce platform for handmade goods.
+
+## Stack
+Next.js 15, Prisma, PostgreSQL, Tailwind CSS
+
+## Conventions
+- Use server components by default
+- All API routes in src/app/api/
+- Prisma for all database access — no direct SQL
+- Named exports only, no default exports
+
+## Architectural Constraints
+- No ORMs besides Prisma
+- No client-side state management libraries
+- Keep bundle under 200KB
+
+## Quality Standards
+- 80% test coverage minimum
+- All public APIs documented with JSDoc
+- WCAG 2.1 AA accessibility compliance
+
+## Off-Limits
+- No eval() or dynamic requires
+- No secrets in code
+- No console.log in production code
+```
+
+The user reviews, edits if needed, and approves. This is the ground truth — everything else is derived from it.
+
+### Constitution Feeds Everything
+
+The constitution is loaded by the Context Engine and used across the framework:
+
+- **Discovery Gate**: Validates new specs against project conventions and constraints
+- **Agent instructions**: Agents receive relevant constitution sections as context
+- **Tool context files**: CLAUDE.md, .cursorrules, etc. are generated from the constitution
+- **Gates**: Quality standards inform gate expectations
+- **Slash commands**: Commands include project conventions in their instructions
+
+### Editing the Constitution
+
+```bash
+metta config edit constitution    # Open .metta/project.md in editor
+metta refresh                     # Regenerate all derived files
+```
+
+Direct edits to `.metta/project.md` are the way to change project context. Never edit CLAUDE.md or .cursorrules directly — changes will be overwritten on the next refresh.
+
+---
+
+## `metta refresh`
+
+Regenerates all derived files from the constitution and current project state.
+
+### What Gets Regenerated
+
+| Output | Source | When it goes stale |
+|--------|--------|--------------------|
+| `CLAUDE.md` | Constitution + active specs + framework rules | Constitution edited, specs merged |
+| `.cursorrules` | Constitution + active specs + framework rules | Constitution edited, specs merged |
+| `.github/copilot-instructions.md` | Constitution + active specs + framework rules | Constitution edited, specs merged |
+| Other tool context files | Constitution + active specs + framework rules | Constitution edited, specs merged |
+| Slash commands/skills | Command templates + project context | Templates updated, tools added/removed |
+
+### What Goes Into Context Files
+
+Each generated context file includes:
+
+1. **Project description and stack** — from constitution
+2. **Coding conventions** — from constitution
+3. **Architectural constraints** — from constitution
+4. **Quality standards** — from constitution
+5. **Active specs summary** — from `metta/specs/` (what the project does today)
+6. **Active changes** — from `metta/changes/` (what's in flight)
+7. **Framework rules** — always work in worktrees, use Conventional Commits, etc.
+
+The content is identical across tools. The format differs per adapter (`formatContext()`).
+
+### When to Refresh
+
+```bash
+metta refresh              # Manual — anytime
+metta refresh --dry-run    # Preview changes without writing
+```
+
+**Automatic refresh** runs after:
+- `metta ship` — specs merged, context files are stale
+- `metta init` — initial generation
+- `metta config edit constitution` — constitution changed
+
+### Generated File Headers
+
+Every generated file includes a header so users know not to edit it:
+
+```markdown
+<!-- Generated by Metta from .metta/project.md — do not edit directly -->
+<!-- Run `metta refresh` to regenerate, or edit .metta/project.md -->
+```
 
 ---
 
