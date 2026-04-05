@@ -88,27 +88,46 @@ Generating constitution draft from codebase...
 
 The constitution is inferred from evidence, corrected by you, and locked.
 
-### Scan Existing Behavior Into Specs
+### `metta import` — Specs First, Then Code
 
-Don't write specs from scratch when the behavior already exists in code:
+`metta init` detects if existing framework artifacts or code exist and prompts you to run `metta import`:
 
-```bash
-metta scan auth                # Analyze auth code → generate spec draft
-metta scan --all               # Scan entire codebase
-metta scan src/app/api/payments  # Scan specific directory
+```
+metta init
+
+Detected existing project (brownfield mode):
+  ✓ GSD artifacts found (.planning/)
+  ✓ Codebase found (TypeScript, Next.js, Prisma)
+
+Run metta import to generate specs? [Y/n]
 ```
 
-Metta reads routes, middleware, models, tests, and types to produce spec drafts with requirements and scenarios. Behaviors without test coverage are flagged.
+`metta import` is one command that handles everything — ingesting specs from other frameworks, analyzing code, and reconciling the two:
+
+```bash
+metta import                     # Auto-detect everything (specs + code)
+metta import auth                # Import a specific capability
+metta import --all               # Import entire codebase
+```
+
+It finds existing specs first (the claims), then analyzes code (the evidence), then reconciles. The output is verified spec drafts plus a **gaps report** (`docs/gaps.md`) showing what's claimed but not built, what's built but not documented, and what diverges.
+
+Gaps can be promoted into new specs and changes:
+
+```bash
+metta propose --from-gap "payments/refund-processing"
+metta propose --from-gaps           # Interactive: pick gaps to address
+```
 
 ### Incremental Adoption
 
-You don't have to spec everything. Adopt gradually:
+You don't have to import everything. Adopt gradually:
 
 | Level | What | Command |
 |-------|------|---------|
 | 0 | Constitution only — better AI context immediately | `metta init` |
-| 1 | Scan what you're about to touch, build on top | `metta scan payments` then `metta propose` |
-| 2 | Full spec coverage — scan everything, review over time | `metta scan --all` |
+| 1 | Import what you're about to touch, build on top | `metta import payments` then `metta propose` |
+| 2 | Full coverage — import everything, review over time | `metta import --all` |
 | 3 | Full ceremony for major changes | `metta auto --workflow full` |
 
 See [11-brownfield.md](11-brownfield.md) for the full brownfield adoption guide.

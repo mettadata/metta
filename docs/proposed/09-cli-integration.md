@@ -6,15 +6,17 @@
 
 ```
 metta init                          # Initialize project (auto-detects brownfield)
-metta init --scan <dir>            # Init + scan specific directories
 metta init --skip-scan             # Force greenfield-style init
 metta propose <description>        # Start a new change (standard workflow)
+metta propose --from-gap <gap>     # Create change from a gap in gaps report
+metta propose --from-gaps           # Interactive: pick gaps to address
 metta quick <description>          # Quick mode (skip planning)
 metta auto <description>           # Full lifecycle loop (discover → build → verify)
 metta auto --resume                # Resume interrupted auto run
 metta plan                         # Build next planning artifacts
 metta execute                      # Run implementation
 metta verify                       # Run verification
+metta verify --gaps                # Re-run reconciliation, update gaps report
 metta ship                         # Archive change, merge specs
 metta ship --dry-run               # Preview merge without applying
 
@@ -30,10 +32,11 @@ metta specs history <capability>   # Show archive history
 metta specs review <capability>    # Interactive review of a draft spec
 metta specs approve <capability>   # Mark a draft spec as approved
 
-metta scan <capability>            # Generate spec draft from existing code
-metta scan <directory>             # Scan a specific directory
-metta scan --all                   # Scan entire codebase
-metta scan --dry-run               # Preview what specs would be generated
+metta import                        # Auto-detect everything (specs + code)
+metta import <capability>           # Import a specific capability
+metta import <directory>            # Import from a specific directory
+metta import --all                  # Import entire codebase
+metta import --dry-run              # Preview what would be generated
 
 metta changes list                 # List active changes
 metta changes show <name>          # Show change details
