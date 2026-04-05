@@ -199,6 +199,10 @@ docs/                              # Project documents (configurable path)
     YYYY-MM-DD-<name>/
   gaps/                    # Reconciliation gaps (one file per gap)
     <gap-name>.md          # Auto-removed when resolved
+  ideas/                   # Feature ideas (backlog, capture-now process-later)
+    <idea-name>.md
+  bugs/                    # Known issues (logged, not fixed inline)
+    <bug-name>.md
   architecture.md          # Generated — system design and ADRs
   api.md                   # Generated — public API documentation
   changelog.md             # Generated — what changed and why
