@@ -15,7 +15,7 @@
   ],
   "scripts": {
     "build": "tsc && npm run copy-templates",
-    "copy-templates": "rm -rf dist/templates/workflows dist/templates/gates dist/templates/artifacts dist/templates/skills && cp -r src/templates/workflows dist/templates/workflows && cp -r src/templates/gates dist/templates/gates && cp -r src/templates/artifacts dist/templates/artifacts && cp -r src/templates/skills dist/templates/skills",
+    "copy-templates": "rm -rf dist/templates/workflows dist/templates/gates dist/templates/artifacts dist/templates/skills dist/templates/agents && cp -r src/templates/workflows dist/templates/workflows && cp -r src/templates/gates dist/templates/gates && cp -r src/templates/artifacts dist/templates/artifacts && cp -r src/templates/skills dist/templates/skills && cp -r src/templates/agents dist/templates/agents",
     "dev": "npm run build && npm link",
     "test": "vitest run",
     "test:watch": "vitest",

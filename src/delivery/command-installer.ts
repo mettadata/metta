@@ -1,11 +1,11 @@
-import { mkdir, writeFile, readFile, readdir, cp } from 'node:fs/promises'
+import { mkdir, readFile, readdir, cp } from 'node:fs/promises'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { ToolAdapter } from './tool-adapter.js'
 
-function getBuiltinSkillsDir(): string {
+function getTemplatesDir(): string {
   const thisDir = dirname(fileURLToPath(import.meta.url))
-  return join(thisDir, '..', 'templates', 'skills')
+  return join(thisDir, '..', 'templates')
 }
 
 export async function installCommands(
@@ -13,37 +13,50 @@ export async function installCommands(
   projectRoot: string,
 ): Promise<string[]> {
   const installed: string[] = []
+  const templatesDir = getTemplatesDir()
 
+  // Install skills
   const skillsDir = adapter.skillsDir(projectRoot)
-  if (!skillsDir) return installed
-
-  const builtinDir = getBuiltinSkillsDir()
-
-  let skillDirs: string[]
-  try {
-    const entries = await readdir(builtinDir, { withFileTypes: true })
-    skillDirs = entries.filter(e => e.isDirectory()).map(e => e.name)
-  } catch {
-    return installed
-  }
-
-  for (const skillDir of skillDirs) {
-    const srcPath = join(builtinDir, skillDir)
-    const destPath = join(skillsDir, skillDir)
-
-    await mkdir(destPath, { recursive: true })
-    await cp(srcPath, destPath, { recursive: true })
-
-    // Extract skill name from SKILL.md frontmatter
+  if (skillsDir) {
+    const builtinSkills = join(templatesDir, 'skills')
     try {
-      const content = await readFile(join(destPath, 'SKILL.md'), 'utf-8')
-      const nameMatch = content.match(/^name:\s*(.+)$/m)
-      if (nameMatch) {
-        installed.push(nameMatch[1].trim())
+      const entries = await readdir(builtinSkills, { withFileTypes: true })
+      const skillDirs = entries.filter(e => e.isDirectory()).map(e => e.name)
+
+      for (const skillDir of skillDirs) {
+        const srcPath = join(builtinSkills, skillDir)
+        const destPath = join(skillsDir, skillDir)
+        await mkdir(destPath, { recursive: true })
+        await cp(srcPath, destPath, { recursive: true })
+
+        try {
+          const content = await readFile(join(destPath, 'SKILL.md'), 'utf-8')
+          const nameMatch = content.match(/^name:\s*(.+)$/m)
+          if (nameMatch) installed.push(nameMatch[1].trim())
+        } catch {
+          installed.push(skillDir)
+        }
       }
     } catch {
-      installed.push(skillDir)
+      // No skills directory
     }
+  }
+
+  // Install agents
+  const agentsDir = join(projectRoot, '.claude', 'agents')
+  const builtinAgents = join(templatesDir, 'agents')
+  try {
+    const entries = await readdir(builtinAgents)
+    const agentFiles = entries.filter(e => e.endsWith('.md'))
+
+    await mkdir(agentsDir, { recursive: true })
+    for (const file of agentFiles) {
+      await cp(join(builtinAgents, file), join(agentsDir, file))
+      const name = file.replace('.md', '')
+      installed.push(`agent:${name}`)
+    }
+  } catch {
+    // No agents directory
   }
 
   return installed

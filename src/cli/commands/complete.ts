@@ -1,5 +1,5 @@
 import { Command } from 'commander'
-import { createCliContext, outputJson, color } from '../helpers.js'
+import { createCliContext, outputJson, color, agentBanner } from '../helpers.js'
 import { join } from 'node:path'
 
 export function registerCompleteCommand(program: Command): void {
@@ -48,6 +48,12 @@ export function registerCompleteCommand(program: Command): void {
           .filter(([_, status]) => status === 'pending' || status === 'ready')
           .map(([id]) => id)
 
+        // Map artifact to agent name for banner
+        const artifactAgentMap: Record<string, string> = {
+          intent: 'proposer', spec: 'specifier', research: 'researcher',
+          design: 'architect', tasks: 'planner', implementation: 'executor', verification: 'verifier',
+        }
+
         // Mark next artifact as ready
         if (pendingArtifacts.length > 0) {
           const next = ctx.workflowEngine.getNext(graph, updatedMetadata.artifacts)
@@ -63,13 +69,15 @@ export function registerCompleteCommand(program: Command): void {
               completed: artifactId,
               change: changeName,
               next: nextIds,
+              next_agent: nextIds.length > 0 ? `metta-${artifactAgentMap[nextIds[0]] ?? 'executor'}` : null,
               next_command: nextIds.length > 0 ? `metta instructions ${nextIds[0]} --json --change ${changeName}` : null,
               all_complete: false,
             })
           } else {
-            console.log(`${color('✓', 32)} ${artifactId} marked complete`)
+            console.log(agentBanner(artifactAgentMap[artifactId] ?? 'executor', `${artifactId} complete`))
             if (nextIds.length > 0) {
-              console.log(`Next: ${color(nextIds.join(', '), 36)}`)
+              const nextAgent = artifactAgentMap[nextIds[0]] ?? 'executor'
+              console.log(`Next: ${agentBanner(nextAgent, nextIds.join(', '))}`)
               console.log(`Run: metta instructions ${nextIds[0]} --change ${changeName}`)
             }
           }
@@ -83,8 +91,8 @@ export function registerCompleteCommand(program: Command): void {
               all_complete: true,
             })
           } else {
-            console.log(`${color('✓', 32)} ${artifactId} marked complete`)
-            console.log('All artifacts complete!')
+            console.log(agentBanner(artifactAgentMap[artifactId] ?? 'executor', `${artifactId} complete`))
+            console.log(color('All artifacts complete!', 32))
             console.log(`Next: metta finalize --change ${changeName}`)
           }
         }

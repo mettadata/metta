@@ -1,6 +1,6 @@
 import { Command } from 'commander'
 import { join } from 'node:path'
-import { createCliContext, outputJson } from '../helpers.js'
+import { createCliContext, outputJson, agentBanner } from '../helpers.js'
 import type { AgentDefinition } from '../../schemas/agent-definition.js'
 
 const BUILTIN_AGENTS: Record<string, AgentDefinition> = {
@@ -55,11 +55,18 @@ export function registerInstructionsCommand(program: Command): void {
           ],
         })
 
+        // Map agent name to metta agent type for subagent spawning
+        const agentTypeMap: Record<string, string> = {
+          proposer: 'metta-proposer', specifier: 'metta-proposer',
+          researcher: 'metta-researcher', architect: 'metta-architect',
+          planner: 'metta-planner', executor: 'metta-executor', verifier: 'metta-verifier',
+        }
+        const mettaAgent = agentTypeMap[agentName] ?? 'metta-executor'
+
         if (json) {
-          outputJson(output)
+          outputJson({ ...output, metta_agent: mettaAgent })
         } else {
-          console.log(`Instructions for: ${artifactId}`)
-          console.log(`  Agent: ${output.agent.name}`)
+          console.log(agentBanner(output.agent.name, `instructions for ${artifactId}`))
           console.log(`  Output: ${output.output_path}`)
           console.log(`  Budget: ${output.budget.context_tokens}/${output.budget.budget_tokens} tokens`)
           console.log('')

@@ -48,8 +48,11 @@ export class Finalizer {
     let gatesPassed = true
     if (this.gateRegistry && this.projectRoot) {
       const gateNames = this.gateRegistry.list().map(g => g.name)
-      gates = await this.gateRegistry.runAll(gateNames, this.projectRoot)
-      gatesPassed = gates.every(g => g.status === 'pass' || g.status === 'skip' || g.status === 'warn')
+      if (gateNames.length > 0) {
+        gates = await this.gateRegistry.runAll(gateNames, this.projectRoot)
+        gatesPassed = gates.every(g => g.status === 'pass' || g.status === 'skip' || g.status === 'warn')
+      }
+      // Empty gate list = no gates configured = pass
 
       if (!gatesPassed && !dryRun) {
         return {

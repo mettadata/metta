@@ -10,7 +10,9 @@ You are the **orchestrator** for Metta project initialization.
 
 1. `metta install --json` → scaffolds directories, installs skills, returns discovery instructions
 2. Parse the `discovery` object from the JSON response
-3. **Spawn a discovery agent** (Agent tool) with:
+**IMPORTANT: When using the Agent tool, use these metta agent types: metta-proposer (intent/spec), metta-researcher (research), metta-architect (design), metta-planner (tasks), metta-executor (implementation), metta-verifier (verification), metta-discovery (init). Do NOT use gsd-executor or general-purpose.**
+
+3. **Spawn a metta-discovery agent** (Agent tool, subagent_type: "metta-discovery") with:
    - The agent persona from `discovery.agent.persona`
    - The mode (`discovery.mode`: brownfield or greenfield)
    - The detected stack/dirs from `discovery.detected` (brownfield only)

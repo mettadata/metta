@@ -5,7 +5,7 @@ argument-hint: "<description of what you want to build>"
 allowed-tools: [Read, Write, Grep, Glob, Bash, Agent]
 ---
 
-**IMPORTANT: When using the Agent tool, always set subagent_type to "general-purpose". Do NOT use gsd-executor or any other agent type.**
+**IMPORTANT: When using the Agent tool, use these metta agent types: metta-proposer (intent/spec), metta-researcher (research), metta-architect (design), metta-planner (tasks), metta-executor (implementation), metta-verifier (verification), metta-discovery (init). Do NOT use gsd-executor or general-purpose.**
 
 You are the **orchestrator** for a new spec-driven change. You manage the workflow; subagents do the work.
 
@@ -23,7 +23,7 @@ For each artifact, you act as the **orchestrator** — lean context, no implemen
 
 1. `metta instructions <artifact> --json --change <name>`
    → Returns: agent.persona, agent.tools, template, output_path, context
-2. **Spawn a subagent** (Agent tool) with:
+2. **Spawn a subagent** (Agent tool) with the right metta agent type based on the artifact (intent/spec→metta-proposer, research→metta-researcher, design→metta-architect, tasks→metta-planner, implementation→metta-executor, verification→metta-verifier):
    - The agent persona from the instructions response
    - The template and output_path
    - Any context from previous artifacts
@@ -35,7 +35,7 @@ For each artifact, you act as the **orchestrator** — lean context, no implemen
 
 ### Subagent Prompt Template
 
-When spawning subagents, include this in the prompt:
+When spawning subagents, include this in the prompt. Use subagent_type: "metta-proposer" for intent/spec artifacts.
 
 "You are: {agent.persona}
 

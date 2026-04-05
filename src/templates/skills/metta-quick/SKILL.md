@@ -5,18 +5,18 @@ argument-hint: "<description of the small change>"
 allowed-tools: [Read, Write, Edit, Bash, Grep, Glob, Agent]
 ---
 
-**IMPORTANT: When using the Agent tool, always set subagent_type to "general-purpose". Do NOT use gsd-executor or any other agent type.**
+**IMPORTANT: When using the Agent tool, use these metta agent types: metta-proposer (intent/spec), metta-researcher (research), metta-architect (design), metta-planner (tasks), metta-executor (implementation), metta-verifier (verification), metta-discovery (init). Do NOT use gsd-executor or general-purpose.**
 
 You are the **orchestrator** for a quick change (intent → implementation → verification).
 
 ## Steps
 
 1. `metta quick "$ARGUMENTS" --json` → creates change with quick workflow
-2. **Spawn proposer subagent** for the intent:
+2. **Spawn a metta-proposer agent** (subagent_type: "metta-proposer") for the intent:
    `metta instructions intent --json --change <name>` → get template + persona
    Subagent writes intent.md (Problem, Proposal, Impact, Out of Scope), commits it
 3. `metta complete intent --json --change <name>` → advances to implementation
-4. **Spawn executor subagent** for the implementation:
+4. **Spawn a metta-executor agent** (subagent_type: "metta-executor") for the implementation:
    - Persona: "You are an implementation engineer. Write clean, tested code."
    - Read the intent for context
    - Implement the change, run tests, commit code

@@ -4,14 +4,14 @@ description: Verify implementation against spec
 allowed-tools: [Read, Write, Bash, Grep, Glob, Agent]
 ---
 
-**IMPORTANT: When using the Agent tool, always set subagent_type to "general-purpose". Do NOT use gsd-executor or any other agent type.**
+**IMPORTANT: When using the Agent tool, use these metta agent types: metta-proposer (intent/spec), metta-researcher (research), metta-architect (design), metta-planner (tasks), metta-executor (implementation), metta-verifier (verification), metta-discovery (init). Do NOT use gsd-executor or general-purpose.**
 
 You are the **orchestrator** for verification. Spawn a verifier subagent.
 
 ## Steps
 
 1. `metta verify --json --change <name>` → runs gates, returns results
-2. **Spawn a verifier subagent** with:
+2. **Spawn a metta-verifier agent** (subagent_type: "metta-verifier") with:
    - Persona: "You are a verification engineer focused on spec compliance."
    - The spec from `spec/changes/<change>/spec.md`
    - The gate results

@@ -4,7 +4,7 @@ description: Run implementation for the active change
 allowed-tools: [Read, Write, Edit, Bash, Grep, Glob, Agent]
 ---
 
-**IMPORTANT: When using the Agent tool, always set subagent_type to "general-purpose". Do NOT use gsd-executor or any other agent type.**
+**IMPORTANT: When using the Agent tool, use these metta agent types: metta-proposer (intent/spec), metta-researcher (research), metta-architect (design), metta-planner (tasks), metta-executor (implementation), metta-verifier (verification), metta-discovery (init). Do NOT use gsd-executor or general-purpose.**
 
 You are the **orchestrator** for implementation. Spawn executor subagents for each task.
 
@@ -12,7 +12,7 @@ You are the **orchestrator** for implementation. Spawn executor subagents for ea
 
 1. `metta status --json` → confirm implementation is ready
 2. Read `spec/changes/<change>/tasks.md` for the task list
-3. For each task in batch order, **spawn a subagent** with:
+3. For each task in batch order, **spawn a metta-executor agent** (subagent_type: "metta-executor") with:
    - Persona: "You are an implementation engineer. Write clean, tested code."
    - Task description, files to modify, verification criteria from tasks.md
    - Instructions to run tests after implementation

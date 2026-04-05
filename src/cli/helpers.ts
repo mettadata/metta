@@ -120,3 +120,21 @@ export function banner(phase: string, message: string): string {
   const code = phaseColor(phase)
   return color(`[${phase.toUpperCase()}]`, code) + ' ' + message
 }
+
+// Agent-specific colored banners
+const agentColorMap: Record<string, { code: number; icon: string }> = {
+  proposer:   { code: 31, icon: '📝' },
+  specifier:  { code: 31, icon: '📋' },
+  researcher: { code: 33, icon: '🔬' },
+  architect:  { code: 33, icon: '🏗️' },
+  planner:    { code: 33, icon: '📐' },
+  executor:   { code: 34, icon: '⚡' },
+  verifier:   { code: 32, icon: '✅' },
+  discovery:  { code: 36, icon: '🔍' },
+}
+
+export function agentBanner(agentName: string, message: string): string {
+  const agent = agentColorMap[agentName] ?? { code: 36, icon: '🤖' }
+  const label = `metta-${agentName}`
+  return `${agent.icon} ${color(`[${label.toUpperCase()}]`, agent.code)} ${message}`
+}
