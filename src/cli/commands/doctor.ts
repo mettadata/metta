@@ -1,7 +1,7 @@
 import { Command } from 'commander'
 import { stat } from 'node:fs/promises'
 import { join } from 'node:path'
-import { createCliContext, outputJson } from '../helpers.js'
+import { createCliContext, outputJson, color } from '../helpers.js'
 
 export function registerDoctorCommand(program: Command): void {
   program
@@ -74,7 +74,7 @@ export function registerDoctorCommand(program: Command): void {
         outputJson({ checks })
       } else {
         for (const c of checks) {
-          const icon = c.status === 'pass' ? '✓' : c.status === 'warn' ? '⚠' : '✗'
+          const icon = c.status === 'pass' ? color('✓', 32) : c.status === 'warn' ? color('⚠', 33) : color('✗', 31)
           const detail = c.detail ? ` (${c.detail})` : ''
           console.log(`  ${icon} ${c.check}${detail}`)
         }

@@ -1,6 +1,6 @@
 import { Command } from 'commander'
 import { join } from 'node:path'
-import { createCliContext, outputJson } from '../helpers.js'
+import { createCliContext, outputJson, color, banner } from '../helpers.js'
 
 export function registerNextCommand(program: Command): void {
   program
@@ -65,7 +65,7 @@ export function registerNextCommand(program: Command): void {
             if (json) {
               outputJson({ next: inProgress[0], status: 'in_progress', command: `metta instructions ${inProgress[0]} --json --change ${changeName}`, change: changeName })
             } else {
-              console.log(`In progress: ${inProgress[0]}`)
+              console.log(`In progress: ${color(inProgress[0], 36)}`)
               console.log(`Continue: metta instructions ${inProgress[0]} --change ${changeName}`)
             }
           }
@@ -80,21 +80,21 @@ export function registerNextCommand(program: Command): void {
           if (json) {
             outputJson({ next: nextId, action: 'execute', command: `metta execute --change ${changeName}`, change: changeName })
           } else {
-            console.log(`Ready to implement: ${changeName}`)
+            console.log(banner('execute', `Ready to implement: ${changeName}`))
             console.log(`Next: metta execute --change ${changeName}`)
           }
         } else if (nextType === 'verification') {
           if (json) {
             outputJson({ next: nextId, action: 'verify', command: `metta verify --change ${changeName}`, change: changeName })
           } else {
-            console.log(`Ready to verify: ${changeName}`)
+            console.log(banner('verify', `Ready to verify: ${changeName}`))
             console.log(`Next: metta verify --change ${changeName}`)
           }
         } else {
           if (json) {
             outputJson({ next: nextId, action: 'instructions', command: `metta instructions ${nextId} --json --change ${changeName}`, change: changeName })
           } else {
-            console.log(`Next artifact: ${nextId}`)
+            console.log(`Next artifact: ${color(nextId, 36)}`)
             console.log(`Run: metta instructions ${nextId} --change ${changeName}`)
           }
         }

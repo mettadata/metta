@@ -1,5 +1,5 @@
 import { Command } from 'commander'
-import { createCliContext, outputJson } from '../helpers.js'
+import { createCliContext, outputJson, color } from '../helpers.js'
 
 export function registerStatusCommand(program: Command): void {
   program
@@ -72,12 +72,17 @@ export function registerStatusCommand(program: Command): void {
 }
 
 function printChangeStatus(name: string, metadata: { workflow: string; status: string; current_artifact: string; artifacts: Record<string, string> }): void {
-  console.log(`Change: ${name} (${metadata.workflow} workflow)`)
+  console.log(`Change: ${color(name, 36)} (${color(metadata.workflow + ' workflow', 90)})`)
   console.log(`Status: ${metadata.status}`)
   console.log('')
   console.log('Artifacts:')
   for (const [id, status] of Object.entries(metadata.artifacts)) {
-    const marker = status === 'complete' ? '✓' : status === 'in_progress' ? '→' : status === 'ready' ? '▸' : '·'
+    const marker =
+      status === 'complete' ? color('✓', 32) :
+      status === 'in_progress' ? color('→', 33) :
+      status === 'ready' ? color('▸', 36) :
+      status === 'failed' ? color('✗', 31) :
+      color('·', 90)
     console.log(`  ${marker} ${id.padEnd(20)} ${status}`)
   }
 }

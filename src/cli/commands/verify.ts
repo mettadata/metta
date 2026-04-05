@@ -1,5 +1,5 @@
 import { Command } from 'commander'
-import { createCliContext, outputJson } from '../helpers.js'
+import { createCliContext, outputJson, color } from '../helpers.js'
 
 export function registerVerifyCommand(program: Command): void {
   program
@@ -36,7 +36,7 @@ export function registerVerifyCommand(program: Command): void {
         } else {
           console.log(`Verify: ${name}`)
           for (const r of results) {
-            const icon = r.status === 'pass' ? '✓' : r.status === 'skip' ? '–' : '✗'
+            const icon = r.status === 'pass' ? color('✓', 32) : r.status === 'skip' ? color('–', 90) : color('✗', 31)
             console.log(`  ${icon} ${r.gate}: ${r.status} (${r.duration_ms}ms)`)
           }
           console.log('')

@@ -86,3 +86,37 @@ export function getJsonFlag(cmd: Command): boolean {
   const parent = cmd.parent
   return parent?.opts()?.json ?? false
 }
+
+// --- ANSI color helpers ---
+
+export function color(text: string, code: number): string {
+  return `\x1b[${code}m${text}\x1b[0m`
+}
+
+const phaseColorMap: Record<string, number> = {
+  propose: 31,
+  intent: 31,
+  spec: 31,
+  research: 33,
+  design: 33,
+  tasks: 33,
+  implementation: 34,
+  execute: 34,
+  verification: 32,
+  verify: 32,
+  finalize: 32,
+  ship: 92,
+  error: 31,
+  success: 32,
+  info: 36,
+  dim: 90,
+}
+
+export function phaseColor(phase: string): number {
+  return phaseColorMap[phase] ?? 36
+}
+
+export function banner(phase: string, message: string): string {
+  const code = phaseColor(phase)
+  return color(`[${phase.toUpperCase()}]`, code) + ' ' + message
+}

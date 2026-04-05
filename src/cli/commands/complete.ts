@@ -1,5 +1,5 @@
 import { Command } from 'commander'
-import { createCliContext, outputJson } from '../helpers.js'
+import { createCliContext, outputJson, color } from '../helpers.js'
 import { join } from 'node:path'
 
 export function registerCompleteCommand(program: Command): void {
@@ -67,9 +67,9 @@ export function registerCompleteCommand(program: Command): void {
               all_complete: false,
             })
           } else {
-            console.log(`✓ ${artifactId} marked complete`)
+            console.log(`${color('✓', 32)} ${artifactId} marked complete`)
             if (nextIds.length > 0) {
-              console.log(`Next: ${nextIds.join(', ')}`)
+              console.log(`Next: ${color(nextIds.join(', '), 36)}`)
               console.log(`Run: metta instructions ${nextIds[0]} --change ${changeName}`)
             }
           }
@@ -83,7 +83,7 @@ export function registerCompleteCommand(program: Command): void {
               all_complete: true,
             })
           } else {
-            console.log(`✓ ${artifactId} marked complete`)
+            console.log(`${color('✓', 32)} ${artifactId} marked complete`)
             console.log('All artifacts complete!')
             console.log(`Next: metta finalize --change ${changeName}`)
           }
