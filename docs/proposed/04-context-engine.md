@@ -37,17 +37,17 @@ context_manifests:
 
   tasks:
     required: [design, spec]
-    optional: [architecture]
+    optional: [research_contracts, research_schemas, architecture]
     budget: 40000
 
   execution:
     required: [tasks]
-    optional: []
+    optional: [research_contracts, research_schemas]
     budget: 10000  # Minimal — executor gets fresh context per task
 
   verification:
     required: [spec, tasks, summary]
-    optional: [design]
+    optional: [research_contracts, research_schemas, design]
     budget: 50000
 ```
 

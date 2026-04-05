@@ -148,7 +148,9 @@ Without discovery, agents guess. Guesses compound — a wrong assumption in the 
 
 ## Implementation Research
 
-After the spec is locked (requirements and scenarios defined), there are often multiple ways to fulfill those requirements. The research artifact explores technical approaches, evaluates tradeoffs, and presents options to the user before design begins.
+After the spec is locked (requirements and scenarios defined), there are often multiple ways to fulfill those requirements. The research phase explores technical approaches, evaluates tradeoffs, presents options to the user, and **produces concrete technical artifacts** that design and execution depend on.
+
+Research is not just a decision document — it produces the API contracts, data models, schemas, and diagrams that the spec agent validates against and the executor builds from.
 
 ### What Research Does
 
@@ -159,6 +161,7 @@ The researcher agent:
 3. **Explores approaches** — identifies 2-4 viable implementation strategies
 4. **Evaluates tradeoffs** — complexity, performance, maintainability, consistency with existing code
 5. **Presents options** — structured questions via AskUserQuestion with clear recommendations
+6. **Produces technical artifacts** — API contracts, data models, schemas, diagrams based on the chosen approach
 
 ### Example
 
@@ -194,6 +197,23 @@ The user's choice is recorded in the research artifact and becomes a constraint 
 
 ### Research Output
 
+Research produces a subdirectory of technical artifacts within the change:
+
+```
+spec/changes/add-notifications/
+  research/
+    research.md              # Decision + rationale + approaches considered
+    contracts/
+      notification-api.md    # API contract (endpoints, request/response shapes)
+      sse-events.md          # Event schema (event types, payload shapes)
+    schemas/
+      notification.md        # Data model (DB schema, type definitions)
+    diagrams/
+      notification-flow.md   # Architecture/sequence diagrams
+```
+
+#### research.md — Decision Document
+
 ```markdown
 # Research: Real-Time Notifications
 
@@ -209,11 +229,109 @@ The user's choice is recorded in the research artifact and becomes a constraint 
 SSE already used in src/app/api/events/. One-way push matches the requirement.
 No new infrastructure or dependencies needed.
 
-### Implementation Notes
-- Extend existing SSE endpoint at src/app/api/events/
-- Add notification event type to existing event schema
-- Reuse existing EventSource client wrapper in src/lib/sse.ts
+### Artifacts Produced
+- [API Contract: Notification API](contracts/notification-api.md)
+- [API Contract: SSE Events](contracts/sse-events.md)
+- [Data Model: Notification](schemas/notification.md)
+- [Flow: Notification Pipeline](diagrams/notification-flow.md)
 ```
+
+#### contracts/ — API Contracts
+
+```markdown
+# API Contract: Notification API
+
+## POST /api/notifications/subscribe
+Subscribe to notifications for the authenticated user.
+
+**Request**: None (uses session cookie)
+**Response**: SSE stream
+**Content-Type**: text/event-stream
+
+### Event: order-update
+```json
+{
+  "type": "order-update",
+  "orderId": "string",
+  "status": "shipped | delivered | refunded",
+  "timestamp": "ISO 8601"
+}
+```
+
+### Event: notification-read
+```json
+{
+  "type": "notification-read",
+  "notificationId": "string"
+}
+```
+
+## GET /api/notifications
+List recent notifications for the authenticated user.
+
+**Response**:
+```json
+{
+  "notifications": [
+    {
+      "id": "string",
+      "type": "order-update",
+      "message": "string",
+      "read": "boolean",
+      "createdAt": "ISO 8601"
+    }
+  ],
+  "unreadCount": "number"
+}
+```
+```
+
+#### schemas/ — Data Models
+
+```markdown
+# Data Model: Notification
+
+## Prisma Schema
+```prisma
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String   // order-update, system, promo
+  message   String
+  data      Json?    // type-specific payload
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@index([userId, read, createdAt])
+}
+```
+
+## TypeScript Types
+```typescript
+interface Notification {
+  id: string
+  userId: string
+  type: 'order-update' | 'system' | 'promo'
+  message: string
+  data?: Record<string, unknown>
+  read: boolean
+  createdAt: Date
+}
+```
+```
+
+### How Research Artifacts Are Used
+
+These artifacts are **consumed by downstream phases**, not just documentation:
+
+| Consumer | What it uses | How |
+|----------|-------------|-----|
+| **Design** | All research artifacts | Design validates that contracts and schemas support all spec scenarios |
+| **Tasks** | Contracts + schemas | Task decomposition references specific endpoints and models |
+| **Executor** | Contracts + schemas | Build specification — the executor implements exactly what the contract defines |
+| **Verifier** | Contracts + schemas | Verification checks that implementation matches the contract |
+| **Context Engine** | research/ directory | Loads relevant research artifacts into context for downstream agents |
 
 ### Domain Research vs Implementation Research
 

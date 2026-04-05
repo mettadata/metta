@@ -212,6 +212,11 @@ spec/                              # Metta working artifacts (hardcoded to spec/
       .metta.yaml          # Change metadata (workflow, base versions)
       intent.md            # What and why
       spec.md              # Delta spec (ADDED/MODIFIED/REMOVED)
+      research/            # Implementation research artifacts
+        research.md        # Decision + rationale
+        contracts/         # API contracts (endpoints, request/response)
+        schemas/           # Data models (DB schemas, types)
+        diagrams/          # Architecture/flow diagrams
       design.md            # Technical approach
       tasks.md             # Implementation checklist
       summary.md           # Post-execution summary
