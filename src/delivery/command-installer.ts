@@ -2,86 +2,121 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { ToolAdapter, SkillContent } from './tool-adapter.js'
 
+const AGENT_LOOP_INSTRUCTIONS = `## Agent Execution Pattern
+
+For each artifact, you act as the **orchestrator** — lean context, no implementation. You spawn a subagent to do the work.
+
+### Per-Artifact Loop
+
+1. \`metta instructions <artifact> --json --change <name>\`
+   → Returns: agent.persona, agent.tools, template, output_path, context
+2. **Spawn a subagent** (Agent tool) with:
+   - The agent persona from the instructions response
+   - The template and output_path
+   - Any context from previous artifacts
+   - Clear task: "Write <output_path> following this template. Fill ALL sections with real content. Then git commit."
+3. When the subagent completes:
+   \`metta complete <artifact> --json --change <name>\`
+   → Returns: next artifact to build, or all_complete: true
+4. Repeat with next artifact
+
+### Subagent Prompt Template
+
+When spawning subagents, include this in the prompt:
+
+"You are: {agent.persona}
+
+Write the file {output_path} following this template:
+{template}
+
+Context from previous artifacts:
+{read the files from spec/changes/<change>/}
+
+Rules:
+- Fill in ALL sections with real, specific content — no placeholders
+- When done, run: git add {output_path} && git commit -m 'docs(<change>): create <artifact>'
+- For implementation tasks, use conventional commits: feat(<change>): <description>
+- For specs, use RFC 2119 keywords (MUST/SHOULD/MAY) and Given/When/Then scenarios"
+
+### Why Subagents
+
+- Fresh context window per task — no pollution from previous work
+- Agent persona produces better output than one agent roleplaying
+- Orchestrator stays lean (~15K tokens) — reserves full window for executors
+- Each subagent commits atomically — revertable independently`
+
 const METTA_SKILLS: SkillContent[] = [
   {
     name: 'metta:propose',
     description: 'Start a new change with Metta',
     argumentHint: '<description of what you want to build>',
-    allowedTools: ['Read', 'Write', 'Grep', 'Glob', 'Bash'],
-    body: `Start a new spec-driven change. The metta CLI manages all state — you follow its instructions.
+    allowedTools: ['Read', 'Write', 'Grep', 'Glob', 'Bash', 'Agent'],
+    body: `You are the **orchestrator** for a new spec-driven change. You manage the workflow; subagents do the work.
 
-## Loop
+## Steps
 
 1. \`metta propose "$ARGUMENTS" --json\` → creates change, returns change name + artifact list
-2. \`metta instructions <artifact> --json --change <name>\` → returns template, agent persona, output_path
-3. Write the artifact file to the output_path. Fill in ALL sections with real content — no placeholders.
-4. \`git add <output_path> && git commit -m "docs(<change>): create <artifact>"\`
-5. \`metta complete <artifact> --json --change <name>\` → marks done, returns next artifact + next command
-6. Repeat from step 2 until \`all_complete: true\`
+2. For each artifact, use the Agent Execution Pattern below
+3. After all artifacts: report status to user
 
-## Critical Rules
-
-- ALWAYS write artifact files to disk — never just describe them
-- ALWAYS git commit immediately after writing each artifact
-- ALWAYS call \`metta complete\` after each artifact — it advances the workflow
-- Follow the template from \`metta instructions\` — fill every section with real content
-- Specs MUST use RFC 2119 (MUST/SHOULD/MAY) and Given/When/Then scenarios`,
+${AGENT_LOOP_INSTRUCTIONS}`,
   },
   {
     name: 'metta:plan',
     description: 'Build planning artifacts for the active change',
-    allowedTools: ['Read', 'Write', 'Grep', 'Glob', 'Bash'],
-    body: `Build the next planning artifacts. The CLI tells you what's needed.
+    allowedTools: ['Read', 'Write', 'Grep', 'Glob', 'Bash', 'Agent'],
+    body: `You are the **orchestrator** for building planning artifacts. Spawn subagents for each artifact.
 
-## Loop
+## Steps
 
-1. \`metta status --json\` → see which artifacts are pending/ready
-2. \`metta instructions <next-ready-artifact> --json --change <name>\` → get template + context
-3. Read existing artifacts from spec/changes/<change>/ for context
-4. Write the artifact file to output_path with real content
-5. \`git add <file> && git commit -m "docs(<change>): create <artifact>"\`
-6. \`metta complete <artifact> --json --change <name>\` → returns next artifact
-7. Repeat until all planning artifacts are complete`,
+1. \`metta status --json\` → find which artifacts are ready
+2. For each ready artifact, use the Agent Execution Pattern below
+3. Continue until all planning artifacts are complete
+
+${AGENT_LOOP_INSTRUCTIONS}`,
   },
   {
     name: 'metta:execute',
     description: 'Run implementation for the active change',
-    allowedTools: ['Read', 'Write', 'Edit', 'Bash', 'Grep', 'Glob'],
-    body: `Implement the tasks from the active change.
+    allowedTools: ['Read', 'Write', 'Edit', 'Bash', 'Grep', 'Glob', 'Agent'],
+    body: `You are the **orchestrator** for implementation. Spawn executor subagents for each task.
 
 ## Steps
 
 1. \`metta status --json\` → confirm implementation is ready
-2. Read \`spec/changes/<change>/tasks.md\`
-3. For each task in batch order:
-   a. Implement the code changes
-   b. Run tests/lint: \`npm test\`
-   c. \`git commit -m "feat(<change>): <task description>"\`
-4. Write summary to \`spec/changes/<change>/summary.md\`
-5. \`git add spec/changes/<change>/summary.md && git commit -m "docs(<change>): implementation summary"\`
-6. \`metta complete implementation --json --change <name>\`
+2. Read \`spec/changes/<change>/tasks.md\` for the task list
+3. For each task in batch order, **spawn a subagent** with:
+   - Persona: "You are an implementation engineer. Write clean, tested code."
+   - Task description, files to modify, verification criteria from tasks.md
+   - Instructions to run tests after implementation
+   - Instructions to commit: \`git commit -m "feat(<change>): <task description>"\`
+4. After all tasks, spawn a subagent to write \`spec/changes/<change>/summary.md\`
+5. \`metta complete implementation --json --change <name>\`
 
-## Deviation Rules
+## Deviation Rules (include in every executor subagent prompt)
 
 - Bug found → fix + separate commit: \`fix(<change>): ...\`
 - Missing utility → add + separate commit
-- Blocked (>10 lines to fix) → STOP, tell user
-- Design is wrong → STOP immediately, tell user`,
+- Blocked (>10 lines to fix) → STOP, report back to orchestrator
+- Design is wrong → STOP immediately, report back to orchestrator`,
   },
   {
     name: 'metta:verify',
     description: 'Verify implementation against spec',
-    allowedTools: ['Read', 'Write', 'Bash', 'Grep', 'Glob'],
-    body: `Verify the implementation matches the spec.
+    allowedTools: ['Read', 'Write', 'Bash', 'Grep', 'Glob', 'Agent'],
+    body: `You are the **orchestrator** for verification. Spawn a verifier subagent.
 
 ## Steps
 
 1. \`metta verify --json --change <name>\` → runs gates, returns results
-2. Read \`spec/changes/<change>/spec.md\` → check each scenario
-3. For each Given/When/Then scenario: confirm a passing test exists
-4. Write results to \`spec/changes/<change>/summary.md\`
-5. \`git add spec/changes/<change>/summary.md && git commit -m "docs(<change>): verification summary"\`
-6. \`metta complete verification --json --change <name>\``,
+2. **Spawn a verifier subagent** with:
+   - Persona: "You are a verification engineer focused on spec compliance."
+   - The spec from \`spec/changes/<change>/spec.md\`
+   - The gate results
+   - Task: check each Given/When/Then scenario against tests and code
+   - Write results to \`spec/changes/<change>/summary.md\`
+   - Commit: \`git commit -m "docs(<change>): verification summary"\`
+3. \`metta complete verification --json --change <name>\``,
   },
   {
     name: 'metta:ship',
@@ -111,55 +146,50 @@ If multiple changes, list them all with their status.`,
     name: 'metta:quick',
     description: 'Quick mode — small change without full planning',
     argumentHint: '<description of the small change>',
-    allowedTools: ['Read', 'Write', 'Edit', 'Bash', 'Grep', 'Glob'],
-    body: `Quick change — intent, implement, verify. No research/design/tasks phases.
+    allowedTools: ['Read', 'Write', 'Edit', 'Bash', 'Grep', 'Glob', 'Agent'],
+    body: `You are the **orchestrator** for a quick change (intent → implementation → verification).
 
 ## Steps
 
 1. \`metta quick "$ARGUMENTS" --json\` → creates change with quick workflow
-2. \`metta instructions intent --json --change <name>\` → get intent template
-3. Write intent to the output_path (Problem, Proposal, Impact, Out of Scope)
-4. \`git add spec/changes/<change>/intent.md && git commit -m "docs(<change>): create intent"\`
-5. \`metta complete intent --json --change <name>\` → advances to implementation
-6. Implement the change — write/edit code files
-7. Run tests: \`npm test\` (if configured)
-8. \`git commit -m "feat(<change>): <what was implemented>"\`
-9. Write summary to \`spec/changes/<change>/summary.md\` (what changed, how to test)
-10. \`git add spec/changes/<change>/summary.md && git commit -m "docs(<change>): summary"\`
-11. \`metta complete implementation --json --change <name>\`
+2. **Spawn proposer subagent** for the intent:
+   \`metta instructions intent --json --change <name>\` → get template + persona
+   Subagent writes intent.md (Problem, Proposal, Impact, Out of Scope), commits it
+3. \`metta complete intent --json --change <name>\` → advances to implementation
+4. **Spawn executor subagent** for the implementation:
+   - Persona: "You are an implementation engineer. Write clean, tested code."
+   - Read the intent for context
+   - Implement the change, run tests, commit code
+   - Write \`spec/changes/<change>/summary.md\`, commit it
+5. \`metta complete implementation --json --change <name>\`
+6. Report to user what was done
 
-## Critical Rules
-
-- MUST write intent.md and summary.md to disk — not just describe them
-- MUST git commit after each step
-- MUST call \`metta complete\` to advance the workflow
-- If complex, tell user to use \`/metta:propose\` instead`,
+${AGENT_LOOP_INSTRUCTIONS}`,
   },
   {
     name: 'metta:auto',
     description: 'Full lifecycle loop — discover, build, verify, ship',
     argumentHint: '<description of what to build>',
-    allowedTools: ['Read', 'Write', 'Edit', 'Bash', 'Grep', 'Glob'],
-    body: `Full lifecycle — propose through finalize, driven by CLI commands.
+    allowedTools: ['Read', 'Write', 'Edit', 'Bash', 'Grep', 'Glob', 'Agent'],
+    body: `You are the **orchestrator** for the full Metta lifecycle. Spawn subagents for each phase.
 
-## Loop
+## Steps
 
 1. \`metta propose "$ARGUMENTS" --json\` → creates change
-2. For each artifact in order:
-   a. \`metta instructions <artifact> --json --change <name>\`
-   b. Write artifact to output_path with real content
-   c. \`git commit -m "docs(<change>): create <artifact>"\`
-   d. \`metta complete <artifact> --json --change <name>\` → returns next
-3. For implementation: read tasks.md, implement each task, commit each
-4. Write summary.md with verification results
-5. \`metta complete verification --json --change <name>\`
-6. \`metta finalize --json --change <name>\`
+2. For each artifact, use the Agent Execution Pattern — spawn a subagent per artifact
+3. For implementation: spawn executor subagents per task from tasks.md
+4. Spawn verifier subagent to check spec compliance
+5. \`metta finalize --json --change <name>\`
+6. Report results to user
 
 ## Rules
 
 - Ask discovery questions BEFORE writing spec — don't guess requirements
-- MUST write files + commit + call \`metta complete\` for every artifact
-- Deviation Rule 4: design is wrong → STOP, tell user`,
+- Every subagent MUST write files to disk and git commit
+- Every artifact MUST be followed by \`metta complete\` to advance workflow
+- Deviation Rule 4: design is wrong → STOP, tell user
+
+${AGENT_LOOP_INSTRUCTIONS}`,
   },
 ]
 
