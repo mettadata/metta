@@ -165,7 +165,7 @@ metta ship            # Merge worktree branch to main (or create PR)
 ```
 
 ```
-Flow: discovery → intent → spec → design → tasks → execute → verify → finalize → ship
+Flow: discovery → intent → spec → research → design → tasks → execute → verify → finalize → ship
 ```
 
 ### 3. Auto Mode — Spec It and Walk Away
@@ -394,14 +394,14 @@ Three built-in workflows, plus custom:
 Quick (3 artifacts):
   intent ──→ execution ──→ verification
 
-Standard (6 artifacts):
-  intent → spec → design → tasks → execution → verification
+Standard (7 artifacts):
+  intent → spec → research → design → tasks → execution → verification
 
-Full (9 artifacts):
-  research → intent → spec → design ──┬→ architecture
-                                      ├→ tasks
-                                      └→ ux-spec
-                        tasks + arch ──┴→ execution → verification
+Full (10 artifacts):
+  domain-research → intent → spec → research → design ──┬→ architecture
+                                                         ├→ tasks
+                                                         └→ ux-spec
+                                           tasks + arch ──┴→ execution → verification
 ```
 
 Select per-command:

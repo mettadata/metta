@@ -25,8 +25,13 @@ context_manifests:
     optional: [project_context, existing_specs, research]
     budget: 40000
 
+  research:
+    required: [spec]
+    optional: [project_context, existing_specs, architecture]
+    budget: 50000
+
   design:
-    required: [intent, spec]
+    required: [research, spec]
     optional: [architecture, project_context]
     budget: 60000
 

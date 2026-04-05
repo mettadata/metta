@@ -84,8 +84,8 @@ Metta's default is the **quick path**: describe what you want, get a lightweight
 
 ```
 Quick (3 artifacts):    intent -> execution -> verification
-Standard (6 artifacts): intent -> spec -> design -> tasks -> execution -> verification
-Full (9 artifacts):     research -> intent -> spec -> design -> [architecture, tasks, ux-spec] -> execution -> verification
+Standard (7 artifacts): intent -> spec -> research -> design -> tasks -> execution -> verification
+Full (10 artifacts):    domain-research -> intent -> spec -> research -> design -> [architecture, tasks, ux-spec] -> execution -> verification
 ```
 
 All three use the same engine. The difference is which artifacts are in the workflow graph.

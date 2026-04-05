@@ -873,8 +873,8 @@ Auto mode respects the workflow selection:
 
 ```bash
 metta auto --workflow quick "fix the login button"     # intent → execute → verify
-metta auto --workflow standard "add user profiles"      # full 6-artifact cycle
-metta auto --workflow full "rebuild auth system"        # 9-artifact cycle with research
+metta auto --workflow standard "add user profiles"      # full 7-artifact cycle
+metta auto --workflow full "rebuild auth system"        # 10-artifact cycle with research
 ```
 
 Quick workflow + auto = the lightest possible loop. Full workflow + auto = maximum ceremony with no human in the loop (backpressure gates are the safety net).

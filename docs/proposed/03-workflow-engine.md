@@ -31,11 +31,19 @@ artifacts:
     agents: [specifier]
     gates: [spec-quality]
 
+  - id: research
+    type: research
+    template: research.md
+    generates: research.md
+    requires: [spec]
+    agents: [researcher]
+    gates: []
+
   - id: design
     type: design
     template: design.md
     generates: design.md
-    requires: [spec]
+    requires: [research]
     agents: [architect]
     gates: [design-review]
 
@@ -114,7 +122,7 @@ Discovery applies at different depths depending on the workflow:
 ```
 Quick:     Light discovery during intent (scope + edge cases)
 Standard:  Full discovery during propose + spec (requirements + scenarios + integration)
-Full:      Deep discovery during research + propose + spec (domain + requirements + architecture)
+Full:      Deep discovery during domain-research + propose + spec (domain + requirements + architecture)
 ```
 
 Even `metta quick` asks enough questions to know what it's building. The difference is depth, not whether discovery happens.
@@ -138,6 +146,87 @@ Without discovery, agents guess. Guesses compound — a wrong assumption in the 
 
 ---
 
+## Implementation Research
+
+After the spec is locked (requirements and scenarios defined), there are often multiple ways to fulfill those requirements. The research artifact explores technical approaches, evaluates tradeoffs, and presents options to the user before design begins.
+
+### What Research Does
+
+The researcher agent:
+
+1. **Reads the spec** — understands what needs to be built
+2. **Scans the codebase** — what patterns, libraries, and infrastructure already exist
+3. **Explores approaches** — identifies 2-4 viable implementation strategies
+4. **Evaluates tradeoffs** — complexity, performance, maintainability, consistency with existing code
+5. **Presents options** — structured questions via AskUserQuestion with clear recommendations
+
+### Example
+
+```
+Spec: "The system MUST support real-time notifications for order updates"
+
+Researching implementation approaches...
+
+Codebase analysis:
+  - SSE already used in src/app/api/events/ for dashboard updates
+  - No WebSocket infrastructure exists
+  - Notification model exists in Prisma schema
+
+Options:
+
+[1] Server-Sent Events (Recommended)
+    Consistent with existing SSE in src/app/api/events/.
+    One-way push is sufficient for notifications.
+    No new infrastructure needed.
+
+[2] WebSockets (socket.io)
+    Full duplex — overkill for notifications but enables future chat.
+    Adds socket.io server dependency and connection management.
+
+[3] Polling (5s interval)
+    Simplest. No new server infrastructure.
+    Higher latency (up to 5s delay). More database load.
+
+Which approach?
+```
+
+The user's choice is recorded in the research artifact and becomes a constraint for the design phase.
+
+### Research Output
+
+```markdown
+# Research: Real-Time Notifications
+
+## Decision: Server-Sent Events
+
+### Approaches Considered
+
+1. **SSE** (selected) — consistent with existing patterns, no new deps
+2. **WebSockets** — overkill for one-way notifications
+3. **Polling** — too much latency and DB load
+
+### Rationale
+SSE already used in src/app/api/events/. One-way push matches the requirement.
+No new infrastructure or dependencies needed.
+
+### Implementation Notes
+- Extend existing SSE endpoint at src/app/api/events/
+- Add notification event type to existing event schema
+- Reuse existing EventSource client wrapper in src/lib/sse.ts
+```
+
+### Domain Research vs Implementation Research
+
+| | Domain Research | Implementation Research |
+|---|---|---|
+| **When** | Before intent (full workflow only) | After spec, before design (standard + full) |
+| **Purpose** | Understand the problem space | Explore how to solve it |
+| **Questions** | Market, users, competitors, domain | Libraries, patterns, architecture, tradeoffs |
+| **Output** | domain-research.md | research.md |
+| **User input** | Optional (inform intent) | Required (choose approach) |
+
+---
+
 ## Built-in Workflows
 
 ### Quick (3 artifacts)
@@ -146,23 +235,23 @@ intent ──→ execution ──→ verification
 ```
 For small, well-understood changes. Skip planning, trust the agent, verify with backpressure gates.
 
-### Standard (6 artifacts)
+### Standard (7 artifacts)
 ```
-intent ──→ spec ──→ design ──→ tasks ──→ execution ──→ verification
+intent ──→ spec ──→ research ──→ design ──→ tasks ──→ execution ──→ verification
 ```
-For medium features. The default when you run `metta propose`.
+For medium features. Research explores technical approaches after spec is locked. The default when you run `metta propose`.
 
-### Full (9 artifacts)
+### Full (10 artifacts)
 ```
-research ──→ intent ──→ spec ──→ design ──┬──→ architecture
-                                          │
-                                          ├──→ tasks
-                                          │
-                                          └──→ ux-spec
-                                                  │
-                            tasks + architecture ──┴──→ execution ──→ verification
+domain-research ──→ intent ──→ spec ──→ research ──→ design ──┬──→ architecture
+                                                              │
+                                                              ├──→ tasks
+                                                              │
+                                                              └──→ ux-spec
+                                                                      │
+                                                tasks + architecture ──┴──→ execution ──→ verification
 ```
-For complex systems. Research informs intent. Architecture and UX run in parallel after design. Tasks depend on both.
+For complex systems. Domain research informs intent. Implementation research informs design. Architecture and UX run in parallel after design. Tasks depend on both.
 
 ### Custom
 Users create their own workflows by writing YAML files in `.metta/workflows/`. The engine doesn't care about artifact names or types — it only cares about the dependency graph.
@@ -240,23 +329,23 @@ Validated at workflow load time. If a cycle is detected, the workflow fails to l
 Workflows can extend other workflows:
 
 ```yaml
-# .metta/workflows/standard-with-research.yaml
-name: standard-with-research
+# .metta/workflows/standard-with-domain-research.yaml
+name: standard-with-domain-research
 extends: standard
 version: 1
 
 artifacts:
-  - id: research
-    type: research
-    template: research.md
-    generates: research.md
+  - id: domain-research
+    type: domain-research
+    template: domain-research.md
+    generates: domain-research.md
     requires: []
     agents: [researcher]
     gates: []
 
 overrides:
   - id: intent
-    requires: [research]  # Now intent depends on research
+    requires: [domain-research]  # Now intent depends on domain research
 ```
 
 This lets teams build on standard workflows without duplicating everything.
@@ -295,7 +384,8 @@ Built-in types (extensible via plugins):
 
 | Type | Purpose | Default Template |
 |------|---------|-----------------|
-| `research` | Market/domain/technical research | research.md |
+| `domain-research` | Market/domain/technical research (full workflow) | domain-research.md |
+| `research` | Implementation approach exploration | research.md |
 | `intent` | What and why (proposal) | intent.md |
 | `spec` | Requirements with scenarios | spec.md |
 | `design` | Technical approach and decisions | design.md |
