@@ -197,6 +197,8 @@ docs/                              # Project documents (configurable path)
       summary.md           # Post-execution summary
   archive/                 # Completed changes
     YYYY-MM-DD-<name>/
+  gaps/                    # Reconciliation gaps (one file per gap)
+    <gap-name>.md          # Auto-removed when resolved
   architecture.md          # Generated — system design and ADRs
   api.md                   # Generated — public API documentation
   changelog.md             # Generated — what changed and why

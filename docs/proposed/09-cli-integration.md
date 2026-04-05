@@ -38,6 +38,9 @@ metta import <directory>            # Import from a specific directory
 metta import --all                  # Import entire codebase
 metta import --dry-run              # Preview what would be generated
 
+metta gaps list                    # List all gaps with status
+metta gaps show <gap-name>         # Show a specific gap
+
 metta changes list                 # List active changes
 metta changes show <name>          # Show change details
 metta changes abandon <name>       # Abandon a change
