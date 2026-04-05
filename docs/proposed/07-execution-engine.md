@@ -70,10 +70,11 @@ Orchestrator (lean context, ~15K tokens)
 
 ### Sequential (fallback)
 
-When parallel execution isn't available (tool doesn't support subagents/worktrees):
-- Tasks execute inline, one at a time
+When parallel execution isn't available (tool doesn't support subagents):
+- Tasks execute one at a time in a single worktree branch
 - Each task still gets a fresh context load
 - Commits are still atomic per task
+- Worktree merges back to main after all tasks complete
 
 ### Interactive
 
@@ -225,15 +226,51 @@ This keeps the orchestrator's context lean (~15K tokens), reserving the full win
 
 ## Merge Safety
 
-Executors must never merge into protected branches. This is the most dangerous moment in the execution lifecycle — a bad merge can overwrite a day's work. Metta treats every worktree merge as a potentially destructive operation requiring multiple safety checks.
+### Principle: All Work Happens in Worktrees
+
+No agent ever commits directly to main. Every change — whether it's a single quick-mode task or a 20-task batch execution — is done in a git worktree branch. The only path back to main is through the merge safety pipeline.
+
+This is non-negotiable. The worktree is the blast radius boundary. If an agent hallucinates, corrupts state, or goes off-plan, main is untouched. You can always throw away a worktree branch. You can't undo a bad commit to main that other work has built on.
+
+```
+Every metta operation (when git-aware):
+  1. Checkout main and pull latest
+  2. Create worktree branch from main HEAD
+  3. All agent work happens in the worktree
+  4. Merge safety pipeline → main
+  5. Clean up worktree
+
+No exceptions. Quick mode, standard mode, auto mode — all use worktrees.
+All worktrees branch from main — never from another worktree or stale ref.
+```
+
+### Worktree Branch Naming
+
+Branches are namespaced by change and task for traceability:
+
+```
+metta/<change-name>                    # Change-level branch (quick mode, single task)
+metta/<change-name>/batch-1-task-1.1   # Task-level branch (batch execution)
+metta/<change-name>/batch-1-task-1.2
+metta/<change-name>/batch-2-task-2.1
+```
+
+### Principle: No Blind Merges
+
+Nothing merges into main without passing every step of the verification pipeline. No shortcuts, no `--force`, no "it's probably fine." A blind merge can destroy a day's work — and unlike a bad commit on a feature branch, damage to main cascades into every subsequent worktree that branches from it.
+
+This is the hardest rule in the framework. It cannot be disabled, overridden by config, or bypassed by autonomous mode. The merge safety pipeline is the only path to main.
 
 ### Principle: Executors Don't Merge
 
-The executor's job ends with a commit in its worktree branch. It never touches main. The orchestrator owns the merge, and the merge is never automatic — it passes through a verification pipeline first.
+The executor's job ends with a commit in its worktree branch. It never touches main. The orchestrator owns the merge, and the merge is never automatic — it passes through the full verification pipeline first.
 
 ```
 Executor scope:     worktree branch only → commit → exit
 Orchestrator scope: verify → dry-run merge → scope check → snapshot → merge
+
+There is no fast path. There is no "skip verification for small changes."
+Every merge goes through every step.
 ```
 
 ### Executor Sandboxing
@@ -374,17 +411,20 @@ git merge --no-ff worktree-branch -m "metta: merge task 2.1 (add auth API)"
 
 #### Step 7: Post-Merge Gates
 
-Re-run gates on the merged state. This catches integration issues that pass in isolation but fail when combined:
+Re-run gates on the merged state. This catches integration issues that pass in isolation but fail when combined. **If post-merge gates fail, main is rolled back immediately.** No prompts, no "continue anyway" — the snapshot exists for exactly this reason.
 
 ```typescript
 const postMergeGates = await gateRegistry.run(['tests', 'typecheck', 'build'])
 
 if (postMergeGates.some(g => g.status === 'fail')) {
-  // Integration failure. Roll back the merge.
+  // Integration failure. Roll back immediately. No exceptions.
   await git.reset('hard', snapshotTag)
+  log.error(`Post-merge gates failed. Main rolled back to ${snapshotTag}.`)
+  log.error(`Worktree branch preserved for diagnosis: ${worktree.branch}`)
   return {
     status: 'post_merge_failure',
     snapshot: snapshotTag,
+    worktree_branch: worktree.branch,  // Preserved — not cleaned up
     failures: postMergeGates.filter(g => g.status === 'fail')
   }
 }
@@ -392,18 +432,91 @@ if (postMergeGates.some(g => g.status === 'fail')) {
 // Success — clean up snapshot tag (or keep for safety)
 ```
 
-### Protected Branch Configuration
+On rollback, the worktree branch is **preserved** so the user can diagnose and fix. Main is always left in a known-good state.
+
+### Git Configuration
 
 ```yaml
-# .metta/config.yaml
+# ~/.metta/config.yaml (or .metta/config.yaml for project override)
 git:
+  enabled: true                # true = git-aware, false = file-only mode
+  commit_convention: conventional  # conventional | none | custom
   protected_branches:
     - main
     - master
     - production
     - release/*
-  merge_strategy: ff-only  # or no-ff, squash
-  snapshot_retention: until_ship  # or always, never
+  merge_strategy: ff-only     # ff-only | no-ff | squash
+  snapshot_retention: until_ship  # until_ship | always | never
+```
+
+#### Git-Aware Mode (`git.enabled: true`, default)
+
+When git-aware, Metta manages commits for all framework operations:
+- Every task completion produces an atomic commit
+- Spec archiving and merging are committed
+- State changes are committed
+- Worktree isolation is available for parallel execution
+- Pre-merge verification pipeline is active
+- Protected branch enforcement is active
+
+#### File-Only Mode (`git.enabled: false`)
+
+When git is disabled, Metta operates purely on the filesystem:
+- No commits, no worktrees, no branch protection
+- Parallel execution falls back to sequential (no worktree isolation)
+- Merge safety pipeline is skipped
+- User manages version control independently
+- Useful for non-git projects or when Metta is embedded in another tool's workflow
+
+#### Commit Convention (`git.commit_convention`)
+
+When `conventional`, all framework-generated commits follow the [Conventional Commits](https://www.conventionalcommits.org/) specification:
+
+```
+<type>[optional scope]: <description>
+
+[optional body]
+
+[optional footer(s)]
+```
+
+Types used by Metta:
+
+| Type | When |
+|------|------|
+| `feat` | Task commits that add new functionality |
+| `fix` | Bug fixes discovered during execution (Deviation Rule 1) |
+| `refactor` | Structural changes without behavior change |
+| `docs` | Spec, design, and artifact creation/updates |
+| `test` | Test additions from gate requirements |
+| `chore` | Framework state updates, archiving, merges |
+
+Scope is derived from the change name and task:
+
+```bash
+# Task commit
+feat(add-mfa): implement TOTP verification endpoint
+
+# Deviation fix
+fix(add-mfa): null check in auth middleware discovered during API implementation
+
+# Spec artifact
+docs(add-mfa): create intent and spec artifacts
+
+# Archive
+chore(add-mfa): archive change and merge specs
+
+# Merge from worktree
+chore(add-mfa): merge task 2.1 (add auth API)
+```
+
+When `none`, commits use freeform messages. When `custom`, a user-provided template in `.metta/config.yaml` defines the format:
+
+```yaml
+git:
+  commit_convention: custom
+  commit_template: "[{change_name}] {type}: {description}"
 ```
 
 Protected branches cannot be force-pushed, reset, or directly committed to by executors. Only the orchestrator's merge pipeline can write to them.

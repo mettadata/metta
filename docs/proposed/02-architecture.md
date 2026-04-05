@@ -264,5 +264,5 @@ Every read from and write to the State Store goes through Zod validation. This p
 ### ADR-005: Conflict Detection at Merge Time
 Changes declare their base spec versions (content hashes). When archiving/merging, the framework detects if the base has changed and surfaces conflicts interactively. This solves OpenSpec's critical parallel collision bug.
 
-### ADR-006: No Git Assumption
-Git is preferred but not required. The Artifact Store and State Store abstract over persistence. A `GitBackend` and `FileBackend` are provided. Teams using other VCS can implement the backend interface.
+### ADR-006: Git-Aware as a Config Toggle
+Git integration is controlled by `git.enabled` in config. When enabled (default), Metta manages commits (following Conventional Commits by default), worktree isolation, branch protection, and merge safety. When disabled, Metta operates purely on the filesystem — no commits, no worktrees, sequential execution only. The Artifact Store and State Store abstract over persistence so both modes use the same core engines. See [07-execution-engine.md § Git Configuration](07-execution-engine.md) for details.

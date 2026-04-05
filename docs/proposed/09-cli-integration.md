@@ -291,6 +291,11 @@ gates:
     command: npx tsc --noEmit
     timeout: 60000
 
+# Git integration
+git:
+  enabled: true
+  commit_convention: conventional  # conventional | none | custom
+
 # Auto mode defaults
 auto:
   max_cycles: 10
