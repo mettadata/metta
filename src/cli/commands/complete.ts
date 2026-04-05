@@ -1,6 +1,10 @@
 import { Command } from 'commander'
 import { createCliContext, outputJson, color, agentBanner } from '../helpers.js'
 import { join } from 'node:path'
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
+
+const execAsync = promisify(execFile)
 
 export function registerCompleteCommand(program: Command): void {
   program
@@ -37,6 +41,18 @@ export function registerCompleteCommand(program: Command): void {
           if (!fileExists) {
             throw new Error(`Artifact file '${generates}' not found in spec/changes/${changeName}/. Write the file before marking complete.`)
           }
+        }
+
+        // Auto-commit any uncommitted spec artifacts
+        try {
+          const changePath = join('spec', 'changes', changeName)
+          await execAsync('git', ['add', changePath], { cwd: ctx.projectRoot })
+          await execAsync('git', ['diff', '--cached', '--quiet'], { cwd: ctx.projectRoot }).catch(async () => {
+            // There are staged changes — commit them
+            await execAsync('git', ['commit', '-m', `docs(${changeName}): complete ${artifactId} artifact`], { cwd: ctx.projectRoot })
+          })
+        } catch {
+          // Git not available or nothing to commit
         }
 
         // Mark complete

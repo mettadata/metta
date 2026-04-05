@@ -1,7 +1,11 @@
 import { Command } from 'commander'
 import { join } from 'node:path'
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
 import { createCliContext, outputJson, color } from '../helpers.js'
 import { Finalizer } from '../../finalize/finalizer.js'
+
+const execAsync = promisify(execFile)
 
 export function registerFinalizeCommand(program: Command): void {
   program
@@ -104,6 +108,16 @@ export function registerFinalizeCommand(program: Command): void {
             console.log(`  Archived as: ${result.archiveName}`)
             console.log(`  Specs merged: ${result.specMerge.merged.join(', ') || 'none'}`)
             console.log(`\nNext: merge branch to main or run metta ship`)
+          }
+        }
+
+        // Auto-commit archive + spec changes
+        if (!options.dryRun && result.archiveName) {
+          try {
+            await execAsync('git', ['add', 'spec/'], { cwd: ctx.projectRoot })
+            await execAsync('git', ['commit', '-m', `chore(${name}): archive and finalize`], { cwd: ctx.projectRoot })
+          } catch {
+            // Nothing to commit or git not available
           }
         }
       } catch (err) {
