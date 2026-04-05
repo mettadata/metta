@@ -1,6 +1,6 @@
 import { Command } from 'commander'
 import { join } from 'node:path'
-import { createCliContext, outputJson } from '../helpers.js'
+import { createCliContext, outputJson, color } from '../helpers.js'
 import { Finalizer } from '../../finalize/finalizer.js'
 
 export function registerFinalizeCommand(program: Command): void {
@@ -20,14 +20,41 @@ export function registerFinalizeCommand(program: Command): void {
         const name = changeName ?? (changes.length === 1 ? changes[0] : null)
         if (!name) throw new Error(changes.length === 0 ? 'No active changes.' : `Multiple changes: ${changes.join(', ')}`)
 
+        // Load gates
+        const builtinGates = new URL('../../templates/gates', import.meta.url).pathname
+        await ctx.gateRegistry.loadFromDirectory(builtinGates)
+
         const finalizer = new Finalizer(
           join(ctx.projectRoot, 'spec'),
           ctx.artifactStore,
           ctx.specLockManager,
+          ctx.gateRegistry,
+          ctx.projectRoot,
         )
 
         const result = await finalizer.finalize(name, options.dryRun)
 
+        // Gate failure
+        if (!result.gatesPassed) {
+          if (json) {
+            outputJson({
+              status: 'gates_failed',
+              change: name,
+              gates: result.gates,
+              message: 'Fix gate failures before finalizing',
+            })
+          } else {
+            console.error(color('Quality gates failed:', 31))
+            for (const g of result.gates) {
+              const icon = g.status === 'pass' ? color('✓', 32) : g.status === 'skip' ? color('–', 90) : color('✗', 31)
+              console.error(`  ${icon} ${g.gate}: ${g.status} (${g.duration_ms}ms)`)
+            }
+            console.error('\nFix failures and retry.')
+          }
+          process.exit(1)
+        }
+
+        // Spec conflict
         if (result.specMerge.status === 'conflict') {
           if (json) {
             outputJson({
@@ -36,7 +63,7 @@ export function registerFinalizeCommand(program: Command): void {
               message: 'Resolve conflicts before finalizing',
             })
           } else {
-            console.error('Spec merge conflicts detected:')
+            console.error(color('Spec merge conflicts detected:', 31))
             for (const c of result.specMerge.conflicts) {
               console.error(`  ${c.capability}/${c.requirementId}: ${c.reason}`)
             }
@@ -50,18 +77,33 @@ export function registerFinalizeCommand(program: Command): void {
             status: options.dryRun ? 'dry_run' : 'finalized',
             change: name,
             archive: result.archiveName,
+            gates: result.gates,
             merged: result.specMerge.merged,
           })
         } else {
           if (options.dryRun) {
             console.log('Dry run:')
+            if (result.gates.length > 0) {
+              console.log('  Gates:')
+              for (const g of result.gates) {
+                const icon = g.status === 'pass' ? color('✓', 32) : g.status === 'skip' ? color('–', 90) : color('✗', 31)
+                console.log(`    ${icon} ${g.gate}: ${g.status}`)
+              }
+            }
             console.log(`  Would archive: ${name}`)
             console.log(`  Would merge: ${result.specMerge.merged.join(', ') || 'nothing'}`)
           } else {
-            console.log(`Finalized: ${name}`)
+            if (result.gates.length > 0) {
+              console.log(color('Gates:', 32))
+              for (const g of result.gates) {
+                const icon = g.status === 'pass' ? color('✓', 32) : color('–', 90)
+                console.log(`  ${icon} ${g.gate}: ${g.status} (${g.duration_ms}ms)`)
+              }
+            }
+            console.log(`\n${color('Finalized:', 32)} ${name}`)
             console.log(`  Archived as: ${result.archiveName}`)
             console.log(`  Specs merged: ${result.specMerge.merged.join(', ') || 'none'}`)
-            console.log('\nNext: run metta ship to merge to main')
+            console.log(`\nNext: merge branch to main or run metta ship`)
           }
         }
       } catch (err) {

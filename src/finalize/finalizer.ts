@@ -2,11 +2,15 @@ import { join } from 'node:path'
 import { ArtifactStore } from '../artifacts/artifact-store.js'
 import { SpecMerger, type MergeResult } from './spec-merger.js'
 import { SpecLockManager } from '../specs/spec-lock-manager.js'
+import { GateRegistry } from '../gates/gate-registry.js'
+import type { GateResult } from '../schemas/gate-result.js'
 
 export interface FinalizeResult {
   changeName: string
   archiveName: string
   specMerge: MergeResult
+  gates: GateResult[]
+  gatesPassed: boolean
   docsGenerated: string[]
   refreshed: boolean
 }
@@ -16,6 +20,8 @@ export class Finalizer {
     private specDir: string,
     private artifactStore: ArtifactStore,
     private specLockManager: SpecLockManager,
+    private gateRegistry?: GateRegistry,
+    private projectRoot?: string,
   ) {}
 
   async finalize(changeName: string, dryRun: boolean = false): Promise<FinalizeResult> {
@@ -30,8 +36,31 @@ export class Finalizer {
         changeName,
         archiveName: '',
         specMerge,
+        gates: [],
+        gatesPassed: false,
         docsGenerated: [],
         refreshed: false,
+      }
+    }
+
+    // Step 2: Run quality gates (tests, lint, typecheck, build)
+    let gates: GateResult[] = []
+    let gatesPassed = true
+    if (this.gateRegistry && this.projectRoot) {
+      const gateNames = this.gateRegistry.list().map(g => g.name)
+      gates = await this.gateRegistry.runAll(gateNames, this.projectRoot)
+      gatesPassed = gates.every(g => g.status === 'pass' || g.status === 'skip' || g.status === 'warn')
+
+      if (!gatesPassed && !dryRun) {
+        return {
+          changeName,
+          archiveName: '',
+          specMerge,
+          gates,
+          gatesPassed: false,
+          docsGenerated: [],
+          refreshed: false,
+        }
       }
     }
 
@@ -40,6 +69,8 @@ export class Finalizer {
         changeName,
         archiveName: `(dry-run)`,
         specMerge,
+        gates,
+        gatesPassed,
         docsGenerated: [],
         refreshed: false,
       }
@@ -58,6 +89,8 @@ export class Finalizer {
       changeName,
       archiveName,
       specMerge,
+      gates,
+      gatesPassed,
       docsGenerated,
       refreshed,
     }
