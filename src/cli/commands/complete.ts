@@ -43,18 +43,6 @@ export function registerCompleteCommand(program: Command): void {
           }
         }
 
-        // Auto-commit any uncommitted spec artifacts
-        try {
-          const changePath = join('spec', 'changes', changeName)
-          await execAsync('git', ['add', changePath], { cwd: ctx.projectRoot })
-          await execAsync('git', ['diff', '--cached', '--quiet'], { cwd: ctx.projectRoot }).catch(async () => {
-            // There are staged changes — commit them
-            await execAsync('git', ['commit', '-m', `docs(${changeName}): complete ${artifactId} artifact`], { cwd: ctx.projectRoot })
-          })
-        } catch {
-          // Git not available or nothing to commit
-        }
-
         // Mark complete
         await ctx.artifactStore.markArtifact(changeName, artifactId, 'complete')
 
@@ -111,6 +99,16 @@ export function registerCompleteCommand(program: Command): void {
             console.log(color('All artifacts complete!', 32))
             console.log(`Next: metta finalize --change ${changeName}`)
           }
+        }
+        // Auto-commit all spec changes (artifacts + .metta.yaml state)
+        try {
+          const changePath = join('spec', 'changes', changeName)
+          await execAsync('git', ['add', changePath], { cwd: ctx.projectRoot })
+          await execAsync('git', ['diff', '--cached', '--quiet'], { cwd: ctx.projectRoot }).catch(async () => {
+            await execAsync('git', ['commit', '-m', `docs(${changeName}): complete ${artifactId}`], { cwd: ctx.projectRoot })
+          })
+        } catch {
+          // Git not available or nothing to commit
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
