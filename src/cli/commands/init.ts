@@ -4,11 +4,22 @@ import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
+import { createInterface } from 'node:readline'
 import { createCliContext, outputJson } from '../helpers.js'
 import { claudeCodeAdapter } from '../../delivery/claude-code-adapter.js'
 import { installCommands } from '../../delivery/command-installer.js'
 
 const execAsync = promisify(execFile)
+
+function askYesNo(question: string): Promise<boolean> {
+  const rl = createInterface({ input: process.stdin, output: process.stdout })
+  return new Promise((resolve) => {
+    rl.question(question, (answer) => {
+      rl.close()
+      resolve(answer.trim().toLowerCase() !== 'n')
+    })
+  })
+}
 
 export function registerInitCommand(program: Command): void {
   program
@@ -30,18 +41,21 @@ export function registerInitCommand(program: Command): void {
           if (options.gitInit) {
             await execAsync('git', ['init'], { cwd: root })
             gitInitialized = true
-          } else {
-            if (json) {
-              outputJson({
-                status: 'git_missing',
-                message: 'No git repository detected. Run with --git-init to create one, or run git init manually.',
-              })
-            } else {
-              console.error('No git repository detected in this directory.')
-              console.error('Run: metta init --git-init   (to create one automatically)')
-              console.error('  or: git init               (to create one manually)')
-            }
+          } else if (json) {
+            outputJson({
+              status: 'git_missing',
+              message: 'No git repository detected. Run with --git-init to create one, or run git init manually.',
+            })
             process.exit(3)
+          } else {
+            const shouldInit = await askYesNo('No git repository detected. Initialize one? [Y/n] ')
+            if (shouldInit) {
+              await execAsync('git', ['init'], { cwd: root })
+              gitInitialized = true
+            } else {
+              console.error('Metta requires a git repository. Run git init manually to continue.')
+              process.exit(3)
+            }
           }
         }
 
@@ -126,11 +140,26 @@ Banned patterns and forbidden operations.
           installedCommands.push(...installed)
         }
 
+        // Commit setup files
+        let committed = false
+        try {
+          await execAsync('git', ['add', '.metta/', 'spec/'], { cwd: root })
+          // Also stage .claude/ if it was created
+          if (existsSync(join(root, '.claude'))) {
+            await execAsync('git', ['add', '.claude/'], { cwd: root })
+          }
+          await execAsync('git', ['commit', '-m', 'chore: initialize metta'], { cwd: root })
+          committed = true
+        } catch {
+          // Nothing to commit (files may already be tracked)
+        }
+
         if (json) {
           outputJson({
             status: 'initialized',
             mode: isBrownfield ? 'brownfield' : 'greenfield',
             git_initialized: gitInitialized,
+            committed,
             directories: ['.metta/', 'spec/'],
             constitution: 'spec/project.md',
             detected_tools: detectedTools,
@@ -147,6 +176,9 @@ Banned patterns and forbidden operations.
           if (detectedTools.length > 0) {
             console.log(`  Detected: ${detectedTools.join(', ')}`)
             console.log(`  Installed: ${installedCommands.length} slash commands`)
+          }
+          if (committed) {
+            console.log('  Committed: initial metta setup')
           }
           console.log('')
           console.log('Next: edit spec/project.md, then run metta propose')
