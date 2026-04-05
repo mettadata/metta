@@ -1,0 +1,6 @@
+name: lint
+description: Run linter
+command: npm run lint
+timeout: 30000
+required: true
+on_failure: retry_once

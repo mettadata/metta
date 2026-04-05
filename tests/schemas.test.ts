@@ -429,9 +429,14 @@ describe('StateFileSchema', () => {
     expect(result.success).toBe(true)
   })
 
-  it('validates an empty state file with defaults', () => {
-    const data = {}
+  it('validates a minimal state file', () => {
+    const data = { schema_version: 1 }
     const result = StateFileSchema.parse(data)
     expect(result.schema_version).toBe(1)
+  })
+
+  it('rejects state file without schema_version', () => {
+    const result = StateFileSchema.safeParse({})
+    expect(result.success).toBe(false)
   })
 })

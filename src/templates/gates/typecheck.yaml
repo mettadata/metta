@@ -1,0 +1,6 @@
+name: typecheck
+description: Run type checker
+command: npx tsc --noEmit
+timeout: 60000
+required: true
+on_failure: retry_once

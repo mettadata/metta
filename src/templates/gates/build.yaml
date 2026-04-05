@@ -1,0 +1,6 @@
+name: build
+description: Build project
+command: npm run build
+timeout: 120000
+required: true
+on_failure: stop
