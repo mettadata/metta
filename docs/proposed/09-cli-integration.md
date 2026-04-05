@@ -17,7 +17,7 @@ metta auto --resume                # Resume interrupted auto run
 metta plan                         # Build next planning artifacts
 metta execute                      # Run implementation
 metta verify                       # Run verification
-metta verify --gaps                # Re-run reconciliation, update gaps report
+metta reconcile                    # Re-run spec-to-code reconciliation, update gaps
 metta finalize                     # Archive, merge specs, generate docs, refresh
 metta finalize --dry-run           # Preview what would change
 metta ship                         # Merge worktree branch to main
@@ -42,6 +42,8 @@ metta import <directory>            # Import from a specific directory
 metta import --all                  # Import entire codebase
 metta import --dry-run              # Preview what would be generated
 
+metta reconcile                    # Re-run spec-to-code reconciliation, update gaps
+metta reconcile --dry-run          # Preview reconciliation without writing
 metta gaps list                    # List all gaps with status
 metta gaps show <gap-name>         # Show a specific gap
 
@@ -59,25 +61,10 @@ metta changes list                 # List active changes
 metta changes show <name>          # Show change details
 metta changes abandon <name>       # Abandon a change
 
-metta backlog list                 # List all specced backlog items
+metta backlog list                 # List all specced/prioritized backlog items
 metta backlog show <item>          # Show a specific backlog item
-metta backlog promote <item>       # Move to spec/changes/ (activate for work)
-
-### `metta changes abandon <name>`
-
-Abandoning a change performs the following steps:
-
-1. Confirms interactively (skipped with `--force`)
-2. Archives to `spec/archive/YYYY-MM-DD-<name>-abandoned/` with status `abandoned`
-3. Delta specs are NOT merged into living specs
-4. Cleans worktrees associated with this change
-5. Removes snapshot tags
-6. Resets change state
-
-```bash
-metta changes abandon add-mfa              # Interactive confirmation
-metta changes abandon add-mfa --force      # Skip confirmation
-```
+metta backlog add <idea>           # Promote an idea to the backlog (spec + prioritize)
+metta backlog promote <item>       # Activate a backlog item into spec/changes/
 
 metta roadmap                      # Show current roadmap status
 metta roadmap add <feature>        # Add specced feature to milestone
@@ -132,6 +119,22 @@ If only one change is active, commands operate on it implicitly. If multiple are
 
 **Spec overlap**: If two changes modify the same capability's spec, the first to `metta finalize` wins cleanly. The second hits the merge algorithm's conflict detection and resolves interactively.
 
+### `metta changes abandon <name>`
+
+Abandoning a change performs the following steps:
+
+1. Confirms interactively (skipped with `--force`)
+2. Archives to `spec/archive/YYYY-MM-DD-<name>-abandoned/` with status `abandoned`
+3. Delta specs are NOT merged into living specs
+4. Cleans worktrees associated with this change
+5. Removes snapshot tags
+6. Resets change state
+
+```bash
+metta changes abandon add-mfa              # Interactive confirmation
+metta changes abandon add-mfa --force      # Skip confirmation
+```
+
 ### `metta doctor`
 
 Diagnoses common issues with the Metta installation and project state. Checks include:
@@ -176,6 +179,19 @@ metta doctor --json    # Machine-readable output
 **JSON mode** (`--json`): Machine-readable output for AI tools and scripts. Every command that an AI tool might call supports `--json`.
 
 **Quiet mode** (`--quiet`): Minimal output for CI/scripting.
+
+### Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| `0` | Success |
+| `1` | Gate failure (tests, lint, typecheck, etc.) |
+| `2` | Spec conflict (merge conflict during finalize) |
+| `3` | Provider error (AI provider failure after retries) |
+| `4` | Validation error (schema validation, missing artifacts) |
+| `5` | User abort (interactive confirmation declined) |
+
+JSON output (`--json`) always includes an `error` object with `code`, `type`, and `message` on non-zero exit.
 
 ### Shell Completion
 
@@ -422,6 +438,20 @@ This is what AI tools receive. The `template` provides structure, `context` prov
 ### `spec/project.md` — The Single Source
 
 The project constitution is the single source of truth for all AI context. It captures everything an agent needs to know about how this project works — principles, conventions, constraints, standards. Every tool-specific context file (CLAUDE.md, .cursorrules, etc.) is **derived from the constitution**, never edited directly.
+
+The constitution uses conventional section headings that the Context Engine uses for section extraction:
+
+```
+## Project          — name, description, purpose
+## Stack            — languages, frameworks, dependencies
+## Conventions      — coding standards, patterns, naming
+## Architectural Constraints  — hard limits, technology choices
+## Quality Standards — coverage, accessibility, performance
+## Off-Limits       — banned patterns, forbidden operations
+## Legacy Patterns  — existing patterns to migrate away from (brownfield)
+```
+
+These headings are a soft convention, not a strict schema. The Context Engine extracts by heading if present and falls back to full-file loading if not. Custom sections are preserved and loaded as-is.
 
 ### Generated During `metta init`
 
@@ -731,8 +761,8 @@ Creates `spec/ideas/<slug>.md`:
 # Dark mode should respect system preference
 
 **Captured**: 2026-04-05
-**Context**: during add-user-profiles change
-**Status**: backlog
+**Captured during**: add-user-profiles
+**Status**: idea
 
 Currently dark mode is a manual toggle. Should use prefers-color-scheme
 media query and sync with system setting.
@@ -779,9 +809,24 @@ Agents can log ideas and bugs during any workflow phase. This is especially usef
 
 This gives agents an alternative to Deviation Rules 1-2 (auto-fix) — sometimes logging is better than fixing, especially when the fix is out of scope or risky.
 
-### Promoting to Specs
+### Lifecycle: Idea → Backlog → Change
 
-Ideas and bugs are promotable to full changes when you're ready:
+Ideas, backlog items, and changes form a promotion pipeline:
+
+```
+idea (raw capture)
+  → metta backlog add <idea>
+backlog (specced + prioritized)
+  → metta backlog promote <item>  or  metta roadmap next
+change (active work in spec/changes/)
+  → metta propose → plan → execute → verify → finalize → ship
+```
+
+- **Ideas** (`spec/ideas/`) are raw captures — one-liners, shower thoughts, agent observations. Zero ceremony.
+- **Backlog items** (`spec/backlog/`) are ideas that have been reviewed, fleshed out, and prioritized. They have enough detail to become a change when scheduled.
+- **Changes** (`spec/changes/`) are active work with a workflow, artifacts, and worktree.
+
+Ideas can also skip the backlog and become changes directly:
 
 ```bash
 metta propose --from-idea "dark-mode-system-preference"

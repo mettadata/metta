@@ -742,7 +742,7 @@ Auto mode is the outer loop that chains the full lifecycle — propose, plan, ex
 # Full auto: spec it, plan it, build it, verify it
 metta auto "build payment processing system"
 
-# Auto from a specific point (spec already exists)
+# Auto from a specific point (spec already exists — prior artifacts must be present)
 metta auto --from execute
 
 # Auto with a max iteration cap
@@ -766,6 +766,8 @@ To skip discovery when the spec is already reviewed:
 ```bash
 metta auto --from plan "add user profiles"
 ```
+
+`--from` requires all upstream artifacts to exist. If `--from execute` is specified but `tasks.md` doesn't exist, the command fails with exit code 4 and lists the missing artifacts. This is explicit over magic — if you want auto mode to build everything, don't use `--from`.
 
 ### The Loop
 
@@ -872,7 +874,7 @@ Auto mode respects the workflow selection:
 ```bash
 metta auto --workflow quick "fix the login button"     # intent → execute → verify
 metta auto --workflow standard "add user profiles"      # full 6-artifact cycle
-metta auto --workflow full "rebuild auth system"        # 10-artifact cycle with research
+metta auto --workflow full "rebuild auth system"        # 9-artifact cycle with research
 ```
 
 Quick workflow + auto = the lightest possible loop. Full workflow + auto = maximum ceremony with no human in the loop (backpressure gates are the safety net).

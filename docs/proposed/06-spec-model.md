@@ -53,16 +53,18 @@ Every spec file has a companion lock file:
 ```yaml
 # spec/specs/auth/spec.lock
 version: 3
-hash: "sha256:e3b0c44298..."
+hash: "sha256:e3b0c44298..."       # File-level hash: fast-path check for "anything changed?"
 updated: "2026-04-04T12:00:00Z"
 requirements:
   - id: user-login
-    hash: "sha256:a1b2c3..."
+    hash: "sha256:a1b2c3..."       # Requirement-level hash: fine-grained conflict detection
     scenarios: [successful-login, invalid-password]
   - id: session-management
     hash: "sha256:d4e5f6..."
     scenarios: [session-expiry]
 ```
+
+The file-level `hash` is intentionally denormalized — it's derivable from requirement hashes but enables a fast "has anything changed?" check without iterating all requirements. Requirement-level hashes are used for fine-grained conflict detection during merges.
 
 Lock files enable:
 - **Conflict detection**: Changes declare their base version; merge checks if base has changed

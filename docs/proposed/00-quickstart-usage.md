@@ -145,7 +145,7 @@ metta quick "add dark mode toggle"
 Light discovery (a few scoping questions), then straight to execution. Best for bug fixes, small features, and changes where you already know what you want.
 
 ```
-Flow: discovery → intent → execution → verification
+Flow: discovery → intent → execute → verify
 ```
 
 ### 2. Standard Mode — Features That Need a Spec

@@ -339,8 +339,10 @@ ready → in_progress   (when agent starts)
 in_progress → complete (when gates pass)
 in_progress → failed   (when gates fail)
 failed → in_progress   (retry)
-any → skipped          (user decision)
+any → skipped          (user decision — satisfies deps, downstream artifacts become ready)
 ```
+
+A skipped artifact is treated as complete for dependency resolution. Downstream artifacts become `ready` immediately. This lets users skip optional artifacts (e.g., skip `architecture` in a full workflow) without blocking the rest of the graph.
 
 > These are **artifact-level** statuses within a change. For the change's own lifecycle status, see [06-spec-model.md](06-spec-model.md).
 

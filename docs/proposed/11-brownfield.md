@@ -109,6 +109,8 @@ metta import --dry-run             # Preview what specs would be generated
 
 ### How It Works
 
+Import scans **capability-by-capability**, each within the Context Engine's budget. For `metta import --all`, the engine auto-detects capability boundaries (route groups, module directories, domain models) and processes them sequentially. Each capability gets a fresh context window, so large codebases work without hitting token limits. For very large monorepos, prefer `metta import <capability>` incrementally over `--all`.
+
 Specs first, then code. Existing specs are the claim. Code is the evidence.
 
 ```
@@ -252,12 +254,12 @@ Update spec to match code, or fix code to match spec.
 ```bash
 metta gaps list                  # List all gaps with status
 metta gaps show <gap-name>       # Show a specific gap
-metta verify --gaps              # Re-run reconciliation, update gap files
+metta reconcile                  # Re-run reconciliation, update gap files
 ```
 
-Gaps are regenerated on every `metta import` and `metta verify --gaps` run. Gaps that have been resolved (code now matches spec) are automatically removed.
+Gaps are regenerated on every `metta import` and `metta reconcile` run. Gaps that have been resolved (code now matches spec) are automatically removed.
 
-This ensures that `metta verify` doesn't just check new work — it can verify the entire project's spec-to-code alignment at any time.
+`metta reconcile` is a separate command from `metta verify` — verify checks a single change against its spec, while reconcile checks the entire project's spec-to-code alignment.
 
 ### Example Output
 
@@ -701,7 +703,7 @@ metta import --dry-run                  # Preview what would be generated
 
 metta gaps list                         # List all gaps with status
 metta gaps show <gap-name>              # Show a specific gap
-metta verify --gaps                     # Re-run reconciliation, update gap files
+metta reconcile                         # Re-run reconciliation, update gap files
 
 metta propose --from-gap <gap>          # Create change from a specific gap
 metta propose --from-gaps               # Interactive: pick gaps to address

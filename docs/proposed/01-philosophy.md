@@ -83,9 +83,9 @@ Spec Kit requires constitution + specify + plan + tasks + implement for any work
 Metta's default is the **quick path**: describe what you want, get a lightweight spec, execute, verify. The full ceremony is opt-in, not opt-out. Each additional phase is a choice, not a requirement.
 
 ```
-Quick:    intent -> execute -> verify
-Standard: intent -> spec -> design -> tasks -> execute -> verify
-Full:     research -> intent -> spec -> design -> architecture -> tasks -> execute -> verify -> ship
+Quick (3 artifacts):    intent -> execution -> verification
+Standard (6 artifacts): intent -> spec -> design -> tasks -> execution -> verification
+Full (9 artifacts):     research -> intent -> spec -> design -> [architecture, tasks, ux-spec] -> execution -> verification
 ```
 
 All three use the same engine. The difference is which artifacts are in the workflow graph.

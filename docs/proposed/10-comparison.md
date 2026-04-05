@@ -1,5 +1,7 @@
 # 10 — How Metta Compares
 
+> Comparisons reflect framework state as of April 2026. Capabilities may have changed since this analysis.
+
 ## Feature Matrix
 
 | Feature | OpenSpec | Spec Kit | GSD | BMAD | Taskmaster | Ralph | **Metta** |

@@ -48,7 +48,7 @@ Three entry points, one core:
 
 **CLI** (`metta` command): Human-facing. Commands map 1:1 to workflow operations. Commander.js with rich output (colors, tables, progress). Shell completion for Bash/Zsh.
 
-**MCP Server**: Machine-facing. Tiered tool loading (core/standard/extended) to optimize context usage. FastMCP wrapper. Exposes all workflow operations as MCP tools.
+**MCP Server**: Machine-facing. Tiered tool loading (core/standard/extended) to optimize context usage. Exposes all workflow operations as MCP tools.
 
 **API** (programmatic): Library-facing. The `Metta` class exposes the same operations as CLI/MCP for embedding in custom tools, CI pipelines, or dashboards.
 
@@ -151,9 +151,9 @@ See [08-plugins.md](08-plugins.md).
 
 **Artifact Store**: Manages spec files, proposals, designs, tasks, and archives. Handles versioning with content hashes. Supports delta operations (ADDED/MODIFIED/REMOVED) at requirement and scenario level.
 
-**State Store**: Typed, schema-validated state with optimistic locking. Every read validates against Zod schema. Every write validates before persisting. Migrations handle schema evolution.
+**State Store**: Typed, schema-validated state with advisory file locking (`.metta/state.lock`). Every read validates against Zod schema. Every write validates before persisting. Concurrent `metta execute` on different changes acquires the lock before writing — if another process holds it, the write fails fast with a clear error. Migrations handle schema evolution.
 
-**Provider Registry**: Dynamic AI provider registration. Dependency-injected (not singleton). Role-based model selection (main/research/fallback). Retry with exponential backoff.
+**Provider Registry**: Dynamic AI provider registration. Dependency-injected (not singleton). Role-based model selection (main/research/fallback). Configurable retry on failure (default: 1 retry, fail fast).
 
 **Gate Registry**: Verification gates (test runners, linters, type-checkers, custom validators). Each gate produces a typed result that feeds back into the execution loop.
 
