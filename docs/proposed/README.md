@@ -10,6 +10,7 @@ It synthesizes the best ideas from OpenSpec, Spec Kit, GSD, BMAD, Taskmaster, an
 
 ## Design Documents
 
+0. [Quick Start & Usage Guide](00-quickstart-usage.md) — How to install and use Metta
 1. [Philosophy & Principles](01-philosophy.md) — Why Metta exists and what it values
 2. [Architecture Overview](02-architecture.md) — System design, layers, and data flow
 3. [Workflow Engine](03-workflow-engine.md) — Composable phase DAGs, not rigid pipelines
