@@ -8,155 +8,158 @@ const METTA_SKILLS: SkillContent[] = [
     description: 'Start a new change with Metta',
     argumentHint: '<description of what you want to build>',
     allowedTools: ['Read', 'Write', 'Grep', 'Glob', 'Bash'],
-    body: `You are starting a new change using the Metta spec-driven development framework.
+    body: `Start a new spec-driven change. The metta CLI manages all state — you follow its instructions.
 
-## Steps
+## Loop
 
-1. Run \`metta propose "$ARGUMENTS" --json\` to initialize the change
-2. Read the output to understand the workflow and first artifact needed
-3. Run \`metta instructions intent --json\` to get detailed guidance
-4. Follow the instructions to create the intent artifact
-5. Run \`metta status --json\` to check progress and see what's next
+1. \`metta propose "$ARGUMENTS" --json\` → creates change, returns change name + artifact list
+2. \`metta instructions <artifact> --json --change <name>\` → returns template, agent persona, output_path
+3. Write the artifact file to the output_path. Fill in ALL sections with real content — no placeholders.
+4. \`git add <output_path> && git commit -m "docs(<change>): create <artifact>"\`
+5. \`metta complete <artifact> --json --change <name>\` → marks done, returns next artifact + next command
+6. Repeat from step 2 until \`all_complete: true\`
 
-## Rules
+## Critical Rules
 
-- Always run \`metta status --json\` before and after creating artifacts
-- Follow the template structure from \`metta instructions\`
-- Don't skip ahead — build artifacts in dependency order
-- Commit artifacts as you create them`,
+- ALWAYS write artifact files to disk — never just describe them
+- ALWAYS git commit immediately after writing each artifact
+- ALWAYS call \`metta complete\` after each artifact — it advances the workflow
+- Follow the template from \`metta instructions\` — fill every section with real content
+- Specs MUST use RFC 2119 (MUST/SHOULD/MAY) and Given/When/Then scenarios`,
   },
   {
     name: 'metta:plan',
     description: 'Build planning artifacts for the active change',
     allowedTools: ['Read', 'Write', 'Grep', 'Glob', 'Bash'],
-    body: `You are building planning artifacts (design, tasks) for the active Metta change.
+    body: `Build the next planning artifacts. The CLI tells you what's needed.
 
-## Steps
+## Loop
 
-1. Run \`metta status --json\` to see the current state
-2. Run \`metta instructions <next-artifact> --json\` to get guidance for the next artifact
-3. Create the artifact following the template and agent persona
-4. Run \`metta status --json\` to confirm and see what's next
-5. Repeat until all planning artifacts are complete
-
-## Rules
-
-- Build artifacts in dependency order shown by \`metta status\`
-- Each artifact must satisfy its gate checks before proceeding
-- Research artifacts should explore 2-4 approaches and present options`,
+1. \`metta status --json\` → see which artifacts are pending/ready
+2. \`metta instructions <next-ready-artifact> --json --change <name>\` → get template + context
+3. Read existing artifacts from spec/changes/<change>/ for context
+4. Write the artifact file to output_path with real content
+5. \`git add <file> && git commit -m "docs(<change>): create <artifact>"\`
+6. \`metta complete <artifact> --json --change <name>\` → returns next artifact
+7. Repeat until all planning artifacts are complete`,
   },
   {
     name: 'metta:execute',
     description: 'Run implementation for the active change',
     allowedTools: ['Read', 'Write', 'Edit', 'Bash', 'Grep', 'Glob'],
-    body: `You are implementing tasks from the active Metta change.
+    body: `Implement the tasks from the active change.
 
 ## Steps
 
-1. Run \`metta status --json\` to confirm tasks are ready
-2. Read the tasks artifact: \`spec/changes/<change>/tasks.md\`
-3. Execute each task in batch order
-4. After each task: run tests, lint, typecheck
-5. Commit atomically per task with conventional commit messages
-6. Run \`metta status --json\` after all tasks
+1. \`metta status --json\` → confirm implementation is ready
+2. Read \`spec/changes/<change>/tasks.md\`
+3. For each task in batch order:
+   a. Implement the code changes
+   b. Run tests/lint: \`npm test\`
+   c. \`git commit -m "feat(<change>): <task description>"\`
+4. Write summary to \`spec/changes/<change>/summary.md\`
+5. \`git add spec/changes/<change>/summary.md && git commit -m "docs(<change>): implementation summary"\`
+6. \`metta complete implementation --json --change <name>\`
 
 ## Deviation Rules
 
-- Rule 1: Fix discovered bugs immediately, commit separately
-- Rule 2: Add critical missing pieces, commit separately
-- Rule 3: Fix blockers if < 10 lines, else escalate
-- Rule 4: STOP for architectural decisions — don't improvise`,
+- Bug found → fix + separate commit: \`fix(<change>): ...\`
+- Missing utility → add + separate commit
+- Blocked (>10 lines to fix) → STOP, tell user
+- Design is wrong → STOP immediately, tell user`,
   },
   {
     name: 'metta:verify',
     description: 'Verify implementation against spec',
-    allowedTools: ['Read', 'Bash', 'Grep', 'Glob'],
-    body: `You are verifying the implementation against the spec for the active Metta change.
+    allowedTools: ['Read', 'Write', 'Bash', 'Grep', 'Glob'],
+    body: `Verify the implementation matches the spec.
 
 ## Steps
 
-1. Run \`metta verify --json\` to run all gates
-2. Read the spec: \`spec/changes/<change>/spec.md\`
-3. For each scenario in the spec, verify the implementation satisfies it
-4. Check test coverage for each scenario
-5. Create a summary artifact at \`spec/changes/<change>/summary.md\`
-
-## Rules
-
-- Every Given/When/Then scenario must have a passing test
-- Flag any spec scenarios not covered by tests
-- Do not modify implementation code — only verify and report`,
+1. \`metta verify --json --change <name>\` → runs gates, returns results
+2. Read \`spec/changes/<change>/spec.md\` → check each scenario
+3. For each Given/When/Then scenario: confirm a passing test exists
+4. Write results to \`spec/changes/<change>/summary.md\`
+5. \`git add spec/changes/<change>/summary.md && git commit -m "docs(<change>): verification summary"\`
+6. \`metta complete verification --json --change <name>\``,
   },
   {
     name: 'metta:ship',
     description: 'Finalize and ship the active change',
     allowedTools: ['Read', 'Write', 'Bash', 'Grep', 'Glob'],
-    body: `You are finalizing and shipping the active Metta change.
+    body: `Finalize the change — archive, merge specs, prepare for main.
 
 ## Steps
 
-1. Run \`metta finalize --dry-run --json\` to preview
-2. If clean, run \`metta finalize --json\` to archive and merge specs
-3. Run \`metta ship --dry-run --json\` to preview the merge
-4. If clean, run \`metta ship --json\` to merge to main
+1. \`metta finalize --dry-run --json --change <name>\` → preview
+2. If clean: \`metta finalize --json --change <name>\` → archives change, merges specs
+3. Git commit any remaining changes
+4. Report result to user
 
-## Rules
-
-- Always dry-run before the real operation
-- Resolve any spec merge conflicts before shipping
-- Do not force-push or skip verification steps`,
+If spec conflicts are reported, stop and tell the user.`,
   },
   {
     name: 'metta:status',
     description: 'Check current Metta change status',
     allowedTools: ['Read', 'Bash'],
-    body: `Check the current state of Metta changes.
+    body: `Run \`metta status --json\` and report results to the user.
 
-Run \`metta status --json\` and report the results to the user.
-If no changes are active, suggest \`metta propose\` or \`metta quick\`.`,
+If no changes active, suggest \`/metta:propose\` or \`/metta:quick\`.
+If multiple changes, list them all with their status.`,
   },
   {
     name: 'metta:quick',
-    description: 'Quick mode — small change without planning',
+    description: 'Quick mode — small change without full planning',
     argumentHint: '<description of the small change>',
     allowedTools: ['Read', 'Write', 'Edit', 'Bash', 'Grep', 'Glob'],
-    body: `You are doing a quick change with Metta — skip planning, go straight to implementation.
+    body: `Quick change — intent, implement, verify. No research/design/tasks phases.
 
 ## Steps
 
-1. Run \`metta quick "$ARGUMENTS" --json\` to create the change
-2. Run \`metta instructions intent --json\` for the intent artifact
-3. Create a brief intent, then implement directly
-4. Run tests, lint, typecheck after implementation
-5. Run \`metta verify --json\` to check gates
+1. \`metta quick "$ARGUMENTS" --json\` → creates change with quick workflow
+2. \`metta instructions intent --json --change <name>\` → get intent template
+3. Write intent to the output_path (Problem, Proposal, Impact, Out of Scope)
+4. \`git add spec/changes/<change>/intent.md && git commit -m "docs(<change>): create intent"\`
+5. \`metta complete intent --json --change <name>\` → advances to implementation
+6. Implement the change — write/edit code files
+7. Run tests: \`npm test\` (if configured)
+8. \`git commit -m "feat(<change>): <what was implemented>"\`
+9. Write summary to \`spec/changes/<change>/summary.md\` (what changed, how to test)
+10. \`git add spec/changes/<change>/summary.md && git commit -m "docs(<change>): summary"\`
+11. \`metta complete implementation --json --change <name>\`
 
-## Rules
+## Critical Rules
 
-- Quick mode is for small, well-understood changes
-- Still commit atomically and run gates
-- If the change turns out to be complex, switch to \`metta propose\``,
+- MUST write intent.md and summary.md to disk — not just describe them
+- MUST git commit after each step
+- MUST call \`metta complete\` to advance the workflow
+- If complex, tell user to use \`/metta:propose\` instead`,
   },
   {
     name: 'metta:auto',
     description: 'Full lifecycle loop — discover, build, verify, ship',
     argumentHint: '<description of what to build>',
     allowedTools: ['Read', 'Write', 'Edit', 'Bash', 'Grep', 'Glob'],
-    body: `You are running Metta auto mode — full lifecycle from discovery to shipping.
+    body: `Full lifecycle — propose through finalize, driven by CLI commands.
 
-## Steps
+## Loop
 
-1. Run \`metta auto "$ARGUMENTS" --json\` to start
-2. Run \`metta propose "$ARGUMENTS" --json\` to create the change
-3. Run through each artifact in order using \`metta instructions <artifact> --json\`
-4. Execute all tasks, run gates after each
-5. Run \`metta verify --json\` — if gaps found, re-plan and fix
-6. Run \`metta finalize --json\` then \`metta ship --json\`
+1. \`metta propose "$ARGUMENTS" --json\` → creates change
+2. For each artifact in order:
+   a. \`metta instructions <artifact> --json --change <name>\`
+   b. Write artifact to output_path with real content
+   c. \`git commit -m "docs(<change>): create <artifact>"\`
+   d. \`metta complete <artifact> --json --change <name>\` → returns next
+3. For implementation: read tasks.md, implement each task, commit each
+4. Write summary.md with verification results
+5. \`metta complete verification --json --change <name>\`
+6. \`metta finalize --json --change <name>\`
 
 ## Rules
 
-- Ask all discovery questions upfront before executing
-- If the same scenarios fail for 2+ cycles, stop and surface the issue
-- Deviation Rule 4 always halts auto mode — ask the user`,
+- Ask discovery questions BEFORE writing spec — don't guess requirements
+- MUST write files + commit + call \`metta complete\` for every artifact
+- Deviation Rule 4: design is wrong → STOP, tell user`,
   },
 ]
 
