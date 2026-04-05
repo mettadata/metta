@@ -1,5 +1,9 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { mkdtemp, rm, readFile, readdir } from 'node:fs/promises'
+import { join } from 'node:path'
+import { tmpdir } from 'node:os'
 import { claudeCodeAdapter } from '../src/delivery/claude-code-adapter.js'
+import { installCommands } from '../src/delivery/command-installer.js'
 import type { SkillContent, ProjectContext } from '../src/delivery/tool-adapter.js'
 
 describe('Claude Code Adapter', () => {
@@ -58,5 +62,35 @@ describe('Claude Code Adapter', () => {
     expect(cap.tool).toBe('AskUserQuestion')
     expect(cap.supportsOptions).toBe(true)
     expect(cap.supportsMultiSelect).toBe(true)
+  })
+})
+
+describe('installCommands', () => {
+  let tempDir: string
+
+  beforeEach(async () => {
+    tempDir = await mkdtemp(join(tmpdir(), 'metta-install-'))
+  })
+
+  afterEach(async () => {
+    await rm(tempDir, { recursive: true, force: true })
+  })
+
+  it('copies skill template files to project', async () => {
+    const installed = await installCommands(claudeCodeAdapter, tempDir)
+    expect(installed.length).toBeGreaterThanOrEqual(8)
+    expect(installed).toContain('metta:quick')
+    expect(installed).toContain('metta:propose')
+
+    // Verify files exist on disk
+    const skillsDir = join(tempDir, '.claude', 'skills')
+    const dirs = await readdir(skillsDir)
+    expect(dirs).toContain('metta-quick')
+    expect(dirs).toContain('metta-propose')
+
+    // Verify content is real (not empty)
+    const quickSkill = await readFile(join(skillsDir, 'metta-quick', 'SKILL.md'), 'utf-8')
+    expect(quickSkill).toContain('name: metta:quick')
+    expect(quickSkill).toContain('orchestrator')
   })
 })
