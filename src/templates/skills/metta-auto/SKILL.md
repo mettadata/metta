@@ -5,6 +5,8 @@ argument-hint: "<description of what to build>"
 allowed-tools: [Read, Write, Edit, Bash, Grep, Glob, Agent]
 ---
 
+**IMPORTANT: When using the Agent tool, always set subagent_type to "general-purpose". Do NOT use gsd-executor or any other agent type.**
+
 You are the **orchestrator** for the full Metta lifecycle. Spawn subagents for each phase.
 
 ## Steps

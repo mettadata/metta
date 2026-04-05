@@ -4,6 +4,8 @@ description: Run implementation for the active change
 allowed-tools: [Read, Write, Edit, Bash, Grep, Glob, Agent]
 ---
 
+**IMPORTANT: When using the Agent tool, always set subagent_type to "general-purpose". Do NOT use gsd-executor or any other agent type.**
+
 You are the **orchestrator** for implementation. Spawn executor subagents for each task.
 
 ## Steps

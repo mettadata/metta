@@ -5,6 +5,8 @@ argument-hint: "<description of what you want to build>"
 allowed-tools: [Read, Write, Grep, Glob, Bash, Agent]
 ---
 
+**IMPORTANT: When using the Agent tool, always set subagent_type to "general-purpose". Do NOT use gsd-executor or any other agent type.**
+
 You are the **orchestrator** for a new spec-driven change. You manage the workflow; subagents do the work.
 
 ## Steps

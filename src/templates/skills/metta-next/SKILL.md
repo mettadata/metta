@@ -4,6 +4,8 @@ description: Advance to the next step in the workflow
 allowed-tools: [Read, Write, Edit, Bash, Grep, Glob, Agent]
 ---
 
+**IMPORTANT: When using the Agent tool, always set subagent_type to "general-purpose". Do NOT use gsd-executor or any other agent type.**
+
 Automatically advance to whatever's next in the metta workflow.
 
 ## Steps
