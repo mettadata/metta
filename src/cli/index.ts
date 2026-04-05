@@ -21,6 +21,9 @@ import { registerContextCommand } from './commands/context.js'
 import { registerDoctorCommand } from './commands/doctor.js'
 import { registerRefreshCommand } from './commands/refresh.js'
 import { registerCleanupCommand } from './commands/cleanup.js'
+import { registerFinalizeCommand } from './commands/finalize.js'
+import { registerShipCommand } from './commands/ship.js'
+import { registerAutoCommand } from './commands/auto.js'
 
 const program = new Command()
 
@@ -53,5 +56,8 @@ registerContextCommand(program)
 registerDoctorCommand(program)
 registerRefreshCommand(program)
 registerCleanupCommand(program)
+registerFinalizeCommand(program)
+registerShipCommand(program)
+registerAutoCommand(program)
 
 program.parse()
