@@ -23,10 +23,20 @@ export function registerCompleteCommand(program: Command): void {
           throw new Error(`Artifact '${artifactId}' not in workflow. Available: ${Object.keys(metadata.artifacts).join(', ')}`)
         }
 
-        const generates = artifactId === 'implementation' ? 'summary.md' : `${artifactId}.md`
-        const fileExists = await ctx.artifactStore.artifactExists(changeName, generates)
-        if (!fileExists && artifactId !== 'implementation') {
-          throw new Error(`Artifact file '${generates}' not found in spec/changes/${changeName}/. Write the file before marking complete.`)
+        // Look up the generates field from the workflow definition
+        const builtinWorkflows = new URL('../../templates/workflows', import.meta.url).pathname
+        const projectWorkflows = join(ctx.projectRoot, '.metta', 'workflows')
+        const graph = await ctx.workflowEngine.loadWorkflow(metadata.workflow, [projectWorkflows, builtinWorkflows])
+        const artifactDef = graph.artifacts.find(a => a.id === artifactId)
+        const generates = artifactDef?.generates ?? `${artifactId}.md`
+
+        // Skip file check for wildcard generates (implementation produces **/*) and summary.md
+        const isWildcard = generates.includes('*')
+        if (!isWildcard) {
+          const fileExists = await ctx.artifactStore.artifactExists(changeName, generates)
+          if (!fileExists) {
+            throw new Error(`Artifact file '${generates}' not found in spec/changes/${changeName}/. Write the file before marking complete.`)
+          }
         }
 
         // Mark complete
@@ -40,10 +50,6 @@ export function registerCompleteCommand(program: Command): void {
 
         // Mark next artifact as ready
         if (pendingArtifacts.length > 0) {
-          // Load workflow to check dependencies
-          const builtinWorkflows = new URL('../../templates/workflows', import.meta.url).pathname
-          const projectWorkflows = join(ctx.projectRoot, '.metta', 'workflows')
-          const graph = await ctx.workflowEngine.loadWorkflow(metadata.workflow, [projectWorkflows, builtinWorkflows])
           const next = ctx.workflowEngine.getNext(graph, updatedMetadata.artifacts)
 
           for (const artifact of next) {
