@@ -22,6 +22,24 @@
 
 ---
 
+## Architectural Decision Records
+
+| ADR | Title | Summary |
+|-----|-------|---------|
+| ADR-001 | ESM Only | No CommonJS; all code is ESM TypeScript |
+| ADR-002 | Dependency Injection Over Singletons | Registries are instantiated and injected, not global |
+| ADR-003 | Templates as External Files | All templates are markdown/YAML files, never string literals |
+| ADR-004 | Schema Validation on Every State Transition | Zod validation on every State Store read/write |
+| ADR-005 | Conflict Detection at Merge Time | Base version hashes enable requirement-level conflict detection |
+| ADR-006 | Git-Aware as a Config Toggle | `git.enabled` controls commits, worktrees, and merge safety |
+| ADR-007 | Dual-Mode Architecture | Instruction mode (v1) and orchestrator mode (future) share core engines |
+| ADR-008 | Schema Migration on Update | Automatic Zod-based migrations on startup; refuses to run if schema is newer |
+| ADR-009 | Team Model | `state.yaml` is gitignored (local); `spec/` is committed (shared) |
+
+See [Key Architectural Decisions](#key-architectural-decisions) below for full rationale on each.
+
+---
+
 ## Layer Responsibilities
 
 ### 1. CLI / MCP / API
@@ -169,7 +187,7 @@ Project `.metta/` exists for **customization only** — a different default work
 Three directories, clear separation:
 
 - **`.metta/`** — framework state only (config, state, workflows, agents, gates, plugins, templates). Hidden, not for humans.
-- **`spec/`** (configurable) — all Metta working artifacts. Input to development. Specs, changes, constitution, gaps, ideas, issues, backlog, archive.
+- **`spec/`** (hardcoded to `spec/` in v1) — all Metta working artifacts. Input to development. Specs, changes, constitution, gaps, ideas, issues, backlog, archive.
 - **`docs/`** (configurable) — generated project documentation. Output of development. Architecture, API, changelog, getting-started.
 
 ```
@@ -183,7 +201,7 @@ Three directories, clear separation:
   templates/               # Template overrides
   state.yaml               # Current state (schema-validated)
 
-spec/                              # Metta working artifacts (configurable path)
+spec/                              # Metta working artifacts (hardcoded to spec/ in v1)
   project.md               # Project constitution (source of truth for AI context)
   specs/                   # Living specifications
     <capability>/

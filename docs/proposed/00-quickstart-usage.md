@@ -115,7 +115,7 @@ It finds existing specs first (the claims), then analyzes code (the evidence), t
 Gaps can be promoted into new specs and changes:
 
 ```bash
-metta propose --from-gap "payments/refund-processing"
+metta propose --from-gap "payments-partial-refunds"
 metta propose --from-gaps           # Interactive: pick gaps to address
 ```
 
@@ -204,6 +204,39 @@ metta auto --max-cycles 5 "add search functionality"
 
 ---
 
+## Lifecycle Overview
+
+```
+                   ┌─────────────────────────────────────────────┐
+                   │              Discovery Gate                  │
+                   │  (adaptive questions until zero ambiguity)   │
+                   └──────────────────┬──────────────────────────┘
+                                      │
+  ┌─────────┐   ┌─────────┐   ┌──────▼──┐   ┌────────┐   ┌──────────┐   ┌──────┐
+  │ propose │──▶│  plan   │──▶│ execute │──▶│ verify │──▶│ finalize │──▶│ ship │
+  │         │   │         │   │         │   │        │   │          │   │      │
+  │ intent  │   │ design  │   │ batch 1 │   │ test   │   │ archive  │   │merge │
+  │ spec    │   │ tasks   │   │  gates  │   │ mapped │   │ merge    │   │safety│
+  │         │   │         │   │ batch 2 │   │ AI     │   │ specs    │   │pipeln│
+  └─────────┘   └─────────┘   │  gates  │   │ review │   │ docs     │   │      │
+                               │  ...    │   │ user   │   └──────────┘   └──────┘
+                               └─────────┘   │ check  │
+                                             └───┬────┘
+                                                 │
+                               ┌─────────────────┘
+                               │ gaps found?
+                               ▼
+                          re-plan gaps ──▶ execute ──▶ verify
+                          (auto mode loops until all scenarios pass)
+
+Gates fire: after each task (tests, lint, typecheck)
+            after each batch (build)
+            after all batches (spec-compliance)
+            after merge to main (post-merge gates)
+```
+
+---
+
 ## Check Status Anytime
 
 ```bash
@@ -264,16 +297,23 @@ Every operation:
   5. Clean up worktree
 ```
 
-The merge safety pipeline runs 7 steps before anything touches main:
-1. Base drift check
-2. Dry-run merge
-3. Scope check (did the agent only touch declared files?)
-4. Gate verification
-5. Pre-merge snapshot (for instant rollback)
-6. Merge
-7. Post-merge gates (rollback automatically on failure)
+Before anything merges to main, it passes through a **7-step merge safety pipeline**: base drift check, dry-run merge, scope check, gate verification, snapshot, merge, post-merge gates. If post-merge gates fail, main is rolled back automatically and the worktree branch is preserved for diagnosis.
+
+See [07-execution-engine.md](07-execution-engine.md) for the full pipeline specification.
 
 No blind merges. No shortcuts. No exceptions.
+
+### Non-Git Projects
+
+If `metta init` detects no `.git` directory, it prompts:
+
+```
+No git repository detected.
+  [1] Initialize git (git init) and continue with full git safety
+  [2] Continue without git (file-only mode — no worktrees, no merge safety)
+```
+
+Choosing option 2 sets `git.enabled: false` in `.metta/config.yaml`. All workflows run sequentially with no worktree isolation.
 
 All commits follow [Conventional Commits](https://www.conventionalcommits.org/) by default:
 ```
@@ -357,7 +397,7 @@ Quick (3 artifacts):
 Standard (6 artifacts):
   intent → spec → design → tasks → execution → verification
 
-Full (10 artifacts):
+Full (9 artifacts):
   research → intent → spec → design ──┬→ architecture
                                       ├→ tasks
                                       └→ ux-spec

@@ -152,7 +152,7 @@ intent ──→ spec ──→ design ──→ tasks ──→ execution ─�
 ```
 For medium features. The default when you run `metta propose`.
 
-### Full (10 artifacts)
+### Full (9 artifacts)
 ```
 research ──→ intent ──→ spec ──→ design ──┬──→ architecture
                                           │
@@ -341,5 +341,7 @@ in_progress → failed   (when gates fail)
 failed → in_progress   (retry)
 any → skipped          (user decision)
 ```
+
+> These are **artifact-level** statuses within a change. For the change's own lifecycle status, see [06-spec-model.md](06-spec-model.md).
 
 The workflow engine emits events on every transition, which hooks can observe.

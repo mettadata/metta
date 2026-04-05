@@ -578,6 +578,20 @@ metta execute --resume
 ```
 Reads state from `.metta/state.yaml`, identifies incomplete tasks, and resumes from the last successful checkpoint.
 
+### Common Failure Scenarios
+
+**Stalled auto-mode loop**: Same scenarios fail for 2+ cycles. Auto mode halts with a diagnostic showing which scenarios are stuck and what was attempted. Review the spec for ambiguity or the design for feasibility. Resume after fixing: `metta auto --resume`.
+
+**Provider outage mid-execution**: Provider failure after retries triggers explicit pause. State is saved. Worktree is preserved. Resume when provider is back: `metta execute --resume`. If a fallback provider is configured, Metta switches automatically.
+
+**Spec conflicts blocking finalize**: `metta finalize` surfaces conflicts interactively. Use `metta finalize --dry-run` to preview. Resolve conflicts on the worktree branch, commit, and retry `metta finalize`.
+
+**Corrupted state**: If `.metta/state.yaml` fails schema validation, `metta doctor` reports the issue. Recovery: delete `.metta/state.yaml` (it's local, gitignored) and reconstruct from committed artifacts using `metta execute --resume`.
+
+**Orphaned worktrees after crash**: `metta cleanup` removes worktrees whose changes no longer exist. `metta doctor` detects them proactively.
+
+**Gate passes in worktree, fails post-merge**: Automatic rollback via snapshot tag. Worktree branch is preserved for diagnosis. Most common cause: integration conflicts between parallel tasks in the same batch.
+
 ---
 
 ## Execution State

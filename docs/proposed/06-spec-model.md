@@ -159,7 +159,7 @@ The `base_versions` field is critical — it records the spec state when the cha
 
 ## Merge Algorithm
 
-When a change is archived (`metta ship`):
+When a change is finalized (`metta finalize`):
 
 ```
 1. For each delta spec in the change:
@@ -192,10 +192,12 @@ When a change is archived (`metta ship`):
 6. Commit with merge metadata
 ```
 
+> **Note**: `metta ship` does NOT run the merge algorithm above. It only performs the git merge to main (or creates a PR). All spec merging, archiving, and conflict resolution happens during `metta finalize`.
+
 ### Dry Run
 
 ```bash
-metta ship --dry-run
+metta finalize --dry-run
 ```
 
 Shows what would change without modifying anything. Reports conflicts, additions, removals. Always run this first.
@@ -284,6 +286,8 @@ metta specs history auth   # Show archived changes that touched auth
 ## State Schema
 
 All state files are validated on read/write:
+
+> **Note**: Change-level status (`active | paused | complete | abandoned`) tracks the overall lifecycle of a change. This is distinct from artifact-level status (`pending | ready | in_progress | complete | failed | skipped`) defined in the Workflow Engine, which tracks individual artifacts within a change.
 
 ```typescript
 const ChangeMetadataSchema = z.object({

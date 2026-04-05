@@ -82,6 +82,24 @@ interface AIProvider {
 }
 ```
 
+### Provider System (v1)
+
+In v1 (instruction mode), the Provider Registry is used for two operations only:
+
+1. **Spec-compliance gate (Layer 2)** — AI-powered verification of implementation against spec scenarios
+2. **`metta import` analysis** — AI-assisted reconciliation of imported specs against code
+
+The external AI tool (Claude Code, Cursor, etc.) handles all other AI operations. The full provider system (role-based routing, fallback chains, cost tracking) is designed but activates when orchestrator mode is built.
+
+**API Keys**: Never stored in config. Referenced via environment variables in `~/.metta/local.yaml`:
+
+```yaml
+providers:
+  main:
+    provider: anthropic
+    api_key_env: ANTHROPIC_API_KEY
+```
+
 ### 4. Gate Plugins
 
 Add new verification checks.
@@ -141,7 +159,8 @@ hooks:
 | `execution.task.complete` | A task commits | task id, commit |
 | `gate.pass` | A gate passes | gate name, duration |
 | `gate.fail` | A gate fails | gate name, failures |
-| `change.shipped` | A change is archived | change name |
+| `change.finalized` | `metta finalize` completes | change name, archived path, merged specs |
+| `change.shipped` | `metta ship` completes (merge to main or PR created) | change name, merge commit, pr url |
 | `conflict.detected` | Spec merge conflict found | spec path, details |
 
 Hooks receive the event payload as JSON on stdin and can:

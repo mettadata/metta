@@ -58,6 +58,26 @@ metta changes list                 # List active changes
 metta changes show <name>          # Show change details
 metta changes abandon <name>       # Abandon a change
 
+metta backlog list                 # List all specced backlog items
+metta backlog show <item>          # Show a specific backlog item
+metta backlog promote <item>       # Move to spec/changes/ (activate for work)
+
+### `metta changes abandon <name>`
+
+Abandoning a change performs the following steps:
+
+1. Confirms interactively (skipped with `--force`)
+2. Archives to `spec/archive/YYYY-MM-DD-<name>-abandoned/` with status `abandoned`
+3. Delta specs are NOT merged into living specs
+4. Cleans worktrees associated with this change
+5. Removes snapshot tags
+6. Resets change state
+
+```bash
+metta changes abandon add-mfa              # Interactive confirmation
+metta changes abandon add-mfa --force      # Skip confirmation
+```
+
 metta roadmap                      # Show current roadmap status
 metta roadmap add <feature>        # Add specced feature to milestone
 metta roadmap reorder              # Interactive reordering
@@ -88,6 +108,65 @@ metta cleanup                      # Clean orphaned worktrees and tags
 metta update                       # Update Metta framework to latest version
 metta doctor                       # Diagnose common issues
 ```
+
+### Working with Multiple Changes
+
+You can have multiple active changes simultaneously:
+
+```bash
+metta propose "add user profiles"
+metta propose "fix payment rounding"
+```
+
+Each change gets its own directory in `spec/changes/`, its own worktree branch, and its own state.
+
+**Targeting a specific change**:
+```bash
+metta status add-user-profiles     # Show specific change
+metta execute add-user-profiles    # Operate on a specific change
+metta verify fix-payment-rounding  # Target by name
+```
+
+If only one change is active, commands operate on it implicitly. If multiple are active, commands that need a target require the change name — no guessing.
+
+**Spec overlap**: If two changes modify the same capability's spec, the first to `metta finalize` wins cleanly. The second hits the merge algorithm's conflict detection and resolves interactively.
+
+### `metta doctor`
+
+Diagnoses common issues with the Metta installation and project state. Checks include:
+
+| Check | What it verifies |
+|-------|-----------------|
+| Framework version | Metta version and available updates |
+| Node.js version | Node.js 22+ required |
+| Schema version | Current, needs migration, or ahead of framework |
+| Git repo state | Clean working tree, orphaned worktrees |
+| Provider API keys | API key environment variables are set and valid |
+| Gate commands | Gate executables (test runner, linter, etc.) are available |
+| AI tool detection | Detected tools and skill installation status |
+| State file integrity | `.metta/state.yaml` passes schema validation |
+| Stale context | Context files that are out of date with their sources |
+
+```bash
+metta doctor           # Run all checks
+metta doctor --json    # Machine-readable output
+```
+
+### Logging
+
+**Verbosity levels:**
+
+| Flag | Level | Output |
+|------|-------|--------|
+| (default) | normal | Progress, results, errors |
+| `--verbose` | verbose | + context decisions, gate details, state transitions |
+| `--debug` | debug | + provider API calls, token counts, full payloads |
+
+**Log files:** Written to `.metta/logs/<change-name>-<timestamp>.log`. Each command invocation appends to the current change's log file. Logs capture context loading decisions, provider calls and responses, gate results, and state transitions.
+
+**Provider token tracking:** Use `metta context stats` to see token budget utilization, cache hit rates, and per-phase breakdowns.
+
+**Cleanup:** Log files are gitignored by default. `metta cleanup` removes logs older than 30 days (configurable via `cleanup.log_retention_days`).
 
 ### Output Modes
 
@@ -213,6 +292,46 @@ Slash commands don't contain workflow logic. They tell the AI tool to call `mett
 - **Single source of truth**: Logic lives in the framework, not in 8 tool-specific command files
 - **Instant updates**: `metta refresh` regenerates skills without framework version bump
 - **Consistent behavior**: All tools get identical instructions via `metta instructions --json`
+
+### `metta instructions` Output Format
+
+```bash
+metta instructions intent --json
+```
+
+```json
+{
+  "artifact": "intent",
+  "change": "add-payment-processing",
+  "workflow": "standard",
+  "status": "ready",
+  "agent": {
+    "name": "proposer",
+    "persona": "You are a product-minded engineer...",
+    "tools": ["Read", "Grep", "Glob"],
+    "rules": ["..."]
+  },
+  "template": "# add-payment-processing\n\n## Problem\n...",
+  "context": {
+    "project": "E-commerce platform for handmade goods...",
+    "existing_specs": ["auth (4 reqs)", "payments (6 reqs)"],
+    "active_gaps": ["payments-partial-refunds"]
+  },
+  "output_path": "spec/changes/add-payment-processing/intent.md",
+  "next_steps": [
+    "Create the intent artifact following the template",
+    "Run `metta status --json` to confirm completion",
+    "Run `metta instructions spec --json` for the next artifact"
+  ],
+  "gates": [],
+  "budget": {
+    "context_tokens": 18200,
+    "budget_tokens": 20000
+  }
+}
+```
+
+This is what AI tools receive. The `template` provides structure, `context` provides project knowledge, `agent` provides persona and constraints, and `next_steps` provides the workflow continuation path.
 
 ---
 

@@ -183,6 +183,14 @@ context_budget: 50000   # Moderate — specs + implementation summary
 
 The Context Engine respects agent budgets when loading context for agent-specific operations.
 
+### Budget vs Window
+
+An agent's `context_budget` controls how many tokens the Context Engine loads into the agent's instructions — project context, specs, task details. This is **not** the agent's total context window.
+
+When an executor spawns with `context_budget: 10000`, it receives ~10K tokens of framework-curated context inside a fresh ~176K token window. The remaining window is available for the AI to read code, think, and generate output.
+
+The orchestrator's ~15K budget is higher because it needs the batch plan, gate results, and deviation log — coordination metadata that executors don't carry.
+
 ---
 
 ## Caching

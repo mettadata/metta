@@ -657,7 +657,7 @@ This ensures that when Metta runs `metta verify` later, it checks against **real
 The gaps report isn't just documentation — it's actionable. Any gap can be promoted into a new spec or change:
 
 ```bash
-metta propose --from-gap "payments/refund-processing"
+metta propose --from-gap "payments-partial-refunds"
 ```
 
 This creates a new change pre-populated with the gap's context — what the spec claims, what code exists, what's missing. The discovery gate already has most of the answers, so it asks only what's still ambiguous.
