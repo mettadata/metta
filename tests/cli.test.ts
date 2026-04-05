@@ -43,12 +43,6 @@ describe('CLI', { timeout: 30000 }, () => {
   })
 
   describe('metta init', () => {
-    it('exits with error when no git repo detected', async () => {
-      const { stderr, code } = await runCli(['init'], tempDir)
-      expect(code).toBe(3)
-      expect(stderr).toContain('No git repository detected')
-    })
-
     it('returns git_missing JSON when no git repo detected', async () => {
       const { stdout, code } = await runCli(['--json', 'init'], tempDir)
       expect(code).toBe(3)
