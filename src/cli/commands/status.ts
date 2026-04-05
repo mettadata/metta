@@ -6,7 +6,9 @@ export function registerStatusCommand(program: Command): void {
     .command('status')
     .description('Show current change status')
     .argument('[change]', 'Change name')
-    .action(async (changeName) => {
+    .option('--change <name>', 'Change name (alternative to positional)')
+    .action(async (changeName, options) => {
+      changeName = changeName ?? options.change
       const json = program.opts().json
       const ctx = createCliContext()
 

@@ -6,7 +6,9 @@ export function registerVerifyCommand(program: Command): void {
     .command('verify')
     .description('Run verification against spec')
     .argument('[change]', 'Change name')
-    .action(async (changeName) => {
+    .option('--change <name>', 'Change name (alternative to positional)')
+    .action(async (changeName, options) => {
+      changeName = changeName ?? options.change
       const json = program.opts().json
       const ctx = createCliContext()
 

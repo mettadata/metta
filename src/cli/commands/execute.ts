@@ -7,7 +7,9 @@ export function registerExecuteCommand(program: Command): void {
     .description('Run implementation')
     .argument('[change]', 'Change name')
     .option('--resume', 'Resume from last checkpoint')
+    .option('--change <name>', 'Change name (alternative to positional)')
     .action(async (changeName, options) => {
+      changeName = changeName ?? options.change
       const json = program.opts().json
       const ctx = createCliContext()
 
