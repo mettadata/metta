@@ -136,6 +136,24 @@ describe('ExecutionEngine', () => {
     expect(state.batches.every(b => b.status === 'complete')).toBe(true)
   })
 
+  it('isolates callback errors from task status', async () => {
+    const tasks: TaskDefinition[] = [
+      { id: '1.1', name: 'Task A', files: [], depends_on: [], action: '', verify: '', done: '' },
+    ]
+    const plan = planBatches(tasks)
+
+    const state = await engine.execute('callback-error-test', plan, {
+      onTaskStart: async () => { throw new Error('start callback exploded') },
+      onTaskComplete: async () => { throw new Error('complete callback exploded') },
+      onBatchStart: async () => { throw new Error('batch start callback exploded') },
+      onBatchComplete: async () => { throw new Error('batch complete callback exploded') },
+    })
+
+    // Task and batch should still be complete despite all callbacks throwing
+    expect(state.batches[0].tasks[0].status).toBe('complete')
+    expect(state.batches[0].status).toBe('complete')
+  })
+
   it('stops on batch failure and does not proceed to next batch', async () => {
     gateRegistry.register({
       name: 'tests',
