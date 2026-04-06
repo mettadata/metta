@@ -114,16 +114,14 @@ export function registerFinalizeCommand(program: Command): void {
         // Auto-commit archive + cleanup changes directory
         if (!options.dryRun && result.archiveName) {
           try {
-            // Stage the archive
-            await execAsync('git', ['add', 'spec/archive/'], { cwd: ctx.projectRoot })
-            // Remove the changes directory from git (already moved by archive())
-            await execAsync('git', ['rm', '-rf', '--cached', `spec/changes/${name}/`], { cwd: ctx.projectRoot }).catch(() => {})
-            // Also physically remove if still there (rename may leave empty dir)
             const { rm } = await import('node:fs/promises')
+            // Clean up any leftover changes dir (rename should have moved it)
             await rm(join(ctx.projectRoot, 'spec', 'changes', name), { recursive: true, force: true })
-            // Stage any remaining spec changes
-            await execAsync('git', ['add', 'spec/'], { cwd: ctx.projectRoot })
-            await execAsync('git', ['commit', '-m', `chore(${name}): archive and finalize`], { cwd: ctx.projectRoot })
+            // Stage everything: archive (new), changes removal, spec merges
+            await execAsync('git', ['add', '-A', 'spec/'], { cwd: ctx.projectRoot })
+            await execAsync('git', ['diff', '--cached', '--quiet'], { cwd: ctx.projectRoot }).catch(async () => {
+              await execAsync('git', ['commit', '-m', `chore(${name}): archive and finalize`], { cwd: ctx.projectRoot })
+            })
           } catch {
             // Nothing to commit or git not available
           }

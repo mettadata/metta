@@ -82,6 +82,22 @@ export class Finalizer {
     // Step 3: Archive the change
     const archiveName = await this.artifactStore.archive(changeName)
 
+    // Step 3b: Write gate results to archive
+    if (gates.length > 0) {
+      const { writeFile } = await import('node:fs/promises')
+      const YAML = (await import('yaml')).default
+      const gateResultsPath = join(this.specDir, 'archive', archiveName, 'gates.yaml')
+      await writeFile(gateResultsPath, YAML.stringify({
+        finalized_at: new Date().toISOString(),
+        all_passed: gatesPassed,
+        results: gates.map(g => ({
+          gate: g.gate,
+          status: g.status,
+          duration_ms: g.duration_ms,
+        })),
+      }))
+    }
+
     // Step 4: Generate docs (placeholder for v0.1)
     const docsGenerated: string[] = []
 
