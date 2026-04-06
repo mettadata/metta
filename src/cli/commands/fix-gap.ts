@@ -49,9 +49,10 @@ export function registerFixGapCommand(program: Command): void {
             }
             process.exit(4)
           }
+          await ctx.gapsStore.archive(slug)
           await ctx.gapsStore.remove(slug)
           try {
-            await execAsync('git', ['add', join('spec', 'gaps')], { cwd: ctx.projectRoot })
+            await execAsync('git', ['add', join('spec', 'gaps'), join('spec', 'archive')], { cwd: ctx.projectRoot })
             await execAsync('git', ['commit', '-m', `fix(gaps): remove resolved gap ${slug}`], { cwd: ctx.projectRoot })
           } catch {
             // git not available or nothing to commit

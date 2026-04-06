@@ -74,7 +74,7 @@ For a given `<gap-slug>`:
 
 9. **Merge** — `git checkout main && git merge metta/<change-name> --no-ff -m "chore: merge <change-name>"`
 
-10. **Remove Gap** — `metta gaps remove <gap-slug> --json` → mark gap as resolved
+10. **Remove Gap** — `metta gaps remove <gap-slug> --json` → archives gap to `spec/archive/` then removes from `spec/gaps/`
 
 ## --all Mode (batch processing)
 
