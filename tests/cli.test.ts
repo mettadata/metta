@@ -93,7 +93,7 @@ describe('CLI', { timeout: 30000 }, () => {
       const { stdout, code } = await runCli(['--json', 'propose', 'add user profiles'], tempDir)
       expect(code).toBe(0)
       const data = JSON.parse(stdout)
-      expect(data.change).toBe('add-user-profiles')
+      expect(data.change).toBe('user-profiles')
       expect(data.workflow).toBe('standard')
       expect(data.artifacts.length).toBeGreaterThan(0)
     })
@@ -166,11 +166,11 @@ describe('CLI', { timeout: 30000 }, () => {
   describe('metta changes abandon', () => {
     it('abandons a change', async () => {
       await runCli(['install', '--git-init'], tempDir)
-      await runCli(['propose', 'to abandon'], tempDir)
-      const { stdout, code } = await runCli(['--json', 'changes', 'abandon', 'to-abandon'], tempDir)
+      await runCli(['propose', 'something to abandon'], tempDir)
+      const { stdout, code } = await runCli(['--json', 'changes', 'abandon', 'something-abandon'], tempDir)
       expect(code).toBe(0)
       const data = JSON.parse(stdout)
-      expect(data.abandoned).toBe('to-abandon')
+      expect(data.abandoned).toBe('something-abandon')
     })
   })
 

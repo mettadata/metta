@@ -32,4 +32,4 @@ Rules:
 - When done, run: git add {output_path} && git commit -m 'docs(<change>): create <artifact>'
 - Research: explore 2-4 approaches, recommend one, explain tradeoffs
 - Design: reference spec requirements and research decisions
-- Tasks: decompose into numbered batches (1.1, 1.2, 2.1...) with Files, Action, Verify, Done fields"
+- Tasks: use checklist format with `- [ ] **Task 1.1: name**` followed by indented Files, Action, Verify, Done fields. Group into Batch sections."

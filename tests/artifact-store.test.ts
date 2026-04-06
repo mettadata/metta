@@ -25,8 +25,8 @@ describe('ArtifactStore', () => {
         ['intent', 'spec', 'design', 'tasks', 'implementation', 'verification'],
       )
 
-      expect(result.name).toBe('add-user-profiles')
-      const metadata = await store.getChange('add-user-profiles')
+      expect(result.name).toBe('user-profiles')
+      const metadata = await store.getChange('user-profiles')
       expect(metadata.workflow).toBe('standard')
       expect(metadata.status).toBe('active')
       expect(metadata.artifacts.intent).toBe('ready')

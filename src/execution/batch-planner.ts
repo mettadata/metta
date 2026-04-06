@@ -124,7 +124,11 @@ export function parseTasks(markdown: string): TaskDefinition[] {
   let currentTask: Partial<TaskDefinition> | null = null
 
   for (const line of lines) {
-    const taskMatch = line.match(/^###\s+Task\s+(\d+\.\d+):\s*(.+)/)
+    // Match both formats:
+    //   ### Task 1.1: name        (old format)
+    //   - [ ] **Task 1.1: name**  (checklist format)
+    //   - [x] **Task 1.1: name**  (completed checklist)
+    const taskMatch = line.match(/^(?:###\s+Task|^-\s+\[[ x]\]\s+\*\*Task)\s+(\d+\.\d+):\s*(.+?)(?:\*\*)?$/)
     if (taskMatch) {
       if (currentTask && currentTask.id) {
         tasks.push(currentTask as TaskDefinition)
@@ -143,13 +147,13 @@ export function parseTasks(markdown: string): TaskDefinition[] {
 
     if (!currentTask) continue
 
-    const filesMatch = line.match(/^-\s+\*\*Files\*\*:\s*(.+)/)
+    const filesMatch = line.match(/^\s*-\s+\*\*Files\*\*:\s*(.+)/)
     if (filesMatch) {
       currentTask.files = filesMatch[1].split(',').map(f => f.trim())
       continue
     }
 
-    const dependsMatch = line.match(/^-\s+\*\*Depends on\*\*:\s*(.+)/)
+    const dependsMatch = line.match(/^\s*-\s+\*\*Depends on\*\*:\s*(.+)/)
     if (dependsMatch) {
       currentTask.depends_on = dependsMatch[1]
         .split(',')
@@ -157,19 +161,19 @@ export function parseTasks(markdown: string): TaskDefinition[] {
       continue
     }
 
-    const actionMatch = line.match(/^-\s+\*\*Action\*\*:\s*(.+)/)
+    const actionMatch = line.match(/^\s*-\s+\*\*Action\*\*:\s*(.+)/)
     if (actionMatch) {
       currentTask.action = actionMatch[1]
       continue
     }
 
-    const verifyMatch = line.match(/^-\s+\*\*Verify\*\*:\s*(.+)/)
+    const verifyMatch = line.match(/^\s*-\s+\*\*Verify\*\*:\s*(.+)/)
     if (verifyMatch) {
       currentTask.verify = verifyMatch[1]
       continue
     }
 
-    const doneMatch = line.match(/^-\s+\*\*Done\*\*:\s*(.+)/)
+    const doneMatch = line.match(/^\s*-\s+\*\*Done\*\*:\s*(.+)/)
     if (doneMatch) {
       currentTask.done = doneMatch[1]
       continue
@@ -181,4 +185,27 @@ export function parseTasks(markdown: string): TaskDefinition[] {
   }
 
   return tasks
+}
+
+/**
+ * Mark a task as complete in the tasks.md checklist.
+ * Replaces `- [ ] **Task X.X:` with `- [x] **Task X.X:`
+ */
+export function markTaskComplete(markdown: string, taskId: string): string {
+  // Match both `- [ ] **Task 1.1:` format
+  const pattern = new RegExp(`^(\\s*- )\\[ \\]( \\*\\*Task ${taskId.replace('.', '\\.')}:)`, 'm')
+  return markdown.replace(pattern, '$1[x]$2')
+}
+
+/**
+ * Check which tasks are completed in the tasks.md checklist.
+ */
+export function getCompletedTasks(markdown: string): string[] {
+  const completed: string[] = []
+  const pattern = /- \[x\] \*\*Task (\d+\.\d+):/g
+  let match
+  while ((match = pattern.exec(markdown)) !== null) {
+    completed.push(match[1])
+  }
+  return completed
 }
