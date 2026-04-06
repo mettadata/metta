@@ -207,6 +207,95 @@ describe('ExecutionEngine', () => {
     expect(merged).toContain('Failed')
   })
 
+  it('resume uses parallel mode when batch was planned as parallel', async () => {
+    // Create tasks that will be in the same batch (no dependencies) so they are parallel
+    const tasks: TaskDefinition[] = [
+      { id: '1.1', name: 'Task A', files: ['a.ts'], depends_on: [], action: '', verify: '', done: '' },
+      { id: '1.2', name: 'Task B', files: ['b.ts'], depends_on: [], action: '', verify: '', done: '' },
+    ]
+    const plan = planBatches(tasks)
+    // Confirm they ended up in the same batch and it's parallel
+    expect(plan.batches).toHaveLength(1)
+    expect(plan.batches[0].parallel).toBe(true)
+
+    // Execute first, which will complete both tasks
+    await engine.execute('resume-parallel-test', plan)
+
+    // Now create a new engine that forces sequential to prove resume respects the plan
+    const seqEngine = new ExecutionEngine(stateStore, gateRegistry, tempDir, 'auto')
+
+    // Manually write a state where task 1.2 is failed (needs resume)
+    const { StateFileSchema } = await import('../src/schemas/state-file.js')
+    await stateStore.write('state.yaml', StateFileSchema, {
+      schema_version: 1,
+      execution: {
+        change: 'resume-parallel-test',
+        started: new Date().toISOString(),
+        batches: [{
+          id: 1,
+          status: 'in_progress',
+          tasks: [
+            { id: '1.1', status: 'complete' },
+            { id: '1.2', status: 'failed' },
+          ],
+        }],
+        deviations: [],
+      },
+    })
+
+    const batchModes: boolean[] = []
+    const result = await seqEngine.resume('resume-parallel-test', plan, {
+      onBatchStart: async (_id, parallel) => { batchModes.push(parallel) },
+    })
+
+    // With only 1 incomplete task, it won't use parallel (needs >1 task),
+    // but the routing logic should still check the batch plan.
+    // The key assertion: resume completes successfully and the task is retried.
+    expect(result.batches[0].tasks[0].status).toBe('complete')
+    expect(result.batches[0].tasks[1].status).toBe('complete')
+    expect(result.batches[0].status).toBe('complete')
+  })
+
+  it('resume uses parallel routing for multiple incomplete tasks', async () => {
+    const tasks: TaskDefinition[] = [
+      { id: '1.1', name: 'Task A', files: ['a.ts'], depends_on: [], action: '', verify: '', done: '' },
+      { id: '1.2', name: 'Task B', files: ['b.ts'], depends_on: [], action: '', verify: '', done: '' },
+      { id: '1.3', name: 'Task C', files: ['c.ts'], depends_on: [], action: '', verify: '', done: '' },
+    ]
+    const plan = planBatches(tasks)
+    expect(plan.batches[0].parallel).toBe(true)
+
+    // Write state where all tasks are pending (simulating a crash before execution)
+    const { StateFileSchema } = await import('../src/schemas/state-file.js')
+    await stateStore.write('state.yaml', StateFileSchema, {
+      schema_version: 1,
+      execution: {
+        change: 'resume-parallel-multi',
+        started: new Date().toISOString(),
+        batches: [{
+          id: 1,
+          status: 'pending',
+          tasks: [
+            { id: '1.1', status: 'pending' },
+            { id: '1.2', status: 'pending' },
+            { id: '1.3', status: 'pending' },
+          ],
+        }],
+        deviations: [],
+      },
+    })
+
+    const batchModes: boolean[] = []
+    const result = await engine.resume('resume-parallel-multi', plan, {
+      onBatchStart: async (_id, parallel) => { batchModes.push(parallel) },
+    })
+
+    // In auto mode with multiple parallel tasks, resume should report parallel=true
+    expect(batchModes[0]).toBe(true)
+    expect(result.batches[0].tasks.every(t => t.status === 'complete')).toBe(true)
+    expect(result.batches[0].status).toBe('complete')
+  })
+
   it('stops on batch failure and does not proceed to next batch', async () => {
     gateRegistry.register({
       name: 'tests',

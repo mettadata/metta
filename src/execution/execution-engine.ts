@@ -223,42 +223,76 @@ export class ExecutionEngine {
 
     const state = stateFile.execution
 
-    for (const batch of state.batches) {
+    for (let i = 0; i < state.batches.length; i++) {
+      const batch = state.batches[i]
       if (batch.status === 'complete') continue
 
-      batch.status = 'in_progress'
-      await this.saveState(state)
+      const batchDef = batchPlan.batches[i]
+      const useParallel = batchDef ? this.shouldRunParallel(batchDef) : false
 
-      for (const task of batch.tasks) {
-        if (task.status === 'complete' || task.status === 'skipped') continue
+      // Build a filtered view containing only incomplete tasks for re-execution
+      const incompleteTasks = batch.tasks.filter(
+        t => t.status !== 'complete' && t.status !== 'skipped',
+      )
 
-        task.status = 'in_progress'
-        await safeCallback(() => callbacks?.onTaskStart?.(task.id) ?? Promise.resolve())
+      if (incompleteTasks.length === 0) {
+        batch.status = 'complete'
         await this.saveState(state)
-
-        try {
-          const gateResults = await this.runTaskGates(task)
-          const allPassed = gateResults.every(g => g.status === 'pass' || g.status === 'skip')
-          task.status = allPassed ? 'complete' : 'failed'
-          if (allPassed) {
-            await safeCallback(() => callbacks?.onTaskComplete?.(task.id) ?? Promise.resolve())
-          } else {
-            await safeCallback(() => callbacks?.onTaskFailed?.(task.id, 'Gate failure') ?? Promise.resolve())
-          }
-        } catch (err: unknown) {
-          task.status = 'failed'
-          const message = err instanceof Error ? err.message : String(err)
-          await safeCallback(() => callbacks?.onTaskFailed?.(task.id, message) ?? Promise.resolve())
-        }
-
-        await this.saveState(state)
+        continue
       }
 
-      const allComplete = batch.tasks.every(t => t.status === 'complete')
-      batch.status = allComplete ? 'complete' : 'failed'
+      batch.status = 'in_progress'
+      await safeCallback(() => callbacks?.onBatchStart?.(batch.id, useParallel) ?? Promise.resolve())
       await this.saveState(state)
 
-      if (batch.status === 'failed') break
+      // Create a temporary batch containing only the tasks that need re-execution
+      const resumeBatch: ExecutionBatch = {
+        id: batch.id,
+        status: 'in_progress',
+        tasks: incompleteTasks,
+      }
+
+      if (useParallel && incompleteTasks.length > 1 && batchDef) {
+        // Build a filtered batchDef containing only the tasks to resume
+        const incompleteIds = new Set(incompleteTasks.map(t => t.id))
+        const filteredBatchDef = {
+          ...batchDef,
+          tasks: batchDef.tasks.filter(t => incompleteIds.has(t.id)),
+        }
+        await this.executeBatchParallel(changeName, resumeBatch, filteredBatchDef, callbacks)
+      } else if (batchDef) {
+        await this.executeBatchSequential(resumeBatch, batchDef, callbacks)
+      } else {
+        // No matching batchDef — fall back to sequential inline execution
+        for (const task of incompleteTasks) {
+          task.status = 'in_progress'
+          await safeCallback(() => callbacks?.onTaskStart?.(task.id) ?? Promise.resolve())
+          try {
+            const gateResults = await this.runTaskGates(task)
+            const allPassed = gateResults.every(g => g.status === 'pass' || g.status === 'skip')
+            task.status = allPassed ? 'complete' : 'failed'
+            if (allPassed) {
+              await safeCallback(() => callbacks?.onTaskComplete?.(task.id) ?? Promise.resolve())
+            } else {
+              await safeCallback(() => callbacks?.onTaskFailed?.(task.id, 'Gate failure') ?? Promise.resolve())
+            }
+          } catch (err: unknown) {
+            task.status = 'failed'
+            const message = err instanceof Error ? err.message : String(err)
+            await safeCallback(() => callbacks?.onTaskFailed?.(task.id, message) ?? Promise.resolve())
+          }
+        }
+      }
+
+      await this.saveState(state)
+
+      const allComplete = batch.tasks.every(t => t.status === 'complete')
+      const anyFailed = batch.tasks.some(t => t.status === 'failed')
+      batch.status = anyFailed ? 'failed' : (allComplete ? 'complete' : 'in_progress')
+      await safeCallback(() => callbacks?.onBatchComplete?.(batch.id) ?? Promise.resolve())
+      await this.saveState(state)
+
+      if (anyFailed) break
     }
 
     return state
