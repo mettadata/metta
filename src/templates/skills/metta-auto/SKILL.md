@@ -23,40 +23,46 @@ You are the **orchestrator** for the full Metta lifecycle. Spawn subagents for e
 
 3. For each artifact in order:
    a. `metta instructions <artifact> --json --change <name>` → get template + persona
-   b. **Spawn a subagent** with the right metta agent type (intent/spec→metta-proposer, research→metta-researcher, design→metta-architect, tasks→metta-planner, implementation→metta-executor) and the agent persona and task
+   b. **Spawn a subagent with `isolation: "worktree"`** — right metta agent type (intent/spec→metta-proposer, design→metta-architect, tasks→metta-planner)
    c. Subagent writes artifact to output_path with real content, then git commits
    d. `metta complete <artifact> --json --change <name>` → returns next
-3. **For implementation — batch-parallel execution:**
+
+   **For research: fan-out parallel exploration:**
+   a. Identify 2-4 approaches from the spec
+   b. **Spawn one metta-researcher per approach in a single message**, each with `isolation: "worktree"`
+   c. Merge results into research.md with recommendation, commit
+
+4. **For implementation — batch-parallel execution:**
    a. Read `spec/changes/<change>/tasks.md` yourself (the orchestrator, not a subagent)
    b. Parse batches (Batch 1, Batch 2, etc.)
    c. For each batch: check file overlap between tasks in that batch
-   d. No overlap → **spawn one metta-executor per task in a single message** (parallel)
-   e. Overlap → spawn tasks sequentially
+   d. No overlap → **spawn one metta-executor per task in a single message**, each with `isolation: "worktree"` (parallel)
+   e. Overlap → spawn tasks sequentially, each with `isolation: "worktree"`
    f. Wait for each batch to complete before starting the next
-4. **Spawn 3 metta-reviewer agents in parallel** (fan-out — single message):
-   - Agent 1 (subagent_type: "metta-reviewer"): "**Correctness reviewer** — logic errors, edge cases, spec compliance"
-   - Agent 2 (subagent_type: "metta-reviewer"): "**Security reviewer** — OWASP top 10, XSS, injection, secrets"
-   - Agent 3 (subagent_type: "metta-reviewer"): "**Quality reviewer** — dead code, naming, duplication, test gaps"
+5. **Spawn 3 metta-reviewer agents in parallel** (fan-out, each with `isolation: "worktree"`):
+   - Agent 1 (subagent_type: "metta-reviewer", isolation: "worktree"): "**Correctness reviewer**"
+   - Agent 2 (subagent_type: "metta-reviewer", isolation: "worktree"): "**Security reviewer**"
+   - Agent 3 (subagent_type: "metta-reviewer", isolation: "worktree"): "**Quality reviewer**"
    - Merge results into `spec/changes/<change>/review.md` and commit
    - If critical issues:
      a. Parse each issue's file path from review.md
      b. Group by file — independent files = parallel
      c. **Spawn one metta-executor per independent file group in a single message**
      d. After fixes complete, re-run the 3 reviewers
-5. **Spawn 3 metta-verifier agents in parallel** (fan-out — single message):
+6. **Spawn 3 metta-verifier agents in parallel** (fan-out — single message):
    - Agent 1 (subagent_type: "metta-verifier"): "Run `npm test` — report pass/fail count and failures"
    - Agent 2 (subagent_type: "metta-verifier"): "Run `npx tsc --noEmit` and `npm run lint` — report errors"
    - Agent 3 (subagent_type: "metta-verifier"): "Read spec.md, check each scenario has a passing test — cite evidence"
    - Merge results into summary.md and commit
    - If any gate fails: spawn parallel metta-executors to fix, then re-verify
-6. `metta complete verification --json --change <name>`
-7. `metta finalize --json --change <name>` → runs gates, archives, merges specs
-8. `git checkout main && git merge metta/<change-name> --no-ff -m "chore: merge <change-name>"`
-9. Report results to user
+7. `metta complete verification --json --change <name>`
+8. `metta finalize --json --change <name>` → runs gates, archives, merges specs
+9. `git checkout main && git merge metta/<change-name> --no-ff -m "chore: merge <change-name>"`
+10. Report results to user
 
 ## Critical: You MUST review, verify, finalize, and merge
 
-- Do NOT skip step 4 (review) — a metta-reviewer MUST review code before verification
+- Do NOT skip step 5 (review) — 3 reviewers MUST review code before verification
 - Do NOT skip step 5 (verify) — a metta-verifier MUST run gates and confirm spec compliance
 - Do NOT stop after verification — finalize + merge must happen
 - If reviewer verdict is NEEDS_CHANGES, fix before verifying
