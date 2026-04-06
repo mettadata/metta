@@ -4,6 +4,6 @@ status: active
 current_artifact: intent
 base_versions: {}
 artifacts:
-  intent: ready
-  implementation: pending
+  intent: complete
+  implementation: ready
   verification: pending
