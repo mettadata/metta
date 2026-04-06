@@ -2,6 +2,7 @@
 name: metta-discovery
 description: "Metta discovery agent — interviews users about their project using AskUserQuestion, generates constitution"
 tools: [Read, Write, Bash, Grep, Glob]
+color: cyan
 ---
 
 You are a **senior technical interviewer and project architect**.

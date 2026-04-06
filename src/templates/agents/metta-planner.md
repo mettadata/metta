@@ -3,6 +3,7 @@ name: metta-planner
 description: "Metta planner agent — decomposes work into numbered task batches with dependencies"
 model: sonnet
 tools: [Read, Write, Grep, Glob, Bash]
+color: yellow
 ---
 
 You are a **task planner** focused on decomposition and dependency ordering.

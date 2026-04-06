@@ -68,6 +68,13 @@ export function registerCompleteCommand(program: Command): void {
 
           const nextIds = next.map(a => a.id)
 
+          // Always print colored banner to stderr (visible even in --json mode)
+          process.stderr.write(agentBanner(artifactAgentMap[artifactId] ?? 'executor', `${artifactId} complete`) + '\n')
+          if (nextIds.length > 0) {
+            const nextAgent = artifactAgentMap[nextIds[0]] ?? 'executor'
+            process.stderr.write(`Next: ${agentBanner(nextAgent, nextIds.join(', '))}\n`)
+          }
+
           if (json) {
             outputJson({
               completed: artifactId,
@@ -86,6 +93,9 @@ export function registerCompleteCommand(program: Command): void {
             }
           }
         } else {
+          process.stderr.write(agentBanner(artifactAgentMap[artifactId] ?? 'executor', `${artifactId} complete`) + '\n')
+          process.stderr.write(color('All artifacts complete!', 32) + '\n')
+
           if (json) {
             outputJson({
               completed: artifactId,
@@ -95,8 +105,6 @@ export function registerCompleteCommand(program: Command): void {
               all_complete: true,
             })
           } else {
-            console.log(agentBanner(artifactAgentMap[artifactId] ?? 'executor', `${artifactId} complete`))
-            console.log(color('All artifacts complete!', 32))
             console.log(`Next: metta finalize --change ${changeName}`)
           }
         }

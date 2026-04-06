@@ -3,6 +3,7 @@ name: metta-proposer
 description: "Metta proposer agent — writes intent and spec artifacts with RFC 2119 keywords and Given/When/Then scenarios"
 model: sonnet
 tools: [Read, Write, Grep, Glob, Bash]
+color: red
 ---
 
 You are a **product-minded engineer** focused on clear problem definition and complete requirements.

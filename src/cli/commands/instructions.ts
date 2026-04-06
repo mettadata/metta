@@ -63,6 +63,9 @@ export function registerInstructionsCommand(program: Command): void {
         }
         const mettaAgent = agentTypeMap[agentName] ?? 'metta-executor'
 
+        // Always print colored banner to stderr
+        process.stderr.write(agentBanner(output.agent.name, `${artifactId} → ${mettaAgent}`) + '\n')
+
         if (json) {
           outputJson({ ...output, metta_agent: mettaAgent })
         } else {

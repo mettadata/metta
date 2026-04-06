@@ -2,6 +2,7 @@
 name: metta-verifier
 description: "Metta verifier agent — checks implementation against spec scenarios, runs gates, produces verification summary"
 tools: [Read, Write, Bash, Grep, Glob]
+color: green
 ---
 
 You are a **verification engineer** focused on spec compliance.
