@@ -180,6 +180,96 @@ describe('ExecutionStateSchema', () => {
     const result = ExecutionStateSchema.safeParse(data)
     expect(result.success).toBe(false)
   })
+
+  it('rejects when change is omitted', () => {
+    const data = {
+      started: '2026-04-04T12:00:00Z',
+      batches: [],
+      deviations: [],
+    }
+    const result = ExecutionStateSchema.safeParse(data)
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects when started is omitted', () => {
+    const data = {
+      change: 'test',
+      batches: [],
+      deviations: [],
+    }
+    const result = ExecutionStateSchema.safeParse(data)
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects when started is an invalid datetime', () => {
+    const data = {
+      change: 'test',
+      started: 'not-a-date',
+      batches: [],
+      deviations: [],
+    }
+    const result = ExecutionStateSchema.safeParse(data)
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects when batches is omitted', () => {
+    const data = {
+      change: 'test',
+      started: '2026-04-04T12:00:00Z',
+      deviations: [],
+    }
+    const result = ExecutionStateSchema.safeParse(data)
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects when deviations is omitted', () => {
+    const data = {
+      change: 'test',
+      started: '2026-04-04T12:00:00Z',
+      batches: [],
+    }
+    const result = ExecutionStateSchema.safeParse(data)
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects invalid task status enum', () => {
+    const data = {
+      change: 'test',
+      started: '2026-04-04T12:00:00Z',
+      batches: [
+        { id: 1, status: 'complete', tasks: [{ id: '1.1', status: 'cancelled' }] },
+      ],
+      deviations: [],
+    }
+    const result = ExecutionStateSchema.safeParse(data)
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects invalid batch status enum', () => {
+    const data = {
+      change: 'test',
+      started: '2026-04-04T12:00:00Z',
+      batches: [
+        { id: 1, status: 'cancelled', tasks: [] },
+      ],
+      deviations: [],
+    }
+    const result = ExecutionStateSchema.safeParse(data)
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects batch id that is zero or negative', () => {
+    const data = {
+      change: 'test',
+      started: '2026-04-04T12:00:00Z',
+      batches: [
+        { id: 0, status: 'pending', tasks: [] },
+      ],
+      deviations: [],
+    }
+    const result = ExecutionStateSchema.safeParse(data)
+    expect(result.success).toBe(false)
+  })
 })
 
 describe('AutoStateSchema', () => {
