@@ -151,18 +151,29 @@ export class ExecutionEngine {
 
     await Promise.all(promises)
 
-    // Merge completed worktrees back in order
+    // Merge completed worktrees back in task-definition order.
+    // Each merge completes before the next begins (sequential merge after
+    // parallel execution). The worktree manager verifies the base commit
+    // and rebases if HEAD has advanced.
     for (const task of batch.tasks) {
       const wt = worktrees.get(task.id)
       if (!wt) continue
 
       if (task.status === 'complete') {
-        const mergeResult = await this.worktreeManager.merge(wt)
-        if (mergeResult.status === 'clean') {
-          await safeCallback(() => callbacks?.onWorktreeMerged?.(task.id, mergeResult.changedFiles) ?? Promise.resolve())
-        } else {
+        try {
+          const mergeResult = await this.worktreeManager.merge(wt)
+          if (mergeResult.status === 'clean') {
+            await safeCallback(() => callbacks?.onWorktreeMerged?.(task.id, mergeResult.changedFiles) ?? Promise.resolve())
+          } else {
+            task.status = 'failed'
+            await safeCallback(() => callbacks?.onTaskFailed?.(task.id, `Worktree merge conflict: ${mergeResult.detail}`) ?? Promise.resolve())
+          }
+        } catch (err) {
           task.status = 'failed'
-          await safeCallback(() => callbacks?.onTaskFailed?.(task.id, `Worktree merge conflict: ${mergeResult.detail}`) ?? Promise.resolve())
+          const message = err instanceof HeadAdvancedError
+            ? `Base commit check failed: ${err.message}`
+            : `Worktree merge error: ${err instanceof Error ? err.message : String(err)}`
+          await safeCallback(() => callbacks?.onTaskFailed?.(task.id, message) ?? Promise.resolve())
         }
       }
 
