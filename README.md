@@ -1,4 +1,4 @@
-# metta
+# mettā | A Meta-Programming SDD Framework
 
 A composable, spec-driven development framework for AI-native software engineering.
 
