@@ -1,7 +1,7 @@
 # Schemas Specification
 
 **Source:** `src/schemas/`
-**Tests:** `tests/schemas.test.ts`
+**Tests:** `tests/schemas.test.ts` (98 scenarios)
 **Status:** Draft
 
 This document specifies the Zod validation schemas used to parse and guard all persistent state, configuration, and runtime data in metta. All schemas use `.strict()` unless noted, which means unknown fields MUST cause a parse failure.
@@ -43,12 +43,12 @@ The change-level status MUST be one of: `active`, `paused`, `complete`, `abandon
 ### 1.4 Scenarios
 
 **Scenario: Valid change metadata parses successfully**
-- Given a change metadata object with all required fields and valid enum values
+- Given a change metadata object with all required fields (`workflow`, `created`, `status: "active"`, `current_artifact`, `base_versions`, `artifacts`) and valid artifact status values
 - When parsed with `ChangeMetadataSchema.safeParse()`
 - Then `result.success` MUST be `true`
 
 **Scenario: Unknown field is rejected**
-- Given a change metadata object that includes `extra_field`
+- Given a change metadata object with all required fields plus an `extra_field`
 - When parsed with `ChangeMetadataSchema.safeParse()`
 - Then `result.success` MUST be `false` due to `.strict()` enforcement
 
@@ -57,12 +57,12 @@ The change-level status MUST be one of: `active`, `paused`, `complete`, `abandon
 - When parsed with `ChangeMetadataSchema.safeParse()`
 - Then `result.success` MUST be `false`
 
-**Scenario: Invalid artifact status is rejected**
-- Given a change metadata object where an artifact value is `"invalid_status"`
+**Scenario: Invalid artifact status value is rejected**
+- Given a change metadata object where an artifact map value is `"invalid_status"`
 - When parsed with `ChangeMetadataSchema.safeParse()`
 - Then `result.success` MUST be `false`
 
-**Scenario: Invalid datetime is rejected**
+**Scenario: Invalid datetime string is rejected**
 - Given a change metadata object where `created` is `"not-a-date"`
 - When parsed with `ChangeMetadataSchema.safeParse()`
 - Then `result.success` MUST be `false`
@@ -124,10 +124,10 @@ MUST be one of: `verified`, `partial`, `missing`, `unimplemented`, `diverged`, `
 
 `.strict()` is enforced.
 
-### 2.6 Scenarios
+### 2.6 SpecLockSchema scenarios
 
 **Scenario: Minimal spec lock parses successfully**
-- Given a spec lock with `version`, `hash`, `updated`, and `requirements` populated
+- Given a spec lock with `version: 3`, `hash`, `updated`, and a `requirements` array containing two entries
 - When parsed with `SpecLockSchema.safeParse()`
 - Then `result.success` MUST be `true`
 
@@ -140,6 +140,70 @@ MUST be one of: `verified`, `partial`, `missing`, `unimplemented`, `diverged`, `
 - Given a spec lock with `version: 0`
 - When parsed with `SpecLockSchema.safeParse()`
 - Then `result.success` MUST be `false` because `version` requires a positive integer
+
+**Scenario: Invalid reconciliation requirement status is rejected**
+- Given a spec lock containing a reconciliation entry with `status: "unknown"`
+- When parsed with `SpecLockSchema.safeParse()`
+- Then `result.success` MUST be `false`
+
+**Scenario: Invalid status enum value is rejected**
+- Given a spec lock with `status: "pending"` (not a member of the allowed set)
+- When parsed with `SpecLockSchema.safeParse()`
+- Then `result.success` MUST be `false`
+
+**Scenario: Invalid source enum value is rejected**
+- Given a spec lock with `source: "auto"` (not a member of the allowed set)
+- When parsed with `SpecLockSchema.safeParse()`
+- Then `result.success` MUST be `false`
+
+### 2.7 SpecLockRequirementSchema scenarios
+
+**Scenario: Valid requirement parses successfully**
+- Given a requirement with `id`, `hash`, and `scenarios` array
+- When parsed with `SpecLockRequirementSchema.safeParse()`
+- Then `result.success` MUST be `true`
+
+**Scenario: Missing id is rejected**
+- Given a requirement with only `hash` and `scenarios`, omitting `id`
+- When parsed with `SpecLockRequirementSchema.safeParse()`
+- Then `result.success` MUST be `false`
+
+**Scenario: Missing hash is rejected**
+- Given a requirement with only `id` and `scenarios`, omitting `hash`
+- When parsed with `SpecLockRequirementSchema.safeParse()`
+- Then `result.success` MUST be `false`
+
+**Scenario: Unknown field is rejected (.strict())**
+- Given a requirement with `id`, `hash`, `scenarios`, and an extra `extra: true` field
+- When parsed with `SpecLockRequirementSchema.safeParse()`
+- Then `result.success` MUST be `false`
+
+### 2.8 ReconciliationRequirementSchema scenarios
+
+**Scenario: Valid reconciliation requirement with evidence parses successfully**
+- Given a reconciliation requirement with `id: "checkout-flow"`, `status: "verified"`, and `evidence` array
+- When parsed with `ReconciliationRequirementSchema.safeParse()`
+- Then `result.success` MUST be `true`
+
+**Scenario: All six valid status values are accepted**
+- Given a reconciliation requirement with each of: `verified`, `partial`, `missing`, `unimplemented`, `diverged`, `undocumented`
+- When each is parsed with `ReconciliationRequirementSchema.safeParse()`
+- Then all six MUST return `result.success === true`
+
+**Scenario: Invalid status enum is rejected**
+- Given a reconciliation requirement with `status: "unknown"`
+- When parsed with `ReconciliationRequirementSchema.safeParse()`
+- Then `result.success` MUST be `false`
+
+**Scenario: Missing id is rejected**
+- Given a reconciliation requirement with only `status: "verified"`, omitting `id`
+- When parsed with `ReconciliationRequirementSchema.safeParse()`
+- Then `result.success` MUST be `false`
+
+**Scenario: Unknown field is rejected (.strict())**
+- Given a reconciliation requirement with `id`, `status`, and `extra: true`
+- When parsed with `ReconciliationRequirementSchema.safeParse()`
+- Then `result.success` MUST be `false`
 
 ---
 
@@ -199,16 +263,137 @@ MUST be one of: `pending`, `in_progress`, `complete`, `failed`, `skipped`.
 
 `.strict()` is enforced.
 
-### 3.6 Scenarios
+### 3.6 ExecutionStateSchema scenarios
 
 **Scenario: Execution state with batches and deviations parses successfully**
-- Given an execution state with a completed batch containing a task with commit and gate results, an in-progress batch with a pending task, and a deviation with rule 1
+- Given an execution state with a completed batch containing a task with commit and gate results, an in-progress batch with a pending task, and a deviation with `rule: 1`, `commit`, and `files`
 - When parsed with `ExecutionStateSchema.safeParse()`
 - Then `result.success` MUST be `true`
 
-**Scenario: Deviation rule outside 1-4 is rejected**
-- Given an execution state with a deviation where `rule` is `5`
+**Scenario: Deviation rule outside 1-4 range is rejected**
+- Given an execution state with a deviation where `rule: 5`
 - When parsed with `ExecutionStateSchema.safeParse()`
+- Then `result.success` MUST be `false`
+
+**Scenario: Missing change field is rejected**
+- Given an execution state with `started`, `batches`, and `deviations` but omitting `change`
+- When parsed with `ExecutionStateSchema.safeParse()`
+- Then `result.success` MUST be `false`
+
+**Scenario: Missing started field is rejected**
+- Given an execution state with `change`, `batches`, and `deviations` but omitting `started`
+- When parsed with `ExecutionStateSchema.safeParse()`
+- Then `result.success` MUST be `false`
+
+**Scenario: Invalid started datetime is rejected**
+- Given an execution state with `started: "not-a-date"`
+- When parsed with `ExecutionStateSchema.safeParse()`
+- Then `result.success` MUST be `false`
+
+**Scenario: Missing batches field is rejected**
+- Given an execution state with `change`, `started`, and `deviations` but omitting `batches`
+- When parsed with `ExecutionStateSchema.safeParse()`
+- Then `result.success` MUST be `false`
+
+**Scenario: Missing deviations field is rejected**
+- Given an execution state with `change`, `started`, and `batches` but omitting `deviations`
+- When parsed with `ExecutionStateSchema.safeParse()`
+- Then `result.success` MUST be `false`
+
+**Scenario: Invalid task status enum is rejected**
+- Given an execution state with a task using `status: "cancelled"`
+- When parsed with `ExecutionStateSchema.safeParse()`
+- Then `result.success` MUST be `false`
+
+**Scenario: Invalid batch status enum is rejected**
+- Given an execution state with a batch using `status: "cancelled"`
+- When parsed with `ExecutionStateSchema.safeParse()`
+- Then `result.success` MUST be `false`
+
+**Scenario: Batch id of zero is rejected**
+- Given an execution state with a batch where `id: 0`
+- When parsed with `ExecutionStateSchema.safeParse()`
+- Then `result.success` MUST be `false`
+
+### 3.7 DeviationSchema scenarios
+
+**Scenario: Valid deviation with all optional fields parses successfully**
+- Given a deviation with `rule: 1`, `description`, `commit`, `files`, and `action: "fixed"`
+- When parsed with `DeviationSchema.safeParse()`
+- Then `result.success` MUST be `true`
+
+**Scenario: Rule 0 is rejected (below minimum)**
+- Given a deviation with `rule: 0` and `description`
+- When parsed with `DeviationSchema.safeParse()`
+- Then `result.success` MUST be `false`
+
+**Scenario: Rule 5 is rejected (above maximum)**
+- Given a deviation with `rule: 5` and `description`
+- When parsed with `DeviationSchema.safeParse()`
+- Then `result.success` MUST be `false`
+
+**Scenario: Missing description is rejected**
+- Given a deviation with only `rule: 2`, omitting `description`
+- When parsed with `DeviationSchema.safeParse()`
+- Then `result.success` MUST be `false`
+
+**Scenario: Unknown field is rejected (.strict())**
+- Given a deviation with `rule: 1`, `description`, and `extra: true`
+- When parsed with `DeviationSchema.safeParse()`
+- Then `result.success` MUST be `false`
+
+### 3.8 ExecutionTaskSchema scenarios
+
+**Scenario: Valid task with commit and gates parses successfully**
+- Given a task with `id: "1.1"`, `status: "complete"`, `commit`, and `gates` map
+- When parsed with `ExecutionTaskSchema.safeParse()`
+- Then `result.success` MUST be `true`
+
+**Scenario: All five valid status values are accepted**
+- Given a task with each of: `pending`, `in_progress`, `complete`, `failed`, `skipped`
+- When each is parsed with `ExecutionTaskSchema.safeParse()`
+- Then all five MUST return `result.success === true`
+
+**Scenario: Invalid status enum is rejected**
+- Given a task with `status: "cancelled"`
+- When parsed with `ExecutionTaskSchema.safeParse()`
+- Then `result.success` MUST be `false`
+
+**Scenario: Unknown field is rejected (.strict())**
+- Given a task with `id`, `status: "pending"`, and `extra: true`
+- When parsed with `ExecutionTaskSchema.safeParse()`
+- Then `result.success` MUST be `false`
+
+### 3.9 ExecutionBatchSchema scenarios
+
+**Scenario: Valid batch with tasks parses successfully**
+- Given a batch with `id: 1`, `status: "complete"`, and a `tasks` array with one complete task
+- When parsed with `ExecutionBatchSchema.safeParse()`
+- Then `result.success` MUST be `true`
+
+**Scenario: All four valid status values are accepted**
+- Given a batch with each of: `pending`, `in_progress`, `complete`, `failed`
+- When each is parsed with `ExecutionBatchSchema.safeParse()`
+- Then all four MUST return `result.success === true`
+
+**Scenario: Invalid batch status enum is rejected**
+- Given a batch with `status: "cancelled"`
+- When parsed with `ExecutionBatchSchema.safeParse()`
+- Then `result.success` MUST be `false`
+
+**Scenario: Batch id of zero is rejected**
+- Given a batch with `id: 0`, `status: "pending"`, and empty `tasks`
+- When parsed with `ExecutionBatchSchema.safeParse()`
+- Then `result.success` MUST be `false`
+
+**Scenario: Negative batch id is rejected**
+- Given a batch with `id: -1`, `status: "pending"`, and empty `tasks`
+- When parsed with `ExecutionBatchSchema.safeParse()`
+- Then `result.success` MUST be `false`
+
+**Scenario: Unknown field is rejected (.strict())**
+- Given a batch with `id: 1`, `status: "pending"`, empty `tasks`, and `extra: true`
+- When parsed with `ExecutionBatchSchema.safeParse()`
 - Then `result.success` MUST be `false`
 
 ---
@@ -251,9 +436,44 @@ The optional `verification` object, when present, MUST be `.strict()` and MUST c
 ### 4.3 Scenarios
 
 **Scenario: Full auto state with verification summary parses successfully**
-- Given an auto state with one completed cycle including verification data showing 11 passing and 3 failing scenarios
+- Given an auto state with `description`, `started`, `max_cycles: 10`, `current_cycle: 2`, and one completed cycle including a `verification` block with 11 passing and 3 failing scenarios
 - When parsed with `AutoStateSchema.safeParse()`
 - Then `result.success` MUST be `true`
+
+**Scenario: Missing description is rejected**
+- Given an auto state with all fields except `description`
+- When parsed with `AutoStateSchema.safeParse()`
+- Then `result.success` MUST be `false`
+
+**Scenario: Invalid started datetime is rejected**
+- Given an auto state with `started: "yesterday"` (not ISO 8601)
+- When parsed with `AutoStateSchema.safeParse()`
+- Then `result.success` MUST be `false`
+
+**Scenario: max_cycles of zero is rejected**
+- Given an auto state with `max_cycles: 0`
+- When parsed with `AutoStateSchema.safeParse()`
+- Then `result.success` MUST be `false`
+
+**Scenario: Negative max_cycles is rejected**
+- Given an auto state with `max_cycles: -1`
+- When parsed with `AutoStateSchema.safeParse()`
+- Then `result.success` MUST be `false`
+
+**Scenario: current_cycle of zero is rejected**
+- Given an auto state with `current_cycle: 0`
+- When parsed with `AutoStateSchema.safeParse()`
+- Then `result.success` MUST be `false`
+
+**Scenario: Negative batches_run on a cycle is rejected**
+- Given an auto state with a cycle where `batches_run: -1`
+- When parsed with `AutoStateSchema.safeParse()`
+- Then `result.success` MUST be `false`
+
+**Scenario: Negative verification.failing is rejected**
+- Given an auto state with a cycle where `verification.failing: -1`
+- When parsed with `AutoStateSchema.safeParse()`
+- Then `result.success` MUST be `false`
 
 ---
 
@@ -357,7 +577,7 @@ The `cleanup` object, when present, MUST be `.strict()` and MUST contain:
 - Then `result.success` MUST be `true`
 
 **Scenario: Full config with all sections parses successfully**
-- Given a config object with project info, defaults, providers, tools, gates, git, docs, and auto sections
+- Given a config object with `project`, `defaults`, `providers`, `tools`, `gates`, `git`, `docs`, and `auto` sections fully populated
 - When parsed with `ProjectConfigSchema.safeParse()`
 - Then `result.success` MUST be `true`
 
@@ -370,6 +590,31 @@ The `cleanup` object, when present, MUST be `.strict()` and MUST contain:
 - Given a config object with `project: { name: "App", unknown: true }`
 - When parsed with `ProjectConfigSchema.safeParse()`
 - Then `result.success` MUST be `false` due to `.strict()` on `ProjectInfoSchema`
+
+**Scenario: Invalid defaults.mode enum value is rejected**
+- Given a config object with `defaults: { mode: "manual" }`
+- When parsed with `ProjectConfigSchema.safeParse()`
+- Then `result.success` MUST be `false`
+
+**Scenario: Invalid git.merge_strategy enum value is rejected**
+- Given a config object with `git: { merge_strategy: "rebase" }`
+- When parsed with `ProjectConfigSchema.safeParse()`
+- Then `result.success` MUST be `false`
+
+**Scenario: Invalid git.commit_convention enum value is rejected**
+- Given a config object with `git: { commit_convention: "angular" }`
+- When parsed with `ProjectConfigSchema.safeParse()`
+- Then `result.success` MUST be `false`
+
+**Scenario: context_sections, adapters, and cleanup fields are accepted**
+- Given a config object with `context_sections: ["architecture", "api"]`, `adapters: ["jira"]`, and `cleanup: { log_retention_days: 7 }`
+- When parsed with `ProjectConfigSchema.safeParse()`
+- Then `result.success` MUST be `true`
+
+**Scenario: Default cleanup.log_retention_days is applied**
+- Given a config object with `cleanup: {}` (no explicit `log_retention_days`)
+- When parsed with `ProjectConfigSchema.parse()`
+- Then `result.cleanup.log_retention_days` MUST be `30`
 
 ---
 
@@ -401,17 +646,59 @@ The `cleanup` object, when present, MUST be `.strict()` and MUST contain:
 
 `.strict()` is enforced.
 
-### 6.3 Scenarios
+### 6.3 GateResultSchema scenarios
 
 **Scenario: Passing gate result without optional fields parses successfully**
-- Given a gate result with `gate`, `status: "pass"`, and `duration_ms`
+- Given a gate result with `gate: "tests"`, `status: "pass"`, and `duration_ms: 1234`
 - When parsed with `GateResultSchema.safeParse()`
 - Then `result.success` MUST be `true`
 
 **Scenario: Failing gate result with output and failures parses successfully**
-- Given a gate result with `status: "fail"`, `output` text, and a `failures` array with one entry containing file, line, message, and severity
+- Given a gate result with `status: "fail"`, `output` text, and a `failures` array containing an entry with `file`, `line`, `message`, and `severity: "error"`
 - When parsed with `GateResultSchema.safeParse()`
 - Then `result.success` MUST be `true`
+
+**Scenario: Invalid status enum value is rejected**
+- Given a gate result with `status: "success"` (not a member of the allowed set)
+- When parsed with `GateResultSchema.safeParse()`
+- Then `result.success` MUST be `false`
+
+**Scenario: Missing duration_ms is rejected**
+- Given a gate result with `gate` and `status` but omitting `duration_ms`
+- When parsed with `GateResultSchema.safeParse()`
+- Then `result.success` MUST be `false`
+
+**Scenario: Missing gate is rejected**
+- Given a gate result with `status` and `duration_ms` but omitting `gate`
+- When parsed with `GateResultSchema.safeParse()`
+- Then `result.success` MUST be `false`
+
+**Scenario: GateFailure with invalid severity is rejected**
+- Given a gate result with a failure entry using `severity: "critical"`
+- When parsed with `GateResultSchema.safeParse()`
+- Then `result.success` MUST be `false`
+
+### 6.4 GateFailureSchema scenarios
+
+**Scenario: Valid gate failure with line number parses successfully**
+- Given a gate failure with `file`, `line: 10`, `message`, and `severity: "error"`
+- When parsed with `GateFailureSchema.safeParse()`
+- Then `result.success` MUST be `true`
+
+**Scenario: Gate failure with warning severity parses successfully**
+- Given a gate failure with `file`, `message`, and `severity: "warning"` (no `line`)
+- When parsed with `GateFailureSchema.safeParse()`
+- Then `result.success` MUST be `true`
+
+**Scenario: Invalid severity enum is rejected**
+- Given a gate failure with `severity: "critical"`
+- When parsed with `GateFailureSchema.safeParse()`
+- Then `result.success` MUST be `false`
+
+**Scenario: Unknown field is rejected (.strict())**
+- Given a gate failure with `file`, `message`, `severity: "error"`, and `extra: true`
+- When parsed with `GateFailureSchema.safeParse()`
+- Then `result.success` MUST be `false`
 
 ---
 
@@ -461,7 +748,7 @@ The `cleanup` object, when present, MUST be `.strict()` and MUST contain:
 ### 7.4 Scenarios
 
 **Scenario: Standard workflow definition parses successfully**
-- Given a workflow definition with `name`, `version: 1`, and two artifacts each with all required fields
+- Given a workflow definition with `name: "standard"`, `version: 1`, and two artifacts each with all seven required fields
 - When parsed with `WorkflowDefinitionSchema.safeParse()`
 - Then `result.success` MUST be `true`
 
@@ -469,6 +756,26 @@ The `cleanup` object, when present, MUST be `.strict()` and MUST contain:
 - Given a workflow definition with `extends: "standard"`, one artifact, and one override entry specifying additional `requires`
 - When parsed with `WorkflowDefinitionSchema.safeParse()`
 - Then `result.success` MUST be `true`
+
+**Scenario: Version zero or negative is rejected**
+- Given a workflow definition with `version: 0`
+- When parsed with `WorkflowDefinitionSchema.safeParse()`
+- Then `result.success` MUST be `false`
+
+**Scenario: WorkflowArtifact missing generates field is rejected**
+- Given a workflow definition with an artifact that has all fields except `generates`
+- When parsed with `WorkflowDefinitionSchema.safeParse()`
+- Then `result.success` MUST be `false`
+
+**Scenario: Unknown field on WorkflowArtifact is rejected (.strict())**
+- Given a workflow definition with an artifact that includes an `extra: true` field
+- When parsed with `WorkflowDefinitionSchema.safeParse()`
+- Then `result.success` MUST be `false`
+
+**Scenario: Unknown field on WorkflowOverride is rejected (.strict())**
+- Given a workflow definition with an override that includes an `unknown_field: true` field
+- When parsed with `WorkflowDefinitionSchema.safeParse()`
+- Then `result.success` MUST be `false`
 
 ---
 
@@ -510,7 +817,7 @@ A `ToolEntry` MUST be either:
 ### 8.4 Scenarios
 
 **Scenario: Agent with simple string tools parses successfully**
-- Given an agent definition with `name`, `persona`, `capabilities`, string tool entries (`"Read"`, `"Grep"`, etc.), and `context_budget`
+- Given an agent definition with `name`, `persona`, `capabilities`, string tool entries (`"Read"`, `"Grep"`, `"Glob"`, `"Bash"`), and `context_budget: 80000`
 - When parsed with `AgentDefinitionSchema.safeParse()`
 - Then `result.success` MUST be `true`
 
@@ -518,6 +825,31 @@ A `ToolEntry` MUST be either:
 - Given an agent definition with a mix of string tools and a `{ Bash: { deny_patterns: [...], allow_cwd: "worktree_only" } }` entry, plus optional `rules`
 - When parsed with `AgentDefinitionSchema.safeParse()`
 - Then `result.success` MUST be `true`
+
+**Scenario: Missing persona is rejected**
+- Given an agent definition with `name`, `capabilities`, `tools`, and `context_budget` but omitting `persona`
+- When parsed with `AgentDefinitionSchema.safeParse()`
+- Then `result.success` MUST be `false`
+
+**Scenario: Missing capabilities is rejected**
+- Given an agent definition with `name`, `persona`, `tools`, and `context_budget` but omitting `capabilities`
+- When parsed with `AgentDefinitionSchema.safeParse()`
+- Then `result.success` MUST be `false`
+
+**Scenario: context_budget of zero is rejected**
+- Given an agent definition with `context_budget: 0`
+- When parsed with `AgentDefinitionSchema.safeParse()`
+- Then `result.success` MUST be `false`
+
+**Scenario: BashToolConfig with unknown field is rejected (.strict())**
+- Given an agent definition with a Bash tool entry `{ Bash: { allow_cwd: "worktree_only", unknown: true } }`
+- When parsed with `AgentDefinitionSchema.safeParse()`
+- Then `result.success` MUST be `false`
+
+**Scenario: BashToolConfig with invalid allow_cwd enum is rejected**
+- Given an agent definition with a Bash tool entry `{ Bash: { allow_cwd: "everywhere" } }`
+- When parsed with `AgentDefinitionSchema.safeParse()`
+- Then `result.success` MUST be `false`
 
 ---
 
@@ -545,6 +877,31 @@ A `ToolEntry` MUST be either:
 - Given a gate definition with only `name`, `description`, and `command`
 - When parsed with `GateDefinitionSchema.parse()`
 - Then `result.timeout` MUST be `120000`, `result.required` MUST be `true`, and `result.on_failure` MUST be `"retry_once"`
+
+**Scenario: Missing name is rejected**
+- Given a gate definition with `description` and `command` but omitting `name`
+- When parsed with `GateDefinitionSchema.safeParse()`
+- Then `result.success` MUST be `false`
+
+**Scenario: Missing description is rejected**
+- Given a gate definition with `name` and `command` but omitting `description`
+- When parsed with `GateDefinitionSchema.safeParse()`
+- Then `result.success` MUST be `false`
+
+**Scenario: Missing command is rejected**
+- Given a gate definition with `name` and `description` but omitting `command`
+- When parsed with `GateDefinitionSchema.safeParse()`
+- Then `result.success` MUST be `false`
+
+**Scenario: Invalid on_failure enum value is rejected**
+- Given a gate definition with `on_failure: "abort"`
+- When parsed with `GateDefinitionSchema.safeParse()`
+- Then `result.success` MUST be `false`
+
+**Scenario: Timeout of zero is rejected**
+- Given a gate definition with `timeout: 0`
+- When parsed with `GateDefinitionSchema.safeParse()`
+- Then `result.success` MUST be `false`
 
 ---
 
@@ -606,7 +963,7 @@ The `requires` object, when present, MUST be `.strict()` and MAY contain:
 ### 11.2 Scenarios
 
 **Scenario: State file with execution state parses successfully**
-- Given a state file with `schema_version: 1` and a valid `execution` block
+- Given a state file with `schema_version: 1` and a valid `execution` block (change, started, empty batches and deviations)
 - When parsed with `StateFileSchema.safeParse()`
 - Then `result.success` MUST be `true`
 
@@ -620,10 +977,24 @@ The `requires` object, when present, MUST be `.strict()` and MAY contain:
 - When parsed with `StateFileSchema.safeParse()`
 - Then `result.success` MUST be `false`
 
+**Scenario: schema_version of zero is rejected**
+- Given a state file with `schema_version: 0`
+- When parsed with `StateFileSchema.safeParse()`
+- Then `result.success` MUST be `false`
+
 ---
 
 ## 12. Exports
 
 **File:** `src/schemas/index.ts`
 
-All schemas and their inferred TypeScript types are re-exported from `src/schemas/index.ts` as barrel exports. Consumers MUST import from `'../src/schemas/index.js'` (or the appropriate relative path with `.js` extension per Node16 ESM conventions).
+All schemas and their inferred TypeScript types are re-exported from `src/schemas/index.ts` as barrel exports. The export set includes all top-level schemas and the following sub-schemas that have direct tests:
+
+- `DeviationSchema` / `Deviation`
+- `ExecutionTaskSchema` / `ExecutionTask`
+- `ExecutionBatchSchema` / `ExecutionBatch`
+- `GateFailureSchema` / `GateFailure`
+- `SpecLockRequirementSchema` / `SpecLockRequirement`
+- `ReconciliationRequirementSchema` / `ReconciliationRequirement`
+
+Consumers MUST import from `'../src/schemas/index.js'` (or the appropriate relative path with `.js` extension per Node16 ESM conventions).
