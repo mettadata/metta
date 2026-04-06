@@ -12,8 +12,28 @@ You are the **orchestrator** for a new spec-driven change. You manage the workfl
 ## Steps
 
 1. `metta propose "$ARGUMENTS" --json` → creates change on branch `metta/<change-name>`
-2. For each artifact, use the Agent Execution Pattern below
-3. After **implementation** completes, **spawn 3 metta-reviewer agents in parallel** (fan-out — single message):
+
+2. **DISCOVERY GATE (mandatory — do NOT skip this step):**
+   Before writing ANY artifacts, YOU (the orchestrator, not a subagent) MUST ask the user discovery questions using AskUserQuestion. This is the most important step — it prevents the entire downstream pipeline from building the wrong thing.
+
+   a. Read the existing codebase (scan relevant files, check existing patterns)
+   b. Identify ambiguity — what decisions need user input? Think about:
+      - Architecture choices (which technology/pattern/library?)
+      - Scope boundaries (what's included vs excluded?)
+      - Data model decisions (what fields, what types, what relationships?)
+      - Integration points (how does this connect to existing code?)
+      - Edge cases (what happens when X fails/is empty/overflows?)
+   c. Ask 3-6 focused questions using AskUserQuestion with concrete options
+   d. Wait for answers before proceeding
+   e. Include the answers in the context you pass to the proposer subagent
+
+   Example questions for "add user authentication":
+   - "Auth strategy?" → [JWT tokens, Session cookies, OAuth only]
+   - "Password requirements?" → [Basic (8+ chars), Strong (uppercase + number + symbol), Passkeys only]
+   - "Session duration?" → [24h, 7 days, Never expires]
+
+3. For each artifact, use the Agent Execution Pattern below — pass discovery answers as context
+4. After **implementation** completes, **spawn 3 metta-reviewer agents in parallel** (fan-out — single message):
    - Agent 1 (subagent_type: "metta-reviewer"): "You are a **correctness reviewer**. Check logic errors, off-by-one, edge cases, spec compliance."
    - Agent 2 (subagent_type: "metta-reviewer"): "You are a **security reviewer**. Check OWASP top 10, XSS, injection, secrets."
    - Agent 3 (subagent_type: "metta-reviewer"): "You are a **quality reviewer**. Check dead code, naming, duplication, test gaps."
@@ -23,16 +43,16 @@ You are the **orchestrator** for a new spec-driven change. You manage the workfl
      b. Group issues by file — issues in different files are independent
      c. **Spawn one metta-executor per independent file group in a single message** (parallel fixes)
      d. After all executors complete, re-run the 3 reviewers to verify fixes
-4. For **verification** — **spawn 3 metta-verifier agents in parallel** (fan-out — single message):
+5. For **verification** — **spawn 3 metta-verifier agents in parallel** (fan-out — single message):
    - Agent 1 (subagent_type: "metta-verifier"): "Run `npm test` — report pass/fail count and failures"
    - Agent 2 (subagent_type: "metta-verifier"): "Run `npx tsc --noEmit` and `npm run lint` — report errors"
    - Agent 3 (subagent_type: "metta-verifier"): "Read spec.md, check each Given/When/Then scenario has a passing test — cite evidence"
    - Merge results into summary.md and commit
    - If any gate fails: spawn parallel metta-executors to fix, then re-verify
-5. When `all_complete: true`:
+6. When `all_complete: true`:
    a. `metta finalize --json --change <name>` → runs gates, archives, merges specs
    b. `git checkout main && git merge metta/<change-name> --no-ff -m "chore: merge <change-name>"`
-5. Report to user what was done
+7. Report to user what was done
 
 ## Critical: You MUST verify, finalize, and merge
 

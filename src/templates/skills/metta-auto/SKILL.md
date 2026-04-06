@@ -12,7 +12,16 @@ You are the **orchestrator** for the full Metta lifecycle. Spawn subagents for e
 ## Steps
 
 1. `metta propose "$ARGUMENTS" --json` → creates change
-2. For each artifact in order:
+
+2. **DISCOVERY GATE (mandatory):**
+   Before writing ANY artifacts, YOU (the orchestrator) MUST ask discovery questions using AskUserQuestion.
+   a. Scan relevant codebase files for context
+   b. Identify ambiguity — architecture choices, scope, data model, edge cases
+   c. Ask 3-6 focused questions with concrete options
+   d. Wait for answers before proceeding
+   e. Pass answers as context to all downstream subagents
+
+3. For each artifact in order:
    a. `metta instructions <artifact> --json --change <name>` → get template + persona
    b. **Spawn a subagent** with the right metta agent type (intent/spec→metta-proposer, research→metta-researcher, design→metta-architect, tasks→metta-planner, implementation→metta-executor) and the agent persona and task
    c. Subagent writes artifact to output_path with real content, then git commits
