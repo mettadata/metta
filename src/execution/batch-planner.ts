@@ -53,11 +53,69 @@ function hasFileOverlap(tasks: TaskDefinition[]): boolean {
   const seenFiles = new Set<string>()
   for (const task of tasks) {
     for (const file of task.files) {
-      if (seenFiles.has(file)) return true
-      seenFiles.add(file)
+      // Normalize: strip backticks and whitespace
+      const normalized = file.replace(/`/g, '').trim()
+      if (!normalized) continue
+
+      // Check exact match
+      if (seenFiles.has(normalized)) return true
+
+      // Check glob/directory overlap: if one task touches src/api/ and
+      // another touches src/api/routes.ts, they overlap
+      for (const seen of seenFiles) {
+        if (normalized.startsWith(seen + '/') || seen.startsWith(normalized + '/')) {
+          return true
+        }
+      }
+
+      seenFiles.add(normalized)
     }
   }
   return false
+}
+
+export interface OverlapReport {
+  overlapping: Array<{ taskA: string; taskB: string; files: string[] }>
+  safe: string[]
+}
+
+export function detectOverlaps(tasks: TaskDefinition[]): OverlapReport {
+  const overlapping: OverlapReport['overlapping'] = []
+  const involvedTasks = new Set<string>()
+
+  for (let i = 0; i < tasks.length; i++) {
+    for (let j = i + 1; j < tasks.length; j++) {
+      const shared = findSharedFiles(tasks[i].files, tasks[j].files)
+      if (shared.length > 0) {
+        overlapping.push({
+          taskA: tasks[i].id,
+          taskB: tasks[j].id,
+          files: shared,
+        })
+        involvedTasks.add(tasks[i].id)
+        involvedTasks.add(tasks[j].id)
+      }
+    }
+  }
+
+  const safe = tasks.filter(t => !involvedTasks.has(t.id)).map(t => t.id)
+  return { overlapping, safe }
+}
+
+function findSharedFiles(filesA: string[], filesB: string[]): string[] {
+  const shared: string[] = []
+  for (const a of filesA) {
+    const na = a.replace(/`/g, '').trim()
+    if (!na) continue
+    for (const b of filesB) {
+      const nb = b.replace(/`/g, '').trim()
+      if (!nb) continue
+      if (na === nb || na.startsWith(nb + '/') || nb.startsWith(na + '/')) {
+        shared.push(na)
+      }
+    }
+  }
+  return shared
 }
 
 export function parseTasks(markdown: string): TaskDefinition[] {
