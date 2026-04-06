@@ -43,10 +43,10 @@ You are the **orchestrator** for the full Metta lifecycle. Spawn subagents for e
    - Agent 3 (subagent_type: "metta-reviewer", isolation: "worktree"): "**Quality reviewer**"
    - Merge results into `spec/changes/<change>/review.md` and commit
    - If critical issues:
-     a. Parse each issue's file path from review.md
-     b. Group by file — independent files = parallel
-     c. **Spawn one metta-executor per independent file group in a single message**
-     d. After fixes complete, re-run the 3 reviewers
+   **REVIEW-FIX LOOP (repeat until clean):**
+     a. Group issues by file, spawn parallel metta-executors to fix
+     b. After fixes: re-run the 3 reviewers
+     c. Repeat until all PASS/PASS_WITH_WARNINGS (max 3 iterations)
 6. **Spawn 3 metta-verifier agents in parallel** (fan-out — single message):
    - Agent 1 (subagent_type: "metta-verifier"): "Run `npm test` — report pass/fail count and failures"
    - Agent 2 (subagent_type: "metta-verifier"): "Run `npx tsc --noEmit` and `npm run lint` — report errors"

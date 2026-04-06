@@ -35,11 +35,10 @@ You are the **orchestrator** for a quick change (intent → implementation → r
    - Agent 2 (subagent_type: "metta-reviewer", isolation: "worktree"): "You are a **security reviewer**."
    - Agent 3 (subagent_type: "metta-reviewer", isolation: "worktree"): "You are a **quality reviewer**."
    - Each writes their findings. Merge results into `spec/changes/<change>/review.md` and commit.
-   - If any reviewer finds critical issues:
-     a. Parse each issue's file path from review.md
-     b. Group issues by file — issues in different files are independent
-     c. **Spawn one metta-executor per independent file group in a single message** (parallel fixes)
-     d. After all executors complete, re-run the 3 reviewers to verify fixes
+   - **REVIEW-FIX LOOP (repeat until clean):**
+     a. If critical issues found: group by file, spawn parallel metta-executors to fix
+     b. After fixes: re-run the 3 reviewers
+     c. Repeat until all reviewers report PASS/PASS_WITH_WARNINGS (max 3 iterations)
 8. **Spawn 3 metta-verifier agents in parallel** (fan-out verification — single message):
    - Agent 1 (subagent_type: "metta-verifier"): "Run `npm test` — report pass/fail count and any failures"
    - Agent 2 (subagent_type: "metta-verifier"): "Run `npx tsc --noEmit` and `npm run lint` — report any type or lint errors"

@@ -54,11 +54,15 @@ You are the **orchestrator** for a new spec-driven change. You manage the workfl
    - Agent 2 (subagent_type: "metta-reviewer"): "You are a **security reviewer**. Check OWASP top 10, XSS, injection, secrets."
    - Agent 3 (subagent_type: "metta-reviewer"): "You are a **quality reviewer**. Check dead code, naming, duplication, test gaps."
    - Merge results into `spec/changes/<change>/review.md` and commit.
-   - If any critical issues:
-     a. Parse each issue's file path from review.md
-     b. Group issues by file — issues in different files are independent
-     c. **Spawn one metta-executor per independent file group in a single message** (parallel fixes)
-     d. After all executors complete, re-run the 3 reviewers to verify fixes
+   - **REVIEW-FIX LOOP (repeat until clean):**
+     a. If any critical issues found:
+        - Parse each issue's file path from review.md
+        - Group issues by file — independent files = parallel
+        - Spawn one metta-executor per file group (parallel fixes)
+     b. After fixes: re-run the 3 reviewers again
+     c. If new issues found: repeat from (a)
+     d. If all 3 reviewers report PASS or PASS_WITH_WARNINGS: exit loop
+     e. Max 3 iterations — if still failing after 3 rounds, stop and report to user
 6. **VERIFICATION** — **spawn 3 metta-verifier agents in parallel** (fan-out — single message):
    - Agent 1 (subagent_type: "metta-verifier"): "Run `npm test` — report pass/fail count and failures"
    - Agent 2 (subagent_type: "metta-verifier"): "Run `npx tsc --noEmit` and `npm run lint` — report errors"
