@@ -2,10 +2,16 @@ import { describe, it, expect } from 'vitest'
 import {
   ChangeMetadataSchema,
   SpecLockSchema,
+  SpecLockRequirementSchema,
+  ReconciliationRequirementSchema,
   ExecutionStateSchema,
+  DeviationSchema,
+  ExecutionTaskSchema,
+  ExecutionBatchSchema,
   AutoStateSchema,
   ProjectConfigSchema,
   GateResultSchema,
+  GateFailureSchema,
   WorkflowDefinitionSchema,
   AgentDefinitionSchema,
   GateDefinitionSchema,
@@ -763,6 +769,264 @@ describe('StateFileSchema', () => {
 
   it('rejects schema_version <= 0', () => {
     const result = StateFileSchema.safeParse({ schema_version: 0 })
+    expect(result.success).toBe(false)
+  })
+})
+
+describe('DeviationSchema', () => {
+  it('validates a valid deviation', () => {
+    const result = DeviationSchema.safeParse({
+      rule: 1,
+      description: 'Fixed null check in auth middleware',
+      commit: 'abc123f',
+      files: ['src/auth/middleware.ts'],
+      action: 'fixed',
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('rejects rule 0 (below minimum)', () => {
+    const result = DeviationSchema.safeParse({
+      rule: 0,
+      description: 'invalid rule',
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects rule 5 (above maximum)', () => {
+    const result = DeviationSchema.safeParse({
+      rule: 5,
+      description: 'invalid rule',
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects when description is missing', () => {
+    const result = DeviationSchema.safeParse({ rule: 2 })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects unknown fields (.strict())', () => {
+    const result = DeviationSchema.safeParse({
+      rule: 1,
+      description: 'test',
+      extra: true,
+    })
+    expect(result.success).toBe(false)
+  })
+})
+
+describe('GateFailureSchema', () => {
+  it('validates a valid gate failure', () => {
+    const result = GateFailureSchema.safeParse({
+      file: 'src/index.ts',
+      line: 10,
+      message: 'no-unused-vars',
+      severity: 'error',
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('validates with severity warning', () => {
+    const result = GateFailureSchema.safeParse({
+      file: 'src/index.ts',
+      message: 'prefer-const',
+      severity: 'warning',
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('rejects invalid severity enum', () => {
+    const result = GateFailureSchema.safeParse({
+      file: 'src/index.ts',
+      message: 'bad',
+      severity: 'critical',
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects unknown fields (.strict())', () => {
+    const result = GateFailureSchema.safeParse({
+      file: 'a.ts',
+      message: 'msg',
+      severity: 'error',
+      extra: true,
+    })
+    expect(result.success).toBe(false)
+  })
+})
+
+describe('SpecLockRequirementSchema', () => {
+  it('validates a valid requirement', () => {
+    const result = SpecLockRequirementSchema.safeParse({
+      id: 'user-login',
+      hash: 'sha256:a1b2c3',
+      scenarios: ['successful-login', 'invalid-password'],
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('rejects when id is missing', () => {
+    const result = SpecLockRequirementSchema.safeParse({
+      hash: 'sha256:a1b2c3',
+      scenarios: ['test'],
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects when hash is missing', () => {
+    const result = SpecLockRequirementSchema.safeParse({
+      id: 'user-login',
+      scenarios: ['test'],
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects unknown fields (.strict())', () => {
+    const result = SpecLockRequirementSchema.safeParse({
+      id: 'user-login',
+      hash: 'sha256:a1b2c3',
+      scenarios: [],
+      extra: true,
+    })
+    expect(result.success).toBe(false)
+  })
+})
+
+describe('ReconciliationRequirementSchema', () => {
+  it('validates a valid reconciliation requirement', () => {
+    const result = ReconciliationRequirementSchema.safeParse({
+      id: 'checkout-flow',
+      status: 'verified',
+      evidence: ['src/app/api/checkout/'],
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('accepts all valid status values', () => {
+    const statuses = ['verified', 'partial', 'missing', 'unimplemented', 'diverged', 'undocumented'] as const
+    for (const status of statuses) {
+      const result = ReconciliationRequirementSchema.safeParse({ id: 'r1', status })
+      expect(result.success).toBe(true)
+    }
+  })
+
+  it('rejects invalid status enum', () => {
+    const result = ReconciliationRequirementSchema.safeParse({
+      id: 'r1',
+      status: 'unknown',
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects when id is missing', () => {
+    const result = ReconciliationRequirementSchema.safeParse({
+      status: 'verified',
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects unknown fields (.strict())', () => {
+    const result = ReconciliationRequirementSchema.safeParse({
+      id: 'r1',
+      status: 'verified',
+      extra: true,
+    })
+    expect(result.success).toBe(false)
+  })
+})
+
+describe('ExecutionTaskSchema', () => {
+  it('validates a valid task', () => {
+    const result = ExecutionTaskSchema.safeParse({
+      id: '1.1',
+      status: 'complete',
+      commit: 'abc123f',
+      gates: { tests: 'pass', lint: 'pass' },
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('accepts all valid status values', () => {
+    const statuses = ['pending', 'in_progress', 'complete', 'failed', 'skipped'] as const
+    for (const status of statuses) {
+      const result = ExecutionTaskSchema.safeParse({ id: '1.1', status })
+      expect(result.success).toBe(true)
+    }
+  })
+
+  it('rejects invalid status enum', () => {
+    const result = ExecutionTaskSchema.safeParse({
+      id: '1.1',
+      status: 'cancelled',
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects unknown fields (.strict())', () => {
+    const result = ExecutionTaskSchema.safeParse({
+      id: '1.1',
+      status: 'pending',
+      extra: true,
+    })
+    expect(result.success).toBe(false)
+  })
+})
+
+describe('ExecutionBatchSchema', () => {
+  it('validates a valid batch', () => {
+    const result = ExecutionBatchSchema.safeParse({
+      id: 1,
+      status: 'complete',
+      tasks: [
+        { id: '1.1', status: 'complete', commit: 'abc123f' },
+      ],
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('accepts all valid status values', () => {
+    const statuses = ['pending', 'in_progress', 'complete', 'failed'] as const
+    for (const status of statuses) {
+      const result = ExecutionBatchSchema.safeParse({ id: 1, status, tasks: [] })
+      expect(result.success).toBe(true)
+    }
+  })
+
+  it('rejects invalid batch status enum', () => {
+    const result = ExecutionBatchSchema.safeParse({
+      id: 1,
+      status: 'cancelled',
+      tasks: [],
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects id of zero', () => {
+    const result = ExecutionBatchSchema.safeParse({
+      id: 0,
+      status: 'pending',
+      tasks: [],
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects negative id', () => {
+    const result = ExecutionBatchSchema.safeParse({
+      id: -1,
+      status: 'pending',
+      tasks: [],
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects unknown fields (.strict())', () => {
+    const result = ExecutionBatchSchema.safeParse({
+      id: 1,
+      status: 'pending',
+      tasks: [],
+      extra: true,
+    })
     expect(result.success).toBe(false)
   })
 })
