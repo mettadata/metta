@@ -20,7 +20,8 @@
     "pull-references": "bash scripts/pull-references.sh",
     "test": "vitest run",
     "test:watch": "vitest",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "i": "npm run dev && metta install"
   },
   "engines": {
     "node": ">=22.0.0"
