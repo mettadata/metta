@@ -17,18 +17,29 @@ You are the **orchestrator** for the full Metta lifecycle. Spawn subagents for e
    b. **Spawn a subagent** with the right metta agent type (intent/spec→metta-proposer, research→metta-researcher, design→metta-architect, tasks→metta-planner, implementation→metta-executor) and the agent persona and task
    c. Subagent writes artifact to output_path with real content, then git commits
    d. `metta complete <artifact> --json --change <name>` → returns next
-3. For implementation: spawn metta-executor agents (subagent_type: "metta-executor") per task from tasks.md
+3. **For implementation — batch-parallel execution:**
+   a. Read `spec/changes/<change>/tasks.md` yourself (the orchestrator, not a subagent)
+   b. Parse batches (Batch 1, Batch 2, etc.)
+   c. For each batch: check file overlap between tasks in that batch
+   d. No overlap → **spawn one metta-executor per task in a single message** (parallel)
+   e. Overlap → spawn tasks sequentially
+   f. Wait for each batch to complete before starting the next
 4. **Spawn 3 metta-reviewer agents in parallel** (fan-out — single message):
    - Agent 1 (subagent_type: "metta-reviewer"): "**Correctness reviewer** — logic errors, edge cases, spec compliance"
    - Agent 2 (subagent_type: "metta-reviewer"): "**Security reviewer** — OWASP top 10, XSS, injection, secrets"
    - Agent 3 (subagent_type: "metta-reviewer"): "**Quality reviewer** — dead code, naming, duplication, test gaps"
    - Merge results into `spec/changes/<change>/review.md` and commit
-   - If critical issues: spawn metta-executor to fix, then re-review
-5. **Spawn a metta-verifier agent** (subagent_type: "metta-verifier") that:
-   - Runs `npm test`, `npm run lint`, `npx tsc --noEmit`
-   - Reads the spec and checks each Given/When/Then scenario has a passing test
-   - If any gate fails: spawn a metta-executor to fix, then re-verify
-   - Writes verification results to summary.md
+   - If critical issues:
+     a. Parse each issue's file path from review.md
+     b. Group by file — independent files = parallel
+     c. **Spawn one metta-executor per independent file group in a single message**
+     d. After fixes complete, re-run the 3 reviewers
+5. **Spawn 3 metta-verifier agents in parallel** (fan-out — single message):
+   - Agent 1 (subagent_type: "metta-verifier"): "Run `npm test` — report pass/fail count and failures"
+   - Agent 2 (subagent_type: "metta-verifier"): "Run `npx tsc --noEmit` and `npm run lint` — report errors"
+   - Agent 3 (subagent_type: "metta-verifier"): "Read spec.md, check each scenario has a passing test — cite evidence"
+   - Merge results into summary.md and commit
+   - If any gate fails: spawn parallel metta-executors to fix, then re-verify
 6. `metta complete verification --json --change <name>`
 7. `metta finalize --json --change <name>` → runs gates, archives, merges specs
 8. `git checkout main && git merge metta/<change-name> --no-ff -m "chore: merge <change-name>"`

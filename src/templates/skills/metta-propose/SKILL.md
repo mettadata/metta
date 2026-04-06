@@ -18,12 +18,17 @@ You are the **orchestrator** for a new spec-driven change. You manage the workfl
    - Agent 2 (subagent_type: "metta-reviewer"): "You are a **security reviewer**. Check OWASP top 10, XSS, injection, secrets."
    - Agent 3 (subagent_type: "metta-reviewer"): "You are a **quality reviewer**. Check dead code, naming, duplication, test gaps."
    - Merge results into `spec/changes/<change>/review.md` and commit.
-   - If any critical issues: spawn metta-executor to fix, then re-review
-4. For **verification**: spawn a **metta-verifier** (subagent_type: "metta-verifier") that:
-   - Runs `npm test`, `npm run lint`, `npx tsc --noEmit`
-   - Reads the spec and checks each Given/When/Then scenario has a passing test
-   - If any gate fails: spawn a metta-executor to fix, then re-verify
-   - Writes verification results to summary.md
+   - If any critical issues:
+     a. Parse each issue's file path from review.md
+     b. Group issues by file — issues in different files are independent
+     c. **Spawn one metta-executor per independent file group in a single message** (parallel fixes)
+     d. After all executors complete, re-run the 3 reviewers to verify fixes
+4. For **verification** — **spawn 3 metta-verifier agents in parallel** (fan-out — single message):
+   - Agent 1 (subagent_type: "metta-verifier"): "Run `npm test` — report pass/fail count and failures"
+   - Agent 2 (subagent_type: "metta-verifier"): "Run `npx tsc --noEmit` and `npm run lint` — report errors"
+   - Agent 3 (subagent_type: "metta-verifier"): "Read spec.md, check each Given/When/Then scenario has a passing test — cite evidence"
+   - Merge results into summary.md and commit
+   - If any gate fails: spawn parallel metta-executors to fix, then re-verify
 5. When `all_complete: true`:
    a. `metta finalize --json --change <name>` → runs gates, archives, merges specs
    b. `git checkout main && git merge metta/<change-name> --no-ff -m "chore: merge <change-name>"`
@@ -43,11 +48,19 @@ For each artifact, you act as the **orchestrator** — lean context, no implemen
 
 1. `metta instructions <artifact> --json --change <name>`
    → Returns: agent.persona, agent.tools, template, output_path, context
-2. **Spawn a subagent** (Agent tool) with the right metta agent type based on the artifact (intent/spec→metta-proposer, research→metta-researcher, design→metta-architect, tasks→metta-planner, implementation→metta-executor, verification→metta-verifier):
+2. **Spawn a subagent** with the right metta agent type (intent/spec→metta-proposer, research→metta-researcher, design→metta-architect, tasks→metta-planner, verification→metta-verifier):
    - The agent persona from the instructions response
    - The template and output_path
    - Any context from previous artifacts
    - Clear task: "Write <output_path> following this template. Fill ALL sections with real content. Then git commit."
+
+   **For implementation: DO NOT spawn one big executor.** Instead:
+   a. Read `spec/changes/<change>/tasks.md` yourself
+   b. Parse the batches (Batch 1, Batch 2, etc.)
+   c. For each batch, check file overlap between tasks
+   d. No overlap → spawn one metta-executor per task **in a single message** (parallel)
+   e. Overlap → spawn tasks sequentially (one at a time)
+   f. Wait for batch to complete before starting next batch
 3. When the subagent completes:
    `metta complete <artifact> --json --change <name>`
    → Returns: next artifact to build, or all_complete: true
