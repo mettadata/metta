@@ -201,6 +201,23 @@ describe('WorkflowEngine', () => {
       expect(result.valid).toBe(true)
       expect(result.errors).toEqual([])
     })
+
+    it('detects dangling references in an externally-assembled graph', () => {
+      const engine = new WorkflowEngine()
+      // Construct a WorkflowGraph directly, bypassing loadWorkflowFromDefinition
+      // which would throw on the dangling reference during topologicalSort.
+      const graph: import('../src/workflow/workflow-engine.js').WorkflowGraph = {
+        name: 'external',
+        artifacts: [
+          { id: 'a', type: 'a', template: 'a.md', generates: 'a.md', requires: [], agents: ['default'], gates: [] },
+          { id: 'b', type: 'b', template: 'b.md', generates: 'b.md', requires: ['x'], agents: ['default'], gates: [] },
+        ],
+        buildOrder: ['a', 'b'],
+      }
+      const result = engine.validate(graph)
+      expect(result.valid).toBe(false)
+      expect(result.errors).toContain("Artifact 'b' depends on unknown artifact 'x'")
+    })
   })
 
   describe('workflow loading from YAML', () => {

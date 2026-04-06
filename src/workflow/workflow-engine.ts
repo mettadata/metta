@@ -102,6 +102,15 @@ export class WorkflowEngine {
     }))
   }
 
+  /**
+   * Validates that all artifact `requires` references resolve to known artifact IDs.
+   *
+   * Note: For graphs produced by the engine (via loadWorkflow or loadWorkflowFromDefinition),
+   * topologicalSort already enforces this constraint at load time and will throw on dangling
+   * references. This method provides defensive validation for graphs assembled externally --
+   * for example, after deserialization from state files or manual construction -- where the
+   * load-time check was bypassed.
+   */
   validate(graph: WorkflowGraph): { valid: boolean; errors: string[] } {
     const errors: string[] = []
     const artifactIds = new Set(graph.artifacts.map(a => a.id))
