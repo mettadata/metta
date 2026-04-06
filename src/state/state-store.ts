@@ -20,6 +20,9 @@ export class StateLockError extends Error {
   }
 }
 
+/** Threshold in milliseconds after which an existing lock file is considered stale and eligible for removal. */
+export const STALE_LOCK_THRESHOLD_MS = 60_000
+
 export class StateStore {
   private readonly basePath: string
 
@@ -81,6 +84,27 @@ export class StateStore {
     await unlink(fullPath)
   }
 
+  /** Deletes a file if it exists. Unlike `delete`, does not throw when the file is missing. */
+  async deleteIfExists(filePath: string): Promise<void> {
+    const fullPath = join(this.basePath, filePath)
+    try {
+      await unlink(fullPath)
+    } catch (err: unknown) {
+      if (err instanceof Error && 'code' in err && (err as NodeJS.ErrnoException).code === 'ENOENT') {
+        return
+      }
+      throw err
+    }
+  }
+
+  /**
+   * Acquires an advisory lock by creating a file at `lockFile` (resolved relative to basePath).
+   *
+   * Lock file placement convention: lock files should be placed alongside the state file
+   * they guard, using the pattern `<state-file>.lock`. For example, a lock guarding
+   * `changes/abc.yaml` should be `changes/abc.yaml.lock`. Parent directories are created
+   * automatically if they do not exist.
+   */
   async acquireLock(lockFile: string, timeout: number = 5000): Promise<() => Promise<void>> {
     const fullPath = join(this.basePath, lockFile)
     const start = Date.now()
@@ -101,11 +125,11 @@ export class StateStore {
         }
       } catch (err: unknown) {
         if (err instanceof Error && 'code' in err && (err as NodeJS.ErrnoException).code === 'EEXIST') {
-          // Check if the lock is stale (> 60s old)
+          // Check if the lock is stale (older than STALE_LOCK_THRESHOLD_MS)
           try {
             const lockStat = await stat(fullPath)
             const age = Date.now() - lockStat.mtimeMs
-            if (age > 60000) {
+            if (age > STALE_LOCK_THRESHOLD_MS) {
               await unlink(fullPath)
               continue
             }
