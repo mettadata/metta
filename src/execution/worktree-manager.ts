@@ -87,16 +87,19 @@ export class WorktreeManager {
 
     // Base commit safety check: verify HEAD has not advanced since worktree creation.
     // If it has, rebase the worktree branch onto the current HEAD before merging.
+    // We run rebase from the worktree directory because the branch is checked out
+    // there; running `git rebase <onto> <branch>` from the main repo would fail
+    // since git refuses to check out a branch that is already active in a worktree.
     const currentHead = await this.resolveHead()
     if (currentHead !== worktree.baseCommit) {
       try {
         await execAsync(
-          'git', ['rebase', currentHead, worktree.branch],
-          { cwd: this.repoRoot },
+          'git', ['rebase', '--onto', currentHead, worktree.baseCommit],
+          { cwd: worktree.path },
         )
       } catch {
         // Abort the failed rebase to leave the repo in a clean state
-        await execAsync('git', ['rebase', '--abort'], { cwd: this.repoRoot }).catch(() => {})
+        await execAsync('git', ['rebase', '--abort'], { cwd: worktree.path }).catch(() => {})
         throw new HeadAdvancedError(worktree.baseCommit, currentHead, worktree.branch)
       }
     }
