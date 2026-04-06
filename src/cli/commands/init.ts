@@ -180,10 +180,18 @@ Banned patterns and forbidden operations.
           installedCommands.push(...installed)
         }
 
+        // Generate CLAUDE.md using the same code as metta refresh
+        try {
+          const { runRefresh } = await import('./refresh.js')
+          await runRefresh(root, false)
+        } catch {
+          // Refresh failure doesn't block init
+        }
+
         // Commit setup files
         let committed = false
         try {
-          await execAsync('git', ['add', '.metta/', 'spec/'], { cwd: root })
+          await execAsync('git', ['add', '.metta/', 'spec/', 'CLAUDE.md'], { cwd: root })
           // Also stage .claude/ if it was created
           if (existsSync(join(root, '.claude'))) {
             await execAsync('git', ['add', '.claude/'], { cwd: root })

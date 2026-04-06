@@ -85,10 +85,20 @@ Stack: TypeScript (strict mode, ES2022 target), Node.js >= 22, ESM only, Command
 <!-- metta:specs-end -->
 
 <!-- metta:reference-start -->
-## Reference
+## Table of Contents
 
-- [Project Constitution](spec/project.md)
-- [Active Specs](spec/specs/)
-- [Archive](spec/archive/)
-- [Docs](docs/)
+| Resource | Path | Description |
+|----------|------|-------------|
+| [Constitution](spec/project.md) | `spec/project.md` | Project principles, stack, conventions, constraints |
+| [Active Specs](spec/specs/) | `spec/specs/` | Living specifications per capability |
+| [Active Changes](spec/changes/) | `spec/changes/` | Work in flight |
+| [Archive](spec/archive/) | `spec/archive/` | Completed changes with artifacts |
+| [Gaps](spec/gaps/) | `spec/gaps/` | Reconciliation gaps (spec vs code) |
+| [Ideas](spec/ideas/) | `spec/ideas/` | Captured feature ideas |
+| [Issues](spec/issues/) | `spec/issues/` | Logged issues |
+| [Backlog](spec/backlog/) | `spec/backlog/` | Prioritized backlog items |
+| [Architecture](docs/architecture.md) | `docs/architecture.md` | System design and components |
+| [API Reference](docs/api.md) | `docs/api.md` | Capabilities and scenarios |
+| [Changelog](docs/changelog.md) | `docs/changelog.md` | What changed and when |
+| [Getting Started](docs/getting-started.md) | `docs/getting-started.md` | Setup and quick start |
 <!-- metta:reference-end -->

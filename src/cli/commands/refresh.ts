@@ -167,11 +167,21 @@ export function buildWorkflowSection(): string {
  */
 export function buildReferenceSection(): string {
   const lines: string[] = []
-  lines.push('## Reference\n')
-  lines.push('- [Project Constitution](spec/project.md)')
-  lines.push('- [Active Specs](spec/specs/)')
-  lines.push('- [Archive](spec/archive/)')
-  lines.push('- [Docs](docs/)')
+  lines.push('## Table of Contents\n')
+  lines.push('| Resource | Path | Description |')
+  lines.push('|----------|------|-------------|')
+  lines.push('| [Constitution](spec/project.md) | `spec/project.md` | Project principles, stack, conventions, constraints |')
+  lines.push('| [Active Specs](spec/specs/) | `spec/specs/` | Living specifications per capability |')
+  lines.push('| [Active Changes](spec/changes/) | `spec/changes/` | Work in flight |')
+  lines.push('| [Archive](spec/archive/) | `spec/archive/` | Completed changes with artifacts |')
+  lines.push('| [Gaps](spec/gaps/) | `spec/gaps/` | Reconciliation gaps (spec vs code) |')
+  lines.push('| [Ideas](spec/ideas/) | `spec/ideas/` | Captured feature ideas |')
+  lines.push('| [Issues](spec/issues/) | `spec/issues/` | Logged issues |')
+  lines.push('| [Backlog](spec/backlog/) | `spec/backlog/` | Prioritized backlog items |')
+  lines.push('| [Architecture](docs/architecture.md) | `docs/architecture.md` | System design and components |')
+  lines.push('| [API Reference](docs/api.md) | `docs/api.md` | Capabilities and scenarios |')
+  lines.push('| [Changelog](docs/changelog.md) | `docs/changelog.md` | What changed and when |')
+  lines.push('| [Getting Started](docs/getting-started.md) | `docs/getting-started.md` | Setup and quick start |')
   return lines.join('\n')
 }
 
@@ -246,6 +256,11 @@ export async function runRefresh(projectRoot: string, dryRun: boolean): Promise<
       content: buildProjectSection(constitution),
     },
     {
+      startTag: '<!-- metta:reference-start -->',
+      endTag: '<!-- metta:reference-end -->',
+      content: buildReferenceSection(),
+    },
+    {
       startTag: '<!-- metta:conventions-start source:spec/project.md -->',
       endTag: '<!-- metta:conventions-end -->',
       content: buildConventionsSection(constitution),
@@ -254,11 +269,6 @@ export async function runRefresh(projectRoot: string, dryRun: boolean): Promise<
       startTag: '<!-- metta:specs-start source:spec/specs/ -->',
       endTag: '<!-- metta:specs-end -->',
       content: buildSpecsSection(specs),
-    },
-    {
-      startTag: '<!-- metta:reference-start -->',
-      endTag: '<!-- metta:reference-end -->',
-      content: buildReferenceSection(),
     },
     {
       startTag: '<!-- metta:workflow-start -->',
