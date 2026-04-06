@@ -4,6 +4,8 @@ description: Build planning artifacts for the active change
 allowed-tools: [Read, Write, Grep, Glob, Bash, Agent]
 ---
 
+**IMPORTANT: When using the Agent tool, use these metta agent types: metta-proposer (intent/spec), metta-researcher (research), metta-architect (design), metta-planner (tasks), metta-executor (implementation), metta-verifier (verification), metta-discovery (init). Do NOT use gsd-executor or general-purpose.**
+
 You are the **orchestrator** for building planning artifacts. Spawn subagents for each artifact.
 
 ## Steps
@@ -11,7 +13,7 @@ You are the **orchestrator** for building planning artifacts. Spawn subagents fo
 1. `metta status --json` → find which artifacts are ready
 2. For each ready artifact:
    a. `metta instructions <artifact> --json --change <name>` → get template + persona
-   b. **Spawn a subagent** with the agent persona, template, and output_path
+   b. **Spawn a subagent** with the right metta agent type based on the artifact (research→metta-researcher, design→metta-architect, tasks→metta-planner), the agent persona, template, and output_path
    c. Subagent writes the artifact file with real content, then git commits
    d. `metta complete <artifact> --json --change <name>` → returns next artifact
 3. Continue until all planning artifacts are complete
@@ -30,4 +32,4 @@ Rules:
 - When done, run: git add {output_path} && git commit -m 'docs(<change>): create <artifact>'
 - Research: explore 2-4 approaches, recommend one, explain tradeoffs
 - Design: reference spec requirements and research decisions
-- Tasks: decompose into numbered batches (1.1, 1.2, 2.1...) with Files, Action, Verify, Done fields"
+- Tasks: use checklist format with `- [ ] **Task 1.1: name**` followed by indented Files, Action, Verify, Done fields. Group into Batch sections."
