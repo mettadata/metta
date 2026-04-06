@@ -78,24 +78,29 @@ For a given `<gap-slug>`:
 
 ## --all Mode (batch processing)
 
+**⚠️ MUST process ALL gaps from critical → medium → low. Do NOT stop after any severity tier.**
+
 When `$ARGUMENTS` is `--all`:
 
-1. Run `metta fix-gap --all --json` to get all gaps sorted by severity
+1. Run `metta fix-gap --all --json` to get ALL gaps sorted by severity (critical first, then medium, then low)
 2. **Batch gaps by file overlap** — read each gap file to identify which source files it touches:
    a. For each gap, extract the file paths mentioned (Location, Files fields)
    b. Batch gaps that touch the SAME files together (they must run sequentially)
    c. Gaps that touch DIFFERENT files are independent (can run in parallel)
 3. **Spawn parallel executors per independent batch** — one metta-executor per batch in a SINGLE message:
    - Each executor gets ALL gaps in its batch, fixes them sequentially within the batch
-   - Independent batchs run simultaneously
+   - Independent batches run simultaneously
    - Example: gaps touching execution-engine.ts = Batch A, gaps touching context-engine.ts = Batch B → spawn 2 executors in parallel
 4. After each batch completes:
    - Run `metta fix-gap --remove-gap <slug>` for each resolved gap in the batch
    - Log `[N/M] <slug>: resolved` or `[N/M] <slug>: failed at <phase>`
-5. Print summary table:
+5. **Continue until ALL gaps are processed** — critical, medium, AND low. Never stop early.
+   - If a gap fails: log it, skip it, continue to the next
+   - If an entire batch fails: log it, continue to the next batch
+6. Print summary table:
    | Batch | Gaps | Files | Result |
    |-------|------|-------|--------|
-   Show per-batch and total counts
+   Show per-batch and total counts: `Resolved: X / Failed: Y / Total: Z`
 
 ## Rules
 

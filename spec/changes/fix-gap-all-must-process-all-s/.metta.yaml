@@ -1,0 +1,9 @@
+workflow: quick
+created: 2026-04-06T10:36:32.830Z
+status: active
+current_artifact: intent
+base_versions: {}
+artifacts:
+  intent: ready
+  implementation: pending
+  verification: pending
