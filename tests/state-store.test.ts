@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, rm, utimes, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { z } from 'zod'
-import { StateStore, StateValidationError, StateLockError } from '../src/state/state-store.js'
+import { StateStore, StateValidationError, StateLockError, STALE_LOCK_THRESHOLD_MS } from '../src/state/state-store.js'
 
 const TestSchema = z.object({
   name: z.string(),
@@ -87,6 +87,18 @@ describe('StateStore', () => {
     })
   })
 
+  describe('deleteIfExists', () => {
+    it('deletes an existing file without error', async () => {
+      await store.writeRaw('exists.yaml', 'data')
+      await store.deleteIfExists('exists.yaml')
+      expect(await store.exists('exists.yaml')).toBe(false)
+    })
+
+    it('does not throw when file is missing', async () => {
+      await expect(store.deleteIfExists('no-such-file.yaml')).resolves.toBeUndefined()
+    })
+  })
+
   describe('advisory locking', () => {
     it('acquires and releases a lock', async () => {
       const release = await store.acquireLock('state.lock')
@@ -100,6 +112,19 @@ describe('StateStore', () => {
       await expect(store.acquireLock('state.lock', 300)).rejects.toThrow(StateLockError)
       await release()
     })
+
+    it('removes a stale lock and acquires successfully', async () => {
+      // Manually create a lock file with a back-dated mtime
+      const lockPath = store.getFullPath('stale.lock')
+      await writeFile(lockPath, JSON.stringify({ pid: 99999, acquired: new Date().toISOString() }), { flag: 'wx' })
+      const past = new Date(Date.now() - STALE_LOCK_THRESHOLD_MS - 1000)
+      await utimes(lockPath, past, past)
+
+      // acquireLock should detect staleness, remove it, and succeed
+      const release = await store.acquireLock('stale.lock', 2000)
+      expect(await store.exists('stale.lock')).toBe(true)
+      await release()
+    })
   })
 
   describe('readRaw / writeRaw', () => {
@@ -107,6 +132,10 @@ describe('StateStore', () => {
       await store.writeRaw('raw.md', '# Hello\n\nWorld')
       const content = await store.readRaw('raw.md')
       expect(content).toBe('# Hello\n\nWorld')
+    })
+
+    it('throws ENOENT when reading a missing file', async () => {
+      await expect(store.readRaw('missing.txt')).rejects.toThrow(/ENOENT/)
     })
   })
 

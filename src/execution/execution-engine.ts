@@ -4,7 +4,7 @@ import type { ExecutionState, ExecutionBatch, ExecutionTask, Deviation } from '.
 import type { GateResult } from '../schemas/gate-result.js'
 import { GateRegistry } from '../gates/gate-registry.js'
 import { type BatchPlan, type TaskDefinition, planBatches } from './batch-planner.js'
-import { WorktreeManager, type Worktree } from './worktree-manager.js'
+import { WorktreeManager, HeadAdvancedError, type Worktree } from './worktree-manager.js'
 
 export interface ExecutionCallbacks {
   onTaskStart?(taskId: string, worktree?: Worktree): Promise<void>
@@ -19,6 +19,16 @@ export interface ExecutionCallbacks {
 }
 
 export type ExecutionMode = 'sequential' | 'parallel' | 'auto'
+
+async function safeCallback(fn: (() => Promise<void>) | undefined): Promise<void> {
+  if (!fn) return
+  try {
+    await fn()
+  } catch {
+    // Callback errors are intentionally swallowed to prevent them from
+    // affecting task or batch status. See spec/gaps/execution-engine-callback-errors.md.
+  }
+}
 
 export class ExecutionEngine {
   private worktreeManager: WorktreeManager
@@ -63,7 +73,7 @@ export class ExecutionEngine {
       const useParallel = this.shouldRunParallel(batchDef)
 
       batch.status = 'in_progress'
-      await callbacks?.onBatchStart?.(batch.id, useParallel)
+      await safeCallback(() => callbacks?.onBatchStart?.(batch.id, useParallel) ?? Promise.resolve())
       await this.saveState(state)
 
       if (useParallel && batch.tasks.length > 1) {
@@ -78,7 +88,7 @@ export class ExecutionEngine {
       const anyFailed = batch.tasks.some(t => t.status === 'failed')
 
       batch.status = anyFailed ? 'failed' : (allComplete ? 'complete' : 'in_progress')
-      await callbacks?.onBatchComplete?.(batch.id)
+      await safeCallback(() => callbacks?.onBatchComplete?.(batch.id) ?? Promise.resolve())
       await this.saveState(state)
 
       if (anyFailed) break
@@ -108,7 +118,7 @@ export class ExecutionEngine {
         const wt = await this.worktreeManager.create(changeName, task.id)
         worktrees.set(task.id, wt)
         task.worktree = wt.path
-        await callbacks?.onWorktreeCreated?.(task.id, wt)
+        await safeCallback(() => callbacks?.onWorktreeCreated?.(task.id, wt) ?? Promise.resolve())
       } catch {
         // Worktree creation failed — will run this task sequentially
       }
@@ -118,41 +128,52 @@ export class ExecutionEngine {
     const promises = batch.tasks.map(async (task) => {
       task.status = 'in_progress'
       const wt = worktrees.get(task.id)
-      await callbacks?.onTaskStart?.(task.id, wt)
+      await safeCallback(() => callbacks?.onTaskStart?.(task.id, wt) ?? Promise.resolve())
 
       try {
-        await callbacks?.onTaskComplete?.(task.id)
-
         // Run gates in the worktree directory (or main if no worktree)
         const gateCwd = wt?.path ?? this.cwd
         const gateResults = await this.runTaskGatesInDir(task, gateCwd)
         const allPassed = gateResults.every(g => g.status === 'pass' || g.status === 'skip')
 
         task.status = allPassed ? 'complete' : 'failed'
-        if (!allPassed) {
-          await callbacks?.onTaskFailed?.(task.id, 'Gate failure')
+        if (allPassed) {
+          await safeCallback(() => callbacks?.onTaskComplete?.(task.id) ?? Promise.resolve())
+        } else {
+          await safeCallback(() => callbacks?.onTaskFailed?.(task.id, 'Gate failure') ?? Promise.resolve())
         }
       } catch (err: unknown) {
         task.status = 'failed'
         const message = err instanceof Error ? err.message : String(err)
-        await callbacks?.onTaskFailed?.(task.id, message)
+        await safeCallback(() => callbacks?.onTaskFailed?.(task.id, message) ?? Promise.resolve())
       }
     })
 
     await Promise.all(promises)
 
-    // Merge completed worktrees back in order
+    // Merge completed worktrees back in task-definition order.
+    // Each merge completes before the next begins (sequential merge after
+    // parallel execution). The worktree manager verifies the base commit
+    // and rebases if HEAD has advanced.
     for (const task of batch.tasks) {
       const wt = worktrees.get(task.id)
       if (!wt) continue
 
       if (task.status === 'complete') {
-        const mergeResult = await this.worktreeManager.merge(wt)
-        if (mergeResult.status === 'clean') {
-          await callbacks?.onWorktreeMerged?.(task.id, mergeResult.changedFiles)
-        } else {
+        try {
+          const mergeResult = await this.worktreeManager.merge(wt)
+          if (mergeResult.status === 'clean') {
+            await safeCallback(() => callbacks?.onWorktreeMerged?.(task.id, mergeResult.changedFiles) ?? Promise.resolve())
+          } else {
+            task.status = 'failed'
+            await safeCallback(() => callbacks?.onTaskFailed?.(task.id, `Worktree merge conflict: ${mergeResult.detail}`) ?? Promise.resolve())
+          }
+        } catch (err) {
           task.status = 'failed'
-          await callbacks?.onTaskFailed?.(task.id, `Worktree merge conflict: ${mergeResult.detail}`)
+          const message = err instanceof HeadAdvancedError
+            ? `Base commit check failed: ${err.message}`
+            : `Worktree merge error: ${err instanceof Error ? err.message : String(err)}`
+          await safeCallback(() => callbacks?.onTaskFailed?.(task.id, message) ?? Promise.resolve())
         }
       }
 
@@ -167,22 +188,22 @@ export class ExecutionEngine {
   ): Promise<void> {
     for (const task of batch.tasks) {
       task.status = 'in_progress'
-      await callbacks?.onTaskStart?.(task.id)
+      await safeCallback(() => callbacks?.onTaskStart?.(task.id) ?? Promise.resolve())
 
       try {
-        await callbacks?.onTaskComplete?.(task.id)
-
         const gateResults = await this.runTaskGates(task)
         const allPassed = gateResults.every(g => g.status === 'pass' || g.status === 'skip')
 
         task.status = allPassed ? 'complete' : 'failed'
-        if (!allPassed) {
-          await callbacks?.onTaskFailed?.(task.id, 'Gate failure')
+        if (allPassed) {
+          await safeCallback(() => callbacks?.onTaskComplete?.(task.id) ?? Promise.resolve())
+        } else {
+          await safeCallback(() => callbacks?.onTaskFailed?.(task.id, 'Gate failure') ?? Promise.resolve())
         }
       } catch (err: unknown) {
         task.status = 'failed'
         const message = err instanceof Error ? err.message : String(err)
-        await callbacks?.onTaskFailed?.(task.id, message)
+        await safeCallback(() => callbacks?.onTaskFailed?.(task.id, message) ?? Promise.resolve())
       }
     }
   }
@@ -205,18 +226,22 @@ export class ExecutionEngine {
         if (task.status === 'complete' || task.status === 'skipped') continue
 
         task.status = 'in_progress'
-        await callbacks?.onTaskStart?.(task.id)
+        await safeCallback(() => callbacks?.onTaskStart?.(task.id) ?? Promise.resolve())
         await this.saveState(state)
 
         try {
-          await callbacks?.onTaskComplete?.(task.id)
           const gateResults = await this.runTaskGates(task)
           const allPassed = gateResults.every(g => g.status === 'pass' || g.status === 'skip')
           task.status = allPassed ? 'complete' : 'failed'
+          if (allPassed) {
+            await safeCallback(() => callbacks?.onTaskComplete?.(task.id) ?? Promise.resolve())
+          } else {
+            await safeCallback(() => callbacks?.onTaskFailed?.(task.id, 'Gate failure') ?? Promise.resolve())
+          }
         } catch (err: unknown) {
           task.status = 'failed'
           const message = err instanceof Error ? err.message : String(err)
-          await callbacks?.onTaskFailed?.(task.id, message)
+          await safeCallback(() => callbacks?.onTaskFailed?.(task.id, message) ?? Promise.resolve())
         }
 
         await this.saveState(state)

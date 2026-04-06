@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { mkdtemp, rm, mkdir, writeFile } from 'node:fs/promises'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { mkdtemp, rm, mkdir, writeFile, chmod } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { ContextEngine } from '../src/context/context-engine.js'
@@ -73,6 +73,31 @@ describe('ContextEngine', () => {
       const result = await engine.resolve('intent', changePath, specDir)
       // Optional files don't exist — no error
       expect(result.files).toEqual([])
+    })
+
+    it('warns on permission errors for required files instead of silently swallowing', async () => {
+      // Create required file for 'spec' artifact type (requires 'intent')
+      const intentPath = join(changePath, 'intent.md')
+      await writeFile(intentPath, '# Intent\n\nSome intent content.')
+      // Remove read permissions
+      await chmod(intentPath, 0o000)
+
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      try {
+        const result = await engine.resolve('spec', changePath, specDir)
+        // File should NOT be loaded
+        expect(result.files.find(f => f.path === intentPath)).toBeUndefined()
+        // Warning should be emitted
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining('failed to read required context file'),
+        )
+        // Truncations should record the read error
+        expect(result.truncations.some(t => t.includes('read error'))).toBe(true)
+      } finally {
+        warnSpy.mockRestore()
+        // Restore permissions so cleanup can remove the file
+        await chmod(intentPath, 0o644)
+      }
     })
   })
 

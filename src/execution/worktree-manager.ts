@@ -6,6 +6,21 @@ import { mkdir, rm } from 'node:fs/promises'
 
 const execAsync = promisify(execFile)
 
+export class HeadAdvancedError extends Error {
+  constructor(
+    public readonly baseCommit: string,
+    public readonly currentHead: string,
+    public readonly branch: string,
+  ) {
+    super(
+      `HEAD has advanced since worktree was created for branch ${branch}. ` +
+      `Base commit: ${baseCommit}, current HEAD: ${currentHead}. ` +
+      `Rebase failed — aborting merge to prevent silent data loss.`,
+    )
+    this.name = 'HeadAdvancedError'
+  }
+}
+
 export interface Worktree {
   path: string
   branch: string
@@ -53,12 +68,43 @@ export class WorktreeManager {
     }
   }
 
+  /**
+   * Merge order contract:
+   *
+   * When merging parallel task worktrees, the engine MUST merge them in the
+   * order tasks appear in `BatchPlan.batches[n].tasks`. Each merge MUST
+   * complete before the next begins (sequential merge after parallel execution).
+   *
+   * Before merging, we verify that the repository HEAD has not advanced past
+   * the worktree's `baseCommit`. If HEAD has advanced (e.g., a prior worktree
+   * merge moved it forward, or an external process committed), we attempt a
+   * rebase of the worktree branch onto the current HEAD. If the rebase fails
+   * (conflicts), the merge is aborted with a `HeadAdvancedError` to prevent
+   * silent data loss.
+   */
   async merge(worktree: Worktree, targetBranch?: string): Promise<WorktreeMergeResult> {
     const target = targetBranch ?? await this.currentBranch()
 
-    // Get changed files
+    // Base commit safety check: verify HEAD has not advanced since worktree creation.
+    // If it has, rebase the worktree branch onto the current HEAD before merging.
+    const currentHead = await this.resolveHead()
+    if (currentHead !== worktree.baseCommit) {
+      try {
+        await execAsync(
+          'git', ['rebase', currentHead, worktree.branch],
+          { cwd: this.repoRoot },
+        )
+      } catch {
+        // Abort the failed rebase to leave the repo in a clean state
+        await execAsync('git', ['rebase', '--abort'], { cwd: this.repoRoot }).catch(() => {})
+        throw new HeadAdvancedError(worktree.baseCommit, currentHead, worktree.branch)
+      }
+    }
+
+    // Get changed files (use current HEAD as the base since we may have rebased)
+    const mergeBase = currentHead !== worktree.baseCommit ? currentHead : worktree.baseCommit
     const { stdout: diffOutput } = await execAsync(
-      'git', ['diff', '--name-only', `${worktree.baseCommit}...${worktree.branch}`],
+      'git', ['diff', '--name-only', `${mergeBase}...${worktree.branch}`],
       { cwd: this.repoRoot },
     ).catch(() => ({ stdout: '' }))
     const changedFiles = diffOutput.trim().split('\n').filter(Boolean)
@@ -138,6 +184,14 @@ export class WorktreeManager {
       cleaned++
     }
     return cleaned
+  }
+
+  async resolveHead(): Promise<string> {
+    const { stdout } = await execAsync(
+      'git', ['rev-parse', 'HEAD'],
+      { cwd: this.repoRoot },
+    )
+    return stdout.trim()
   }
 
   private async currentBranch(): Promise<string> {

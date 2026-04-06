@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
 import YAML from 'yaml'
+import { ZodError } from 'zod'
 import { ProjectConfigSchema, type ProjectConfig } from '../schemas/project-config.js'
 
 function deepMerge(target: Record<string, unknown>, source: Record<string, unknown>): Record<string, unknown> {
@@ -28,11 +29,20 @@ function deepMerge(target: Record<string, unknown>, source: Record<string, unkno
   return result
 }
 
-async function loadYamlFile(path: string): Promise<Record<string, unknown> | null> {
+async function loadYamlFile(filePath: string): Promise<Record<string, unknown> | null> {
+  let content: string
   try {
-    const content = await readFile(path, 'utf-8')
+    content = await readFile(filePath, 'utf-8')
+  } catch (err: unknown) {
+    if (err instanceof Error && 'code' in err && (err as NodeJS.ErrnoException).code === 'ENOENT') {
+      return null
+    }
+    throw err
+  }
+  try {
     return YAML.parse(content) as Record<string, unknown>
-  } catch {
+  } catch (err: unknown) {
+    process.stderr.write(`Warning: failed to parse YAML config at ${filePath}: ${err instanceof Error ? err.message : String(err)}\n`)
     return null
   }
 }
@@ -43,7 +53,11 @@ function applyEnvOverrides(config: Record<string, unknown>): Record<string, unkn
 
   for (const [key, value] of Object.entries(process.env)) {
     if (!key.startsWith(envPrefix) || value === undefined) continue
-    const configPath = key.slice(envPrefix.length).toLowerCase().split('_')
+    // Use double underscore (__) as segment separator to avoid ambiguity
+    // with config keys that contain single underscores (e.g., api_key_env).
+    // Example: METTA_PROVIDERS__ANTHROPIC__API_KEY_ENV → config.providers.anthropic.api_key_env
+    const remainder = key.slice(envPrefix.length).toLowerCase()
+    const configPath = remainder.split('__')
 
     let current: Record<string, unknown> = result
     for (let i = 0; i < configPath.length - 1; i++) {
@@ -70,6 +84,15 @@ function applyEnvOverrides(config: Record<string, unknown>): Record<string, unkn
   return result
 }
 
+/**
+ * Loads and merges metta project configuration from four layers.
+ *
+ * IMPORTANT: The cached config is NOT auto-invalidated when environment
+ * variables change. Once load() has been called, mutations to process.env
+ * (adding/removing METTA_* variables) will not take effect until clearCache()
+ * is called. ConfigLoader instances SHOULD be short-lived (per-command) rather
+ * than used as long-lived singletons.
+ */
 export class ConfigLoader {
   private readonly projectRoot: string
   private readonly globalDir: string
@@ -97,7 +120,28 @@ export class ConfigLoader {
     merged = deepMerge(merged, localConfig)
     merged = applyEnvOverrides(merged)
 
-    const result = ProjectConfigSchema.parse(merged)
+    let result: ProjectConfig
+    try {
+      result = ProjectConfigSchema.parse(merged)
+    } catch (err: unknown) {
+      if (err instanceof ZodError) {
+        // Check if the error is caused by env-var-injected keys by trying
+        // to parse the file-only merge (without env overrides).
+        const fileOnly = deepMerge(deepMerge(globalConfig, projectConfig), localConfig)
+        try {
+          ProjectConfigSchema.parse(fileOnly)
+          // File-only config is valid — the env vars caused the failure.
+          const issues = err.issues.map(i => `  - ${i.path.join('.')}: ${i.message}`).join('\n')
+          process.stderr.write(`Warning: METTA_* environment variable(s) caused config validation errors (ignored):\n${issues}\n`)
+          result = ProjectConfigSchema.parse(fileOnly)
+        } catch {
+          // File config itself is invalid — re-throw original error
+          throw err
+        }
+      } else {
+        throw err
+      }
+    }
     this.cachedConfig = result
     return result
   }
