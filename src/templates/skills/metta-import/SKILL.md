@@ -11,10 +11,10 @@ You are the **orchestrator** for importing existing code into metta specs.
 
 ## Steps
 
-1. `metta import "$ARGUMENTS" --json` → returns scan path, modules (if --by-module), and output paths
-2. Parse the response — check `mode` (whole-project or by-module) and `modules` list
-3. **For whole-project mode**: spawn a single metta-researcher agent to scan everything
-   **For by-module mode**: spawn one metta-researcher per module **in parallel** (each with isolation: "worktree")
+1. `metta import "$ARGUMENTS" --json` → returns scan path, modules list, and output paths
+2. Parse the response — check `mode` (parallel or single) and `modules` list
+3. **If modules > 1**: spawn one metta-researcher per module **in parallel** (single message, each with isolation: "worktree")
+   **If single module**: spawn one metta-researcher for the whole path (with isolation: "worktree")
 4. Each researcher agent must:
    - Read all source files in their scan path
    - Identify logical capabilities (route groups, store modules, component groups)

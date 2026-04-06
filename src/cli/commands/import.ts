@@ -44,22 +44,20 @@ export function registerImportCommand(program: Command): void {
           process.exit(4)
         }
 
-        // Detect modules if --by-module
-        let modules: string[] = []
-        if (options.byModule) {
-          const entries = await readdir(scanPath, { withFileTypes: true })
-          modules = entries
-            .filter(e => e.isDirectory() && !e.name.startsWith('.') && !['node_modules', 'dist', 'build', '.svelte-kit'].includes(e.name))
-            .map(e => e.name)
-        }
+        // Always detect modules for parallel scanning
+        const IGNORE_DIRS = new Set(['node_modules', 'dist', 'build', '.svelte-kit', '.metta', '.claude', '.git', 'spec', 'static', 'public'])
+        const entries = await readdir(scanPath, { withFileTypes: true })
+        const modules = entries
+          .filter(e => e.isDirectory() && !e.name.startsWith('.') && !IGNORE_DIRS.has(e.name))
+          .map(e => e.name)
 
         const relativeScanPath = relative(ctx.projectRoot, scanPath) || '.'
 
         const result = {
-          mode: options.byModule ? 'by-module' : 'whole-project',
+          mode: modules.length > 1 ? 'parallel' : 'single',
           scan_path: relativeScanPath,
           absolute_path: scanPath,
-          modules: options.byModule ? modules : [],
+          modules,
           output_paths: {
             specs: 'spec/specs',
             gaps: 'spec/gaps',
@@ -67,9 +65,9 @@ export function registerImportCommand(program: Command): void {
           dry_run: !!options.dryRun,
           instructions: {
             agent_type: 'metta-researcher',
-            task: options.byModule
-              ? `Scan each module directory separately and generate one spec per module: ${modules.join(', ')}`
-              : `Scan the entire directory "${relativeScanPath}" and generate specs by detected capability boundaries`,
+            task: modules.length > 1
+              ? `Spawn one metta-researcher per module IN PARALLEL: ${modules.join(', ')}`
+              : `Scan "${relativeScanPath}" and generate specs by detected capability boundaries`,
             steps: [
               `Read all source files in: ${relativeScanPath}`,
               'For each logical capability/module:',
@@ -91,7 +89,7 @@ export function registerImportCommand(program: Command): void {
           outputJson(result)
         } else {
           console.log(color('Import:', 36) + ` ${relativeScanPath}`)
-          console.log(`  Mode: ${options.byModule ? 'by-module' : 'whole-project'}`)
+          console.log(`  Mode: ${modules.length > 1 ? `parallel (${modules.length} modules)` : 'single'}`)
           if (modules.length > 0) {
             console.log(`  Modules: ${modules.join(', ')}`)
           }
