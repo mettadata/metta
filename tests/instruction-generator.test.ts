@@ -123,4 +123,41 @@ describe('InstructionGenerator', () => {
     expect(output.questions).toHaveLength(1)
     expect(output.questions![0].question).toContain('refunds')
   })
+
+  it('normalizes object-form tool entries to string tool names', async () => {
+    const artifact: WorkflowArtifact = {
+      id: 'intent',
+      type: 'intent',
+      template: 'intent.md',
+      generates: 'intent.md',
+      requires: [],
+      agents: ['implementer'],
+      gates: [],
+    }
+
+    const agent: AgentDefinition = {
+      name: 'implementer',
+      persona: 'You are an implementation engineer.',
+      capabilities: ['implement'],
+      tools: [
+        'Read',
+        'Grep',
+        { Bash: { deny_patterns: ['rm -rf'], allow_cwd: 'worktree_only' } },
+      ],
+      context_budget: 30000,
+    }
+
+    const output = await generator.generate({
+      artifact,
+      changeName: 'test-change',
+      changePath,
+      workflow: 'standard',
+      status: 'ready',
+      specDir,
+      agent,
+      nextSteps: [],
+    })
+
+    expect(output.agent.tools).toEqual(['Read', 'Grep', 'Bash'])
+  })
 })
