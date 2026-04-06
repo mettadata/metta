@@ -96,21 +96,17 @@ metta status --json       # machine-readable for AI tools
 ## How It Works
 
 ```
-                   +---------------------------------------------+
-                   |              Discovery Gate                  |
-                   |  (adaptive questions until zero ambiguity)   |
-                   +----------------------+----------------------+
-                                          |
-  +---------+   +---------+   +-----------+   +--------+   +---------+
-  | propose |-->|  plan   |-->|  execute  |-->| verify |-->|  ship   |
-  |         |   |         |   |           |   |        |   |         |
-  | intent  |   | design  |   | batch 1   |   | gates  |   | merge   |
-  | spec    |   | tasks   |   |  gates    |   | spec   |   | safety  |
-  |         |   |         |   | batch 2   |   | review |   | pipeline|
-  +---------+   +---------+   |  gates    |   +---+----+   +---------+
-                              |  ...      |       |
-                              +-----------+   gaps found?
-                                              re-plan -> execute -> verify
+  +-------------+   +---------+   +---------+   +---------+   +--------+   +----------+   +------+
+  |  discovery  |-->| propose |-->|  plan   |-->| execute |-->| review |-->|  verify  |-->| ship |
+  |             |   |         |   |         |   |         |   |        |   |          |   |      |
+  | ask user    |   | intent  |   | research|   | batch 1 |   | 3x     |   | 3x       |   |finalize
+  | questions   |   | spec    |   | design  |   |  gates  |   | parallel   | parallel |   |merge |
+  | until zero  |   |         |   | tasks   |   | batch 2 |   | review |   | verify   |   |      |
+  | ambiguity   |   |         |   |         |   |  gates  |   |        |   |          |   |      |
+  +-------------+   +---------+   +---------+   +---------+   +---+----+   +----+-----+   +------+
+                                                                   |             |
+                                                              issues found?  gates fail?
+                                                              fix -> re-review  fix -> re-verify
 ```
 
 **Workflows are composable DAGs**, not hardcoded pipelines. Three built-in:
