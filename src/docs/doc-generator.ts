@@ -156,12 +156,23 @@ export class DocGenerator {
       }
     }
 
-    const template = await this.loadTemplate('architecture')
-    return this.renderTemplate(template, {
-      capabilities,
-      adrs,
-      hasAdrs: adrs.length > 0,
-    })
+    const lines: string[] = ['# Architecture\n']
+
+    lines.push('## Components\n')
+    for (const cap of capabilities) {
+      lines.push(`### ${cap.label}`)
+      lines.push(`${cap.requirements.length} requirements\n`)
+    }
+
+    if (adrs.length > 0) {
+      lines.push('\n## Architectural Decision Records\n')
+      for (const adr of adrs) {
+        lines.push(`### ${adr.title}`)
+        lines.push(`${adr.content}\n`)
+      }
+    }
+
+    return lines.join('\n')
   }
 
   private async generateApi(sources: string[]): Promise<string> {
@@ -170,8 +181,23 @@ export class DocGenerator {
 
     for (const cap of capabilities) sources.push(cap.specPath)
 
-    const template = await this.loadTemplate('api')
-    return this.renderTemplate(template, { capabilities })
+    const lines: string[] = ['# API Reference\n']
+
+    for (const cap of capabilities) {
+      lines.push(`## ${cap.label}\n`)
+      for (const req of cap.requirements) {
+        lines.push(`### ${req.heading}`)
+        if (req.scenarios.length > 0) {
+          lines.push('\nScenarios:')
+          for (const s of req.scenarios) {
+            lines.push(`- ${s}`)
+          }
+        }
+        lines.push('')
+      }
+    }
+
+    return lines.join('\n')
   }
 
   private async generateChangelog(sources: string[]): Promise<string> {
@@ -191,8 +217,19 @@ export class DocGenerator {
       })
     }
 
-    const template = await this.loadTemplate('changelog')
-    return this.renderTemplate(template, { entries })
+    const lines: string[] = ['# Changelog\n']
+
+    for (const entry of entries) {
+      lines.push(`## ${entry.date} — ${entry.changeName}\n`)
+      lines.push(entry.summaryContent)
+      lines.push('')
+    }
+
+    if (entries.length === 0) {
+      lines.push('No archived changes with summaries found.\n')
+    }
+
+    return lines.join('\n')
   }
 
   private async generateGettingStarted(sources: string[]): Promise<string> {
@@ -217,17 +254,44 @@ export class DocGenerator {
       sections[heading] = extracted
     }
 
-    const template = await this.loadTemplate('getting-started')
-    return this.renderTemplate(template, {
-      projectSection: sections['Project'],
-      stackSection: sections['Stack'],
-      conventionsSection: sections['Conventions'],
-      constraintsSection: sections['Architectural Constraints'],
-      hasProject: sections['Project'] !== null,
-      hasStack: sections['Stack'] !== null,
-      hasConventions: sections['Conventions'] !== null,
-      hasConstraints: sections['Architectural Constraints'] !== null,
-    })
+    const lines: string[] = ['# Getting Started\n']
+
+    if (sections['Project']) {
+      lines.push('## Project\n')
+      lines.push(sections['Project'])
+      lines.push('')
+    }
+
+    if (sections['Stack']) {
+      lines.push('## Stack\n')
+      lines.push(sections['Stack'])
+      lines.push('')
+    }
+
+    if (sections['Conventions']) {
+      lines.push('## Conventions\n')
+      lines.push(sections['Conventions'])
+      lines.push('')
+    }
+
+    if (sections['Architectural Constraints']) {
+      lines.push('## Architectural Constraints\n')
+      lines.push(sections['Architectural Constraints'])
+      lines.push('')
+    }
+
+    lines.push('## Quick Start\n')
+    lines.push('```bash')
+    lines.push('metta install')
+    lines.push('metta propose <description>')
+    lines.push('metta plan')
+    lines.push('metta execute')
+    lines.push('metta verify')
+    lines.push('metta ship')
+    lines.push('```')
+    lines.push('')
+
+    return lines.join('\n')
   }
 
   // -----------------------------------------------------------------------

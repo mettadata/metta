@@ -5,8 +5,53 @@
 
 ## Components
 
+### Artifact Store
+6 requirements
+
+### ConfigLoader — Specification
+0 requirements
+
+### Context Engine — Specification
+0 requirements
+
+### Execution Engine Specification
+0 requirements
+
+### Finalize and Ship
+3 requirements
+
+### Schemas Specification
+0 requirements
+
+### Spec Model
+4 requirements
+
+### StateStore — Specification
+0 requirements
+
+### WorkflowEngine — Specification
+0 requirements
 
 
 ## Architectural Decision Records
 
-[object Object],[object Object],[object Object]
+### ADR-1: Skill-orchestrated over CLI-orchestrated pipeline
+**Decision:** Pipeline execution (propose → plan → execute → review ×3 → verify → finalize → ship) is delegated to a skill file, not driven by `execFile` chains in the CLI binary.
+
+**Rationale:** The phases that require sequencing — artifact generation, parallel review fan-out, parallel verify fan-out — are AI agent operations. The CLI binary executes TypeScript; it has no mechanism to spawn three parallel `metta-reviewer` subagents. Every existing multi-phase lifecycle command (`metta auto`, `metta propose`) uses the skill layer for agent orchestration. Encoding pipeline logic in the CLI binary would produce a command that halts at the first AI-dependent phase when no skill is active, and would require the binary to parse subprocess JSON output from prior phases to carry state forward. The skill layer communicates through files on disk (`spec/changes/<change>/`), which is more robust.
+
+**Trade-off documented in research.md:** Terminal-only use cannot run the full AI pipeline. This is intentional and consistent with every other lifecycle command.
+
+**Vendor lock-in:** No vendor lock-in introduced. The skill file format is the project's own convention and invokes the CLI binary via standard subprocess calls.
+
+### ADR-2: Severity is ephemeral, derived at runtime by keyword scan
+**Decision:** Severity (`critical` / `medium` / `low`) is computed by scanning raw gap file content case-insensitively at invocation time. It is not stored in the gap file, not exposed on the `Gap` interface, and not committed to disk.
+
+**Rationale:** The intent and spec explicitly prohibit extending the `Gap` interface or the on-disk format. Severity is used only for sort ordering in `--all` mode. Keeping it ephemeral avoids format drift and makes the classification logic fully testable without file writes.
+
+### ADR-3: `--resolve` subcommand name changed to `--remove-gap`
+**Decision:** The gap file removal subcommand that the skill calls after a successful ship is exposed as `metta fix-gap --remove-gap <slug>`, not as a positional subcommand.
+
+**Rationale:** Commander.js distinguishes subcommands (positional strings) from options (flags). Removal is an idempotent cleanup operation with a single slug argument; making it a flag rather than a competing positional argument avoids ambiguity with `<gap-name>` and `--all`. The research's implementation boundary table used `--remove-gap`; this design formalises that name.
+
+---

@@ -3,4 +3,111 @@
 <!-- Run `metta docs generate` to regenerate -->
 # API Reference
 
-[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object]
+## Artifact Store
+
+### Change Creation
+
+Scenarios:
+- Successful change creation
+- Slug strips stop words and special characters
+- Duplicate change rejected
+- Base versions recorded
+
+### Change Listing
+
+Scenarios:
+- Lists active changes
+- Empty list when no changes
+
+### Artifact Status Tracking
+
+Scenarios:
+- Mark artifact complete
+
+### Artifact File I/O
+
+Scenarios:
+- Write and read artifact
+- Existence check
+
+### Change Archival
+
+Scenarios:
+- Archive moves directory
+
+### Change Abandonment
+
+Scenarios:
+- Abandon appends suffix
+
+## ConfigLoader — Specification
+
+## Context Engine — Specification
+
+## Execution Engine Specification
+
+## Finalize and Ship
+
+### Spec Delta Merge
+
+Scenarios:
+- New capability created from ADDED delta
+- Conflict detected on modified base
+- Clean merge when base hash matches
+- MODIFIED delta replaces requirement text
+- RENAMED delta replaces old requirement with new name
+- Dry-run does not write files
+- No spec.md returns clean immediately
+
+### Finalizer Orchestration
+
+Scenarios:
+- Successful finalize archives the change
+- Finalize aborts on spec conflict
+- Dry-run leaves change active
+- gates.yaml written to archive
+
+### Merge Safety Pipeline
+
+Scenarios:
+- Successful merge
+- Dry-run skips git writes
+- Conflict detected
+- Base drift does not block merge
+
+## Schemas Specification
+
+## Spec Model
+
+### Spec Markdown Parsing
+
+Scenarios:
+- Full spec parsed
+- MAY keyword extracted
+- Empty spec handled
+
+### Requirement Content Hashing
+
+Scenarios:
+- Stable hashes
+- Different content produces different hash
+
+### Delta Spec Parsing
+
+Scenarios:
+- Mixed delta operations parsed
+- RENAMED operation parsed
+- ADDED scenario prefix stripped
+
+### Spec Lock Management
+
+Scenarios:
+- Lock created from spec
+- Lock defaults to draft status and change source
+- Custom source via createFromParsed
+- Version incremented on update
+- getBaseVersion returns null when no lock
+
+## StateStore — Specification
+
+## WorkflowEngine — Specification

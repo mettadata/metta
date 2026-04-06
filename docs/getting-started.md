@@ -5,15 +5,19 @@
 
 ## Project
 
-
+A composable, spec-driven development framework for AI-native software engineering. CLI tool orchestrating the full change lifecycle: propose, plan, execute, verify, finalize, ship. Works with any AI coding tool via instruction mode — the framework manages state and specs while the AI tool executes.
 
 ## Stack
 
-
+- TypeScript (strict mode, ES2022 target)
 
 ## Conventions
 
+- Classes for stateful modules, interfaces for contracts
 
+## Architectural Constraints
+
+- ESM only — no CommonJS, no mixed module systems
 
 ## Quick Start
 
