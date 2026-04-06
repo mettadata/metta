@@ -71,8 +71,9 @@ All accessors MUST be synchronous and MUST NOT perform I/O.
 ## 5. Environment Variable Mapping
 
 - MUST scan all `process.env` entries whose keys begin with `METTA_`.
-- MUST strip the `METTA_` prefix, convert the remainder to lowercase, and split on `_` to derive a nested key path.
-  - Example: `METTA_DEFAULTS_WORKFLOW=full` sets `config.defaults.workflow = "full"`.
+- MUST strip the `METTA_` prefix, convert the remainder to lowercase, and split on `__` (double underscore) to derive a nested key path. Single underscores within a segment are preserved, allowing targeting of config keys that contain underscores (e.g., `api_key_env`).
+  - Example: `METTA_DEFAULTS__WORKFLOW=full` sets `config.defaults.workflow = "full"`.
+  - Example: `METTA_PROVIDERS__ANTHROPIC__API_KEY_ENV=KEY` sets `config.providers.anthropic.api_key_env = "KEY"`.
 - MUST coerce values:
   - `"true"` → boolean `true`
   - `"false"` → boolean `false`
