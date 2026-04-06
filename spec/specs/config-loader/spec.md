@@ -190,7 +190,7 @@ All schemas use Zod `.strict()`, so extra fields MUST cause a validation failure
 
 ## 9. Implementation Constraints
 
-- `local.yaml` SHOULD be listed in `.gitignore` because it is intended for developer-local overrides such as API keys or personal workflow preferences.
+- `local.yaml` MUST be listed in `.gitignore` because it is intended for developer-local overrides such as API keys or personal workflow preferences. `metta init` SHOULD ensure `.metta/local.yaml` is added to the project `.gitignore` file. Committing `local.yaml` to version control risks leaking credentials.
 - Environment variable coercion occurs last and MUST NOT be cached separately; re-reading env occurs on each `load()` call following a `clearCache()`.
 - The loader MUST NOT merge or expose any config source other than the four defined layers.
 - Config file parse errors (malformed YAML) MUST propagate to the caller; only absent files are silently ignored.

@@ -83,6 +83,15 @@ function applyEnvOverrides(config: Record<string, unknown>): Record<string, unkn
   return result
 }
 
+/**
+ * Loads and merges metta project configuration from four layers.
+ *
+ * IMPORTANT: The cached config is NOT auto-invalidated when environment
+ * variables change. Once load() has been called, mutations to process.env
+ * (adding/removing METTA_* variables) will not take effect until clearCache()
+ * is called. ConfigLoader instances SHOULD be short-lived (per-command) rather
+ * than used as long-lived singletons.
+ */
 export class ConfigLoader {
   private readonly projectRoot: string
   private readonly globalDir: string
