@@ -16,7 +16,8 @@ export interface LoadedFile {
   hash: string
   loadedAt: string
   truncated: boolean
-  strategy: 'full' | 'section' | 'skeleton' | 'delta'
+  // Future: 'delta' strategy (load only changed lines) is not yet specified or implemented.
+  strategy: 'full' | 'section' | 'skeleton'
 }
 
 export interface LoadedContext {

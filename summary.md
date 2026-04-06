@@ -1,29 +1,32 @@
-# Config-Loader Gap Fixes Summary
+## Implementation Summary: artifact-store-spec-model-finalize-ship gap fixes
 
-## Changes Made
+### Completed (4 of 9 sub-issues)
 
-### GAP-CL-01 + GAP-CL-03 (P1): Malformed YAML handling
-- **File:** `src/config/config-loader.ts` - `loadYamlFile` now distinguishes ENOENT (returns null) from YAML parse errors (logs warning to stderr, returns null) and other I/O errors (re-throws).
-- **Test:** Added "logs warning and falls back to defaults for malformed YAML" test.
+**GAP-001 + GAP-002: MODIFIED and RENAMED delta operations (spec-merger.ts)**
+- Added `MODIFIED` branch in `applyDelta` that removes the old requirement section by regex and appends the replacement text, then updates the spec lock.
+- Added `RENAMED` branch that extracts the old name from a `Renamed from: <name>` line in the delta text, removes the old section, and appends the requirement under its new name.
+- Added two integration tests validating both operations end-to-end.
 
-### GAP-CL-02 (P1): Env var segment separator changed to `__`
-- **File:** `src/config/config-loader.ts` - `applyEnvOverrides` now splits on `__` (double underscore) instead of `_`, preserving single underscores within config key names (e.g., `api_key_env`).
-- **Test:** Added "env vars with double underscore separator handle keys containing single underscores" test. Updated existing env var test.
-- **Spec:** Updated `spec/specs/config-loader/spec.md` section 5 to document the new separator.
+**GAP-004: SpecLock.status and source fields (spec-lock-manager.ts)**
+- `createFromParsed` now accepts an optional `source` parameter (default `"change"`) and sets `status` to `"draft"` by default.
+- Backward-compatible: all existing callers use defaults.
 
-### GAP-CL-04 (P2): Cache invalidation documented
-- **File:** `src/config/config-loader.ts` - Added JSDoc on `ConfigLoader` class documenting that cache is not auto-invalidated on env changes and recommending short-lived instances.
+**GAP-008: SpecLockManager.update version increment test (spec-lock-manager.test.ts)**
+- New test file with 3 tests: version increment (1 to 2), default status/source fields, and custom source parameter.
 
-### GAP-CL-05 (P2): local.yaml gitignore requirement
-- **File:** `spec/specs/config-loader/spec.md` - Strengthened local.yaml gitignore from SHOULD to MUST, added note that `metta init` should enforce this.
+### Skipped (by instruction)
+- GAP-003: Multi-capability delta support (larger scope)
+- GAP-005/006: Merge pipeline gate stubs (larger scope)
+- GAP-007: Doc gen placeholder (larger scope)
+- GAP-009: Lock race condition (larger scope)
 
-### GAP-CL-06 (P3): Default globalDir test
-- **Test:** Added "defaults globalDir to ~/.metta when not provided" test verifying `homedir()` resolution.
+### Test Results
+- 24 test files, 292 tests, all passing
+- 3 new tests added in `tests/spec-lock-manager.test.ts`
+- 2 new tests added in `tests/spec-merger.test.ts`
 
-### GAP-CL-07 (P3): Zod validation error from env vars
-- **File:** `src/config/config-loader.ts` - `load()` now catches ZodError, checks if file-only config is valid, and if so falls back to file-only config with a stderr warning instead of crashing.
-- **Test:** Added "warns and ignores env vars that cause Zod validation errors" test.
-
-## Verification
-- `npx tsc --noEmit` passes
-- `npx vitest run` passes (192/192 tests, 22 test files)
+### Files Modified
+- `src/finalize/spec-merger.ts` -- MODIFIED and RENAMED branches in applyDelta
+- `src/specs/spec-lock-manager.ts` -- status/source defaults in createFromParsed
+- `tests/spec-merger.test.ts` -- MODIFIED and RENAMED integration tests
+- `tests/spec-lock-manager.test.ts` -- new file, version increment and field tests

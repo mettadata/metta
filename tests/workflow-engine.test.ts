@@ -201,6 +201,23 @@ describe('WorkflowEngine', () => {
       expect(result.valid).toBe(true)
       expect(result.errors).toEqual([])
     })
+
+    it('detects dangling references in an externally-assembled graph', () => {
+      const engine = new WorkflowEngine()
+      // Construct a WorkflowGraph directly, bypassing loadWorkflowFromDefinition
+      // which would throw on the dangling reference during topologicalSort.
+      const graph: import('../src/workflow/workflow-engine.js').WorkflowGraph = {
+        name: 'external',
+        artifacts: [
+          { id: 'a', type: 'a', template: 'a.md', generates: 'a.md', requires: [], agents: ['default'], gates: [] },
+          { id: 'b', type: 'b', template: 'b.md', generates: 'b.md', requires: ['x'], agents: ['default'], gates: [] },
+        ],
+        buildOrder: ['a', 'b'],
+      }
+      const result = engine.validate(graph)
+      expect(result.valid).toBe(false)
+      expect(result.errors).toContain("Artifact 'b' depends on unknown artifact 'x'")
+    })
   })
 
   describe('workflow loading from YAML', () => {
@@ -219,6 +236,31 @@ describe('WorkflowEngine', () => {
       const full = await engine.loadWorkflow('full', searchPaths)
       expect(full.name).toBe('full')
       expect(full.artifacts).toHaveLength(10)
+    })
+
+    it('returns cached graph on repeated loadWorkflow calls without re-reading the file', async () => {
+      const tmpDir = await mkdtemp(join(tmpdir(), 'wf-cache-'))
+      try {
+        const def = {
+          name: 'cacheable',
+          version: 1,
+          artifacts: [
+            { id: 'a', type: 'a', template: 'a.md', generates: 'a.md', requires: [], agents: ['default'], gates: [] },
+          ],
+        }
+        await writeFile(join(tmpDir, 'cacheable.yaml'), YAML.stringify(def))
+
+        const engine = new WorkflowEngine()
+        const first = await engine.loadWorkflow('cacheable', [tmpDir])
+
+        // Delete the file so a second read would fail if cache is bypassed
+        await rm(join(tmpDir, 'cacheable.yaml'))
+
+        const second = await engine.loadWorkflow('cacheable', [tmpDir])
+        expect(second).toBe(first) // same object reference
+      } finally {
+        await rm(tmpDir, { recursive: true, force: true })
+      }
     })
 
     it('throws for non-existent workflow', async () => {

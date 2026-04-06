@@ -149,4 +149,97 @@ The system MUST do something new.
     expect(result.status).toBe('clean')
     expect(result.merged).toEqual([])
   })
+
+  it('applies MODIFIED delta by replacing requirement text', async () => {
+    const existingSpec = `# Auth
+
+## Requirement: User Login
+
+The system MUST allow login.
+
+### Scenario: Success
+- GIVEN a user
+- WHEN they login
+- THEN they get a token
+`
+    await writeFile(join(specDir, 'specs', 'auth', 'spec.md'), existingSpec)
+    const parsed = parseSpec(existingSpec)
+    const lock = lockManager.createFromParsed(parsed)
+    await lockManager.write('auth', lock)
+
+    const deltaContent = `# auth (Delta)
+
+## MODIFIED: Requirement: User Login
+
+The system MUST allow login with MFA support.
+
+### Scenario: Login with MFA
+- GIVEN a user with MFA enabled
+- WHEN they login
+- THEN they are prompted for a TOTP code
+`
+    await writeFile(join(specDir, 'changes', 'add-mfa', 'spec.md'), deltaContent)
+
+    const result = await merger.merge('add-mfa', {
+      'auth/spec.md': lock.hash,
+    })
+
+    expect(result.status).toBe('clean')
+    expect(result.merged).toContain('auth/user-login')
+
+    // Verify the spec was actually updated
+    const { readFile } = await import('node:fs/promises')
+    const updatedContent = await readFile(join(specDir, 'specs', 'auth', 'spec.md'), 'utf-8')
+    expect(updatedContent).toContain('login with MFA support')
+    expect(updatedContent).toContain('Login with MFA')
+    // Old scenario should be gone
+    expect(updatedContent).not.toMatch(/### Scenario: Success/)
+  })
+
+  it('applies RENAMED delta by replacing old requirement with new name', async () => {
+    const existingSpec = `# Auth
+
+## Requirement: User Login
+
+The system MUST allow login.
+
+### Scenario: Success
+- GIVEN a user
+- WHEN they login
+- THEN they get a token
+`
+    await writeFile(join(specDir, 'specs', 'auth', 'spec.md'), existingSpec)
+    const parsed = parseSpec(existingSpec)
+    const lock = lockManager.createFromParsed(parsed)
+    await lockManager.write('auth', lock)
+
+    const deltaContent = `# auth (Delta)
+
+## RENAMED: Requirement: User Authentication
+
+Renamed from: User Login
+
+The system MUST authenticate users securely.
+
+### Scenario: Secure login
+- GIVEN a user
+- WHEN they authenticate
+- THEN they receive a secure token
+`
+    await writeFile(join(specDir, 'changes', 'add-mfa', 'spec.md'), deltaContent)
+
+    const result = await merger.merge('add-mfa', {
+      'auth/spec.md': lock.hash,
+    })
+
+    expect(result.status).toBe('clean')
+    expect(result.merged).toContain('auth/user-authentication')
+
+    const { readFile } = await import('node:fs/promises')
+    const updatedContent = await readFile(join(specDir, 'specs', 'auth', 'spec.md'), 'utf-8')
+    expect(updatedContent).toContain('## Requirement: User Authentication')
+    expect(updatedContent).toContain('authenticate users securely')
+    // Old requirement name should be gone
+    expect(updatedContent).not.toMatch(/## Requirement: User Login/)
+  })
 })

@@ -138,6 +138,34 @@ export class SpecMerger {
           `### Scenario: ${s.name}\n${s.steps.map(step => `- ${step}`).join('\n')}`
         ).join('\n\n')
       }\n`
+    } else if (delta.operation === 'MODIFIED') {
+      // Remove the old requirement section and append the replacement
+      const reqPattern = new RegExp(
+        `## Requirement: ${delta.requirement.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[\\s\\S]*?(?=## Requirement:|$)`,
+      )
+      content = content.replace(reqPattern, '')
+      content += `\n\n## Requirement: ${delta.requirement.name}\n\n${delta.requirement.text}\n\n${
+        delta.requirement.scenarios.map(s =>
+          `### Scenario: ${s.name}\n${s.steps.map(step => `- ${step}`).join('\n')}`
+        ).join('\n\n')
+      }\n`
+    } else if (delta.operation === 'RENAMED') {
+      // Extract old name from first line: "Renamed from: <old name>"
+      const renameMatch = delta.requirement.text.match(/^Renamed from:\s*(.+)/m)
+      if (renameMatch) {
+        const oldName = renameMatch[1].trim()
+        const oldPattern = new RegExp(
+          `## Requirement: ${oldName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[\\s\\S]*?(?=## Requirement:|$)`,
+        )
+        content = content.replace(oldPattern, '')
+      }
+      // Build the replacement text, stripping the "Renamed from:" line
+      const cleanedText = delta.requirement.text.replace(/^Renamed from:.*\n?/m, '').trim()
+      content += `\n\n## Requirement: ${delta.requirement.name}\n\n${cleanedText}\n\n${
+        delta.requirement.scenarios.map(s =>
+          `### Scenario: ${s.name}\n${s.steps.map(step => `- ${step}`).join('\n')}`
+        ).join('\n\n')
+      }\n`
     } else if (delta.operation === 'REMOVED') {
       // Remove the requirement section
       const reqPattern = new RegExp(

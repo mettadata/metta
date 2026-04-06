@@ -29,7 +29,11 @@ export class SpecLockManager {
     return this.state.exists(join('specs', capability, 'spec.lock'))
   }
 
-  createFromParsed(spec: ParsedSpec, version: number = 1): SpecLock {
+  createFromParsed(
+    spec: ParsedSpec,
+    version: number = 1,
+    source: 'scan' | 'manual' | 'change' = 'change',
+  ): SpecLock {
     const requirements: SpecLockRequirement[] = spec.requirements.map(req => ({
       id: req.id,
       hash: req.hash,
@@ -40,6 +44,8 @@ export class SpecLockManager {
       version,
       hash: hashSpec(spec),
       updated: new Date().toISOString(),
+      status: 'draft',
+      source,
       requirements,
     }
   }
