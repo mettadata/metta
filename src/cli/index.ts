@@ -29,6 +29,9 @@ import { registerNextCommand } from './commands/next.js'
 import { registerCompletionCommand } from './commands/completion.js'
 import { registerUpdateCommand } from './commands/update.js'
 import { registerProgressCommand } from './commands/progress.js'
+import { registerImportCommand } from './commands/import.js'
+import { registerGapsCommand } from './commands/gaps.js'
+import { registerReconcileCommand } from './commands/reconcile.js'
 
 const program = new Command()
 
@@ -69,5 +72,8 @@ registerNextCommand(program)
 registerCompletionCommand(program)
 registerUpdateCommand(program)
 registerProgressCommand(program)
+registerImportCommand(program)
+registerGapsCommand(program)
+registerReconcileCommand(program)
 
 program.parse()

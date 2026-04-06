@@ -7,6 +7,7 @@ import { GateRegistry } from '../gates/gate-registry.js'
 import { IdeasStore } from '../ideas/ideas-store.js'
 import { IssuesStore } from '../issues/issues-store.js'
 import { BacklogStore } from '../backlog/backlog-store.js'
+import { GapsStore } from '../gaps/gaps-store.js'
 import { SpecLockManager } from '../specs/spec-lock-manager.js'
 import { TemplateEngine } from '../templates/template-engine.js'
 import { InstructionGenerator } from '../context/instruction-generator.js'
@@ -23,6 +24,7 @@ export interface CliContext {
   ideasStore: IdeasStore
   issuesStore: IssuesStore
   backlogStore: BacklogStore
+  gapsStore: GapsStore
   specLockManager: SpecLockManager
   templateEngine: TemplateEngine
   instructionGenerator: InstructionGenerator
@@ -42,6 +44,7 @@ export function createCliContext(projectRoot?: string): CliContext {
   const ideasStore = new IdeasStore(specDir)
   const issuesStore = new IssuesStore(specDir)
   const backlogStore = new BacklogStore(specDir)
+  const gapsStore = new GapsStore(specDir)
   const specLockManager = new SpecLockManager(specDir)
   const stateStore = new StateStore(mettaDir)
 
@@ -61,6 +64,7 @@ export function createCliContext(projectRoot?: string): CliContext {
     ideasStore,
     issuesStore,
     backlogStore,
+    gapsStore,
     specLockManager,
     templateEngine,
     instructionGenerator,
