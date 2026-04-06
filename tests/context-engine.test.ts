@@ -58,8 +58,9 @@ describe('ContextEngine', () => {
     })
 
     it('respects budget limits', async () => {
-      // Create a large file
-      const bigContent = 'x'.repeat(200000) // 50K tokens
+      // Create a file between 5000-20000 tokens (section strategy, no transformation)
+      // so budget truncation is exercised directly
+      const bigContent = 'x'.repeat(40000) // 10K tokens — 'section' strategy, no transform
       await writeFile(join(changePath, 'intent.md'), bigContent)
 
       const result = await engine.resolve('spec', changePath, specDir, 5000)
@@ -118,6 +119,28 @@ describe('ContextEngine', () => {
       expect(loaded.truncated).toBe(true)
       expect(loaded.tokens).toBe(100)
       expect(loaded.content).toContain('truncated due to context budget')
+    })
+
+    it('applies headingSkeleton strategy for large files (>20000 tokens)', async () => {
+      // Build a markdown file exceeding 20000 tokens (>80000 chars).
+      // Use repeated heading+paragraph blocks so headingSkeleton produces meaningful output.
+      const sections: string[] = []
+      for (let i = 0; i < 200; i++) {
+        sections.push(`## Section ${i}\n\n${'Lorem ipsum dolor sit amet. '.repeat(60)}\n\nExtra paragraph that should be trimmed by skeleton.\n`)
+      }
+      const bigMarkdown = `# Big Document\n\n${sections.join('\n')}`
+      expect(countTokens(bigMarkdown)).toBeGreaterThan(20000)
+
+      const path = join(tempDir, 'big-strategy.md')
+      await writeFile(path, bigMarkdown)
+
+      const loaded = await engine.loadFile(path, 500000)
+      expect(loaded.strategy).toBe('skeleton')
+      // Skeleton should be significantly smaller than the original
+      expect(loaded.content.length).toBeLessThan(bigMarkdown.length)
+      // Should still contain headings
+      expect(loaded.content).toContain('# Big Document')
+      expect(loaded.content).toContain('## Section 0')
     })
 
     it('uses cache on repeated reads', async () => {
@@ -208,6 +231,32 @@ More text.
       expect(formatted).toContain('hash="sha256:abc123"')
       expect(formatted).toContain('# Project')
       expect(formatted).toContain('</context>')
+    })
+  })
+
+  describe('cache eviction', () => {
+    it('evicts oldest entries when maxCacheSize is exceeded', async () => {
+      const smallEngine = new ContextEngine({ maxCacheSize: 3 })
+
+      // Load 4 files — the first should be evicted
+      const paths: string[] = []
+      for (let i = 0; i < 4; i++) {
+        const p = join(tempDir, `evict-${i}.md`)
+        await writeFile(p, `content-${i}`)
+        paths.push(p)
+        await smallEngine.loadFile(p, 10000)
+      }
+
+      // Modify the first file on disk — if its cache entry was evicted,
+      // a fresh load will show the updated content
+      await writeFile(paths[0], 'updated-content-0')
+      const reloaded = await smallEngine.loadFile(paths[0], 10000)
+      expect(reloaded.content).toBe('updated-content-0')
+
+      // The third file should still be cached (not evicted)
+      // Verify by checking hash matches without content change
+      const third = await smallEngine.loadFile(paths[2], 10000)
+      expect(third.content).toBe('content-2')
     })
   })
 

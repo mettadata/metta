@@ -45,8 +45,18 @@ function contentHash(text: string): string {
   return `sha256:${createHash('sha256').update(text).digest('hex').slice(0, 12)}`
 }
 
+export interface ContextEngineOptions {
+  /** Maximum number of entries in the file cache. Oldest entries are evicted when exceeded. Default: 100. */
+  maxCacheSize?: number
+}
+
 export class ContextEngine {
   private cache = new Map<string, { hash: string; tokens: number; content: string }>()
+  private readonly maxCacheSize: number
+
+  constructor(options?: ContextEngineOptions) {
+    this.maxCacheSize = options?.maxCacheSize ?? 100
+  }
 
   getManifest(artifactType: string): ContextManifest {
     return CONTEXT_MANIFESTS[artifactType] ?? { required: [], optional: [], budget: 20000 }
@@ -114,28 +124,37 @@ export class ContextEngine {
     const content = await readFile(filePath, 'utf-8')
     const hash = contentHash(content)
 
-    // Check cache
+    // Check cache — avoids token re-counting but not file I/O (content is always
+    // read from disk so the hash can be compared for change detection).
     const cached = this.cache.get(filePath)
     if (cached && cached.hash === hash) {
-      const tokens = Math.min(cached.tokens, budgetRemaining)
-      const truncated = cached.tokens > budgetRemaining
+      const strategy = this.selectStrategy(cached.tokens)
+      const transformed = this.applyStrategy(cached.content, strategy)
+      const transformedTokens = transformed !== cached.content ? countTokens(transformed) : cached.tokens
+      const truncated = transformedTokens > budgetRemaining
+      const tokens = Math.min(transformedTokens, budgetRemaining)
       return {
         path: filePath,
-        content: truncated ? this.truncateToTokens(cached.content, budgetRemaining) : cached.content,
+        content: truncated ? this.truncateToTokens(transformed, budgetRemaining) : transformed,
         tokens,
         hash,
         loadedAt: new Date().toISOString(),
         truncated,
-        strategy: this.selectStrategy(cached.tokens),
+        strategy,
       }
     }
 
     const tokens = countTokens(content)
     this.cache.set(filePath, { hash, tokens, content })
+    this.evictIfNeeded()
 
-    const truncated = tokens > budgetRemaining
-    const finalContent = truncated ? this.truncateToTokens(content, budgetRemaining) : content
-    const finalTokens = truncated ? budgetRemaining : tokens
+    const strategy = this.selectStrategy(tokens)
+    const transformed = this.applyStrategy(content, strategy)
+    const transformedTokens = transformed !== content ? countTokens(transformed) : tokens
+
+    const truncated = transformedTokens > budgetRemaining
+    const finalContent = truncated ? this.truncateToTokens(transformed, budgetRemaining) : transformed
+    const finalTokens = truncated ? budgetRemaining : transformedTokens
 
     return {
       path: filePath,
@@ -144,7 +163,7 @@ export class ContextEngine {
       hash,
       loadedAt: new Date().toISOString(),
       truncated,
-      strategy: this.selectStrategy(tokens),
+      strategy,
     }
   }
 
@@ -243,6 +262,31 @@ export class ContextEngine {
       default:
         return join(changePath, `${source}.md`)
     }
+  }
+
+  /** Evict oldest cache entries when maxCacheSize is exceeded. */
+  private evictIfNeeded(): void {
+    while (this.cache.size > this.maxCacheSize) {
+      // Map iteration order is insertion order — first key is oldest
+      const oldestKey = this.cache.keys().next().value as string
+      this.cache.delete(oldestKey)
+    }
+  }
+
+  /**
+   * Apply the loading strategy transformation to file content.
+   * - `full`: no transformation (tokens < 5000)
+   * - `section`: no automatic transformation — section extraction requires
+   *   caller-specified sections via extractSections() (tokens 5000–20000)
+   * - `skeleton`: reduces content to heading skeleton (tokens > 20000)
+   */
+  private applyStrategy(content: string, strategy: LoadedFile['strategy']): string {
+    if (strategy === 'skeleton') {
+      return this.headingSkeleton(content)
+    }
+    // 'full' and 'section' return content as-is.
+    // 'section' requires caller-specified sections — see extractSections().
+    return content
   }
 
   private selectStrategy(tokens: number): LoadedFile['strategy'] {

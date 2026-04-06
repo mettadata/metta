@@ -133,6 +133,34 @@ describe('SpecLockSchema', () => {
     const result = SpecLockSchema.safeParse(data)
     expect(result.success).toBe(false)
   })
+
+  it('rejects invalid reconciliation requirement status', () => {
+    const result = SpecLockSchema.safeParse({
+      version: 1, hash: 'sha256:abc', updated: '2026-04-04T12:00:00Z',
+      reconciliation: {
+        verified_at: '2026-04-04T12:00:00Z',
+        requirements: [{ id: 'r1', status: 'unknown' }],
+      },
+      requirements: [],
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects invalid status enum value', () => {
+    const result = SpecLockSchema.safeParse({
+      version: 1, hash: 'sha256:abc', updated: '2026-04-04T12:00:00Z',
+      status: 'pending', requirements: [],
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects invalid source enum value', () => {
+    const result = SpecLockSchema.safeParse({
+      version: 1, hash: 'sha256:abc', updated: '2026-04-04T12:00:00Z',
+      source: 'auto', requirements: [],
+    })
+    expect(result.success).toBe(false)
+  })
 })
 
 describe('ExecutionStateSchema', () => {
@@ -180,32 +208,168 @@ describe('ExecutionStateSchema', () => {
     const result = ExecutionStateSchema.safeParse(data)
     expect(result.success).toBe(false)
   })
+
+  it('rejects when change is omitted', () => {
+    const data = {
+      started: '2026-04-04T12:00:00Z',
+      batches: [],
+      deviations: [],
+    }
+    const result = ExecutionStateSchema.safeParse(data)
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects when started is omitted', () => {
+    const data = {
+      change: 'test',
+      batches: [],
+      deviations: [],
+    }
+    const result = ExecutionStateSchema.safeParse(data)
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects when started is an invalid datetime', () => {
+    const data = {
+      change: 'test',
+      started: 'not-a-date',
+      batches: [],
+      deviations: [],
+    }
+    const result = ExecutionStateSchema.safeParse(data)
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects when batches is omitted', () => {
+    const data = {
+      change: 'test',
+      started: '2026-04-04T12:00:00Z',
+      deviations: [],
+    }
+    const result = ExecutionStateSchema.safeParse(data)
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects when deviations is omitted', () => {
+    const data = {
+      change: 'test',
+      started: '2026-04-04T12:00:00Z',
+      batches: [],
+    }
+    const result = ExecutionStateSchema.safeParse(data)
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects invalid task status enum', () => {
+    const data = {
+      change: 'test',
+      started: '2026-04-04T12:00:00Z',
+      batches: [
+        { id: 1, status: 'complete', tasks: [{ id: '1.1', status: 'cancelled' }] },
+      ],
+      deviations: [],
+    }
+    const result = ExecutionStateSchema.safeParse(data)
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects invalid batch status enum', () => {
+    const data = {
+      change: 'test',
+      started: '2026-04-04T12:00:00Z',
+      batches: [
+        { id: 1, status: 'cancelled', tasks: [] },
+      ],
+      deviations: [],
+    }
+    const result = ExecutionStateSchema.safeParse(data)
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects batch id that is zero or negative', () => {
+    const data = {
+      change: 'test',
+      started: '2026-04-04T12:00:00Z',
+      batches: [
+        { id: 0, status: 'pending', tasks: [] },
+      ],
+      deviations: [],
+    }
+    const result = ExecutionStateSchema.safeParse(data)
+    expect(result.success).toBe(false)
+  })
 })
 
 describe('AutoStateSchema', () => {
-  it('validates auto mode state', () => {
-    const data = {
-      description: 'build payment system',
-      started: '2026-04-04T12:00:00Z',
-      max_cycles: 10,
-      current_cycle: 2,
-      cycles: [
-        {
-          id: 1,
-          phase: 'complete',
-          artifacts: ['intent', 'spec', 'design', 'tasks'],
-          batches_run: 3,
-          verification: {
-            total_scenarios: 14,
-            passing: 11,
-            failing: 3,
-            gaps: ['MFA challenge timeout'],
-          },
+  const validAutoState = {
+    description: 'build payment system',
+    started: '2026-04-04T12:00:00Z',
+    max_cycles: 10,
+    current_cycle: 2,
+    cycles: [
+      {
+        id: 1,
+        phase: 'complete',
+        artifacts: ['intent', 'spec', 'design', 'tasks'],
+        batches_run: 3,
+        verification: {
+          total_scenarios: 14,
+          passing: 11,
+          failing: 3,
+          gaps: ['MFA challenge timeout'],
         },
-      ],
-    }
-    const result = AutoStateSchema.safeParse(data)
+      },
+    ],
+  }
+
+  it('validates auto mode state', () => {
+    const result = AutoStateSchema.safeParse(validAutoState)
     expect(result.success).toBe(true)
+  })
+
+  it('rejects when description is missing', () => {
+    const { description, ...data } = validAutoState
+    const result = AutoStateSchema.safeParse(data)
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects when started is not a valid datetime', () => {
+    const result = AutoStateSchema.safeParse({ ...validAutoState, started: 'yesterday' })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects when max_cycles is zero', () => {
+    const result = AutoStateSchema.safeParse({ ...validAutoState, max_cycles: 0 })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects when max_cycles is negative', () => {
+    const result = AutoStateSchema.safeParse({ ...validAutoState, max_cycles: -1 })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects when current_cycle is zero', () => {
+    const result = AutoStateSchema.safeParse({ ...validAutoState, current_cycle: 0 })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects when a cycle batches_run is negative', () => {
+    const result = AutoStateSchema.safeParse({
+      ...validAutoState,
+      cycles: [{ id: 1, phase: 'complete', artifacts: [], batches_run: -1 }],
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects when verification.failing is negative', () => {
+    const result = AutoStateSchema.safeParse({
+      ...validAutoState,
+      cycles: [{
+        id: 1, phase: 'complete', artifacts: [], batches_run: 0,
+        verification: { total_scenarios: 5, passing: 5, failing: -1, gaps: [] },
+      }],
+    })
+    expect(result.success).toBe(false)
   })
 })
 
@@ -276,6 +440,41 @@ describe('ProjectConfigSchema', () => {
     const result = ProjectConfigSchema.safeParse(data)
     expect(result.success).toBe(false)
   })
+
+  it('rejects invalid defaults.mode enum value', () => {
+    const result = ProjectConfigSchema.safeParse({
+      defaults: { mode: 'manual' },
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects invalid git.merge_strategy enum value', () => {
+    const result = ProjectConfigSchema.safeParse({
+      git: { merge_strategy: 'rebase' },
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects invalid git.commit_convention enum value', () => {
+    const result = ProjectConfigSchema.safeParse({
+      git: { commit_convention: 'angular' },
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('accepts context_sections, adapters, and cleanup fields', () => {
+    const result = ProjectConfigSchema.safeParse({
+      context_sections: ['architecture', 'api'],
+      adapters: ['jira'],
+      cleanup: { log_retention_days: 7 },
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('applies default cleanup.log_retention_days of 30', () => {
+    const result = ProjectConfigSchema.parse({ cleanup: {} })
+    expect(result.cleanup?.log_retention_days).toBe(30)
+  })
 })
 
 describe('GateResultSchema', () => {
@@ -301,6 +500,29 @@ describe('GateResultSchema', () => {
     }
     const result = GateResultSchema.safeParse(data)
     expect(result.success).toBe(true)
+  })
+
+  it('rejects invalid status enum value', () => {
+    const result = GateResultSchema.safeParse({ gate: 'tests', status: 'success', duration_ms: 100 })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects when duration_ms is missing', () => {
+    const result = GateResultSchema.safeParse({ gate: 'tests', status: 'pass' })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects when gate is missing', () => {
+    const result = GateResultSchema.safeParse({ status: 'pass', duration_ms: 100 })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects a GateFailure with invalid severity', () => {
+    const result = GateResultSchema.safeParse({
+      gate: 'lint', status: 'fail', duration_ms: 100,
+      failures: [{ file: 'a.ts', message: 'bad', severity: 'critical' }],
+    })
+    expect(result.success).toBe(false)
   })
 })
 
@@ -333,6 +555,37 @@ describe('WorkflowDefinitionSchema', () => {
     const result = WorkflowDefinitionSchema.safeParse(data)
     expect(result.success).toBe(true)
   })
+
+  it('rejects when version is zero or negative', () => {
+    const result = WorkflowDefinitionSchema.safeParse({
+      name: 'test', version: 0, artifacts: [],
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects a WorkflowArtifact missing a required field (generates)', () => {
+    const result = WorkflowDefinitionSchema.safeParse({
+      name: 'test', version: 1,
+      artifacts: [{ id: 'a', type: 'a', template: 'a.md', requires: [], agents: [], gates: [] }],
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects unknown fields on WorkflowArtifactSchema (.strict())', () => {
+    const result = WorkflowDefinitionSchema.safeParse({
+      name: 'test', version: 1,
+      artifacts: [{ id: 'a', type: 'a', template: 'a.md', generates: 'a.md', requires: [], agents: [], gates: [], extra: true }],
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects unknown fields on WorkflowOverrideSchema (.strict())', () => {
+    const result = WorkflowDefinitionSchema.safeParse({
+      name: 'test', version: 1, artifacts: [],
+      overrides: [{ id: 'a', unknown_field: true }],
+    })
+    expect(result.success).toBe(false)
+  })
 })
 
 describe('AgentDefinitionSchema', () => {
@@ -363,6 +616,45 @@ describe('AgentDefinitionSchema', () => {
     const result = AgentDefinitionSchema.safeParse(data)
     expect(result.success).toBe(true)
   })
+
+  it('rejects when persona is missing', () => {
+    const result = AgentDefinitionSchema.safeParse({
+      name: 'test', capabilities: ['a'], tools: ['Read'], context_budget: 1000,
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects when capabilities is missing', () => {
+    const result = AgentDefinitionSchema.safeParse({
+      name: 'test', persona: 'You are a test.', tools: ['Read'], context_budget: 1000,
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects when context_budget is zero or negative', () => {
+    const result = AgentDefinitionSchema.safeParse({
+      name: 'test', persona: 'p', capabilities: ['a'], tools: ['Read'], context_budget: 0,
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects BashToolConfig with unknown fields (.strict())', () => {
+    const result = AgentDefinitionSchema.safeParse({
+      name: 'test', persona: 'p', capabilities: ['a'],
+      tools: [{ Bash: { allow_cwd: 'worktree_only', unknown: true } }],
+      context_budget: 1000,
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects BashToolConfig with invalid allow_cwd enum', () => {
+    const result = AgentDefinitionSchema.safeParse({
+      name: 'test', persona: 'p', capabilities: ['a'],
+      tools: [{ Bash: { allow_cwd: 'everywhere' } }],
+      context_budget: 1000,
+    })
+    expect(result.success).toBe(false)
+  })
 })
 
 describe('GateDefinitionSchema', () => {
@@ -376,6 +668,35 @@ describe('GateDefinitionSchema', () => {
     expect(result.timeout).toBe(120000)
     expect(result.required).toBe(true)
     expect(result.on_failure).toBe('retry_once')
+  })
+
+  it('rejects when name is missing', () => {
+    const result = GateDefinitionSchema.safeParse({ description: 'desc', command: 'npm test' })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects when description is missing', () => {
+    const result = GateDefinitionSchema.safeParse({ name: 'tests', command: 'npm test' })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects when command is missing', () => {
+    const result = GateDefinitionSchema.safeParse({ name: 'tests', description: 'desc' })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects invalid on_failure enum value', () => {
+    const result = GateDefinitionSchema.safeParse({
+      name: 'tests', description: 'desc', command: 'npm test', on_failure: 'abort',
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects when timeout is zero or negative', () => {
+    const result = GateDefinitionSchema.safeParse({
+      name: 'tests', description: 'desc', command: 'npm test', timeout: 0,
+    })
+    expect(result.success).toBe(false)
   })
 })
 
@@ -437,6 +758,11 @@ describe('StateFileSchema', () => {
 
   it('rejects state file without schema_version', () => {
     const result = StateFileSchema.safeParse({})
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects schema_version <= 0', () => {
+    const result = StateFileSchema.safeParse({ schema_version: 0 })
     expect(result.success).toBe(false)
   })
 })

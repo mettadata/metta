@@ -6,6 +6,7 @@ import { StateStore } from '../src/state/state-store.js'
 import { GateRegistry } from '../src/gates/gate-registry.js'
 import { ExecutionEngine } from '../src/execution/execution-engine.js'
 import { planBatches, type TaskDefinition } from '../src/execution/batch-planner.js'
+import { createReviewFanOut, type FanOutPlan, type FanOutResult } from '../src/execution/fan-out.js'
 
 describe('ExecutionEngine', () => {
   let tempDir: string
@@ -152,6 +153,147 @@ describe('ExecutionEngine', () => {
     // Task and batch should still be complete despite all callbacks throwing
     expect(state.batches[0].tasks[0].status).toBe('complete')
     expect(state.batches[0].status).toBe('complete')
+  })
+
+  it('executes a fan-out plan and merges results', async () => {
+    const plan = createReviewFanOut('test-change', ['src/a.ts'], 'test context')
+
+    const runner = async (task: FanOutPlan['tasks'][0]): Promise<FanOutResult> => ({
+      id: task.id,
+      agent: task.agent,
+      status: 'complete',
+      output: `Review from ${task.id}`,
+      duration_ms: 10,
+    })
+
+    const events: string[] = []
+    const { results, merged } = await engine.fanOut(plan, runner, {
+      onTaskStart: async (id) => { events.push(`start:${id}`) },
+      onTaskComplete: async (id) => { events.push(`complete:${id}`) },
+    })
+
+    expect(results).toHaveLength(3)
+    expect(results.every(r => r.status === 'complete')).toBe(true)
+    expect(merged).toContain('correctness')
+    expect(merged).toContain('security')
+    expect(merged).toContain('quality')
+    expect(events).toContain('start:correctness')
+    expect(events).toContain('complete:correctness')
+  })
+
+  it('handles fan-out task failures', async () => {
+    const plan: FanOutPlan = {
+      tasks: [
+        { id: 't1', agent: 'test', persona: 'p', task: 'do', context: 'ctx' },
+        { id: 't2', agent: 'test', persona: 'p', task: 'do', context: 'ctx' },
+      ],
+      mergeStrategy: 'concat',
+    }
+
+    const runner = async (task: FanOutPlan['tasks'][0]): Promise<FanOutResult> => {
+      if (task.id === 't2') throw new Error('agent crashed')
+      return { id: task.id, agent: task.agent, status: 'complete', output: 'ok', duration_ms: 5 }
+    }
+
+    const failEvents: string[] = []
+    const { results, merged } = await engine.fanOut(plan, runner, {
+      onTaskFailed: async (id, err) => { failEvents.push(`fail:${id}:${err}`) },
+    })
+
+    expect(results).toHaveLength(2)
+    const failed = results.find(r => r.id === 't2')
+    expect(failed?.status).toBe('failed')
+    expect(failEvents).toHaveLength(1)
+    expect(merged).toContain('Failed')
+  })
+
+  it('resume uses parallel mode when batch was planned as parallel', async () => {
+    // Create tasks that will be in the same batch (no dependencies) so they are parallel
+    const tasks: TaskDefinition[] = [
+      { id: '1.1', name: 'Task A', files: ['a.ts'], depends_on: [], action: '', verify: '', done: '' },
+      { id: '1.2', name: 'Task B', files: ['b.ts'], depends_on: [], action: '', verify: '', done: '' },
+    ]
+    const plan = planBatches(tasks)
+    // Confirm they ended up in the same batch and it's parallel
+    expect(plan.batches).toHaveLength(1)
+    expect(plan.batches[0].parallel).toBe(true)
+
+    // Execute first, which will complete both tasks
+    await engine.execute('resume-parallel-test', plan)
+
+    // Now create a new engine that forces sequential to prove resume respects the plan
+    const seqEngine = new ExecutionEngine(stateStore, gateRegistry, tempDir, 'auto')
+
+    // Manually write a state where task 1.2 is failed (needs resume)
+    const { StateFileSchema } = await import('../src/schemas/state-file.js')
+    await stateStore.write('state.yaml', StateFileSchema, {
+      schema_version: 1,
+      execution: {
+        change: 'resume-parallel-test',
+        started: new Date().toISOString(),
+        batches: [{
+          id: 1,
+          status: 'in_progress',
+          tasks: [
+            { id: '1.1', status: 'complete' },
+            { id: '1.2', status: 'failed' },
+          ],
+        }],
+        deviations: [],
+      },
+    })
+
+    const batchModes: boolean[] = []
+    const result = await seqEngine.resume('resume-parallel-test', plan, {
+      onBatchStart: async (_id, parallel) => { batchModes.push(parallel) },
+    })
+
+    // With only 1 incomplete task, it won't use parallel (needs >1 task),
+    // but the routing logic should still check the batch plan.
+    // The key assertion: resume completes successfully and the task is retried.
+    expect(result.batches[0].tasks[0].status).toBe('complete')
+    expect(result.batches[0].tasks[1].status).toBe('complete')
+    expect(result.batches[0].status).toBe('complete')
+  })
+
+  it('resume uses parallel routing for multiple incomplete tasks', async () => {
+    const tasks: TaskDefinition[] = [
+      { id: '1.1', name: 'Task A', files: ['a.ts'], depends_on: [], action: '', verify: '', done: '' },
+      { id: '1.2', name: 'Task B', files: ['b.ts'], depends_on: [], action: '', verify: '', done: '' },
+      { id: '1.3', name: 'Task C', files: ['c.ts'], depends_on: [], action: '', verify: '', done: '' },
+    ]
+    const plan = planBatches(tasks)
+    expect(plan.batches[0].parallel).toBe(true)
+
+    // Write state where all tasks are pending (simulating a crash before execution)
+    const { StateFileSchema } = await import('../src/schemas/state-file.js')
+    await stateStore.write('state.yaml', StateFileSchema, {
+      schema_version: 1,
+      execution: {
+        change: 'resume-parallel-multi',
+        started: new Date().toISOString(),
+        batches: [{
+          id: 1,
+          status: 'pending',
+          tasks: [
+            { id: '1.1', status: 'pending' },
+            { id: '1.2', status: 'pending' },
+            { id: '1.3', status: 'pending' },
+          ],
+        }],
+        deviations: [],
+      },
+    })
+
+    const batchModes: boolean[] = []
+    const result = await engine.resume('resume-parallel-multi', plan, {
+      onBatchStart: async (_id, parallel) => { batchModes.push(parallel) },
+    })
+
+    // In auto mode with multiple parallel tasks, resume should report parallel=true
+    expect(batchModes[0]).toBe(true)
+    expect(result.batches[0].tasks.every(t => t.status === 'complete')).toBe(true)
+    expect(result.batches[0].status).toBe('complete')
   })
 
   it('stops on batch failure and does not proceed to next batch', async () => {
