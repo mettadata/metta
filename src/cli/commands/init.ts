@@ -77,7 +77,6 @@ async function detectBrownfield(root: string, skipScan: boolean): Promise<{
 export function registerInitCommand(program: Command): void {
   program
     .command('install')
-    .alias('init')
     .description('Install Metta into a project')
     .option('--skip-scan', 'Force greenfield-style init')
     .option('--git-init', 'Initialize a git repo if one is not detected')

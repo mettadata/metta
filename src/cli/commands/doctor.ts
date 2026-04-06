@@ -29,7 +29,7 @@ export function registerDoctorCommand(program: Command): void {
         await stat(join(ctx.projectRoot, '.metta'))
         checks.push({ check: '.metta directory', status: 'pass' })
       } catch {
-        checks.push({ check: '.metta directory', status: 'fail', detail: 'Not found. Run metta init.' })
+        checks.push({ check: '.metta directory', status: 'fail', detail: 'Not found. Run metta install.' })
       }
 
       // spec directory
@@ -37,7 +37,7 @@ export function registerDoctorCommand(program: Command): void {
         await stat(join(ctx.projectRoot, 'spec'))
         checks.push({ check: 'spec directory', status: 'pass' })
       } catch {
-        checks.push({ check: 'spec directory', status: 'fail', detail: 'Not found. Run metta init.' })
+        checks.push({ check: 'spec directory', status: 'fail', detail: 'Not found. Run metta install.' })
       }
 
       // Constitution

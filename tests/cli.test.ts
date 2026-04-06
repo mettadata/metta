@@ -42,16 +42,16 @@ describe('CLI', { timeout: 30000 }, () => {
     })
   })
 
-  describe('metta init', () => {
+  describe('metta install', () => {
     it('returns git_missing JSON when no git repo detected', async () => {
-      const { stdout, code } = await runCli(['--json', 'init'], tempDir)
+      const { stdout, code } = await runCli(['--json', 'install'], tempDir)
       expect(code).toBe(3)
       const data = JSON.parse(stdout)
       expect(data.status).toBe('git_missing')
     })
 
     it('creates git repo with --git-init flag', async () => {
-      const { stdout, code } = await runCli(['init', '--git-init'], tempDir)
+      const { stdout, code } = await runCli(['install', '--git-init'], tempDir)
       expect(code).toBe(0)
       expect(stdout).toContain('initialized')
 
@@ -63,7 +63,7 @@ describe('CLI', { timeout: 30000 }, () => {
     })
 
     it('outputs JSON with git_initialized when --git-init is used', async () => {
-      const { stdout } = await runCli(['--json', 'init', '--git-init'], tempDir)
+      const { stdout } = await runCli(['--json', 'install', '--git-init'], tempDir)
       const data = JSON.parse(stdout)
       expect(data.status).toBe('initialized')
       expect(data.git_initialized).toBe(true)
@@ -72,7 +72,7 @@ describe('CLI', { timeout: 30000 }, () => {
 
     it('works normally when git repo already exists', async () => {
       await execAsync('git', ['init'], { cwd: tempDir })
-      const { stdout, code } = await runCli(['init'], tempDir)
+      const { stdout, code } = await runCli(['install'], tempDir)
       expect(code).toBe(0)
       expect(stdout).toContain('initialized')
     })
@@ -80,7 +80,7 @@ describe('CLI', { timeout: 30000 }, () => {
 
   describe('metta status', () => {
     it('reports no active changes', async () => {
-      await runCli(['init', '--git-init'], tempDir)
+      await runCli(['install', '--git-init'], tempDir)
       const { stdout } = await runCli(['--json', 'status'], tempDir)
       const data = JSON.parse(stdout)
       expect(data.changes).toEqual([])
@@ -89,7 +89,7 @@ describe('CLI', { timeout: 30000 }, () => {
 
   describe('metta propose', () => {
     it('creates a change with standard workflow', async () => {
-      await runCli(['init', '--git-init'], tempDir)
+      await runCli(['install', '--git-init'], tempDir)
       const { stdout, code } = await runCli(['--json', 'propose', 'add user profiles'], tempDir)
       expect(code).toBe(0)
       const data = JSON.parse(stdout)
@@ -101,7 +101,7 @@ describe('CLI', { timeout: 30000 }, () => {
 
   describe('metta quick', () => {
     it('creates a quick-mode change', async () => {
-      await runCli(['init', '--git-init'], tempDir)
+      await runCli(['install', '--git-init'], tempDir)
       const { stdout, code } = await runCli(['--json', 'quick', 'fix typo'], tempDir)
       expect(code).toBe(0)
       const data = JSON.parse(stdout)
@@ -112,7 +112,7 @@ describe('CLI', { timeout: 30000 }, () => {
 
   describe('metta status after propose', () => {
     it('shows the active change', async () => {
-      await runCli(['init', '--git-init'], tempDir)
+      await runCli(['install', '--git-init'], tempDir)
       await runCli(['propose', 'test change'], tempDir)
       const { stdout } = await runCli(['--json', 'status'], tempDir)
       const data = JSON.parse(stdout)
@@ -123,7 +123,7 @@ describe('CLI', { timeout: 30000 }, () => {
 
   describe('metta idea', () => {
     it('captures an idea', async () => {
-      await runCli(['init', '--git-init'], tempDir)
+      await runCli(['install', '--git-init'], tempDir)
       const { stdout, code } = await runCli(['--json', 'idea', 'dark mode toggle'], tempDir)
       expect(code).toBe(0)
       const data = JSON.parse(stdout)
@@ -133,7 +133,7 @@ describe('CLI', { timeout: 30000 }, () => {
 
   describe('metta issue', () => {
     it('logs an issue with severity', async () => {
-      await runCli(['init', '--git-init'], tempDir)
+      await runCli(['install', '--git-init'], tempDir)
       const { stdout, code } = await runCli(['--json', 'issue', 'login flash', '--severity', 'major'], tempDir)
       expect(code).toBe(0)
       const data = JSON.parse(stdout)
@@ -144,7 +144,7 @@ describe('CLI', { timeout: 30000 }, () => {
 
   describe('metta doctor', () => {
     it('runs health checks', async () => {
-      await runCli(['init', '--git-init'], tempDir)
+      await runCli(['install', '--git-init'], tempDir)
       const { stdout, code } = await runCli(['--json', 'doctor'], tempDir)
       expect(code).toBe(0)
       const data = JSON.parse(stdout)
@@ -154,7 +154,7 @@ describe('CLI', { timeout: 30000 }, () => {
 
   describe('metta changes list', () => {
     it('lists active changes', async () => {
-      await runCli(['init', '--git-init'], tempDir)
+      await runCli(['install', '--git-init'], tempDir)
       await runCli(['propose', 'change one'], tempDir)
       await runCli(['propose', 'change two'], tempDir)
       const { stdout } = await runCli(['--json', 'changes', 'list'], tempDir)
@@ -165,7 +165,7 @@ describe('CLI', { timeout: 30000 }, () => {
 
   describe('metta changes abandon', () => {
     it('abandons a change', async () => {
-      await runCli(['init', '--git-init'], tempDir)
+      await runCli(['install', '--git-init'], tempDir)
       await runCli(['propose', 'to abandon'], tempDir)
       const { stdout, code } = await runCli(['--json', 'changes', 'abandon', 'to-abandon'], tempDir)
       expect(code).toBe(0)
