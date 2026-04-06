@@ -1,0 +1,13 @@
+workflow: standard
+created: 2026-04-06T12:01:25.994Z
+status: active
+current_artifact: intent
+base_versions: {}
+artifacts:
+  intent: ready
+  spec: pending
+  research: pending
+  design: pending
+  tasks: pending
+  implementation: pending
+  verification: pending
