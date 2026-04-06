@@ -31,6 +31,7 @@ import { registerUpdateCommand } from './commands/update.js'
 import { registerProgressCommand } from './commands/progress.js'
 import { registerImportCommand } from './commands/import.js'
 import { registerGapsCommand } from './commands/gaps.js'
+import { registerFixGapCommand } from './commands/fix-gap.js'
 import { registerReconcileCommand } from './commands/reconcile.js'
 
 const program = new Command()
@@ -74,6 +75,7 @@ registerUpdateCommand(program)
 registerProgressCommand(program)
 registerImportCommand(program)
 registerGapsCommand(program)
+registerFixGapCommand(program)
 registerReconcileCommand(program)
 
 program.parse()
