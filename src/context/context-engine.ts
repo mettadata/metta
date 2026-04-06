@@ -74,8 +74,16 @@ export class ContextEngine {
         if (loaded.truncated) {
           truncations.push(filePath)
         }
-      } catch {
-        // Required files that don't exist yet are skipped (they may not be created yet in the workflow)
+      } catch (error: unknown) {
+        const code = (error as NodeJS.ErrnoException).code
+        if (code === 'ENOENT') {
+          // Required files that don't exist yet are skipped (they may not be created yet in the workflow)
+          continue
+        }
+        // Surface non-ENOENT I/O errors (permission denied, disk errors, etc.)
+        const msg = error instanceof Error ? error.message : String(error)
+        console.warn(`[metta] warning: failed to read required context file ${filePath}: ${msg}`)
+        truncations.push(`${filePath} (read error: ${code ?? 'unknown'})`)
       }
     }
 
