@@ -1,9 +1,9 @@
 # Execution Engine Specification
 
 **Module**: `src/execution/`
-**Version**: 1.0.0
+**Version**: 1.1.0
 **Date**: 2026-04-06
-**Status**: Draft
+**Status**: Current
 
 ---
 
@@ -12,8 +12,8 @@
 The execution engine orchestrates the lifecycle of task execution within a metta change. It coordinates four subsystems:
 
 - **BatchPlanner** — resolves task dependencies and groups tasks into ordered batches
-- **ExecutionEngine** — drives batch execution, manages state persistence, and routes tasks to parallel or sequential paths
-- **WorktreeManager** — creates and manages Git worktrees for parallel task isolation
+- **ExecutionEngine** — drives batch execution, manages state persistence, routes tasks to parallel or sequential paths, and runs multi-perspective fan-out work
+- **WorktreeManager** — creates and manages Git worktrees for parallel task isolation, with rebase-on-advance safety
 - **FanOut** — creates multi-perspective parallel work plans (review, research) and merges results
 
 All state transitions MUST be persisted to `state.yaml` via `StateStore` immediately after they occur.
@@ -31,6 +31,8 @@ All state transitions MUST be persisted to `state.yaml` via `StateStore` immedia
 | Deviation | A recorded departure from the plan spec, keyed by rule number (1–4) |
 | Fan-out | A parallel multi-agent work pattern where each agent operates on the same context from a distinct perspective |
 | Gate | A required quality check (e.g., tests, lint) run in the task's working directory after task completion |
+| `safeCallback` | An internal guard that executes a callback and silently swallows any error it throws, preventing callback failures from affecting task or batch status |
+| `HeadAdvancedError` | A typed error thrown by `WorktreeManager.merge` when HEAD has advanced past the worktree's base commit and rebase fails due to conflicts |
 
 ---
 
@@ -221,24 +223,43 @@ ExecutionTask {
 }
 ```
 
-### 4.3 Execution Lifecycle
+### 4.3 Callback Safety — `safeCallback`
+
+All callback invocations MUST go through the internal `safeCallback` helper, which:
+
+1. Returns immediately if the callback reference is `undefined`.
+2. Awaits the callback.
+3. If the callback throws, swallows the error silently.
+
+This guarantees that a throwing callback cannot affect task status, batch status, or control flow. Tests MUST be able to pass callbacks that unconditionally throw and still observe successful task and batch outcomes.
+
+**Scenario 4.3.1 — Callback errors isolated from task status**
+```
+Given a plan with one task and a passing gate
+And all callbacks (onTaskStart, onTaskComplete, onBatchStart, onBatchComplete) throw errors
+When execute is called
+Then state.batches[0].tasks[0].status is "complete"
+And state.batches[0].status is "complete"
+```
+
+### 4.4 Execution Lifecycle
 
 `execute(changeName, batchPlan, callbacks?)` MUST:
 
 1. Initialize an `ExecutionState` with all batches and tasks in `'pending'` status.
 2. Persist state to disk immediately.
 3. Process batches in order. For each batch:
-   a. Set `batch.status = 'in_progress'` and persist.
-   b. Invoke `callbacks.onBatchStart(batchId, useParallel)`.
-   c. Execute the batch using the parallel or sequential path (see §4.4).
+   a. Set `batch.status = 'in_progress'` and invoke `safeCallback(onBatchStart(batchId, useParallel))`.
+   b. Persist state.
+   c. Execute the batch using the parallel or sequential path (see §4.5).
    d. Persist state after batch execution.
-   e. Compute `batch.status`: `'complete'` if all tasks are complete, `'failed'` if any task failed.
-   f. Invoke `callbacks.onBatchComplete(batchId)`.
+   e. Compute `batch.status`: `'complete'` if all tasks are complete, `'failed'` if any task failed; `'in_progress'` otherwise.
+   f. Invoke `safeCallback(onBatchComplete(batchId))`.
    g. Persist state.
    h. If `batch.status === 'failed'`, STOP. Do not execute subsequent batches.
 4. Return the final `ExecutionState`.
 
-**Scenario 4.3.1 — Simple single-task execution**
+**Scenario 4.4.1 — Simple single-task execution**
 ```
 Given a plan with one task (1.1) and a passing gate
 When execute is called with event callbacks
@@ -248,14 +269,14 @@ And state.batches[0].status is "complete"
 And state.batches[0].tasks[0].status is "complete"
 ```
 
-**Scenario 4.3.2 — State persisted to disk**
+**Scenario 4.4.2 — State persisted to disk**
 ```
 Given a plan with one task
 When execute completes
 Then state.yaml exists in the state store directory
 ```
 
-**Scenario 4.3.3 — Multi-batch execution in order**
+**Scenario 4.4.3 — Multi-batch execution in order**
 ```
 Given tasks 1.1, 1.2 (parallel batch 1) and 2.1 (depends on 1.1, batch 2)
 When execute is called
@@ -263,7 +284,7 @@ Then onBatchStart fires for batch 1 before batch 2
 And all batches reach status "complete"
 ```
 
-**Scenario 4.3.4 — Batch failure halts execution**
+**Scenario 4.4.4 — Batch failure halts execution**
 ```
 Given tasks 1.1 and 2.1 (depends on 1.1)
 And a gate that always fails
@@ -272,7 +293,7 @@ Then batch 1 reaches status "failed"
 And batch 2 remains at status "pending"
 ```
 
-**Scenario 4.3.5 — Gate failure marks task failed**
+**Scenario 4.4.5 — Gate failure marks task failed**
 ```
 Given task 1.1 and a required gate that exits non-zero
 When execute is called
@@ -280,7 +301,7 @@ Then state.batches[0].tasks[0].status is "failed"
 And onTaskFailed is called with task ID "1.1"
 ```
 
-### 4.4 Parallel vs Sequential Mode
+### 4.5 Parallel vs Sequential Mode
 
 The engine MUST select the execution path per batch according to this table:
 
@@ -293,20 +314,27 @@ The engine MUST select the execution path per batch according to this table:
 | `'auto'` | `true` | 1 | Sequential |
 | `'auto'` | `false` | any | Sequential |
 
-**Sequential path**: Tasks run one at a time in array order. No worktrees are created.
+**Sequential path**: Tasks run one at a time in array order. No worktrees are created. Gates run in `cwd`.
 
-**Parallel path**: Worktrees are created for each task (failures silently fall back to running without a worktree). All tasks execute concurrently via `Promise.all`. After all tasks complete, successful task worktrees are merged into the main branch in array order. A merge conflict MUST mark the task as `'failed'`. All worktrees MUST be removed regardless of task outcome.
+**Parallel path**:
 
-### 4.5 Gate Execution
+1. For each task in the batch, attempt to create a Git worktree via `WorktreeManager.create`. A worktree creation failure MUST be silently ignored; the task will run without isolation.
+2. For each task that received a worktree, `safeCallback(onWorktreeCreated(taskId, worktree))` is fired and `task.worktree` is set to the worktree path.
+3. All tasks execute concurrently via `Promise.all`. Each task runs gates in its worktree directory (`wt.path`), or `cwd` if no worktree was created.
+4. After all tasks have completed or failed, successful tasks' worktrees are merged back into the main branch **in the order tasks appear in `batchDef.tasks`**. Each merge MUST complete before the next begins (sequential merge after parallel execution).
+5. A clean merge fires `safeCallback(onWorktreeMerged(taskId, changedFiles))`. A conflict or `HeadAdvancedError` MUST mark the task `'failed'` and fire `safeCallback(onTaskFailed(...))`.
+6. All worktrees MUST be removed via `WorktreeManager.remove` regardless of task or merge outcome.
 
-After each task completes (in either mode), the engine MUST run all `required: true` gates from the `GateRegistry` in the task's working directory:
+### 4.6 Gate Execution
 
-- Parallel mode: gates run in the worktree directory (`wt.path`), or `cwd` if no worktree was created.
+After each task's primary work phase, the engine MUST run all `required: true` gates from the `GateRegistry` in the task's working directory via `GateRegistry.runWithRetry`:
+
+- Parallel mode: gates run in `wt.path` if a worktree was created, otherwise `cwd`.
 - Sequential mode: gates run in `cwd`.
 
 Gate results MUST be recorded on `task.gates` as a map from gate name to status string. If any gate status is not `'pass'` or `'skip'`, the task MUST be marked `'failed'`.
 
-### 4.6 Deviation Logging
+### 4.7 Deviation Logging
 
 `logDeviation(state, deviation)` MUST append a `Deviation` to `state.deviations`. The deviation MUST conform to `DeviationSchema`:
 
@@ -317,7 +345,7 @@ Gate results MUST be recorded on `task.gates` as a map from gate name to status 
 - `action`: optional `'fixed' | 'added' | 'stopped'`
 - `reason`: optional string
 
-**Scenario 4.6.1 — Deviation recorded**
+**Scenario 4.7.1 — Deviation recorded**
 ```
 Given a completed execution state
 When logDeviation is called with rule=1 and a description
@@ -325,16 +353,47 @@ Then state.deviations has length 1
 And state.deviations[0].rule equals 1
 ```
 
-### 4.7 Resume
+### 4.8 Resume
 
 `resume(changeName, batchPlan, callbacks?)` MUST:
 
 1. Attempt to load existing state from `state.yaml`.
 2. If state does not exist, or `state.execution.change !== changeName`, fall through to a fresh `execute` call.
-3. Otherwise, iterate batches. Skip any batch with `status === 'complete'`.
-4. Within each non-complete batch, skip tasks with `status === 'complete'` or `'skipped'`.
-5. Re-run incomplete tasks sequentially (resume always uses sequential mode regardless of batch parallelism flag).
-6. Apply the same failure-halt logic as `execute`.
+3. Otherwise, iterate batches in order. Skip any batch with `status === 'complete'`.
+4. Within each non-complete batch, collect `incompleteTasks`: tasks whose status is neither `'complete'` nor `'skipped'`.
+5. If `incompleteTasks` is empty, mark the batch `'complete'`, persist state, and continue to the next batch.
+6. Otherwise, determine the parallel/sequential routing for the incomplete tasks using `shouldRunParallel(batchDef)` — the same logic as in `execute` (see §4.5). Resume does NOT force sequential mode.
+7. Routing decision:
+   - If `useParallel` is `true` AND `incompleteTasks.length > 1` AND `batchDef` is available: build a filtered `batchDef` containing only the incomplete task IDs and invoke `executeBatchParallel`.
+   - If `batchDef` is available but the parallel condition is not met: invoke `executeBatchSequential`.
+   - If `batchDef` is not available: run incomplete tasks inline sequentially (fallback path).
+8. After re-execution, recompute `batch.status` from the full original task list (not just the resumed subset), apply the failure-halt logic, and persist state.
+
+**Scenario 4.8.1 — Resume respects parallel routing for multiple incomplete tasks**
+```
+Given a batch with parallel=true and three pending tasks (1.1, 1.2, 1.3)
+And no previous execution state for the change
+When resume is called in auto mode
+Then onBatchStart is called with parallel=true
+And all three tasks reach status "complete"
+```
+
+**Scenario 4.8.2 — Resume retries a single failed task**
+```
+Given saved state where task 1.1 is complete and task 1.2 is failed
+And the batch has parallel=true (but only one incomplete task)
+When resume is called
+Then task 1.2 is retried
+And both tasks reach status "complete"
+And batch status is "complete"
+```
+
+**Scenario 4.8.3 — Resume falls through to fresh execute on missing state**
+```
+Given no existing state.yaml
+When resume is called
+Then a fresh execute is performed from scratch
+```
 
 ---
 
@@ -346,43 +405,157 @@ And state.deviations[0].rule equals 1
 
 1. Construct branch name `metta/{changeName}/task-{taskId}`.
 2. Construct worktree path `$TMPDIR/metta-worktree-{changeName}-{taskId}-{timestamp}`.
-3. Capture the current HEAD commit via `git rev-parse HEAD`.
+3. Capture the current HEAD commit via `git rev-parse HEAD` from `repoRoot`.
 4. Create the branch at HEAD via `git branch {branch} HEAD` (silently ignore if branch already exists).
-5. Create the worktree directory.
+5. Create the worktree directory via `mkdir`.
 6. Register the worktree via `git worktree add {path} {branch}`.
 7. Return `{ path, branch, baseCommit }`.
 
-### 5.2 Merge
+### 5.2 Merge — Base Commit Safety Check
 
-`merge(worktree, targetBranch?)` MUST:
+`merge(worktree, targetBranch?)` MUST perform a rebase safety check before merging to prevent silent data loss when HEAD has advanced past the worktree's creation point.
+
+The full algorithm:
 
 1. Default `targetBranch` to the current branch if not provided.
-2. Compute changed files via `git diff --name-only {baseCommit}...{branch}`.
-3. Attempt `git merge --no-ff {branch}` with commit message `chore: merge task worktree {branch}`.
-4. On success, return `{ status: 'clean', changedFiles }`.
-5. On failure, abort the merge via `git merge --abort` and return `{ status: 'conflict', changedFiles, detail }`.
+2. Resolve `currentHead` via `resolveHead()`.
+3. **If `currentHead !== worktree.baseCommit`** (HEAD has advanced):
+   - Attempt `git rebase --onto {currentHead} {worktree.baseCommit}` from the worktree directory. Running rebase from the worktree (not the main repo root) is required because git refuses to check out a branch that is already active in another worktree.
+   - If rebase succeeds, continue.
+   - If rebase fails (conflict): run `git rebase --abort` from the worktree directory (best-effort), then throw `HeadAdvancedError(worktree.baseCommit, currentHead, worktree.branch)`.
+4. Compute `mergeBase` as `currentHead` if a rebase was performed, otherwise `worktree.baseCommit`.
+5. Compute changed files via `git diff --name-only {mergeBase}...{worktree.branch}` (silently default to empty on error).
+6. Attempt `git merge --no-ff {worktree.branch}` with commit message `chore: merge task worktree {worktree.branch}`.
+7. On success, return `{ status: 'clean', changedFiles }`.
+8. On failure: abort the merge via `git merge --abort`, return `{ status: 'conflict', changedFiles, detail }`.
 
-### 5.3 Remove
+### 5.3 HeadAdvancedError
+
+`HeadAdvancedError` is a named error class exported from `worktree-manager.ts`. It MUST:
+
+- Extend `Error`
+- Set `this.name = 'HeadAdvancedError'`
+- Expose public readonly properties: `baseCommit: string`, `currentHead: string`, `branch: string`
+- Include in `message`: the text `"HEAD has advanced"`, the base commit, the current HEAD, the branch name, and the text `"Rebase failed"` to indicate why the merge was aborted
+
+The execution engine MUST catch `HeadAdvancedError` specifically during worktree merge and mark the task `'failed'` with an error message prefixed `"Base commit check failed: "`.
+
+**Scenario 5.3.1 — HeadAdvancedError contains diagnostic info**
+```
+Given a worktree created at commit A
+And HEAD advanced to commit B with a conflicting change to the same file
+When merge is called
+Then HeadAdvancedError is thrown
+And err.baseCommit equals wt.baseCommit
+And err.currentHead does not equal wt.baseCommit
+And err.branch equals wt.branch
+And err.message contains "HEAD has advanced" and "Rebase failed"
+```
+
+### 5.4 Sequential Merge After Parallel Execution
+
+When merging parallel task worktrees, the engine MUST merge them in the order tasks appear in `BatchPlan.batches[n].tasks`. Each merge MUST complete before the next begins.
+
+This means that after the first worktree is merged, HEAD advances. The second worktree's `merge` call will detect `currentHead !== worktree.baseCommit`, attempt a rebase, and proceed to a clean merge if the files do not conflict.
+
+**Scenario 5.4.1 — Sequential merge handles HEAD advancement between merges**
+```
+Given two worktrees created at the same base commit
+And each worktree commits a change to a different file
+When the first worktree is merged
+Then HEAD advances
+When the second worktree is merged
+Then the rebase succeeds (no conflict)
+And result.status is "clean"
+```
+
+**Scenario 5.4.2 — Merge conflict returns conflict status**
+```
+Given a worktree created at commit A
+And HEAD advanced to commit B with a conflicting change to the same file as the worktree
+And the rebase succeeds (i.e. the conflict is not a rebase conflict)
+When the merge is attempted
+Then result.status is "conflict"
+And the merge is aborted via git merge --abort
+```
+
+### 5.5 Remove
 
 `remove(worktree)` MUST:
 
 1. Attempt `git worktree remove {path} --force`.
-2. If that fails, fall back to `rm -rf {path}`.
+2. If that fails, fall back to `rm -rf {path}` (recursive, force).
 3. Attempt `git branch -D {branch}`. Silently ignore if the branch is already deleted.
 
-### 5.4 List
+### 5.6 List
 
 `list()` MUST parse `git worktree list --porcelain` output and return only worktrees whose branch name starts with `metta/`. On any git error, return an empty array.
 
-### 5.5 Cleanup
+### 5.7 Cleanup
 
 `cleanup()` MUST call `remove` for every worktree returned by `list` and return the count of worktrees removed.
+
+### 5.8 resolveHead
+
+`resolveHead()` is a public method that returns the current HEAD commit SHA via `git rev-parse HEAD`. It is used internally by `merge` and is exposed for test verification.
 
 ---
 
 ## 6. Fan-Out
 
-### 6.1 Review Fan-Out
+### 6.1 Overview
+
+Fan-out is a first-class operation on `ExecutionEngine`, exposed as `fanOut(plan, runner, callbacks?)`. It is separate from the batch execution path and has its own `FanOutCallbacks` interface.
+
+### 6.2 fanOut Method
+
+`fanOut(plan, runner, callbacks?)` MUST:
+
+1. Run all tasks in `plan.tasks` concurrently via `Promise.all`.
+2. For each task:
+   a. Fire `safeCallback(onTaskStart(task.id))`.
+   b. Call `await runner(task)`.
+   c. Push the result to the `results` array.
+   d. If `result.status === 'complete'`: fire `safeCallback(onTaskComplete(task.id, result))`.
+   e. If `result.status !== 'complete'`: fire `safeCallback(onTaskFailed(task.id, result.output))`.
+   f. If `runner` throws: construct a synthetic `FanOutResult` with `status: 'failed'`, `output` set to the error message, and `duration_ms: 0`; push it to results; fire `safeCallback(onTaskFailed(task.id, message))`.
+3. After all tasks settle, call `mergeFanOutResults(results, plan.mergeStrategy)`.
+4. Return `{ results, merged }`.
+
+**Scenario 6.2.1 — Fan-out runs all tasks and merges results**
+```
+Given a review fan-out plan with 3 tasks
+And a runner that returns status "complete" for each task
+When fanOut is called
+Then results has length 3
+And all results have status "complete"
+And merged contains each task ID
+```
+
+**Scenario 6.2.2 — Fan-out handles runner throws**
+```
+Given a plan with two tasks
+And runner throws for task t2
+When fanOut is called
+Then results has length 2
+And the result for t2 has status "failed"
+And onTaskFailed is called once
+And merged contains a "Failed" section
+```
+
+### 6.3 FanOutCallbacks
+
+The `FanOutCallbacks` interface defines optional async hooks for fan-out operations. It is separate from `ExecutionCallbacks`:
+
+| Callback | When fired |
+|----------|-----------|
+| `onTaskStart(taskId)` | Before `runner` is called for a task |
+| `onTaskComplete(taskId, result)` | When runner returns `status: 'complete'` |
+| `onTaskFailed(taskId, error)` | When runner returns non-complete or throws |
+
+All `FanOutCallbacks` MUST be invoked via `safeCallback`.
+
+### 6.4 Review Fan-Out
 
 `createReviewFanOut(changeName, changedFiles, context)` MUST return a `FanOutPlan` with exactly three tasks:
 
@@ -394,7 +567,7 @@ And state.deviations[0].rule equals 1
 
 The merge strategy MUST be `'structured'`.
 
-### 6.2 Research Fan-Out
+### 6.5 Research Fan-Out
 
 `createResearchFanOut(description, context, approaches)` MUST return a `FanOutPlan` with one task per entry in `approaches`. Each task MUST:
 
@@ -404,7 +577,7 @@ The merge strategy MUST be `'structured'`.
 
 The merge strategy MUST be `'structured'`.
 
-### 6.3 Merge Strategies
+### 6.6 Merge Strategies
 
 `mergeFanOutResults(results, strategy)` MUST handle three strategies:
 
@@ -416,7 +589,7 @@ The merge strategy MUST be `'structured'`.
 
 Failed results MUST be listed in a `## Failed ({n})` section prepended before successful content regardless of strategy.
 
-### 6.4 Fan-Out Skill Format
+### 6.7 Fan-Out Skill Format
 
 `formatFanOutForSkill(plan)` MUST return a plain object suitable for passing to the orchestrator skill:
 
@@ -438,21 +611,25 @@ Failed results MUST be listed in a `## Failed ({n})` section prepended before su
 
 ## 7. Callback Interface
 
-The `ExecutionCallbacks` interface defines optional async hooks called by the engine at lifecycle events:
+### 7.1 ExecutionCallbacks
+
+The `ExecutionCallbacks` interface defines optional async hooks called by the engine during batch execution:
 
 | Callback | When fired |
 |----------|-----------|
-| `onTaskStart(taskId, worktree?)` | Before task execution begins |
-| `onTaskComplete(taskId, commit?)` | After task logic completes (before gates) |
+| `onTaskStart(taskId, worktree?)` | Before task execution begins; `worktree` is provided in parallel mode |
+| `onTaskComplete(taskId, commit?)` | After task gates pass |
 | `onTaskFailed(taskId, error)` | When task reaches `'failed'` status |
-| `onBatchStart(batchId, parallel)` | Before a batch begins execution |
+| `onBatchStart(batchId, parallel)` | Before a batch begins; `parallel` reflects actual routing decision |
 | `onBatchComplete(batchId)` | After a batch finishes (pass or fail) |
 | `onDeviation(deviation)` | When a deviation is recorded |
 | `onGateResult(result)` | After each gate runs |
 | `onWorktreeCreated(taskId, worktree)` | After a worktree is successfully created |
 | `onWorktreeMerged(taskId, changedFiles)` | After a worktree is cleanly merged |
 
-All callbacks MUST be treated as optional. The engine MUST NOT throw if any callback is undefined. Callback errors MUST NOT suppress task state transitions.
+### 7.2 Callback Safety Contract
+
+All callbacks in both `ExecutionCallbacks` and `FanOutCallbacks` MUST be invoked via `safeCallback`. The engine MUST NOT throw if any callback is `undefined` or if a callback throws. Callback errors MUST NOT affect task status, batch status, or control flow.
 
 ---
 
@@ -461,8 +638,10 @@ All callbacks MUST be treated as optional. The engine MUST NOT throw if any call
 | Condition | Behavior |
 |-----------|----------|
 | Circular dependency in task graph | `planBatches` throws `Error` with message including `"Circular dependency"` and the remaining task IDs |
-| Worktree creation failure during parallel batch | Engine silently skips worktree for that task; task runs without isolation |
-| Gate failure | Task marked `'failed'`; `onTaskFailed` called; batch stops processing further tasks in sequential mode |
-| Merge conflict | Task marked `'failed'`; `onTaskFailed` called with message prefixed `"Worktree merge conflict: "` |
-| Batch failure | Engine stops and does not execute subsequent batches |
-| State read failure during resume | Engine falls back to a fresh execution |
+| Worktree creation failure during parallel batch | Engine silently skips worktree for that task; task runs without isolation in `cwd` |
+| Gate failure (non-zero exit) | Task marked `'failed'`; `safeCallback(onTaskFailed)` fired; sequential mode stops processing further tasks in the batch |
+| Merge conflict (`WorktreeMergeResult.status === 'conflict'`) | Task marked `'failed'`; `safeCallback(onTaskFailed)` fired with message prefixed `"Worktree merge conflict: "` |
+| `HeadAdvancedError` thrown by `WorktreeManager.merge` | Task marked `'failed'`; `safeCallback(onTaskFailed)` fired with message prefixed `"Base commit check failed: "` |
+| Batch failure | Engine stops and does not execute subsequent batches; remaining batches retain `'pending'` status |
+| State read failure during `resume` | Engine falls back to a fresh `execute` call |
+| Callback throws | Error silently swallowed by `safeCallback`; no impact on execution state |
