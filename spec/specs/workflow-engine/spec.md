@@ -3,7 +3,7 @@
 **Source:** `src/workflow/workflow-engine.ts`
 **Schema:** `src/schemas/workflow-definition.ts`, `src/schemas/change-metadata.ts`
 **Templates:** `src/templates/workflows/`
-**Tests:** `tests/workflow-engine.test.ts`
+**Tests:** `tests/workflow-engine.test.ts` (20 tests)
 **RFC 2119 Keywords:** MUST, MUST NOT, SHOULD, MAY
 
 ---
@@ -76,7 +76,7 @@ Valid values for per-artifact runtime status (from `ArtifactStatusSchema`):
 
 ### 3.1 Internal State
 
-The engine MUST maintain an internal `Map<string, WorkflowGraph>` cache. A workflow that has been successfully loaded MUST NOT be re-parsed from disk on subsequent calls to `loadWorkflow` with the same name.
+The engine MUST maintain an internal `Map<string, WorkflowGraph>` cache. A workflow that has been successfully loaded MUST NOT be re-parsed from disk on subsequent calls to `loadWorkflow` with the same name. The same caching guarantee applies to workflows loaded via `loadWorkflowFromDefinition`.
 
 ### 3.2 `loadWorkflow(name, searchPaths)`
 
@@ -114,16 +114,16 @@ Returns the set of artifacts that are actionable right now.
 
 The engine MUST include an artifact in the result if and only if ALL of the following are true:
 
-- The artifact's status in `statuses` is `'pending'` OR `'ready'`.
+- The artifact's effective status is `'pending'` OR `'ready'`. If the artifact ID is absent from `statuses`, its effective status MUST be treated as `'pending'` (implicit pending).
 - Every artifact ID listed in `artifact.requires` has a status of `'complete'` OR `'skipped'` in `statuses`.
 
 The engine MUST NOT include artifacts whose status is `'in_progress'`, `'complete'`, `'failed'`, or `'skipped'`.
 
 The engine MUST treat `'skipped'` as equivalent to `'complete'` for dependency resolution purposes.
 
-An artifact absent from `statuses` MUST NOT be returned (its implicit status is `'pending'` per `getStatus`, but `getNext` reads the raw map — an artifact with no entry has no status entry, so the first condition `status !== 'pending' && status !== 'ready'` returns `false` because `undefined !== 'pending'` is `true`).
+An artifact absent from `statuses` MUST be treated as `'pending'` — it is eligible to be returned by `getNext` if all of its dependencies are satisfied.
 
-> **Note:** The current implementation filters using `status !== 'pending' && status !== 'ready'` which causes an artifact with an undefined status to be excluded (since `undefined` is neither `'pending'` nor `'ready'` strictly). See gap file `gap-getnext-implicit-pending.md`.
+> **Rationale:** The implementation uses `statuses[artifact.id] ?? 'pending'` to resolve the effective status. This means a completely empty `statuses` map will return all root artifacts (those with no `requires`), enabling fresh-start workflow execution without pre-populating the status map.
 
 ### 3.5 `getStatus(graph, statuses)`
 
@@ -143,7 +143,7 @@ The engine MUST inspect every artifact's `requires` array and verify that each r
 - For each dangling reference, an error string MUST be appended: `"Artifact '<id>' depends on unknown artifact '<dep>'"`.
 - `valid` MUST be `false` when `errors.length > 0`.
 
-> **Note:** Because `topologicalSort` already throws on unknown dependencies at load time, `validate` can only report errors for graphs constructed by bypassing `loadWorkflowFromDefinition` (i.e. raw `WorkflowGraph` objects assembled outside the engine). See gap file `gap-validate-redundancy.md`.
+> **Note:** Because `topologicalSort` already throws on unknown dependencies at load time, `validate` can only surface errors for graphs constructed by bypassing the engine's load methods — for example, `WorkflowGraph` objects assembled from deserialized state files or in tests that construct the graph struct directly.
 
 ---
 
@@ -207,8 +207,8 @@ When a workflow definition includes `extends: <base-name>`, the engine MUST:
    - If no artifact with that `id` exists, **append** the new artifact.
 3. Apply each entry in `extension.overrides` (if present):
    - Locate the artifact by `id` in the merged list.
-   - If found, patch only the fields present in the override (`requires`, `agents`, `gates`).
-   - If not found, the override is silently ignored.
+   - If found, patch only the fields present in the override (`requires`, `agents`, `gates`). Fields absent from the override MUST NOT be modified.
+   - If not found, the override MUST be silently ignored.
 4. The merged definition's `name` and `version` MUST come from the extension (child), not the base.
 5. The merged definition MUST NOT carry forward `extends` or `overrides` fields (it is a flattened definition).
 
@@ -264,61 +264,75 @@ Note: `ux-spec` requires `design` but is NOT listed in `implementation`'s `requi
 
 ## 8. Scenarios (Given/When/Then)
 
-The following scenarios are derived directly from `tests/workflow-engine.test.ts`.
+The following scenarios correspond directly to the 20 tests in `tests/workflow-engine.test.ts`.
 
-### S-01: Linear pipeline sort
+### Topological Sort
+
+#### S-01: Linear pipeline sort
 
 **Given** a workflow with artifacts `[a (no deps), b (requires a), c (requires b)]`
 **When** `loadWorkflowFromDefinition` is called
 **Then** `buildOrder` MUST equal `['a', 'b', 'c']`
 
-### S-02: Parallel artifacts sorted alphabetically
+#### S-02: Parallel artifacts sorted alphabetically
 
 **Given** a workflow with `design` (no deps), and `architecture`, `tasks`, `ux-spec` all requiring `design`, and `implementation` requiring `tasks` and `architecture`
 **When** `loadWorkflowFromDefinition` is called
 **Then** `design` MUST appear first in `buildOrder`
 **And** `architecture` and `tasks` MUST appear before `implementation`
-**And** the parallel group `[architecture, tasks, ux-spec]` MUST be emitted in alphabetical order
+**And** parallel siblings MUST be emitted in alphabetical order
 
-### S-03: Cycle detection throws WorkflowCycleError
+#### S-03: Cycle detection throws WorkflowCycleError
 
 **Given** a workflow with `a` requires `c`, `b` requires `a`, `c` requires `b`
 **When** `loadWorkflowFromDefinition` is called
 **Then** a `WorkflowCycleError` MUST be thrown
 
-### S-04: Unknown dependency throws
+#### S-04: Unknown dependency throws
 
 **Given** a workflow with artifact `a` requiring `nonexistent`
 **When** `loadWorkflowFromDefinition` is called
-**Then** an error MUST be thrown
+**Then** an error MUST be thrown (dangling reference detected at sort time)
 
-### S-05: getNext returns artifact with all deps complete
+### getNext
+
+#### S-05: Returns artifact with all deps complete
 
 **Given** a workflow `intent → spec → design`
 **And** statuses `{ intent: 'complete', spec: 'pending', design: 'pending' }`
 **When** `getNext` is called
 **Then** the result MUST contain only `spec`
 
-### S-06: getNext returns multiple parallel artifacts
+#### S-06: Returns multiple parallel artifacts
 
 **Given** a workflow with `design` complete, `tasks` pending, `arch` ready, both requiring `design`
 **When** `getNext` is called
 **Then** both `tasks` and `arch` MUST be returned
 
-### S-07: getNext treats skipped as complete for deps
+#### S-07: Treats skipped as complete for dependency resolution
 
 **Given** a workflow with `a` and `b` (requires `a`)
 **And** statuses `{ a: 'skipped', b: 'pending' }`
 **When** `getNext` is called
 **Then** `b` MUST be returned
 
-### S-08: getNext returns empty when no artifact is ready
+#### S-08: Returns root artifacts from empty statuses map
+
+**Given** a workflow with `a` (no deps) and `b` (requires `a`)
+**And** an empty statuses map `{}`
+**When** `getNext` is called
+**Then** the result MUST contain only `a`
+**Rationale:** Absent artifacts default to `'pending'` via `?? 'pending'`; root artifacts have no blocked deps, so they are immediately actionable on a fresh start.
+
+#### S-09: Returns empty when nothing is ready
 
 **Given** statuses `{ a: 'in_progress', b: 'pending' }` where `b` requires `a`
 **When** `getNext` is called
-**Then** the result MUST be empty
+**Then** the result MUST be empty (b's dep is not complete/skipped; a is not pending/ready)
 
-### S-09: getStatus returns all artifacts with defaults
+### getStatus
+
+#### S-10: Returns all artifacts with explicit statuses
 
 **Given** a workflow with artifacts `a` and `b`
 **And** statuses `{ a: 'complete', b: 'in_progress' }`
@@ -326,43 +340,90 @@ The following scenarios are derived directly from `tests/workflow-engine.test.ts
 **Then** the result MUST have length 2
 **And** `a.status` MUST be `'complete'` and `b.status` MUST be `'in_progress'`
 
-### S-10: getStatus defaults to pending for absent artifacts
+#### S-11: Defaults to pending for absent artifacts
 
 **Given** a workflow with artifact `a`
 **And** an empty statuses map
 **When** `getStatus` is called
 **Then** `a.status` MUST be `'pending'`
 
-### S-11: validate returns valid for well-formed graph
+### validate
+
+#### S-12: Returns valid for well-formed graph
 
 **Given** a loaded graph where all `requires` reference existing artifact IDs
 **When** `validate` is called
 **Then** `result.valid` MUST be `true` and `result.errors` MUST be `[]`
 
-### S-12: loadWorkflow reads built-in YAML files
+#### S-13: Detects dangling references in externally-assembled graph
 
-**Given** the templates directory is in `searchPaths`
+**Given** a `WorkflowGraph` constructed directly (bypassing `loadWorkflowFromDefinition`) where artifact `b` has `requires: ['x']` and `x` is not in the artifact list
+**When** `validate` is called
+**Then** `result.valid` MUST be `false`
+**And** `result.errors` MUST contain `"Artifact 'b' depends on unknown artifact 'x'"`
+
+### Workflow Loading from YAML
+
+#### S-14: Loads built-in workflows from templates directory
+
+**Given** the templates directory (`src/templates/workflows`) is in `searchPaths`
 **When** `loadWorkflow('quick', searchPaths)` is called
-**Then** a graph with 3 artifacts MUST be returned
-**And** `graph.name` MUST be `'quick'`
+**Then** a graph with 3 artifacts MUST be returned and `graph.name` MUST be `'quick'`
 
-**Given** `loadWorkflow('standard', searchPaths)` is called
+**When** `loadWorkflow('standard', searchPaths)` is called
 **Then** a graph with 7 artifacts MUST be returned
 
-**Given** `loadWorkflow('full', searchPaths)` is called
+**When** `loadWorkflow('full', searchPaths)` is called
 **Then** a graph with 10 artifacts MUST be returned
 
-### S-13: loadWorkflow throws for nonexistent workflow
+#### S-15: Returns cached graph on repeated calls without re-reading the file
+
+**Given** a workflow has been loaded from a file
+**And** the file is then deleted from disk
+**When** `loadWorkflow` is called again with the same name
+**Then** the cached `WorkflowGraph` object MUST be returned (same reference)
+**And** no file I/O error MUST occur
+
+#### S-16: Throws for non-existent workflow
 
 **Given** a non-existent workflow name
 **When** `loadWorkflow('nonexistent', ['/tmp'])` is called
-**Then** a rejection MUST occur with an error message indicating the workflow was not found
+**Then** the returned promise MUST reject with an error
 
-### S-14: loadWorkflow caches results
+### Workflow Inheritance (extends/overrides)
 
-**Given** a workflow has been successfully loaded
-**When** `loadWorkflow` is called again with the same name
-**Then** the cached `WorkflowGraph` MUST be returned without re-reading from disk
+#### S-17: Extends a base workflow with a new artifact
+
+**Given** a base workflow with artifacts `[a, b (requires a)]`
+**And** a child workflow extending base with new artifact `[c (requires b)]`
+**When** `loadWorkflow('child', searchPaths)` is called
+**Then** `graph.name` MUST be `'child'`
+**And** `graph.artifacts` MUST contain all three artifacts `[a, b, c]`
+**And** `graph.buildOrder` MUST equal `['a', 'b', 'c']`
+
+#### S-18: Overrides an artifact requires field
+
+**Given** a base workflow with `b` requiring `a`
+**And** a child workflow with an override `{ id: 'b', requires: [] }`
+**When** `loadWorkflow('child', searchPaths)` is called
+**Then** artifact `b` in the merged graph MUST have `requires: []`
+**And** all other fields of `b` (`agents`, `gates`, etc.) MUST remain unchanged
+
+#### S-19: Overrides an artifact agents field
+
+**Given** a base workflow with artifact `a` having `agents: ['default']` and `gates: ['review']`
+**And** a child workflow with an override `{ id: 'a', agents: ['specialist', 'reviewer'] }`
+**When** `loadWorkflow('child', searchPaths)` is called
+**Then** artifact `a` MUST have `agents: ['specialist', 'reviewer']`
+**And** `a.gates` MUST remain `['review']` (unmentioned fields are not overwritten)
+
+#### S-20: Silently ignores overrides for unknown artifact IDs
+
+**Given** a base workflow with only artifact `a`
+**And** a child workflow with an override targeting `{ id: 'nonexistent', agents: ['x'] }`
+**When** `loadWorkflow('child', searchPaths)` is called
+**Then** the resulting graph MUST contain only artifact `a` with its original field values
+**And** no error MUST be thrown
 
 ---
 
@@ -372,5 +433,5 @@ The following scenarios are derived directly from `tests/workflow-engine.test.ts
 
 - Extends `Error`
 - `name`: `'WorkflowCycleError'`
-- `cyclePath: string[]`: IDs of artifacts that could not be resolved (the unordered residual set, not necessarily the minimal cycle)
+- `cyclePath: string[]`: IDs of artifacts that could not be resolved (the unordered residual set after Kahn's algorithm; not necessarily the minimal cycle)
 - Message format: `"Cycle detected in workflow: <id1> → <id2> → ..."`
