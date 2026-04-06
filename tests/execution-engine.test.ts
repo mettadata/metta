@@ -6,6 +6,7 @@ import { StateStore } from '../src/state/state-store.js'
 import { GateRegistry } from '../src/gates/gate-registry.js'
 import { ExecutionEngine } from '../src/execution/execution-engine.js'
 import { planBatches, type TaskDefinition } from '../src/execution/batch-planner.js'
+import { createReviewFanOut, type FanOutPlan, type FanOutResult } from '../src/execution/fan-out.js'
 
 describe('ExecutionEngine', () => {
   let tempDir: string
@@ -152,6 +153,58 @@ describe('ExecutionEngine', () => {
     // Task and batch should still be complete despite all callbacks throwing
     expect(state.batches[0].tasks[0].status).toBe('complete')
     expect(state.batches[0].status).toBe('complete')
+  })
+
+  it('executes a fan-out plan and merges results', async () => {
+    const plan = createReviewFanOut('test-change', ['src/a.ts'], 'test context')
+
+    const runner = async (task: FanOutPlan['tasks'][0]): Promise<FanOutResult> => ({
+      id: task.id,
+      agent: task.agent,
+      status: 'complete',
+      output: `Review from ${task.id}`,
+      duration_ms: 10,
+    })
+
+    const events: string[] = []
+    const { results, merged } = await engine.fanOut(plan, runner, {
+      onTaskStart: async (id) => { events.push(`start:${id}`) },
+      onTaskComplete: async (id) => { events.push(`complete:${id}`) },
+    })
+
+    expect(results).toHaveLength(3)
+    expect(results.every(r => r.status === 'complete')).toBe(true)
+    expect(merged).toContain('correctness')
+    expect(merged).toContain('security')
+    expect(merged).toContain('quality')
+    expect(events).toContain('start:correctness')
+    expect(events).toContain('complete:correctness')
+  })
+
+  it('handles fan-out task failures', async () => {
+    const plan: FanOutPlan = {
+      tasks: [
+        { id: 't1', agent: 'test', persona: 'p', task: 'do', context: 'ctx' },
+        { id: 't2', agent: 'test', persona: 'p', task: 'do', context: 'ctx' },
+      ],
+      mergeStrategy: 'concat',
+    }
+
+    const runner = async (task: FanOutPlan['tasks'][0]): Promise<FanOutResult> => {
+      if (task.id === 't2') throw new Error('agent crashed')
+      return { id: task.id, agent: task.agent, status: 'complete', output: 'ok', duration_ms: 5 }
+    }
+
+    const failEvents: string[] = []
+    const { results, merged } = await engine.fanOut(plan, runner, {
+      onTaskFailed: async (id, err) => { failEvents.push(`fail:${id}:${err}`) },
+    })
+
+    expect(results).toHaveLength(2)
+    const failed = results.find(r => r.id === 't2')
+    expect(failed?.status).toBe('failed')
+    expect(failEvents).toHaveLength(1)
+    expect(merged).toContain('Failed')
   })
 
   it('stops on batch failure and does not proceed to next batch', async () => {

@@ -5,6 +5,13 @@ import type { GateResult } from '../schemas/gate-result.js'
 import { GateRegistry } from '../gates/gate-registry.js'
 import { type BatchPlan, type TaskDefinition, planBatches } from './batch-planner.js'
 import { WorktreeManager, HeadAdvancedError, type Worktree } from './worktree-manager.js'
+import { type FanOutPlan, type FanOutResult, mergeFanOutResults } from './fan-out.js'
+
+export interface FanOutCallbacks {
+  onTaskStart?(taskId: string): Promise<void>
+  onTaskComplete?(taskId: string, result: FanOutResult): Promise<void>
+  onTaskFailed?(taskId: string, error: string): Promise<void>
+}
 
 export interface ExecutionCallbacks {
   onTaskStart?(taskId: string, worktree?: Worktree): Promise<void>
@@ -255,6 +262,43 @@ export class ExecutionEngine {
     }
 
     return state
+  }
+
+  async fanOut(
+    plan: FanOutPlan,
+    runner: (task: FanOutPlan['tasks'][0]) => Promise<FanOutResult>,
+    callbacks?: FanOutCallbacks,
+  ): Promise<{ results: FanOutResult[]; merged: string }> {
+    const results: FanOutResult[] = []
+
+    const promises = plan.tasks.map(async (task) => {
+      await safeCallback(() => callbacks?.onTaskStart?.(task.id) ?? Promise.resolve())
+      try {
+        const result = await runner(task)
+        results.push(result)
+        if (result.status === 'complete') {
+          await safeCallback(() => callbacks?.onTaskComplete?.(task.id, result) ?? Promise.resolve())
+        } else {
+          await safeCallback(() => callbacks?.onTaskFailed?.(task.id, result.output) ?? Promise.resolve())
+        }
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err)
+        const failedResult: FanOutResult = {
+          id: task.id,
+          agent: task.agent,
+          status: 'failed',
+          output: message,
+          duration_ms: 0,
+        }
+        results.push(failedResult)
+        await safeCallback(() => callbacks?.onTaskFailed?.(task.id, message) ?? Promise.resolve())
+      }
+    })
+
+    await Promise.all(promises)
+
+    const merged = mergeFanOutResults(results, plan.mergeStrategy)
+    return { results, merged }
   }
 
   logDeviation(state: ExecutionState, deviation: Deviation): void {
