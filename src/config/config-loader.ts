@@ -28,11 +28,20 @@ function deepMerge(target: Record<string, unknown>, source: Record<string, unkno
   return result
 }
 
-async function loadYamlFile(path: string): Promise<Record<string, unknown> | null> {
+async function loadYamlFile(filePath: string): Promise<Record<string, unknown> | null> {
+  let content: string
   try {
-    const content = await readFile(path, 'utf-8')
+    content = await readFile(filePath, 'utf-8')
+  } catch (err: unknown) {
+    if (err instanceof Error && 'code' in err && (err as NodeJS.ErrnoException).code === 'ENOENT') {
+      return null
+    }
+    throw err
+  }
+  try {
     return YAML.parse(content) as Record<string, unknown>
-  } catch {
+  } catch (err: unknown) {
+    process.stderr.write(`Warning: failed to parse YAML config at ${filePath}: ${err instanceof Error ? err.message : String(err)}\n`)
     return null
   }
 }

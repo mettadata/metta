@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mkdtemp, rm, mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -122,6 +122,24 @@ project:
     loader.clearCache()
     const config2 = await loader.load()
     expect(config2.project?.name).toBe('Updated')
+  })
+
+  it('logs warning and falls back to defaults for malformed YAML', async () => {
+    const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+    await writeFile(join(projectDir, '.metta', 'config.yaml'), `
+project:
+  name: "Valid"
+`)
+    await writeFile(join(projectDir, '.metta', 'local.yaml'), `
+  bad yaml: [unterminated
+    : broken
+`)
+    const loader = new ConfigLoader(projectDir, globalDir)
+    const config = await loader.load()
+    // The valid project config should still load; malformed local.yaml is skipped
+    expect(config.project?.name).toBe('Valid')
+    expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining('Warning: failed to parse YAML config'))
+    stderrSpy.mockRestore()
   })
 
   it('exposes path accessors', () => {
