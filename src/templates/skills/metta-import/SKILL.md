@@ -5,7 +5,7 @@ argument-hint: "<directory to import — use . for entire project>"
 allowed-tools: [Read, Write, Bash, Grep, Glob, Agent]
 ---
 
-**IMPORTANT: When using the Agent tool, use metta agent types with isolation: "worktree". Do NOT use gsd-executor or general-purpose.**
+**IMPORTANT: When using the Agent tool, use metta agent types. Do NOT use gsd-executor or general-purpose.**
 
 You are the **orchestrator** for importing existing code into metta specs.
 
@@ -13,8 +13,8 @@ You are the **orchestrator** for importing existing code into metta specs.
 
 1. `metta import "$ARGUMENTS" --json` → returns scan path, modules list, and output paths
 2. Parse the response — check `mode` (parallel or single) and `modules` list
-3. **If modules > 1**: spawn one metta-researcher per module **in parallel** (single message, each with isolation: "worktree")
-   **If single module**: spawn one metta-researcher for the whole path (with isolation: "worktree")
+3. **If modules > 1**: spawn one metta-researcher per module **in parallel** (single message)
+   **If single module**: spawn one metta-researcher for the whole path
 4. Each researcher agent must:
    - Read all source files in their scan path
    - Identify logical capabilities (route groups, store modules, component groups)

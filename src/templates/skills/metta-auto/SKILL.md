@@ -22,8 +22,8 @@ You are the **orchestrator** for the full Metta lifecycle. Spawn subagents for e
    e. Pass answers as context to all downstream subagents
 
 3. For each **planning** artifact (intent, spec, design, tasks) — one subagent per artifact:
-   `metta instructions <artifact> --json` → spawn agent with `isolation: "worktree"` → `metta complete <artifact>`
-   For **research**: spawn 2-4 metta-researcher agents in parallel (one per approach), each with `isolation: "worktree"`
+   `metta instructions <artifact> --json` → spawn agent → `metta complete <artifact>`
+   For **research**: spawn 2-4 metta-researcher agents in parallel (one per approach)
 
 4. **IMPLEMENTATION — MANDATORY PARALLEL EXECUTION:**
    **⚠️ DO NOT spawn a single metta-executor for all tasks. You MUST parse batches and spawn per-task.**
@@ -31,16 +31,16 @@ You are the **orchestrator** for the full Metta lifecycle. Spawn subagents for e
    b. Parse the batches (## Batch 1, ## Batch 2, etc.) and list tasks per batch
    c. For each batch:
       - List the **Files** field of each task
-      - Different files → **spawn one metta-executor per task in a SINGLE message** (parallel, each with `isolation: "worktree"`)
-      - Same files → spawn ONE AT A TIME (sequential, each with `isolation: "worktree"`)
+      - Different files → **spawn one metta-executor per task in a SINGLE message** (parallel)
+      - Same files → spawn ONE AT A TIME (sequential)
       - Each executor prompt: include ONLY that task's details (Files, Action, Verify, Done)
       - Wait for ALL executors in batch to complete before next batch
    d. After all batches: write summary.md and commit
    e. `metta complete implementation --json --change <name>`
-5. **Spawn 3 metta-reviewer agents in parallel** (fan-out, each with `isolation: "worktree"`):
-   - Agent 1 (subagent_type: "metta-reviewer", isolation: "worktree"): "**Correctness reviewer**"
-   - Agent 2 (subagent_type: "metta-reviewer", isolation: "worktree"): "**Security reviewer**"
-   - Agent 3 (subagent_type: "metta-reviewer", isolation: "worktree"): "**Quality reviewer**"
+5. **Spawn 3 metta-reviewer agents in parallel** (fan-out):
+   - Agent 1 (subagent_type: "metta-reviewer"): "**Correctness reviewer**"
+   - Agent 2 (subagent_type: "metta-reviewer"): "**Security reviewer**"
+   - Agent 3 (subagent_type: "metta-reviewer"): "**Quality reviewer**"
    - Merge results into `spec/changes/<change>/review.md` and commit
    - If critical issues:
    **REVIEW-FIX LOOP (repeat until clean):**

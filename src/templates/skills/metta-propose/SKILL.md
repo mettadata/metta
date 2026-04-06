@@ -33,8 +33,8 @@ You are the **orchestrator** for a new spec-driven change. You manage the workfl
    - "Session duration?" → [24h, 7 days, Never expires]
 
 3. For each **planning** artifact (intent, spec, research, design, tasks) — spawn one subagent per artifact:
-   `metta instructions <artifact> --json --change <name>` → spawn agent with `isolation: "worktree"` → `metta complete <artifact>`
-   For **research**: spawn 2-4 metta-researcher agents in parallel (one per approach), each with `isolation: "worktree"`
+   `metta instructions <artifact> --json --change <name>` → spawn agent → `metta complete <artifact>`
+   For **research**: spawn 2-4 metta-researcher agents in parallel (one per approach)
 
 4. **IMPLEMENTATION — MANDATORY PARALLEL EXECUTION:**
    **⚠️ DO NOT spawn a single metta-executor for all tasks. You MUST parse batches and spawn per-task.**
@@ -42,8 +42,8 @@ You are the **orchestrator** for a new spec-driven change. You manage the workfl
    b. Parse the batches (## Batch 1, ## Batch 2, etc.) and list tasks per batch
    c. For each batch:
       - List the **Files** field of each task in the batch
-      - If tasks touch DIFFERENT files → **spawn one metta-executor per task in a SINGLE message** (parallel, each with `isolation: "worktree"`)
-      - If tasks share files → spawn tasks ONE AT A TIME (sequential, each with `isolation: "worktree"`)
+      - If tasks touch DIFFERENT files → **spawn one metta-executor per task in a SINGLE message** (parallel)
+      - If tasks share files → spawn tasks ONE AT A TIME (sequential)
       - Each executor prompt: include the specific task details (Files, Action, Verify, Done) — NOT the entire tasks.md
       - Wait for ALL executors in the batch to complete before starting the next batch
    d. After all batches: write summary.md and commit
@@ -88,19 +88,19 @@ For each artifact, you act as the **orchestrator** — lean context, no implemen
 
 1. `metta instructions <artifact> --json --change <name>`
    → Returns: agent.persona, agent.tools, template, output_path, context
-2. **Spawn a subagent with `isolation: "worktree"`** — every subagent runs in its own git worktree:
+2. **Spawn a subagent** to do the work:
    ```
-   Agent(subagent_type: "metta-proposer", isolation: "worktree", prompt: "...", description: "...")
+   Agent(subagent_type: "metta-proposer", prompt: "...", description: "...")
    ```
    - The agent persona from the instructions response
    - The template and output_path
    - Any context from previous artifacts
    - Clear task: "Write <output_path> following this template. Fill ALL sections with real content. Then git commit."
-   - The worktree isolates the agent's work — if it fails, main branch is untouched
+
 
    **For research: fan-out parallel exploration.** Instead of one researcher:
    a. Identify 2-4 viable approaches from the spec (e.g. "WebSockets vs SSE vs polling")
-   b. **Spawn one metta-researcher per approach in a single message**, each with `isolation: "worktree"`
+   b. **Spawn one metta-researcher per approach in a single message**
    c. Each researcher evaluates their approach's pros, cons, complexity, fit with existing code
    d. Merge results into a single research.md with a recommendation, then commit
 
@@ -108,8 +108,8 @@ For each artifact, you act as the **orchestrator** — lean context, no implemen
    a. Read `spec/changes/<change>/tasks.md` yourself
    b. Parse the batches (Batch 1, Batch 2, etc.)
    c. For each batch, check file overlap between tasks
-   d. No overlap → spawn one metta-executor per task **in a single message**, each with `isolation: "worktree"` (parallel)
-   e. Overlap → spawn tasks sequentially, each still in its own worktree
+   d. No overlap → spawn one metta-executor per task **in a single message** (parallel)
+   e. Overlap → spawn tasks sequentially
    f. Wait for batch to complete before starting next batch
 3. When the subagent completes:
    `metta complete <artifact> --json --change <name>`

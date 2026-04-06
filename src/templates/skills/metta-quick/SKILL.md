@@ -19,21 +19,21 @@ You are the **orchestrator** for a quick change (intent → implementation → r
    - If there are decisions to make (e.g. which approach, what scope, what behavior) → ask 1-3 quick questions using AskUserQuestion
    - Pass answers to the proposer subagent
 
-3. **Spawn a metta-proposer agent** (subagent_type: "metta-proposer", isolation: "worktree") for the intent:
+3. **Spawn a metta-proposer agent** (subagent_type: "metta-proposer") for the intent:
    `metta instructions intent --json --change <name>` → get template + persona
    Subagent writes intent.md (Problem, Proposal, Impact, Out of Scope), commits it
 4. `metta complete intent --json --change <name>` → advances to implementation
 5. **Implementation — check if work can be parallelized:**
    - Read the intent to identify independent pieces (e.g. separate files, separate modules)
-   - If multiple independent files → **spawn one metta-executor per file group in a single message**, each with `isolation: "worktree"` (parallel)
-   - If all changes touch the same files → spawn a single metta-executor with `isolation: "worktree"` (sequential)
+   - If multiple independent files → **spawn one metta-executor per file group in a single message** (parallel)
+   - If all changes touch the same files → spawn a single metta-executor (sequential)
    - Each executor: implement its piece, run tests, commit with `feat(<change>): <description>`
    - After all executors complete, write `spec/changes/<change>/summary.md` and commit
 6. `metta complete implementation --json --change <name>` → advances to verification
-7. **Spawn 3 metta-reviewer agents in parallel** (fan-out — single message, each with `isolation: "worktree"`):
-   - Agent 1 (subagent_type: "metta-reviewer", isolation: "worktree"): "You are a **correctness reviewer**."
-   - Agent 2 (subagent_type: "metta-reviewer", isolation: "worktree"): "You are a **security reviewer**."
-   - Agent 3 (subagent_type: "metta-reviewer", isolation: "worktree"): "You are a **quality reviewer**."
+7. **Spawn 3 metta-reviewer agents in parallel** (fan-out — single message):
+   - Agent 1 (subagent_type: "metta-reviewer"): "You are a **correctness reviewer**."
+   - Agent 2 (subagent_type: "metta-reviewer"): "You are a **security reviewer**."
+   - Agent 3 (subagent_type: "metta-reviewer"): "You are a **quality reviewer**."
    - Each writes their findings. Merge results into `spec/changes/<change>/review.md` and commit.
    - **REVIEW-FIX LOOP (repeat until clean):**
      a. If critical issues found: group by file, spawn parallel metta-executors to fix

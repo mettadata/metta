@@ -29,10 +29,10 @@ For a given `<gap-slug>`:
 2. **Propose** — `metta propose "fix gap: <gap-slug> — <gap-summary>" --json` → creates change on branch `metta/<change-name>`
 
 3. **Per-Artifact Loop** — For each planning artifact (intent, spec, design, tasks), spawn one subagent per artifact:
-   `metta instructions <artifact> --json --change <name>` → spawn agent with `isolation: "worktree"` → `metta complete <artifact>`
+   `metta instructions <artifact> --json --change <name>` → spawn agent → `metta complete <artifact>`
    - Include the full gap details (from step 1) as context for every subagent
    - Discovery mode is always **batch** for fix-gap — the gap definition IS the discovery; do NOT run a separate discovery gate
-   - For **research**: spawn 2-4 metta-researcher agents in parallel (one per approach), each with `isolation: "worktree"`
+   - For **research**: spawn 2-4 metta-researcher agents in parallel (one per approach)
 
 4. **Implementation — MANDATORY PARALLEL EXECUTION:**
    **Do NOT spawn a single metta-executor for all tasks. You MUST parse batches and spawn per-task.**
@@ -40,24 +40,24 @@ For a given `<gap-slug>`:
    b. Parse the batches (## Batch 1, ## Batch 2, etc.) and list tasks per batch
    c. For each batch:
       - List the **Files** field of each task
-      - Different files → **spawn one metta-executor per task in a SINGLE message** (parallel, each with `isolation: "worktree"`)
-      - Same files → spawn ONE AT A TIME (sequential, each with `isolation: "worktree"`)
+      - Different files → **spawn one metta-executor per task in a SINGLE message** (parallel)
+      - Same files → spawn ONE AT A TIME (sequential)
       - Each executor prompt: include ONLY that task's details (Files, Action, Verify, Done)
       - Wait for ALL executors in batch to complete before next batch
    d. After all batches: write summary.md and commit
    e. `metta complete implementation --json --change <name>`
 
 5. **Review — spawn 3 metta-reviewer agents in parallel** (fan-out — single message):
-   - Agent 1 (subagent_type: "metta-reviewer", isolation: "worktree"): "**Correctness reviewer**"
-   - Agent 2 (subagent_type: "metta-reviewer", isolation: "worktree"): "**Security reviewer**"
-   - Agent 3 (subagent_type: "metta-reviewer", isolation: "worktree"): "**Quality reviewer**"
+   - Agent 1 (subagent_type: "metta-reviewer"): "**Correctness reviewer**"
+   - Agent 2 (subagent_type: "metta-reviewer"): "**Security reviewer**"
+   - Agent 3 (subagent_type: "metta-reviewer"): "**Quality reviewer**"
    - Merge results into `spec/changes/<change>/review.md` and commit
 
 6. **Review-Fix Loop (repeat until clean):**
    a. If any critical issues found:
       - Parse each issue's file path from review.md
       - Group issues by file — independent files = parallel
-      - Spawn one metta-executor per file group (parallel fixes, each with `isolation: "worktree"`)
+      - Spawn one metta-executor per file group (parallel fixes)
    b. After fixes: re-run the 3 reviewers
    c. If new issues found: repeat from (a)
    d. If all 3 reviewers report PASS or PASS_WITH_WARNINGS: exit loop
@@ -94,7 +94,7 @@ When `$ARGUMENTS` is `--all`:
 
 ## Rules
 
-- Every subagent MUST use `isolation: "worktree"` — no exceptions
+- Every subagent MUST write files to disk and git commit — no exceptions
 - Every subagent MUST write files to disk and git commit
 - Every artifact MUST be followed by `metta complete` to advance workflow
 - Discovery mode is always **batch** for fix-gap — the gap definition provides all context
