@@ -97,26 +97,17 @@ metta status --json       # machine-readable for AI tools
 ## How It Works
 
 ```
-  +-----------------------------+
-  |           propose           |--->
-  |                             |
-  |  description -> discovery   |
-  |  (ask questions until zero  |
-  |   ambiguity) -> intent +   |
-  |   spec with answers         |
-  +-------------+---------------+
-  
-  +--------+   +----------+   +--------+   +----------+   +------+
-  |  plan  |-->|  execute |-->| review |-->|  verify  |-->| ship |
-  |        |   |          |   |        |   |          |   |      |
-  |research|   | batch 1  |   | 3x     |   | 3x       |   |finalize
-  |design  |   |  gates   |   |parallel|   | parallel |   |merge |
-  |tasks   |   | batch 2  |   |review  |   | verify   |   |      |
-  |        |   |  gates   |   |        |   |          |   |      |
-  +--------+   +----------+   +---+----+   +----+-----+   +------+
-                                   |             |
-                              issues found?  gates fail?
-                              fix -> re-review  fix -> re-verify
+  +-----------+   +--------+   +----------+   +--------+   +----------+   +----------+
+  |  propose  |-->|  plan  |-->|  execute |-->| review |-->|  verify  |-->|   ship   |
+  |           |   |        |   |          |   |        |   |          |   |          |
+  | discovery |   |research|   | batch 1  |   | 3x     |   | 3x       |   | finalize |
+  | intent    |   |design  |   |  gates   |   |parallel|   | parallel |   | merge    |
+  | spec      |   |tasks   |   | batch 2  |   |review  |   | verify   |   |          |
+  |           |   |        |   |  gates   |   |        |   |          |   |          |
+  +-----------+   +--------+   +----------+   +---+----+   +----+-----+   +----------+
+                                                   |             |
+                                              issues found?  gates fail?
+                                              fix -> re-review  fix -> re-verify
 ```
 
 **Workflows are composable DAGs**, not hardcoded pipelines. Three built-in:
