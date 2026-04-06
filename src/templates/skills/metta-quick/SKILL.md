@@ -20,15 +20,24 @@ You are the **orchestrator** for a quick change (intent → implementation → v
    - Read the intent for context
    - Implement the change, run tests, commit code
    - Write `spec/changes/<change>/summary.md`, commit it
-5. `metta complete implementation --json --change <name>`
-6. `metta complete verification --json --change <name>`
-7. `metta finalize --json --change <name>` → runs gates, archives, merges specs
-8. `git checkout main && git merge metta/<change-name> --no-ff -m "chore: merge <change-name>"`
-9. Report to user what was done
+5. `metta complete implementation --json --change <name>` → advances to verification
+6. **Spawn a metta-verifier agent** (subagent_type: "metta-verifier") for verification:
+   - Run `npm test` and `npm run lint` and `npx tsc --noEmit`
+   - Read the intent.md and check each stated goal is implemented
+   - Read summary.md and confirm it matches what was built
+   - If any gate fails: report the failure, spawn a metta-executor to fix it, then re-verify
+   - Write verification results to `spec/changes/<change>/summary.md` (append or update)
+   - Commit the updated summary
+7. `metta complete verification --json --change <name>`
+8. `metta finalize --json --change <name>` → runs gates, archives, merges specs
+9. `git checkout main && git merge metta/<change-name> --no-ff -m "chore: merge <change-name>"`
+10. Report to user what was done
 
-## Critical: You MUST complete steps 7-8
+## Critical: You MUST complete ALL steps
 
-Do NOT stop after step 5 or 6. The change is not done until it is finalized and merged back to main. Every quick change must end on the main branch with a clean merge commit.
+- Do NOT skip step 6 (verification) — a metta-verifier agent MUST run and confirm gates pass
+- Do NOT stop after step 5 — the change is not done until merged to main
+- If metta finalize fails gates, spawn a metta-executor to fix issues, then retry finalize
 
 ## Subagent Rules
 

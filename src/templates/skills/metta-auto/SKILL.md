@@ -18,14 +18,21 @@ You are the **orchestrator** for the full Metta lifecycle. Spawn subagents for e
    c. Subagent writes artifact to output_path with real content, then git commits
    d. `metta complete <artifact> --json --change <name>` → returns next
 3. For implementation: spawn metta-executor agents (subagent_type: "metta-executor") per task from tasks.md
-4. Spawn a metta-verifier agent (subagent_type: "metta-verifier") to check spec compliance
-5. `metta finalize --json --change <name>` → runs gates, archives, merges specs
-6. `git checkout main && git merge metta/<change-name> --no-ff -m "chore: merge <change-name>"`
-7. Report results to user
+4. **Spawn a metta-verifier agent** (subagent_type: "metta-verifier") that:
+   - Runs `npm test`, `npm run lint`, `npx tsc --noEmit`
+   - Reads the spec and checks each Given/When/Then scenario has a passing test
+   - If any gate fails: spawn a metta-executor to fix, then re-verify
+   - Writes verification results to summary.md
+5. `metta complete verification --json --change <name>`
+6. `metta finalize --json --change <name>` → runs gates, archives, merges specs
+7. `git checkout main && git merge metta/<change-name> --no-ff -m "chore: merge <change-name>"`
+8. Report results to user
 
-## Critical: You MUST finalize and merge
+## Critical: You MUST verify, finalize, and merge
 
-Do NOT stop after verification. The change is not done until `metta finalize` succeeds and the branch is merged back to main.
+- Do NOT skip step 4 — a metta-verifier MUST run gates and confirm spec compliance
+- Do NOT stop after verification — finalize + merge must happen
+- If finalize fails gates, spawn metta-executor to fix, then retry
 
 ## Rules
 

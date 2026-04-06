@@ -13,14 +13,21 @@ You are the **orchestrator** for a new spec-driven change. You manage the workfl
 
 1. `metta propose "$ARGUMENTS" --json` → creates change on branch `metta/<change-name>`
 2. For each artifact, use the Agent Execution Pattern below
-3. When `all_complete: true`:
+3. For the **verification** artifact specifically: spawn a **metta-verifier** agent that:
+   - Runs `npm test`, `npm run lint`, `npx tsc --noEmit`
+   - Reads the spec and checks each Given/When/Then scenario has a passing test
+   - If any gate fails: spawn a metta-executor to fix, then re-verify
+   - Writes verification results to summary.md
+4. When `all_complete: true`:
    a. `metta finalize --json --change <name>` → runs gates, archives, merges specs
    b. `git checkout main && git merge metta/<change-name> --no-ff -m "chore: merge <change-name>"`
-4. Report to user what was done
+5. Report to user what was done
 
-## Critical: You MUST finalize and merge
+## Critical: You MUST verify, finalize, and merge
 
-Do NOT stop after the last artifact. The change is not done until `metta finalize` succeeds and the branch is merged back to main. Every change must end on the main branch with a clean merge commit.
+- Do NOT skip verification — a metta-verifier agent MUST run gates and confirm spec compliance
+- Do NOT stop after the last artifact — finalize + merge must happen
+- If metta finalize fails gates, spawn a metta-executor to fix, then retry
 
 ## Agent Execution Pattern
 
