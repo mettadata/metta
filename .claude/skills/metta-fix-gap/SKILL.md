@@ -80,9 +80,9 @@ For a given `<gap-slug>`:
 
 **⚠️ MUST process ALL gaps from critical → medium → low. Do NOT stop after any severity tier.**
 
-When `$ARGUMENTS` is `--all`:
+When `$ARGUMENTS` is `--all` (optionally with `--severity <level>`):
 
-1. Run `metta fix-gap --all --json` to get ALL gaps sorted by severity (critical first, then medium, then low)
+1. Run `metta fix-gap --all --json` (or `metta fix-gap --all --severity critical --json` if user specified a severity filter) to get gaps sorted by severity
 2. **Batch gaps by file overlap** — read each gap file to identify which source files it touches:
    a. For each gap, extract the file paths mentioned (Location, Files fields)
    b. Batch gaps that touch the SAME files together (they must run sequentially)
