@@ -28,6 +28,7 @@ import { registerCompleteCommand } from './commands/complete.js'
 import { registerNextCommand } from './commands/next.js'
 import { registerCompletionCommand } from './commands/completion.js'
 import { registerUpdateCommand } from './commands/update.js'
+import { registerProgressCommand } from './commands/progress.js'
 
 const program = new Command()
 
@@ -67,5 +68,6 @@ registerCompleteCommand(program)
 registerNextCommand(program)
 registerCompletionCommand(program)
 registerUpdateCommand(program)
+registerProgressCommand(program)
 
 program.parse()
