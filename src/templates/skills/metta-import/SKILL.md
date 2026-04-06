@@ -1,26 +1,48 @@
 ---
 name: metta:import
 description: Analyze existing code and generate specs with gap reports
-argument-hint: "<capability or directory to import>"
+argument-hint: "<directory to import — use . for entire project>"
 allowed-tools: [Read, Write, Bash, Grep, Glob, Agent]
 ---
 
-**IMPORTANT: When using the Agent tool, use metta agent types. Do NOT use gsd-executor or general-purpose.**
+**IMPORTANT: When using the Agent tool, use metta agent types with isolation: "worktree". Do NOT use gsd-executor or general-purpose.**
 
 You are the **orchestrator** for importing existing code into metta specs.
 
 ## Steps
 
-1. `metta import "$ARGUMENTS" --json` → returns scan paths and output paths
-2. **Spawn a metta-researcher agent** (subagent_type: "metta-researcher", isolation: "worktree") to scan the codebase:
-   - Read all files in the scan paths
-   - Extract: routes, functions, types, models, tests, existing specs
-   - Identify capability boundaries
-   - For each capability: generate a spec draft with requirements and scenarios
-3. Write spec drafts to spec/specs/<capability>/spec.md
-4. Run reconciliation — for each requirement:
-   - Check if code implements it (search for functions, routes, tests)
-   - Mark as verified/partial/missing/diverged
-5. Write gap files to spec/gaps/ for any issues found
-6. `git add spec/ && git commit -m "docs: import specs for <capability>"`
-7. Report summary to user
+1. `metta import "$ARGUMENTS" --json` → returns scan path, modules (if --by-module), and output paths
+2. Parse the response — check `mode` (whole-project or by-module) and `modules` list
+3. **For whole-project mode**: spawn a single metta-researcher agent to scan everything
+   **For by-module mode**: spawn one metta-researcher per module **in parallel** (each with isolation: "worktree")
+4. Each researcher agent must:
+   - Read all source files in their scan path
+   - Identify logical capabilities (route groups, store modules, component groups)
+   - For each capability, write `spec/specs/<capability>/spec.md`:
+     - Use RFC 2119 keywords (MUST/SHOULD/MAY)
+     - Extract Given/When/Then scenarios from existing tests
+     - Mark each requirement with status: verified (has tests), partial, or uncovered
+   - Run reconciliation — compare spec claims vs code evidence:
+     - Requirement in spec but no code → gap: claimed-not-built
+     - Code exists but no spec → gap: built-not-documented
+     - Spec says X, code does Y → gap: diverged
+     - Partially implemented → gap: partial
+   - Write gap files to `spec/gaps/<slug>.md` for each mismatch
+5. After all researchers complete, merge results and commit:
+   `git add spec/ && git commit -m "docs: import specs from <path>"`
+6. Report summary: specs generated, gaps found, test coverage
+
+## Example
+
+```
+/metta:import .
+→ metta import . --json
+→ Spawns researcher to scan entire project
+→ Generates spec/specs/todos/spec.md, spec/specs/kanban/spec.md, etc.
+→ Creates spec/gaps/kanban-drag-no-tests.md for untested behaviors
+→ Commits all specs and gaps
+
+/metta:import src/lib/stores --by-module  
+→ Spawns parallel researchers: one for todos.ts, one for kanban.ts, one for labels.ts
+→ Each generates its own spec + gaps
+```

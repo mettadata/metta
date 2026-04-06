@@ -1,54 +1,88 @@
 import { Command } from 'commander'
-import { createCliContext, outputJson } from '../helpers.js'
-import { join } from 'node:path'
+import { stat, readdir } from 'node:fs/promises'
+import { join, resolve, relative } from 'node:path'
+import { createCliContext, outputJson, color } from '../helpers.js'
 
 export function registerImportCommand(program: Command): void {
   program
     .command('import')
     .description('Import existing code into metta specs with gap reports')
-    .argument('[target]', 'Capability name or directory to import')
-    .option('--all', 'Import entire codebase')
+    .argument('[target]', 'Directory to import (use "." for entire project)')
+    .option('--all', 'Alias for "metta import ."')
+    .option('--by-module', 'Generate one spec per top-level module/directory')
     .option('--dry-run', 'Preview what would be generated without writing')
     .action(async (target, options) => {
       const json = program.opts().json
       const ctx = createCliContext()
 
       try {
-        if (!target && !options.all) {
+        // Resolve target
+        let scanPath: string
+        if (options.all || target === '.') {
+          scanPath = ctx.projectRoot
+        } else if (target) {
+          scanPath = resolve(ctx.projectRoot, target)
+        } else {
           if (json) {
-            outputJson({ error: { code: 4, type: 'missing_arg', message: 'Specify a capability, directory, or use --all' } })
+            outputJson({ error: { code: 4, type: 'missing_arg', message: 'Specify a directory or use "." for entire project. Example: metta import .' } })
           } else {
-            console.error('Usage: metta import <capability|directory> or metta import --all')
+            console.error('Usage:')
+            console.error('  metta import .              # Import entire project')
+            console.error('  metta import src/auth       # Import a specific directory')
+            console.error('  metta import . --by-module  # One spec per top-level module')
           }
           process.exit(4)
         }
 
-        const capability = options.all ? 'all' : target
-        const scanPaths = options.all
-          ? [join(ctx.projectRoot, 'src')]
-          : [join(ctx.projectRoot, 'src', target)]
-        const specOutputDir = options.all
-          ? join('spec', 'specs')
-          : join('spec', 'specs', capability)
-        const gapsOutputDir = join('spec', 'gaps')
+        // Verify path exists
+        try {
+          const s = await stat(scanPath)
+          if (!s.isDirectory()) throw new Error('Not a directory')
+        } catch {
+          const msg = `Path not found: ${scanPath}`
+          if (json) { outputJson({ error: { code: 4, type: 'path_error', message: msg } }) } else { console.error(msg) }
+          process.exit(4)
+        }
+
+        // Detect modules if --by-module
+        let modules: string[] = []
+        if (options.byModule) {
+          const entries = await readdir(scanPath, { withFileTypes: true })
+          modules = entries
+            .filter(e => e.isDirectory() && !e.name.startsWith('.') && !['node_modules', 'dist', 'build', '.svelte-kit'].includes(e.name))
+            .map(e => e.name)
+        }
+
+        const relativeScanPath = relative(ctx.projectRoot, scanPath) || '.'
 
         const result = {
-          capability,
-          scan_paths: scanPaths,
+          mode: options.byModule ? 'by-module' : 'whole-project',
+          scan_path: relativeScanPath,
+          absolute_path: scanPath,
+          modules: options.byModule ? modules : [],
           output_paths: {
-            specs: specOutputDir,
-            gaps: gapsOutputDir,
+            specs: 'spec/specs',
+            gaps: 'spec/gaps',
           },
           dry_run: !!options.dryRun,
           instructions: {
             agent_type: 'metta-researcher',
+            task: options.byModule
+              ? `Scan each module directory separately and generate one spec per module: ${modules.join(', ')}`
+              : `Scan the entire directory "${relativeScanPath}" and generate specs by detected capability boundaries`,
             steps: [
-              `Scan all files in: ${scanPaths.join(', ')}`,
-              'Extract: routes, functions, types, models, tests, existing specs',
-              'Identify capability boundaries',
-              `Generate spec drafts in ${specOutputDir}/<capability>/spec.md`,
-              'Run reconciliation against existing code',
-              `Write gap files to ${gapsOutputDir}/ for any issues found`,
+              `Read all source files in: ${relativeScanPath}`,
+              'For each logical capability/module:',
+              '  - Extract: exports, functions, types, models, routes, tests',
+              '  - Write spec draft: spec/specs/<capability>/spec.md',
+              '  - Use RFC 2119 keywords (MUST/SHOULD/MAY) and Given/When/Then scenarios',
+              '  - Check for existing tests → extract scenarios from test descriptions',
+              'Run reconciliation:',
+              '  - For each requirement: does code implement it?',
+              '  - For each behavior in code: is it documented in a spec?',
+              '  - Write gap files to spec/gaps/ for mismatches',
+              'Write spec.lock for each capability with content hashes',
+              'Git commit: git add spec/ && git commit -m "docs: import specs from <path>"',
             ],
           },
         }
@@ -56,16 +90,15 @@ export function registerImportCommand(program: Command): void {
         if (json) {
           outputJson(result)
         } else {
-          console.log(`Import: ${capability}`)
-          console.log(`Scan paths: ${scanPaths.join(', ')}`)
-          console.log(`Spec output: ${specOutputDir}`)
-          console.log(`Gaps output: ${gapsOutputDir}`)
-          if (options.dryRun) {
-            console.log('\n[dry-run] No files will be written.')
+          console.log(color('Import:', 36) + ` ${relativeScanPath}`)
+          console.log(`  Mode: ${options.byModule ? 'by-module' : 'whole-project'}`)
+          if (modules.length > 0) {
+            console.log(`  Modules: ${modules.join(', ')}`)
           }
-          console.log('\nSteps:')
-          for (const step of result.instructions.steps) {
-            console.log(`  - ${step}`)
+          console.log(`  Specs → spec/specs/`)
+          console.log(`  Gaps  → spec/gaps/`)
+          if (options.dryRun) {
+            console.log(color('\n  [dry-run] No files will be written.', 90))
           }
         }
       } catch (err) {
