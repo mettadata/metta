@@ -26,6 +26,8 @@ import { registerShipCommand } from './commands/ship.js'
 import { registerAutoCommand } from './commands/auto.js'
 import { registerCompleteCommand } from './commands/complete.js'
 import { registerNextCommand } from './commands/next.js'
+import { registerCompletionCommand } from './commands/completion.js'
+import { registerUpdateCommand } from './commands/update.js'
 
 const program = new Command()
 
@@ -63,5 +65,7 @@ registerShipCommand(program)
 registerAutoCommand(program)
 registerCompleteCommand(program)
 registerNextCommand(program)
+registerCompletionCommand(program)
+registerUpdateCommand(program)
 
 program.parse()
