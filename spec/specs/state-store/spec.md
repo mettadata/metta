@@ -27,7 +27,17 @@
 
 ---
 
-## 3. Constructor
+## 3. Exported Constants
+
+### 3.1 `STALE_LOCK_THRESHOLD_MS`
+
+- MUST be exported as a named constant with value `60_000` (60 seconds in milliseconds).
+- MUST be used by `acquireLock` to determine whether an existing lock file is stale and eligible for removal.
+- Exporting this constant allows callers and tests to reference the threshold without hardcoding the value.
+
+---
+
+## 4. Constructor
 
 ```
 new StateStore(basePath: string)
@@ -38,9 +48,9 @@ new StateStore(basePath: string)
 
 ---
 
-## 4. Methods
+## 5. Methods
 
-### 4.1 `read<T>(filePath, schema)`
+### 5.1 `read<T>(filePath, schema)`
 
 - MUST resolve `filePath` relative to `basePath`.
 - MUST read the file as UTF-8 and parse it as YAML.
@@ -49,7 +59,7 @@ new StateStore(basePath: string)
 - MUST throw `StateValidationError` if schema validation fails, including when the YAML contains extra fields rejected by a `.strict()` schema.
 - MUST propagate any filesystem error (e.g., `ENOENT`) from the underlying `readFile` call.
 
-### 4.2 `write<T>(filePath, schema, data)`
+### 5.2 `write<T>(filePath, schema, data)`
 
 - MUST validate `data` against `schema` before writing.
 - MUST throw `StateValidationError` if validation fails; no file MUST be written in that case.
@@ -57,48 +67,58 @@ new StateStore(basePath: string)
 - MUST serialize validated data as YAML (using `lineWidth: 0` to prevent wrapping) and write as UTF-8.
 - MUST overwrite any existing file at the resolved path.
 
-### 4.3 `exists(filePath)`
+### 5.3 `exists(filePath)`
 
 - MUST return `true` if a file exists at the resolved path.
 - MUST return `false` if the file does not exist; it MUST NOT throw for a missing file.
 
-### 4.4 `readRaw(filePath)`
+### 5.4 `readRaw(filePath)`
 
 - MUST read and return the file contents as a raw UTF-8 string.
 - MUST NOT perform any YAML parsing or schema validation.
 - MUST propagate filesystem errors.
 
-### 4.5 `writeRaw(filePath, content)`
+### 5.5 `writeRaw(filePath, content)`
 
 - MUST create all parent directories recursively before writing.
 - MUST write `content` as a raw UTF-8 string without YAML serialization or schema validation.
 
-### 4.6 `delete(filePath)`
+### 5.6 `delete(filePath)`
 
 - MUST delete the file at the resolved path.
 - MUST propagate any filesystem error (e.g., if the file does not exist).
 
-### 4.7 `getFullPath(filePath)`
+### 5.7 `deleteIfExists(filePath)`
+
+- MUST delete the file at the resolved path if it exists.
+- MUST NOT throw when the file is absent (ENOENT); it MUST resolve silently.
+- MUST propagate any other filesystem error (i.e., errors with a code other than `ENOENT`).
+- Callers SHOULD prefer this method over `delete` when the file may or may not be present (e.g., cleaning up lock files or optional artifacts).
+
+### 5.8 `getFullPath(filePath)`
 
 - MUST return the absolute path produced by joining `basePath` and `filePath`.
 - MUST NOT perform any I/O.
 
-### 4.8 `acquireLock(lockFile, timeout?)`
+### 5.9 `acquireLock(lockFile, timeout?)`
 
 - `timeout` defaults to `5000` ms when not provided.
 - MUST attempt to create the lock file using the exclusive `wx` flag (atomic create-if-not-exists).
 - On success, MUST write a JSON object containing `pid` (current process PID) and `acquired` (ISO-8601 timestamp) into the lock file.
+- MUST create all parent directories for `lockFile` automatically before attempting to create the lock file.
 - MUST return an async release function that deletes the lock file.
 - The release function MUST NOT throw if the lock file was already removed before release.
 - While the lock is held by another process, MUST poll every 100 ms.
-- MUST check lock file age on each poll attempt; if the lock file's mtime is more than 60,000 ms old, the lock MUST be considered stale, deleted, and acquisition retried.
+- MUST check lock file age on each poll attempt; if the lock file's mtime is older than `STALE_LOCK_THRESHOLD_MS` (60,000 ms), the lock MUST be considered stale, deleted, and acquisition retried immediately.
 - MUST throw `StateLockError` if the lock is not acquired within `timeout` milliseconds.
+
+Lock file placement convention: lock files SHOULD be placed alongside the state file they guard, using the pattern `<state-file>.lock`. For example, a lock guarding `changes/abc.yaml` should be `changes/abc.yaml.lock`.
 
 ---
 
-## 5. Behavioral Scenarios
+## 6. Behavioral Scenarios
 
-### 5.1 Write and Read Round-Trip
+### 6.1 Write and Read Round-Trip
 
 **Given** a `StateStore` with a valid base path  
 **When** `write` is called with a Zod schema and conforming data  
@@ -107,7 +127,7 @@ new StateStore(basePath: string)
 
 ---
 
-### 5.2 Nested Directory Creation
+### 6.2 Nested Directory Creation
 
 **Given** a `filePath` such as `deep/nested/test.yaml` that does not yet exist  
 **When** `write` or `writeRaw` is called  
@@ -116,7 +136,7 @@ new StateStore(basePath: string)
 
 ---
 
-### 5.3 Read Validation Failure
+### 6.3 Read Validation Failure
 
 **Given** a YAML file whose contents do not conform to the provided schema  
 **When** `read` is called  
@@ -125,7 +145,7 @@ new StateStore(basePath: string)
 
 ---
 
-### 5.4 Write Validation Failure
+### 6.4 Write Validation Failure
 
 **Given** data that does not conform to the provided schema  
 **When** `write` is called  
@@ -134,7 +154,7 @@ new StateStore(basePath: string)
 
 ---
 
-### 5.5 Strict Schema Rejection
+### 6.5 Strict Schema Rejection
 
 **Given** a YAML file containing fields not declared in a `.strict()` schema  
 **When** `read` is called with that schema  
@@ -142,7 +162,34 @@ new StateStore(basePath: string)
 
 ---
 
-### 5.6 Lock Acquire and Release
+### 6.6 Delete
+
+**Given** a file exists at the resolved path  
+**When** `delete` is called  
+**Then** the file MUST be removed from disk  
+**And** a subsequent `exists` call MUST return `false`.
+
+---
+
+### 6.7 DeleteIfExists — File Present
+
+**Given** a file exists at the resolved path  
+**When** `deleteIfExists` is called  
+**Then** the file MUST be removed from disk  
+**And** MUST NOT throw.
+
+---
+
+### 6.8 DeleteIfExists — File Absent
+
+**Given** no file exists at the resolved path  
+**When** `deleteIfExists` is called  
+**Then** it MUST resolve without error (returns `undefined`)  
+**And** MUST NOT throw.
+
+---
+
+### 6.9 Lock Acquire and Release
 
 **Given** no lock file exists  
 **When** `acquireLock` is called  
@@ -151,7 +198,7 @@ new StateStore(basePath: string)
 
 ---
 
-### 5.7 Lock Contention
+### 6.10 Lock Contention
 
 **Given** a lock is already held  
 **When** a second `acquireLock` call is made with a short timeout  
@@ -159,16 +206,16 @@ new StateStore(basePath: string)
 
 ---
 
-### 5.8 Stale Lock Removal
+### 6.11 Stale Lock Removal
 
-**Given** a lock file whose mtime is more than 60 seconds in the past  
+**Given** a lock file whose mtime is more than `STALE_LOCK_THRESHOLD_MS` milliseconds in the past  
 **When** `acquireLock` is called  
 **Then** the stale lock file MUST be deleted  
-**And** the new lock MUST be acquired.
+**And** the new lock MUST be acquired successfully.
 
 ---
 
-### 5.9 Raw Round-Trip
+### 6.12 Raw Round-Trip
 
 **Given** a raw string (e.g., markdown content)  
 **When** `writeRaw` is called followed by `readRaw`  
@@ -176,7 +223,7 @@ new StateStore(basePath: string)
 
 ---
 
-### 5.10 Exists
+### 6.13 Exists
 
 **Given** a file written via `writeRaw`  
 **When** `exists` is called  
@@ -188,7 +235,7 @@ new StateStore(basePath: string)
 
 ---
 
-## 6. Implementation Constraints
+## 7. Implementation Constraints
 
 - All paths MUST be resolved relative to `basePath` via `join(basePath, filePath)`. Callers MUST NOT pass absolute paths as `filePath`.
 - YAML serialization MUST use `lineWidth: 0` to avoid line-folding that can corrupt long string values.
@@ -197,7 +244,7 @@ new StateStore(basePath: string)
 
 ---
 
-## 7. Dependencies
+## 8. Dependencies
 
 | Dependency | Version Constraint | Purpose |
 |---|---|---|
