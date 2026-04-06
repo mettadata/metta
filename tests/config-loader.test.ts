@@ -164,6 +164,22 @@ project:
     expect(loader.specDir).toBe(join(projectDir, 'spec'))
   })
 
+  it('warns and ignores env vars that cause Zod validation errors', async () => {
+    const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+    await writeFile(join(projectDir, '.metta', 'config.yaml'), `
+project:
+  name: "Test"
+`)
+    // This env var creates an unrecognized top-level key
+    process.env.METTA_BOGUS_KEY = 'oops'
+    const loader = new ConfigLoader(projectDir, globalDir)
+    const config = await loader.load()
+    // Should still load successfully with file-only config
+    expect(config.project?.name).toBe('Test')
+    expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining('Warning: METTA_* environment variable(s) caused config validation errors'))
+    stderrSpy.mockRestore()
+  })
+
   it('defaults globalDir to ~/.metta when not provided', () => {
     const loader = new ConfigLoader(projectDir)
     expect(loader.globalPath).toBe(join(homedir(), '.metta'))

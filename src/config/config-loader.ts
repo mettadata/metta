@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
 import YAML from 'yaml'
+import { ZodError } from 'zod'
 import { ProjectConfigSchema, type ProjectConfig } from '../schemas/project-config.js'
 
 function deepMerge(target: Record<string, unknown>, source: Record<string, unknown>): Record<string, unknown> {
@@ -119,7 +120,28 @@ export class ConfigLoader {
     merged = deepMerge(merged, localConfig)
     merged = applyEnvOverrides(merged)
 
-    const result = ProjectConfigSchema.parse(merged)
+    let result: ProjectConfig
+    try {
+      result = ProjectConfigSchema.parse(merged)
+    } catch (err: unknown) {
+      if (err instanceof ZodError) {
+        // Check if the error is caused by env-var-injected keys by trying
+        // to parse the file-only merge (without env overrides).
+        const fileOnly = deepMerge(deepMerge(globalConfig, projectConfig), localConfig)
+        try {
+          ProjectConfigSchema.parse(fileOnly)
+          // File-only config is valid — the env vars caused the failure.
+          const issues = err.issues.map(i => `  - ${i.path.join('.')}: ${i.message}`).join('\n')
+          process.stderr.write(`Warning: METTA_* environment variable(s) caused config validation errors (ignored):\n${issues}\n`)
+          result = ProjectConfigSchema.parse(fileOnly)
+        } catch {
+          // File config itself is invalid — re-throw original error
+          throw err
+        }
+      } else {
+        throw err
+      }
+    }
     this.cachedConfig = result
     return result
   }
