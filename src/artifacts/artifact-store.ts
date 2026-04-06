@@ -1,4 +1,4 @@
-import { readdir, mkdir, rename, rm } from 'node:fs/promises'
+import { readdir, mkdir, rename as move } from 'node:fs/promises'
 import { join } from 'node:path'
 import { StateStore } from '../state/state-store.js'
 import {
@@ -102,7 +102,7 @@ export class ArtifactStore {
     const destPath = join(this.specDir, 'archive', archiveName)
 
     await mkdir(join(this.specDir, 'archive'), { recursive: true })
-    await rename(srcPath, destPath)
+    await move(srcPath, destPath)
 
     return archiveName
   }
@@ -117,7 +117,7 @@ export class ArtifactStore {
     await this.updateChange(name, { status: 'abandoned' })
 
     await mkdir(join(this.specDir, 'archive'), { recursive: true })
-    await rename(srcPath, destPath)
+    await move(srcPath, destPath)
 
     return archiveName
   }
