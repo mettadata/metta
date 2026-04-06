@@ -82,7 +82,7 @@ export class WorkflowEngine {
     statuses: Record<string, ArtifactStatus>,
   ): WorkflowArtifact[] {
     return graph.artifacts.filter(artifact => {
-      const status = statuses[artifact.id]
+      const status = statuses[artifact.id] ?? 'pending'
       if (status !== 'pending' && status !== 'ready') return false
 
       return artifact.requires.every(depId => {

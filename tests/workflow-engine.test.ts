@@ -123,6 +123,18 @@ describe('WorkflowEngine', () => {
       expect(next.map(a => a.id)).toEqual(['b'])
     })
 
+    it('returns root artifacts from empty statuses map', () => {
+      const engine = new WorkflowEngine()
+      const def = makeWorkflow('fresh', [
+        { id: 'a', requires: [] },
+        { id: 'b', requires: ['a'] },
+      ])
+      const graph = engine.loadWorkflowFromDefinition(def)
+
+      const next = engine.getNext(graph, {})
+      expect(next.map(a => a.id)).toEqual(['a'])
+    })
+
     it('returns empty when nothing is ready', () => {
       const engine = new WorkflowEngine()
       const def = makeWorkflow('blocked', [
