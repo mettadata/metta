@@ -111,13 +111,10 @@ export function registerFinalizeCommand(program: Command): void {
           }
         }
 
-        // Auto-commit archive + cleanup changes directory
+        // Auto-commit archive (rename already moved changes → archive)
         if (!options.dryRun && result.archiveName) {
           try {
-            const { rm } = await import('node:fs/promises')
-            // Clean up any leftover changes dir (rename should have moved it)
-            await rm(join(ctx.projectRoot, 'spec', 'changes', name), { recursive: true, force: true })
-            // Stage everything: archive (new), changes removal, spec merges
+            // Stage everything: archive (moved to), changes (moved from), spec merges
             await execAsync('git', ['add', '-A', 'spec/'], { cwd: ctx.projectRoot })
             await execAsync('git', ['diff', '--cached', '--quiet'], { cwd: ctx.projectRoot }).catch(async () => {
               await execAsync('git', ['commit', '-m', `chore(${name}): archive and finalize`], { cwd: ctx.projectRoot })
