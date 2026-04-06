@@ -98,14 +98,14 @@ metta status --json       # machine-readable for AI tools
 
 ```
   +-----------------------------+
-  |           propose           |
+  |           propose           |--->
   |                             |
   |  description -> discovery   |
   |  (ask questions until zero  |
   |   ambiguity) -> intent +   |
   |   spec with answers         |
   +-------------+---------------+
-                |
+  
   +--------+   +----------+   +--------+   +----------+   +------+
   |  plan  |-->|  execute |-->| review |-->|  verify  |-->| ship |
   |        |   |          |   |        |   |          |   |      |
