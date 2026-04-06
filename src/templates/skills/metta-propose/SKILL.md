@@ -13,10 +13,12 @@ You are the **orchestrator** for a new spec-driven change. You manage the workfl
 
 1. `metta propose "$ARGUMENTS" --json` → creates change on branch `metta/<change-name>`
 2. For each artifact, use the Agent Execution Pattern below
-3. After **implementation** completes, spawn a **metta-reviewer** (subagent_type: "metta-reviewer") that:
-   - Reviews ALL changed files for correctness, security, quality, performance
-   - Writes `spec/changes/<change>/review.md` with issues and verdict
-   - If verdict is NEEDS_CHANGES: spawn a metta-executor to fix, then re-review
+3. After **implementation** completes, **spawn 3 metta-reviewer agents in parallel** (fan-out — single message):
+   - Agent 1 (subagent_type: "metta-reviewer"): "You are a **correctness reviewer**. Check logic errors, off-by-one, edge cases, spec compliance."
+   - Agent 2 (subagent_type: "metta-reviewer"): "You are a **security reviewer**. Check OWASP top 10, XSS, injection, secrets."
+   - Agent 3 (subagent_type: "metta-reviewer"): "You are a **quality reviewer**. Check dead code, naming, duplication, test gaps."
+   - Merge results into `spec/changes/<change>/review.md` and commit.
+   - If any critical issues: spawn metta-executor to fix, then re-review
 4. For **verification**: spawn a **metta-verifier** (subagent_type: "metta-verifier") that:
    - Runs `npm test`, `npm run lint`, `npx tsc --noEmit`
    - Reads the spec and checks each Given/When/Then scenario has a passing test

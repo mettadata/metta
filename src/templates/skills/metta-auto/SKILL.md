@@ -18,10 +18,12 @@ You are the **orchestrator** for the full Metta lifecycle. Spawn subagents for e
    c. Subagent writes artifact to output_path with real content, then git commits
    d. `metta complete <artifact> --json --change <name>` → returns next
 3. For implementation: spawn metta-executor agents (subagent_type: "metta-executor") per task from tasks.md
-4. **Spawn a metta-reviewer agent** (subagent_type: "metta-reviewer") that:
-   - Reviews ALL changed files for correctness, security, quality, performance
-   - Writes `spec/changes/<change>/review.md` with issues and verdict
-   - If verdict is NEEDS_CHANGES: spawn a metta-executor to fix, then re-review
+4. **Spawn 3 metta-reviewer agents in parallel** (fan-out — single message):
+   - Agent 1 (subagent_type: "metta-reviewer"): "**Correctness reviewer** — logic errors, edge cases, spec compliance"
+   - Agent 2 (subagent_type: "metta-reviewer"): "**Security reviewer** — OWASP top 10, XSS, injection, secrets"
+   - Agent 3 (subagent_type: "metta-reviewer"): "**Quality reviewer** — dead code, naming, duplication, test gaps"
+   - Merge results into `spec/changes/<change>/review.md` and commit
+   - If critical issues: spawn metta-executor to fix, then re-review
 5. **Spawn a metta-verifier agent** (subagent_type: "metta-verifier") that:
    - Runs `npm test`, `npm run lint`, `npx tsc --noEmit`
    - Reads the spec and checks each Given/When/Then scenario has a passing test

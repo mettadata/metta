@@ -21,10 +21,12 @@ You are the **orchestrator** for a quick change (intent → implementation → r
    - Implement the change, run tests, commit code
    - Write `spec/changes/<change>/summary.md`, commit it
 5. `metta complete implementation --json --change <name>` → advances to verification
-6. **Spawn a metta-reviewer agent** (subagent_type: "metta-reviewer") for code review:
-   - Review ALL changed files for correctness, security, quality, performance
-   - Write `spec/changes/<change>/review.md` with issues and verdict
-   - If verdict is NEEDS_CHANGES: spawn a metta-executor to fix the issues, then re-review
+6. **Spawn 3 metta-reviewer agents in parallel** (fan-out review — send all 3 in a single message):
+   - Agent 1 (subagent_type: "metta-reviewer"): "You are a **correctness reviewer**. Check logic errors, off-by-one bugs, unhandled edge cases, spec compliance."
+   - Agent 2 (subagent_type: "metta-reviewer"): "You are a **security reviewer**. Check OWASP top 10, XSS, injection, unvalidated input, secrets in code."
+   - Agent 3 (subagent_type: "metta-reviewer"): "You are a **quality reviewer**. Check dead code, unused imports, naming, duplication, test coverage gaps."
+   - Each writes their findings. Merge results into `spec/changes/<change>/review.md` and commit.
+   - If any reviewer finds critical issues: spawn a metta-executor to fix, then re-review
 7. **Spawn a metta-verifier agent** (subagent_type: "metta-verifier") for verification:
    - Run `npm test` and `npm run lint` and `npx tsc --noEmit`
    - Read the intent.md and check each stated goal is implemented
