@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mkdtemp, rm, mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { tmpdir } from 'node:os'
+import { tmpdir, homedir } from 'node:os'
 import { ConfigLoader } from '../src/config/config-loader.js'
 
 describe('ConfigLoader', () => {
@@ -162,5 +162,10 @@ project:
     expect(loader.globalPath).toBe(globalDir)
     expect(loader.mettaDir).toBe(join(projectDir, '.metta'))
     expect(loader.specDir).toBe(join(projectDir, 'spec'))
+  })
+
+  it('defaults globalDir to ~/.metta when not provided', () => {
+    const loader = new ConfigLoader(projectDir)
+    expect(loader.globalPath).toBe(join(homedir(), '.metta'))
   })
 })
