@@ -31,8 +31,9 @@ export function registerFixGapCommand(program: Command): void {
     .command('fix-gap [gap-name]')
     .description('Fix one or more reconciliation gaps')
     .option('--all', 'Fix all gaps, sorted by severity')
+    .option('--severity <level>', 'Filter by severity: critical, medium, low')
     .option('--remove-gap <slug>', 'Remove a resolved gap')
-    .action(async (gapName: string | undefined, options: { all?: boolean; removeGap?: string }) => {
+    .action(async (gapName: string | undefined, options: { all?: boolean; severity?: string; removeGap?: string }) => {
       const json = program.opts().json
       const ctx = createCliContext()
 
@@ -134,10 +135,27 @@ export function registerFixGapCommand(program: Command): void {
 
           const sorted = sortBySeverity(enriched)
 
+          // Filter by severity if --severity provided
+          const filtered = options.severity
+            ? sorted.filter(g => g.severity === options.severity)
+            : sorted
+
+          if (filtered.length === 0 && options.severity) {
+            if (json) {
+              outputJson({ gaps: [], severity_filter: options.severity })
+            } else {
+              console.log(`No gaps with severity '${options.severity}' found.`)
+            }
+            return
+          }
+
           if (json) {
-            outputJson({ gaps: sorted })
+            outputJson({ gaps: filtered, severity_filter: options.severity ?? null })
           } else {
-            for (const g of sorted) {
+            if (options.severity) {
+              console.log(`Showing ${options.severity} gaps only:\n`)
+            }
+            for (const g of filtered) {
               console.log(`  [${g.severity.toUpperCase().padEnd(8)}] [${g.status}] ${g.slug.padEnd(30)} ${g.title}`)
             }
           }
