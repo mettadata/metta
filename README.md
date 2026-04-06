@@ -37,9 +37,10 @@ metta install
 This scaffolds the metta directory structure, detects your environment, and installs slash commands for your AI tools. It creates:
 
 - `.metta/config.yaml` — project configuration
-- `spec/` — directory structure for specs, changes, ideas, issues
+- `spec/` — specs, active changes, and completed archive
 - `spec/project.md` — project constitution template
-- `.claude/skills/` — slash commands for Claude Code (more tools coming)
+- `.claude/skills/` — 11 slash commands for Claude Code
+- `.claude/agents/` — 8 metta agent definitions (proposer, researcher, architect, planner, executor, reviewer, verifier, discovery)
 
 ### 3. Start Your AI Coding Agent and Run Discovery
 
@@ -166,47 +167,54 @@ spec/                    # Working artifacts (committed, shared)
 
 ## Key Features
 
-- **8 built-in agents** — discovery, proposer, researcher, architect, planner, executor, reviewer, verifier
-- **Pluggable quality gates** — tests, lint, typecheck, build, spec-compliance, or custom
-- **Git safety** — all work in worktree branches, 7-step merge safety pipeline, automatic rollback
+- **8 built-in agents** — discovery, proposer, researcher, architect, planner, executor, reviewer, verifier — each with colored banners and personas
+- **Parallel fan-out** — research (2-4 approaches), review (correctness/security/quality), verification (tests/lint/spec) run concurrently
+- **Pluggable quality gates** — tests, lint, typecheck, build run automatically during finalize
+- **Git safety** — branch per change, worktree isolation for subagents, auto-commit, atomic archive
+- **Discovery gate** — orchestrator asks structured questions before any code is written
 - **Context budgeting** — token-aware context loading per phase and agent
-- **Spec evolution** — delta operations (ADDED/MODIFIED/REMOVED) with conflict detection
-- **Multi-tool delivery** — adapters for Claude Code, Cursor, Copilot, and more
-- **MCP server** — tiered tool loading (core/standard/extended)
-- **Plugin system** — 5 extension points: workflows, agents, providers, gates, hooks
+- **Spec evolution** — delta operations (ADDED/MODIFIED/REMOVED) with requirement-level conflict detection
+- **Self-healing pipeline** — reviewer finds issues → executor fixes → re-review, all automatic
 
 ## CLI Reference
 
 ```bash
 # Lifecycle
-metta install                     # Scaffold project and install skills
-metta propose <description>      # Start a change (standard)
-metta quick <description>        # Start a change (quick)
+metta install                     # Scaffold project, install skills + agents
+metta propose <description>      # Start a change (standard workflow)
+metta quick <description>        # Start a change (quick workflow)
 metta auto <description>         # Full lifecycle loop
 metta plan                       # Build planning artifacts
 metta execute                    # Run implementation
 metta verify                     # Check against spec
-metta finalize                   # Archive and merge specs
-metta ship                       # Merge to main
+metta finalize                   # Run gates, archive, merge specs
+metta ship                       # Merge branch to main
 
-# Status & Context
+# Workflow State
 metta status                     # Current change status
+metta progress                   # Project-level dashboard
+metta next                       # What to do next
+metta complete <artifact>        # Mark artifact done, advance workflow
 metta instructions <artifact>    # AI instructions for an artifact
-metta context                    # Show loaded context
-metta specs                      # List specifications
+
+# Specs
+metta specs list                 # List capabilities
+metta specs show <cap>           # Show a spec
+metta specs diff <cap>           # Pending changes
 
 # Organization
 metta idea <description>         # Capture an idea
 metta issue <description>        # Log an issue
-metta changes                    # List all changes
-metta backlog                    # Manage backlog
+metta changes list               # List active changes
+metta backlog list               # List backlog items
 
 # System
 metta doctor                     # Diagnose environment
-metta config                     # View/update configuration
-metta gate <name>                # Run a quality gate
+metta config get <key>           # Read configuration
+metta gate run <name>            # Run a quality gate
+metta context stats              # Context budget usage
 metta update                     # Update metta
-metta completion                 # Shell completion setup
+metta completion <shell>         # Shell completion (bash/zsh/fish)
 ```
 
 ## Development
@@ -227,40 +235,43 @@ Metta is in active development (v0.1.0). The core engine is functional — you c
 
 ### Built
 
-- **CLI with 27 commands** — full lifecycle from `metta install` through `metta ship`
+- **CLI with 30 commands** — full lifecycle from `metta install` through `metta ship`, plus `progress`, `next`, `complete`
+- **11 slash commands** — `/metta:init`, `:propose`, `:plan`, `:execute`, `:verify`, `:ship`, `:quick`, `:auto`, `:status`, `:next`, `:progress`
+- **8 agent definitions** — metta-discovery, metta-proposer, metta-researcher, metta-architect, metta-planner, metta-executor, metta-reviewer, metta-verifier — each with colored banners
 - **Workflow engine** — composable DAG with topological sort, three built-in workflows (quick/standard/full), custom workflow support
 - **Context engine** — token-aware budgeting, per-phase loading strategies (full/section/skeleton), caching with staleness detection
-- **Execution engine** — batch planning, parallel task fan-out, git worktree isolation
+- **Execution engine** — batch planning with file overlap detection, parallel task fan-out, git worktree isolation
+- **Fan-out patterns** — parallel research (2-4 approaches), parallel review (correctness/security/quality), parallel verification (tests/lint/spec)
 - **State store** — Zod-validated YAML persistence on every read/write
-- **Artifact store** — change lifecycle tracking, artifact status management
+- **Artifact store** — change lifecycle tracking, short slugs (stop words stripped, 30 char max), checklist task format
 - **Spec parser** — remark-based markdown parsing with requirement extraction and content hashing
 - **Spec merger** — delta operations (ADDED/MODIFIED/REMOVED) with requirement-level conflict detection
-- **Quality gates** — YAML-defined gates (tests, lint, typecheck, build) with shell execution and timeouts
-- **Anthropic provider** — Claude API integration with text/object/stream generation
-- **Claude Code delivery** — skill installation, agent prompts, CLAUDE.md generation
-- **Discovery gate** — spec completeness validation (scenarios, edge cases, integration points)
+- **Quality gates** — YAML-defined gates (tests, lint, typecheck, build) run during finalize, results persisted to archive
+- **Discovery gate** — mandatory orchestrator-driven questioning via AskUserQuestion before spec writing
+- **Git safety** — branch per change, auto-commit on complete/finalize, archive with atomic move
+- **Colored CLI output** — traffic light colors per workflow phase, agent-specific banners with icons
+- **Anthropic provider** — Claude API integration with text/object/stream generation and retry policy
+- **Claude Code delivery** — skill + agent installation, CLAUDE.md generation with section markers
 - **Shell completion** — bash, zsh, fish
-- **Template engine** — jinja2-style rendering for artifacts, agents, skills
-- **Ideas, issues, backlog stores** — YAML-based capture and tracking
+- **Template engine** — placeholder rendering for artifacts, agents, skills
+- **Ideas, issues, backlog stores** — on-demand directory creation, markdown-based capture
 
 ### Partial
 
-- **Auto mode** — command registered but the unattended loop (plan/execute/verify cycle, stall detection, gap re-planning) is a skeleton
-- **Merge safety pipeline** — 7-step structure in place but gate verification and post-merge gates are stubs
 - **Plugin system** — Zod schema for manifests defined, but no plugin loader or installation commands
-- **Provider system** — interface and registry work, but only Anthropic implemented; no fallback chains, cost tracking, or role-based routing
-- **Multi-tool delivery** — adapter interface is generic but only Claude Code adapter exists (no Cursor, Copilot, etc.)
-- **Discovery flow** — validates spec completeness but doesn't drive the interactive adaptive questioning described in the design
+- **Provider system** — interface and registry work, but only Anthropic implemented; no fallback chains or role-based routing
+- **Multi-tool delivery** — adapter interface is generic but only Claude Code adapter exists
+- **Merge safety pipeline** — 7-step structure in place, basic verification works, post-merge gate re-run is a stub
 
 ### Not Yet Built
 
 - **MCP server** — tiered tool loading for native AI tool integration
 - **Brownfield import** (`metta import`) — analyze existing code, generate specs, produce gap reports
-- **Doc generation** (`metta docs generate`) — architecture, API, changelog, getting-started from specs and archives
+- **Doc generation** (`metta docs generate`) — architecture, API, changelog from specs and archives
 - **Roadmap commands** (`metta roadmap`) — milestone planning, feature ordering, activation
 - **Schema migrations** — automatic state migration between framework versions
-- **Orchestrator mode** — framework-driven AI execution (vs. current instruction mode where external tools execute)
-- **Team features** — change ownership, concurrent change locking, multi-user workflows
+- **Orchestrator mode** — framework-driven AI execution (vs. current instruction mode)
+- **Team features** — change ownership, concurrent change locking
 - **Additional tool adapters** — Cursor, Copilot, Codex, Gemini, Windsurf, OpenCode
 
 See [docs/proposed/](docs/proposed/) for the full design specifications.
