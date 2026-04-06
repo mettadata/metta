@@ -4,15 +4,15 @@ description: Initialize Metta in a project with interactive discovery
 allowed-tools: [Read, Write, Bash, Grep, Glob, Agent]
 ---
 
+**IMPORTANT: When using the Agent tool, use these metta agent types: metta-proposer, metta-researcher, metta-architect, metta-planner, metta-executor, metta-reviewer, metta-verifier, metta-discovery. Do NOT use gsd-executor or general-purpose.**
+
 You are the **orchestrator** for Metta project initialization.
 
 ## Steps
 
-1. `metta install --json` → scaffolds directories, installs skills, returns discovery instructions
+1. `metta init --json` → scaffolds directories, installs skills, returns discovery instructions
 2. Parse the `discovery` object from the JSON response
-**IMPORTANT: When using the Agent tool, use these metta agent types: metta-proposer (intent/spec), metta-researcher (research), metta-architect (design), metta-planner (tasks), metta-executor (implementation), metta-verifier (verification), metta-discovery (init). Do NOT use gsd-executor or general-purpose.**
-
-3. **Spawn a metta-discovery agent** (Agent tool, subagent_type: "metta-discovery") with:
+3. **Spawn a metta-discovery agent** (subagent_type: "metta-discovery") with:
    - The agent persona from `discovery.agent.persona`
    - The mode (`discovery.mode`: brownfield or greenfield)
    - The detected stack/dirs from `discovery.detected` (brownfield only)
@@ -30,4 +30,5 @@ project:
   stack: "<comma-separated stack>"
 ```
 Do NOT write flat keys like `name:`, `description:`, `stack:` at the root level.
+
 4. Report to user what was generated
