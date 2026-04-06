@@ -138,4 +138,14 @@ export class GapsStore {
   async exists(slug: string): Promise<boolean> {
     return this.state.exists(join('gaps', `${slug}.md`))
   }
+
+  async archive(slug: string): Promise<string> {
+    const content = await this.state.readRaw(join('gaps', `${slug}.md`))
+    const date = new Date().toISOString().slice(0, 10)
+    const archiveName = `${date}-${slug}-gap-resolved.md`
+    const archivePath = join('archive', archiveName)
+    await mkdir(join(this.specDir, 'archive'), { recursive: true })
+    await this.state.writeRaw(archivePath, content)
+    return archivePath
+  }
 }
