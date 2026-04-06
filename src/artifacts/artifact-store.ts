@@ -89,7 +89,15 @@ export class ArtifactStore {
     const changesDir = join(this.specDir, 'changes')
     try {
       const entries = await readdir(changesDir, { withFileTypes: true })
-      return entries.filter(e => e.isDirectory()).map(e => e.name)
+      const dirs = entries.filter(e => e.isDirectory()).map(e => e.name)
+      // Only return directories that have a .metta.yaml (active changes)
+      const active: string[] = []
+      for (const dir of dirs) {
+        if (await this.state.exists(join('changes', dir, '.metta.yaml'))) {
+          active.push(dir)
+        }
+      }
+      return active
     } catch {
       return []
     }
