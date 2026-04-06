@@ -11,6 +11,7 @@ const BUILTIN_AGENTS: Record<string, AgentDefinition> = {
   planner: { name: 'planner', persona: 'You are a task planner focused on decomposition and dependency ordering.', capabilities: ['tasks', 'decomposition'], tools: ['Read', 'Grep', 'Glob'], context_budget: 40000 },
   executor: { name: 'executor', persona: 'You are an implementation engineer. Write clean, tested code.', capabilities: ['implementation', 'code'], tools: ['Read', 'Write', 'Edit', 'Bash', 'Grep', 'Glob'], context_budget: 10000 },
   verifier: { name: 'verifier', persona: 'You are a verification engineer focused on spec compliance.', capabilities: ['verification', 'testing'], tools: ['Read', 'Bash', 'Grep', 'Glob'], context_budget: 50000 },
+  reviewer: { name: 'reviewer', persona: 'You are a senior code reviewer focused on quality, security, and correctness.', capabilities: ['code-review', 'quality'], tools: ['Read', 'Write', 'Bash', 'Grep', 'Glob'], context_budget: 60000 },
 }
 
 export function registerInstructionsCommand(program: Command): void {
@@ -59,7 +60,7 @@ export function registerInstructionsCommand(program: Command): void {
         const agentTypeMap: Record<string, string> = {
           proposer: 'metta-proposer', specifier: 'metta-proposer',
           researcher: 'metta-researcher', architect: 'metta-architect',
-          planner: 'metta-planner', executor: 'metta-executor', verifier: 'metta-verifier',
+          planner: 'metta-planner', executor: 'metta-executor', reviewer: 'metta-reviewer', verifier: 'metta-verifier',
         }
         const mettaAgent = agentTypeMap[agentName] ?? 'metta-executor'
 

@@ -5,7 +5,7 @@ argument-hint: "<description of what you want to build>"
 allowed-tools: [Read, Write, Grep, Glob, Bash, Agent]
 ---
 
-**IMPORTANT: When using the Agent tool, use these metta agent types: metta-proposer (intent/spec), metta-researcher (research), metta-architect (design), metta-planner (tasks), metta-executor (implementation), metta-verifier (verification), metta-discovery (init). Do NOT use gsd-executor or general-purpose.**
+**IMPORTANT: When using the Agent tool, use these metta agent types: metta-proposer, metta-researcher, metta-architect, metta-planner, metta-executor, metta-reviewer, metta-verifier, metta-discovery. Do NOT use gsd-executor or general-purpose.**
 
 You are the **orchestrator** for a new spec-driven change. You manage the workflow; subagents do the work.
 
@@ -13,12 +13,16 @@ You are the **orchestrator** for a new spec-driven change. You manage the workfl
 
 1. `metta propose "$ARGUMENTS" --json` → creates change on branch `metta/<change-name>`
 2. For each artifact, use the Agent Execution Pattern below
-3. For the **verification** artifact specifically: spawn a **metta-verifier** agent that:
+3. After **implementation** completes, spawn a **metta-reviewer** (subagent_type: "metta-reviewer") that:
+   - Reviews ALL changed files for correctness, security, quality, performance
+   - Writes `spec/changes/<change>/review.md` with issues and verdict
+   - If verdict is NEEDS_CHANGES: spawn a metta-executor to fix, then re-review
+4. For **verification**: spawn a **metta-verifier** (subagent_type: "metta-verifier") that:
    - Runs `npm test`, `npm run lint`, `npx tsc --noEmit`
    - Reads the spec and checks each Given/When/Then scenario has a passing test
    - If any gate fails: spawn a metta-executor to fix, then re-verify
    - Writes verification results to summary.md
-4. When `all_complete: true`:
+5. When `all_complete: true`:
    a. `metta finalize --json --change <name>` → runs gates, archives, merges specs
    b. `git checkout main && git merge metta/<change-name> --no-ff -m "chore: merge <change-name>"`
 5. Report to user what was done

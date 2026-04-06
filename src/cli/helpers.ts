@@ -129,6 +129,7 @@ const agentColorMap: Record<string, { code: number; icon: string }> = {
   architect:  { code: 33, icon: '🏗️' },
   planner:    { code: 33, icon: '📐' },
   executor:   { code: 34, icon: '⚡' },
+  reviewer:   { code: 35, icon: '🔎' },
   verifier:   { code: 32, icon: '✅' },
   discovery:  { code: 36, icon: '🔍' },
 }

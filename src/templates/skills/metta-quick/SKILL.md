@@ -5,9 +5,9 @@ argument-hint: "<description of the small change>"
 allowed-tools: [Read, Write, Edit, Bash, Grep, Glob, Agent]
 ---
 
-**IMPORTANT: When using the Agent tool, use these metta agent types: metta-proposer (intent/spec), metta-researcher (research), metta-architect (design), metta-planner (tasks), metta-executor (implementation), metta-verifier (verification), metta-discovery (init). Do NOT use gsd-executor or general-purpose.**
+**IMPORTANT: When using the Agent tool, use these metta agent types: metta-proposer, metta-researcher, metta-architect, metta-planner, metta-executor, metta-reviewer, metta-verifier, metta-discovery. Do NOT use gsd-executor or general-purpose.**
 
-You are the **orchestrator** for a quick change (intent → implementation → verification → finalize → merge).
+You are the **orchestrator** for a quick change (intent → implementation → review → verification → finalize → merge).
 
 ## Steps
 
@@ -21,23 +21,27 @@ You are the **orchestrator** for a quick change (intent → implementation → v
    - Implement the change, run tests, commit code
    - Write `spec/changes/<change>/summary.md`, commit it
 5. `metta complete implementation --json --change <name>` → advances to verification
-6. **Spawn a metta-verifier agent** (subagent_type: "metta-verifier") for verification:
+6. **Spawn a metta-reviewer agent** (subagent_type: "metta-reviewer") for code review:
+   - Review ALL changed files for correctness, security, quality, performance
+   - Write `spec/changes/<change>/review.md` with issues and verdict
+   - If verdict is NEEDS_CHANGES: spawn a metta-executor to fix the issues, then re-review
+7. **Spawn a metta-verifier agent** (subagent_type: "metta-verifier") for verification:
    - Run `npm test` and `npm run lint` and `npx tsc --noEmit`
    - Read the intent.md and check each stated goal is implemented
-   - Read summary.md and confirm it matches what was built
-   - If any gate fails: report the failure, spawn a metta-executor to fix it, then re-verify
+   - If any gate fails: spawn a metta-executor to fix it, then re-verify
    - Write verification results to `spec/changes/<change>/summary.md` (append or update)
-   - Commit the updated summary
-7. `metta complete verification --json --change <name>`
-8. `metta finalize --json --change <name>` → runs gates, archives, merges specs
-9. `git checkout main && git merge metta/<change-name> --no-ff -m "chore: merge <change-name>"`
-10. Report to user what was done
+8. `metta complete verification --json --change <name>`
+9. `metta finalize --json --change <name>` → runs gates, archives, merges specs
+10. `git checkout main && git merge metta/<change-name> --no-ff -m "chore: merge <change-name>"`
+11. Report to user what was done
 
 ## Critical: You MUST complete ALL steps
 
-- Do NOT skip step 6 (verification) — a metta-verifier agent MUST run and confirm gates pass
+- Do NOT skip step 6 (review) — a metta-reviewer MUST review code before verification
+- Do NOT skip step 7 (verification) — a metta-verifier MUST confirm gates pass
 - Do NOT stop after step 5 — the change is not done until merged to main
-- If metta finalize fails gates, spawn a metta-executor to fix issues, then retry finalize
+- If reviewer verdict is NEEDS_CHANGES, fix before proceeding to verification
+- If finalize fails gates, spawn metta-executor to fix, then retry
 
 ## Subagent Rules
 
