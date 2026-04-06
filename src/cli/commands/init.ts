@@ -111,15 +111,11 @@ export function registerInitCommand(program: Command): void {
           }
         }
 
-        // Create directories
+        // Create directories (only essential ones — others created on demand)
         await mkdir(join(root, '.metta'), { recursive: true })
         await mkdir(join(root, 'spec', 'specs'), { recursive: true })
         await mkdir(join(root, 'spec', 'changes'), { recursive: true })
         await mkdir(join(root, 'spec', 'archive'), { recursive: true })
-        await mkdir(join(root, 'spec', 'ideas'), { recursive: true })
-        await mkdir(join(root, 'spec', 'issues'), { recursive: true })
-        await mkdir(join(root, 'spec', 'backlog'), { recursive: true })
-        await mkdir(join(root, 'spec', 'gaps'), { recursive: true })
 
         // Detect brownfield
         const { isBrownfield, detectedStack, detectedDirs } = await detectBrownfield(root, options.skipScan)
