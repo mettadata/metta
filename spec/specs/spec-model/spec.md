@@ -55,7 +55,9 @@ A spec-level hash MUST be computed by `hashSpec` as `sha256:<12-hex-chars>` of a
 
 ## Requirement: Delta Spec Parsing
 
-The system MUST parse a delta Markdown document (title ending with `(Delta)`) into a `ParsedDeltaSpec` containing an ordered list of `ParsedDelta` objects, each pairing a `DeltaOperation` (`ADDED`, `MODIFIED`, `REMOVED`, or `RENAMED`) with a `ParsedRequirement`.
+The system MUST parse a delta Markdown document (title ending with `(Delta)`) into a `ParsedDeltaSpec` containing an ordered list of `ParsedDelta` objects, each pairing a `DeltaOperation` with a `ParsedRequirement`.
+
+`DeltaOperation` MUST be one of `ADDED`, `MODIFIED`, `REMOVED`, or `RENAMED`.
 
 Delta headings MUST follow the pattern `<OPERATION>: Requirement: <Name>` at level 2.
 
@@ -68,6 +70,12 @@ Scenario headings within a delta requirement MAY be prefixed with `ADDED Scenari
 - AND `result.deltas[0].operation` equals "ADDED"
 - AND `result.deltas[1].operation` equals "MODIFIED"
 - AND `result.deltas[2].operation` equals "REMOVED"
+
+### Scenario: RENAMED operation parsed
+- GIVEN a delta document with a `RENAMED: Requirement: User Authentication` heading
+- WHEN `parseDeltaSpec` is called
+- THEN the delta operation equals "RENAMED"
+- AND the requirement name equals "User Authentication"
 
 ### Scenario: ADDED scenario prefix stripped
 - GIVEN a requirement in a delta document with heading "### ADDED Scenario: Login with expired TOTP"
@@ -82,9 +90,13 @@ The lock MUST contain:
 - `version`: monotonically incrementing integer starting at 1
 - `hash`: the spec-level hash from `hashSpec`
 - `updated`: ISO 8601 datetime of the write
+- `status`: lifecycle status of the lock; MUST default to `"draft"` when created via `createFromParsed` or `update`
+- `source`: origin of the lock (`"scan"`, `"manual"`, or `"change"`); MUST default to `"change"` when created via `update`
 - `requirements`: array of `{ id, hash, scenarios[] }` derived from the parsed spec
 
-`update` MUST read the existing lock version and increment it, or start at version 1 when no lock exists.
+`createFromParsed` MUST accept optional `version` and `source` parameters, defaulting to version `1` and source `"change"`.
+
+`update` MUST read the existing lock version and increment it, or start at version 1 when no lock exists. The source written by `update` MUST always be `"change"`.
 
 `getBaseVersion` MUST return the current `hash` string from the lock, or `null` when no lock exists.
 
@@ -96,6 +108,17 @@ Scenario slugs stored in the lock MUST be lower-cased with non-alphanumeric runs
 - THEN the lock `hash` equals `hashSpec(spec)`
 - AND `lock.requirements` has length 2
 - AND each entry carries the requirement's `id` and `hash`
+
+### Scenario: Lock defaults to draft status and change source
+- GIVEN a parsed spec
+- WHEN `update` is called
+- THEN the written lock has `status` equal to "draft"
+- AND `source` equal to "change"
+
+### Scenario: Custom source via createFromParsed
+- GIVEN a parsed spec
+- WHEN `createFromParsed` is called with source "scan"
+- THEN the returned lock has `source` equal to "scan"
 
 ### Scenario: Version incremented on update
 - GIVEN a lock already exists at version 1
