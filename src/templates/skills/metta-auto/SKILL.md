@@ -21,24 +21,22 @@ You are the **orchestrator** for the full Metta lifecycle. Spawn subagents for e
    d. Wait for answers before proceeding
    e. Pass answers as context to all downstream subagents
 
-3. For each artifact in order:
-   a. `metta instructions <artifact> --json --change <name>` → get template + persona
-   b. **Spawn a subagent with `isolation: "worktree"`** — right metta agent type (intent/spec→metta-proposer, design→metta-architect, tasks→metta-planner)
-   c. Subagent writes artifact to output_path with real content, then git commits
-   d. `metta complete <artifact> --json --change <name>` → returns next
+3. For each **planning** artifact (intent, spec, design, tasks) — one subagent per artifact:
+   `metta instructions <artifact> --json` → spawn agent with `isolation: "worktree"` → `metta complete <artifact>`
+   For **research**: spawn 2-4 metta-researcher agents in parallel (one per approach), each with `isolation: "worktree"`
 
-   **For research: fan-out parallel exploration:**
-   a. Identify 2-4 approaches from the spec
-   b. **Spawn one metta-researcher per approach in a single message**, each with `isolation: "worktree"`
-   c. Merge results into research.md with recommendation, commit
-
-4. **For implementation — batch-parallel execution:**
-   a. Read `spec/changes/<change>/tasks.md` yourself (the orchestrator, not a subagent)
-   b. Parse batches (Batch 1, Batch 2, etc.)
-   c. For each batch: check file overlap between tasks in that batch
-   d. No overlap → **spawn one metta-executor per task in a single message**, each with `isolation: "worktree"` (parallel)
-   e. Overlap → spawn tasks sequentially, each with `isolation: "worktree"`
-   f. Wait for each batch to complete before starting the next
+4. **IMPLEMENTATION — MANDATORY PARALLEL EXECUTION:**
+   **⚠️ DO NOT spawn a single metta-executor for all tasks. You MUST parse batches and spawn per-task.**
+   a. Read `spec/changes/<change>/tasks.md` — YOU the orchestrator, not a subagent
+   b. Parse the batches (## Batch 1, ## Batch 2, etc.) and list tasks per batch
+   c. For each batch:
+      - List the **Files** field of each task
+      - Different files → **spawn one metta-executor per task in a SINGLE message** (parallel, each with `isolation: "worktree"`)
+      - Same files → spawn ONE AT A TIME (sequential, each with `isolation: "worktree"`)
+      - Each executor prompt: include ONLY that task's details (Files, Action, Verify, Done)
+      - Wait for ALL executors in batch to complete before next batch
+   d. After all batches: write summary.md and commit
+   e. `metta complete implementation --json --change <name>`
 5. **Spawn 3 metta-reviewer agents in parallel** (fan-out, each with `isolation: "worktree"`):
    - Agent 1 (subagent_type: "metta-reviewer", isolation: "worktree"): "**Correctness reviewer**"
    - Agent 2 (subagent_type: "metta-reviewer", isolation: "worktree"): "**Security reviewer**"
