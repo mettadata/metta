@@ -4,6 +4,7 @@ import { SpecMerger, type MergeResult } from './spec-merger.js'
 import { SpecLockManager } from '../specs/spec-lock-manager.js'
 import { GateRegistry } from '../gates/gate-registry.js'
 import type { GateResult } from '../schemas/gate-result.js'
+import { DocGenerator } from '../docs/doc-generator.js'
 
 export interface FinalizeResult {
   changeName: string
@@ -98,8 +99,24 @@ export class Finalizer {
       }))
     }
 
-    // Step 4: Generate docs (placeholder for v0.1)
-    const docsGenerated: string[] = []
+    // Step 4: Generate docs (if configured)
+    let docsGenerated: string[] = []
+    if (this.projectRoot) {
+      try {
+        const { ConfigLoader } = await import('../config/config-loader.js')
+        const configLoader = new ConfigLoader(this.projectRoot)
+        const config = await configLoader.load()
+        const docsConfig = config.docs
+
+        if (docsConfig && docsConfig.generate_on === 'finalize') {
+          const generator = new DocGenerator(this.specDir, this.projectRoot, docsConfig)
+          const docResult = await generator.generate()
+          docsGenerated = docResult.generated
+        }
+      } catch {
+        // Doc generation failure MUST NOT block finalize
+      }
+    }
 
     // Step 5: Refresh context files (placeholder for v0.1)
     const refreshed = false
