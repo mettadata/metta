@@ -52,7 +52,11 @@ function applyEnvOverrides(config: Record<string, unknown>): Record<string, unkn
 
   for (const [key, value] of Object.entries(process.env)) {
     if (!key.startsWith(envPrefix) || value === undefined) continue
-    const configPath = key.slice(envPrefix.length).toLowerCase().split('_')
+    // Use double underscore (__) as segment separator to avoid ambiguity
+    // with config keys that contain single underscores (e.g., api_key_env).
+    // Example: METTA_PROVIDERS__ANTHROPIC__API_KEY_ENV → config.providers.anthropic.api_key_env
+    const remainder = key.slice(envPrefix.length).toLowerCase()
+    const configPath = remainder.split('__')
 
     let current: Record<string, unknown> = result
     for (let i = 0; i < configPath.length - 1; i++) {

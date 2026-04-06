@@ -89,7 +89,7 @@ defaults:
 project:
   name: "Project App"
 `)
-    process.env.METTA_DEFAULTS_WORKFLOW = 'full'
+    process.env.METTA_DEFAULTS__WORKFLOW = 'full'
     const loader = new ConfigLoader(projectDir, globalDir)
     const config = await loader.load()
     expect((config.defaults as { workflow: string })?.workflow).toBe('full')
@@ -122,6 +122,20 @@ project:
     loader.clearCache()
     const config2 = await loader.load()
     expect(config2.project?.name).toBe('Updated')
+  })
+
+  it('env vars with double underscore separator handle keys containing single underscores', async () => {
+    await writeFile(join(projectDir, '.metta', 'config.yaml'), `
+project:
+  name: "Test"
+providers:
+  anthropic:
+    provider: anthropic
+`)
+    process.env.METTA_PROVIDERS__ANTHROPIC__API_KEY_ENV = 'MY_SECRET_KEY'
+    const loader = new ConfigLoader(projectDir, globalDir)
+    const config = await loader.load()
+    expect(config.providers?.anthropic?.api_key_env).toBe('MY_SECRET_KEY')
   })
 
   it('logs warning and falls back to defaults for malformed YAML', async () => {
