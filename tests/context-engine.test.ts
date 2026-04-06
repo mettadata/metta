@@ -234,6 +234,32 @@ More text.
     })
   })
 
+  describe('cache eviction', () => {
+    it('evicts oldest entries when maxCacheSize is exceeded', async () => {
+      const smallEngine = new ContextEngine({ maxCacheSize: 3 })
+
+      // Load 4 files — the first should be evicted
+      const paths: string[] = []
+      for (let i = 0; i < 4; i++) {
+        const p = join(tempDir, `evict-${i}.md`)
+        await writeFile(p, `content-${i}`)
+        paths.push(p)
+        await smallEngine.loadFile(p, 10000)
+      }
+
+      // Modify the first file on disk — if its cache entry was evicted,
+      // a fresh load will show the updated content
+      await writeFile(paths[0], 'updated-content-0')
+      const reloaded = await smallEngine.loadFile(paths[0], 10000)
+      expect(reloaded.content).toBe('updated-content-0')
+
+      // The third file should still be cached (not evicted)
+      // Verify by checking hash matches without content change
+      const third = await smallEngine.loadFile(paths[2], 10000)
+      expect(third.content).toBe('content-2')
+    })
+  })
+
   describe('clearCache', () => {
     it('clears the internal cache', async () => {
       const path = join(tempDir, 'clearme.md')

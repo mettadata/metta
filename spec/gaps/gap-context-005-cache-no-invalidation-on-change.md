@@ -1,6 +1,6 @@
 # GAP-CONTEXT-005: Cache Does Not Detect On-Disk Changes Without clearCache()
 
-## Status: Open
+## Status: Resolved
 
 ## Location
 

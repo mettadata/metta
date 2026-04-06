@@ -45,8 +45,18 @@ function contentHash(text: string): string {
   return `sha256:${createHash('sha256').update(text).digest('hex').slice(0, 12)}`
 }
 
+export interface ContextEngineOptions {
+  /** Maximum number of entries in the file cache. Oldest entries are evicted when exceeded. Default: 100. */
+  maxCacheSize?: number
+}
+
 export class ContextEngine {
   private cache = new Map<string, { hash: string; tokens: number; content: string }>()
+  private readonly maxCacheSize: number
+
+  constructor(options?: ContextEngineOptions) {
+    this.maxCacheSize = options?.maxCacheSize ?? 100
+  }
 
   getManifest(artifactType: string): ContextManifest {
     return CONTEXT_MANIFESTS[artifactType] ?? { required: [], optional: [], budget: 20000 }
@@ -136,6 +146,7 @@ export class ContextEngine {
 
     const tokens = countTokens(content)
     this.cache.set(filePath, { hash, tokens, content })
+    this.evictIfNeeded()
 
     const strategy = this.selectStrategy(tokens)
     const transformed = this.applyStrategy(content, strategy)
@@ -250,6 +261,15 @@ export class ContextEngine {
         return join(changePath, 'research', 'schemas')
       default:
         return join(changePath, `${source}.md`)
+    }
+  }
+
+  /** Evict oldest cache entries when maxCacheSize is exceeded. */
+  private evictIfNeeded(): void {
+    while (this.cache.size > this.maxCacheSize) {
+      // Map iteration order is insertion order — first key is oldest
+      const oldestKey = this.cache.keys().next().value as string
+      this.cache.delete(oldestKey)
     }
   }
 
