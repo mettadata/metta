@@ -1,6 +1,6 @@
 # GAP-CONTEXT-002: Loading Strategy Is Metadata Only — Not Applied During Load
 
-## Status: Open
+## Status: Resolved
 
 ## Location
 
