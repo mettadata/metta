@@ -1,0 +1,16 @@
+version: 3
+hash: sha256:b254b041d44a
+updated: 2026-04-14T07:14:48.248Z
+status: draft
+source: change
+requirements:
+  - id: issue-slash-command
+    hash: sha256:38b40ed5268a
+    scenarios:
+      - issue-skill-template-exists-and-invokes-the-right-cli
+      - issue-skill-is-deployed-by-install
+  - id: backlog-slash-command
+    hash: sha256:ef8e421f2cd3
+    scenarios:
+      - backlog-skill-template-exists-and-covers-all-subcommands
+      - backlog-skill-is-deployed-by-install
