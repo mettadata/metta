@@ -68,6 +68,8 @@ describe('CLI', { timeout: 30000 }, () => {
       expect(data.status).toBe('initialized')
       expect(data.git_initialized).toBe(true)
       expect(data.constitution).toBe('spec/project.md')
+      expect(data.discovery).toBeUndefined()
+      expect(data.mode).toBeUndefined()
     })
 
     it('works normally when git repo already exists', async () => {
@@ -75,6 +77,84 @@ describe('CLI', { timeout: 30000 }, () => {
       const { stdout, code } = await runCli(['install'], tempDir)
       expect(code).toBe(0)
       expect(stdout).toContain('initialized')
+    })
+
+    it('JSON payload has no discovery or mode fields', async () => {
+      const { stdout } = await runCli(['--json', 'install', '--git-init'], tempDir)
+      const data = JSON.parse(stdout)
+      expect(data).not.toHaveProperty('discovery')
+      expect(data).not.toHaveProperty('mode')
+    })
+
+    it('human-mode output directs user to metta init', async () => {
+      const { stdout } = await runCli(['install', '--git-init'], tempDir)
+      expect(stdout).toContain('metta init')
+    })
+
+    it('is idempotent on an already-installed project', async () => {
+      const first = await runCli(['--json', 'install', '--git-init'], tempDir)
+      expect(first.code).toBe(0)
+      const second = await runCli(['--json', 'install'], tempDir)
+      expect(second.code).toBe(0)
+      const data = JSON.parse(second.stdout)
+      expect(data.status).toBe('initialized')
+      expect(data.committed).toBe(false)
+    })
+  })
+
+  describe('metta init', () => {
+    it('exits code 3 with metta_not_installed when .metta/ is absent', async () => {
+      const { stdout, code } = await runCli(['--json', 'init'], tempDir)
+      expect(code).toBe(3)
+      const data = JSON.parse(stdout)
+      expect(data.error.type).toBe('metta_not_installed')
+      expect(data.error.code).toBe(3)
+      expect(data.error.message).toContain('metta install')
+    })
+
+    it('emits brownfield discovery for a Rust project', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await writeFile(join(tempDir, 'Cargo.toml'), '[package]\nname = "x"\n')
+      await mkdir(join(tempDir, 'src'), { recursive: true })
+      await writeFile(join(tempDir, 'src', 'main.rs'), 'fn main() {}\n')
+      const { stdout, code } = await runCli(['--json', 'init'], tempDir)
+      expect(code).toBe(0)
+      const data = JSON.parse(stdout)
+      expect(data.discovery.mode).toBe('brownfield')
+      expect(data.discovery.detected.stack).toContain('Rust')
+      expect(data.discovery.detected.directories).toContain('src')
+    })
+
+    it('emits greenfield discovery for an empty project', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      const { stdout, code } = await runCli(['--json', 'init'], tempDir)
+      expect(code).toBe(0)
+      const data = JSON.parse(stdout)
+      expect(data.discovery.mode).toBe('greenfield')
+      expect(data.discovery.detected.stack).toEqual([])
+      expect(data.discovery.detected.directories).toEqual([])
+    })
+
+    it('does not mutate the repository', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      const before = await execAsync('git', ['status', '--porcelain'], { cwd: tempDir })
+      const beforeLog = await execAsync('git', ['log', '--oneline'], { cwd: tempDir })
+      const { code } = await runCli(['--json', 'init'], tempDir)
+      expect(code).toBe(0)
+      const after = await execAsync('git', ['status', '--porcelain'], { cwd: tempDir })
+      const afterLog = await execAsync('git', ['log', '--oneline'], { cwd: tempDir })
+      expect(after.stdout).toBe(before.stdout)
+      expect(afterLog.stdout).toBe(beforeLog.stdout)
+    })
+  })
+
+  describe('metta-init skill template', () => {
+    it('references metta init --json and not metta install --json', async () => {
+      const { readFile } = await import('node:fs/promises')
+      const skillPath = join(import.meta.dirname, '..', 'src', 'templates', 'skills', 'metta-init', 'SKILL.md')
+      const contents = await readFile(skillPath, 'utf8')
+      expect(contents).toContain('metta init --json')
+      expect(contents).not.toContain('metta install --json')
     })
   })
 
