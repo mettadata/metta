@@ -6,12 +6,17 @@ Added one rule to the metta-executor agent prompt (template + deployed copy byte
 - `src/templates/agents/metta-executor.md`
 - `.claude/agents/metta-executor.md`
 
-## Gates
-- `npm run build` — PASS
-- `npx vitest run` — 325/325 PASS
+## Review (3 reviewers, parallel)
+- Correctness: PASS
+- Security: PASS (prompt-only edit, no surface)
+- Quality: PASS_WITH_WARNINGS → two non-blocking tweaks applied (tightened imperative voice, explicit reference to Deviation Rules section)
 
-## Verification
-- `diff src/templates/agents/metta-executor.md .claude/agents/metta-executor.md` — no output (byte-identical).
-- Behavioral verification will happen organically: the next change to invoke metta-executor should land with checked tasks.md.
+## Verification (3 verifiers, parallel)
+- `npm test` / `npx vitest run`: 325/325 PASS
+- `npx tsc --noEmit` + `npm run lint`: PASS, no diagnostics
+- Goal-vs-intent check: 3/3 goals satisfied with file:line citations
 
-No code changes. No new tests required. Downstream projects pick up the new prompt on their next `metta install`.
+## Behavioral verification
+Next change to invoke metta-executor should land with tasks.md checkboxes flipped — organic confirmation. No code changes to test directly.
+
+Downstream projects pick up the new prompt on their next `metta install`.
