@@ -53,7 +53,7 @@ Both skill files are byte-identical and contain the `metta refresh` post-step.
 
 ---
 
-### Task 1.3 — Remove `CLAUDE.md` from discovery agent commit and update role description (both copies)
+### Task 1.3 [x] — Remove `CLAUDE.md` from discovery agent commit and update role description (both copies)
 
 **Files**
 - `src/templates/agents/metta-discovery.md`
