@@ -78,8 +78,10 @@ Stack: TypeScript (strict mode, ES2022 target), Node.js >= 22, ESM only, Command
 | context-engine | 49 |
 | execution-engine | 49 |
 | finalize-ship | 26 |
+| fix-metta-next-gap-detect-unme | 8 |
 | schemas | 126 |
 | spec-model | 26 |
+| split-metta-install-metta-init | 20 |
 | state-store | 73 |
 | workflow-engine | 69 |
 <!-- metta:specs-end -->
