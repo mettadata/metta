@@ -212,7 +212,7 @@ Note: The test suite uses `npx tsx <CLI_PATH>` to invoke the CLI. For git commit
 
 ## Batch 4 — Full build, test suite, and smoke (depends on all)
 
-### Task 4.1 — Build, full test suite, and end-to-end smoke
+### Task 4.1 — Build, full test suite, and end-to-end smoke[x]
 
 **Files:** None modified.
 
