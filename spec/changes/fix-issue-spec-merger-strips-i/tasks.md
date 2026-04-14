@@ -52,7 +52,7 @@ One new `it` block present in `describe('parseSpec', ...)`. All assertions cover
 
 ---
 
-### Task 2.2 — Add three merger regression tests to spec-merger.test.ts
+### Task 2.2 — Add three merger regression tests to spec-merger.test.ts [x]
 
 **Files**
 - `tests/spec-merger.test.ts` (write)

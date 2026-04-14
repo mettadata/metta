@@ -242,4 +242,180 @@ The system MUST authenticate users securely.
     // Old requirement name should be gone
     expect(updatedContent).not.toMatch(/## Requirement: User Login/)
   })
+
+  it('no duplicate requirements after MODIFIED delta on 3-requirement spec', async () => {
+    const existingSpec = `# Auth
+
+## Requirement: Alpha
+
+The system MUST support \`metta install\` for Alpha.
+
+### Scenario: Alpha works
+- GIVEN alpha
+- WHEN triggered
+- THEN alpha runs
+
+## Requirement: Beta
+
+The system MUST support \`metta install\` for Beta.
+
+### Scenario: Beta works
+- GIVEN beta
+- WHEN triggered
+- THEN beta runs
+
+## Requirement: Gamma
+
+The system MUST support \`metta install\` for Gamma.
+
+### Scenario: Gamma works
+- GIVEN gamma
+- WHEN triggered
+- THEN gamma runs
+`
+    await writeFile(join(specDir, 'specs', 'auth', 'spec.md'), existingSpec)
+    const parsed = parseSpec(existingSpec)
+    const lock = lockManager.createFromParsed(parsed)
+    await lockManager.write('auth', lock)
+
+    const deltaContent = `# auth (Delta)
+
+## MODIFIED: Requirement: Beta
+
+The system MUST support \`metta install\` for Beta with new behavior.
+
+### Scenario: Beta updated
+- GIVEN beta
+- WHEN updated
+- THEN beta still runs
+`
+    await writeFile(join(specDir, 'changes', 'add-mfa', 'spec.md'), deltaContent)
+
+    const result = await merger.merge('add-mfa', {
+      'auth/spec.md': lock.hash,
+    })
+
+    expect(result.status).toBe('clean')
+
+    const { readFile } = await import('node:fs/promises')
+    const updatedContent = await readFile(join(specDir, 'specs', 'auth', 'spec.md'), 'utf-8')
+
+    const headers = updatedContent.match(/^## Requirement: /gm) ?? []
+    expect(headers.length).toBe(3)
+
+    // No duplicate names
+    const names = (updatedContent.match(/^## Requirement: (.+)$/gm) ?? []).map(h => h.trim())
+    expect(new Set(names).size).toBe(names.length)
+
+    // Inline backticks survive
+    expect(updatedContent).toContain('`metta install`')
+    expect(updatedContent).toContain('new behavior')
+  })
+
+  it('merge is idempotent: applying same MODIFIED delta twice produces identical output', async () => {
+    const existingSpec = `# Auth
+
+## Requirement: Alpha
+
+The system MUST support \`metta install\` for Alpha.
+
+### Scenario: Alpha works
+- GIVEN alpha
+- WHEN triggered
+- THEN alpha runs
+
+## Requirement: Beta
+
+The system MUST support \`metta install\` for Beta.
+
+### Scenario: Beta works
+- GIVEN beta
+- WHEN triggered
+- THEN beta runs
+`
+    await writeFile(join(specDir, 'specs', 'auth', 'spec.md'), existingSpec)
+    const parsed = parseSpec(existingSpec)
+    const lock = lockManager.createFromParsed(parsed)
+    await lockManager.write('auth', lock)
+
+    const deltaContent = `# auth (Delta)
+
+## MODIFIED: Requirement: Beta
+
+The system MUST support \`metta install\` for Beta with updated behavior.
+
+### Scenario: Beta updated
+- GIVEN beta
+- WHEN updated
+- THEN beta still runs
+`
+    await writeFile(join(specDir, 'changes', 'add-mfa', 'spec.md'), deltaContent)
+
+    const { readFile } = await import('node:fs/promises')
+
+    const result1 = await merger.merge('add-mfa', {
+      'auth/spec.md': lock.hash,
+    })
+    expect(result1.status).toBe('clean')
+    const O1 = await readFile(join(specDir, 'specs', 'auth', 'spec.md'), 'utf-8')
+
+    // Re-apply the same delta — the spec now reflects O1; lock was updated.
+    const newLock = await lockManager.read('auth')
+    const result2 = await merger.merge('add-mfa', {
+      'auth/spec.md': newLock.hash,
+    })
+    expect(result2.status).toBe('clean')
+    const O2 = await readFile(join(specDir, 'specs', 'auth', 'spec.md'), 'utf-8')
+
+    expect(O1).toBe(O2)
+    const headers1 = O1.match(/^## Requirement: /gm) ?? []
+    const headers2 = O2.match(/^## Requirement: /gm) ?? []
+    expect(headers1.length).toBe(2)
+    expect(headers2.length).toBe(2)
+  })
+
+  it('MODIFIED delta targeting missing requirement returns conflict', async () => {
+    const existingSpec = `# Auth
+
+## Requirement: Existing-Req
+
+The system MUST do existing things.
+
+### Scenario: Existing
+- GIVEN existing
+- WHEN triggered
+- THEN it works
+`
+    await writeFile(join(specDir, 'specs', 'auth', 'spec.md'), existingSpec)
+    const parsed = parseSpec(existingSpec)
+    const lock = lockManager.createFromParsed(parsed)
+    await lockManager.write('auth', lock)
+
+    const deltaContent = `# auth (Delta)
+
+## MODIFIED: Requirement: Ghost-Req
+
+The system MUST do ghostly things.
+
+### Scenario: Ghostly
+- GIVEN a ghost
+- WHEN invoked
+- THEN it haunts
+`
+    await writeFile(join(specDir, 'changes', 'add-mfa', 'spec.md'), deltaContent)
+
+    const { readFile } = await import('node:fs/promises')
+    const beforeBytes = await readFile(join(specDir, 'specs', 'auth', 'spec.md'))
+
+    const result = await merger.merge('add-mfa', {
+      'auth/spec.md': lock.hash,
+    })
+
+    expect(result.status).toBe('conflict')
+    expect(result.conflicts.length).toBeGreaterThan(0)
+    expect(result.conflicts[0].reason).toBe('requirement not found')
+
+    const afterBytes = await readFile(join(specDir, 'specs', 'auth', 'spec.md'))
+    expect(afterBytes.equals(beforeBytes)).toBe(true)
+  })
 })
