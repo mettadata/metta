@@ -36,7 +36,11 @@ try {
   process.exit(0)
 }
 
-const hasActiveChange = Array.isArray(status?.changes) && status.changes.length > 0
+// `metta status --json` returns {change: "..."} when there's an active change,
+// and {changes: [], message: "..."} when there isn't. Handle both shapes.
+const hasActiveChange =
+  typeof status?.change === 'string' ||
+  (Array.isArray(status?.changes) && status.changes.length > 0)
 if (hasActiveChange) {
   process.exit(0)
 }
