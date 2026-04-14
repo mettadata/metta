@@ -96,7 +96,7 @@ Append eight CLI test cases (TC-CLI-01 through TC-CLI-08) and three skill templa
 
 ## Batch 5 — Full verification (depends on all)
 
-### Task 5.1 — Build, full test suite, and smoke test
+### Task 5.1 — Build, full test suite, and smoke test[x]
 
 **Files:** none (verification only)
 
