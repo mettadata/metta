@@ -92,7 +92,7 @@ export async function autoCommitFile(
   try {
     const { stdout } = await execAsync(
       'git',
-      ['status', '--porcelain', '--untracked-files=all'],
+      ['status', '--porcelain', '--untracked-files=no'],
       { cwd: projectRoot },
     )
     const otherDirty = stdout
@@ -103,18 +103,19 @@ export async function autoCommitFile(
         return path !== rel && path !== `"${rel}"`
       })
     if (otherDirty) {
-      return { committed: false, reason: 'working tree has other uncommitted changes' }
+      return { committed: false, reason: 'working tree has other uncommitted tracked changes' }
     }
   } catch {
     return { committed: false, reason: 'failed to read git status' }
   }
   try {
-    await execAsync('git', ['add', rel], { cwd: projectRoot })
+    await execAsync('git', ['add', '--', rel], { cwd: projectRoot })
     await execAsync('git', ['commit', '-m', message], { cwd: projectRoot })
     const { stdout } = await execAsync('git', ['rev-parse', 'HEAD'], { cwd: projectRoot })
     return { committed: true, sha: stdout.trim() }
   } catch (err) {
-    return { committed: false, reason: err instanceof Error ? err.message : String(err) }
+    const raw = err instanceof Error ? err.message : String(err)
+    return { committed: false, reason: `git commit failed: ${raw}` }
   }
 }
 
