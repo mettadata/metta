@@ -2,12 +2,12 @@
 
 ## MODIFIED: Requirement: install-command-scaffolds-only
 
-The `metta install` command MUST scaffold Metta files into the project and MUST NOT emit discovery instructions. It MUST create `.metta/`, `spec/specs/`, `spec/changes/`, `spec/archive/` directories; write default `.metta/config.yaml`, `spec/project.md`, and `.metta/.gitignore` if absent; install `.claude/` slash commands, skills, and agents; regenerate `CLAUDE.md` via the refresh pipeline; and commit the result as `chore: initialize metta` when there are staged changes. The `--json` output MUST NOT include a `discovery` field.
+The `metta install` command MUST scaffold Metta files into the project and MUST NOT emit discovery instructions or brownfield/greenfield classification. It MUST create `.metta/`, `spec/specs/`, `spec/changes/`, `spec/archive/` directories; write default `.metta/config.yaml`, `spec/project.md`, and `.metta/.gitignore` if absent; install `.claude/` slash commands, skills, and agents; regenerate `CLAUDE.md` via the refresh pipeline; and commit the result as `chore: initialize metta` when there are staged changes. The `--json` output MUST NOT include a `discovery` field and MUST NOT include a `mode` field — project classification is the responsibility of `metta init`. The command MUST NOT perform brownfield detection.
 
 ### Scenario: fresh install in a git repo
 - GIVEN a git-initialized project with no `.metta/` directory
 - WHEN the user runs `metta install --json`
-- THEN the command creates `.metta/config.yaml`, `spec/project.md`, `spec/specs/`, `spec/changes/`, `spec/archive/`, installs `.claude/` assets, regenerates `CLAUDE.md`, commits as `chore: initialize metta`, and emits JSON with `status: "initialized"` and no `discovery` key
+- THEN the command creates `.metta/config.yaml`, `spec/project.md`, `spec/specs/`, `spec/changes/`, `spec/archive/`, installs `.claude/` assets, regenerates `CLAUDE.md`, commits as `chore: initialize metta`, and emits JSON with `status: "initialized"` and no `discovery` or `mode` keys
 
 ### Scenario: install on a project that already has .metta
 - GIVEN a project where `metta install` has been run previously
