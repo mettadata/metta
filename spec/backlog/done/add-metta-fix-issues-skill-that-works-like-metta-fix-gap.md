@@ -16,3 +16,5 @@ Implementation likely involves:
 - New CLI command `metta fix-issue <slug>` / `metta fix-issues --all --severity <level>`
 - Corresponding skill at `src/templates/skills/metta-fix-issues/SKILL.md`
 - Issue archival semantics (where do resolved issues go? `spec/issues/resolved/`? merge into change archive?)
+
+**Shipped-in**: metta-fix-issues-cli-command-m
