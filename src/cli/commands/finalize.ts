@@ -112,10 +112,18 @@ export function registerFinalizeCommand(program: Command): void {
         }
 
         // Auto-commit archive (rename already moved changes → archive)
+        // Scope the add to paths touched by this finalize only — never `-A spec/` which
+        // would sweep in unrelated untracked backlog/issue/idea files into this commit.
         if (!options.dryRun && result.archiveName) {
           try {
-            // Stage everything: archive (moved to), changes (moved from), spec merges
-            await execAsync('git', ['add', '-A', 'spec/'], { cwd: ctx.projectRoot })
+            const paths: string[] = [
+              `spec/archive/${result.archiveName}`,
+              `spec/changes/${name}`,
+            ]
+            for (const cap of result.specMerge.merged) {
+              paths.push(`spec/specs/${cap.split('/')[0]}`)
+            }
+            await execAsync('git', ['add', '--', ...paths], { cwd: ctx.projectRoot })
             await execAsync('git', ['diff', '--cached', '--quiet'], { cwd: ctx.projectRoot }).catch(async () => {
               await execAsync('git', ['commit', '-m', `chore(${name}): archive and finalize`], { cwd: ctx.projectRoot })
             })
