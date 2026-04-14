@@ -12,7 +12,6 @@ import { registerStatusCommand } from './commands/status.js'
 import { registerInstructionsCommand } from './commands/instructions.js'
 import { registerAnswerCommand } from './commands/answer.js'
 import { registerSpecsCommand } from './commands/specs.js'
-import { registerIdeaCommand } from './commands/idea.js'
 import { registerIssueCommand } from './commands/issue.js'
 import { registerChangesCommand } from './commands/changes.js'
 import { registerBacklogCommand } from './commands/backlog.js'
@@ -58,7 +57,6 @@ registerStatusCommand(program)
 registerInstructionsCommand(program)
 registerAnswerCommand(program)
 registerSpecsCommand(program)
-registerIdeaCommand(program)
 registerIssueCommand(program)
 registerChangesCommand(program)
 registerBacklogCommand(program)

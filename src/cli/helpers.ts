@@ -4,7 +4,6 @@ import { ArtifactStore } from '../artifacts/artifact-store.js'
 import { WorkflowEngine } from '../workflow/workflow-engine.js'
 import { ContextEngine } from '../context/context-engine.js'
 import { GateRegistry } from '../gates/gate-registry.js'
-import { IdeasStore } from '../ideas/ideas-store.js'
 import { IssuesStore } from '../issues/issues-store.js'
 import { BacklogStore } from '../backlog/backlog-store.js'
 import { GapsStore } from '../gaps/gaps-store.js'
@@ -21,7 +20,6 @@ export interface CliContext {
   workflowEngine: WorkflowEngine
   contextEngine: ContextEngine
   gateRegistry: GateRegistry
-  ideasStore: IdeasStore
   issuesStore: IssuesStore
   backlogStore: BacklogStore
   gapsStore: GapsStore
@@ -41,7 +39,6 @@ export function createCliContext(projectRoot?: string): CliContext {
   const workflowEngine = new WorkflowEngine()
   const contextEngine = new ContextEngine()
   const gateRegistry = new GateRegistry()
-  const ideasStore = new IdeasStore(specDir)
   const issuesStore = new IssuesStore(specDir)
   const backlogStore = new BacklogStore(specDir)
   const gapsStore = new GapsStore(specDir)
@@ -61,7 +58,6 @@ export function createCliContext(projectRoot?: string): CliContext {
     workflowEngine,
     contextEngine,
     gateRegistry,
-    ideasStore,
     issuesStore,
     backlogStore,
     gapsStore,
