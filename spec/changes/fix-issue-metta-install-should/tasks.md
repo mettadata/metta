@@ -91,7 +91,7 @@ Install test block contains one `toBe(false)` assertion for CLAUDE.md existence 
 
 ---
 
-### Task 2.2 — Add static skill-content test and init-flow refresh test
+### Task 2.2 [x] — Add static skill-content test and init-flow refresh test
 
 **Files**
 - `tests/cli.test.ts`

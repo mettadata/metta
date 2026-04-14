@@ -196,6 +196,59 @@ describe('CLI', { timeout: 30000 }, () => {
     })
   })
 
+  describe('metta-init skill refresh step', () => {
+    it('template and deployed copy both contain `metta refresh` and are byte-identical', async () => {
+      const { readFile } = await import('node:fs/promises')
+      const templatePath = join(import.meta.dirname, '..', 'src', 'templates', 'skills', 'metta-init', 'SKILL.md')
+      const deployedPath = join(import.meta.dirname, '..', '.claude', 'skills', 'metta-init', 'SKILL.md')
+      const template = await readFile(templatePath, 'utf8')
+      const deployed = await readFile(deployedPath, 'utf8')
+      expect(template).toContain('metta refresh')
+      expect(deployed).toContain('metta refresh')
+      expect(template).toBe(deployed)
+    })
+  })
+
+  describe('init flow — CLAUDE.md generation', () => {
+    it('runRefresh creates CLAUDE.md populated from spec/project.md', async () => {
+      const { runRefresh } = await import('../src/cli/commands/refresh.js')
+      const { existsSync } = await import('node:fs')
+      const { readFile, writeFile, mkdir } = await import('node:fs/promises')
+
+      await mkdir(join(tempDir, 'spec'), { recursive: true })
+      const projectMd = [
+        '# Project Constitution',
+        '',
+        '## Project',
+        '',
+        'A test project for the refresh unit test.',
+        '',
+        '## Stack',
+        '',
+        '- TypeScript',
+        '- Node.js',
+        '',
+        '## Conventions',
+        '',
+        '- Use ESM only',
+        '',
+      ].join('\n')
+      await writeFile(join(tempDir, 'spec', 'project.md'), projectMd, 'utf8')
+
+      const result = await runRefresh(tempDir, false)
+      expect(result.written).toBe(true)
+
+      const claudeMdPath = join(tempDir, 'CLAUDE.md')
+      expect(existsSync(claudeMdPath)).toBe(true)
+      const contents = await readFile(claudeMdPath, 'utf8')
+      expect(contents.length).toBeGreaterThan(0)
+      // buildProjectSection emits "## Project" and prefixes the description with "**metta** --"
+      expect(contents).toContain('## Project')
+      expect(contents).toContain('A test project for the refresh unit test.')
+      expect(contents).toContain('TypeScript')
+    })
+  })
+
   describe('metta status', () => {
     it('reports no active changes', async () => {
       await runCli(['install', '--git-init'], tempDir)
