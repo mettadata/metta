@@ -32,6 +32,7 @@ import { registerProgressCommand } from './commands/progress.js'
 import { registerImportCommand } from './commands/import.js'
 import { registerGapsCommand } from './commands/gaps.js'
 import { registerFixGapCommand } from './commands/fix-gap.js'
+import { registerFixIssueCommand } from './commands/fix-issue.js'
 import { registerReconcileCommand } from './commands/reconcile.js'
 import { registerDocsCommand } from './commands/docs.js'
 
@@ -77,6 +78,7 @@ registerProgressCommand(program)
 registerImportCommand(program)
 registerGapsCommand(program)
 registerFixGapCommand(program)
+registerFixIssueCommand(program)
 registerReconcileCommand(program)
 registerDocsCommand(program)
 

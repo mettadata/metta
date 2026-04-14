@@ -58,7 +58,7 @@ Create the file implementing the four-branch structure documented in design §Co
 
 ## Batch 3 — CLI registration (depends on 2.1)
 
-### Task 3.1 — Register fix-issue command in src/cli/index.ts
+### Task 3.1 — Register fix-issue command in src/cli/index.ts[x]
 
 **Files:**
 - `src/cli/index.ts` (modify)
