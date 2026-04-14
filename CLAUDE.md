@@ -78,6 +78,7 @@ Stack: TypeScript (strict mode, ES2022 target), Node.js >= 22, ESM only, Command
 | execution-engine | 49 |
 | finalize-ship | 26 |
 | fix-metta-next-gap-detect-unme | 8 |
+| metta-issue-metta-backlog-slas | 11 |
 | schemas | 126 |
 | spec-model | 26 |
 | split-metta-install-metta-init | 20 |
