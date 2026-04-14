@@ -105,7 +105,6 @@ When `$ARGUMENTS` is `--all` (optionally with `--severity <level>`):
 ## Rules
 
 - Every subagent MUST write files to disk and git commit — no exceptions
-- Every subagent MUST write files to disk and git commit
 - Every artifact MUST be followed by `metta complete` to advance workflow
 - Discovery mode is always **batch** for fix-issues — the issue definition provides all context
 - Do NOT skip review or verification — all 3 reviewers and 3 verifiers MUST run

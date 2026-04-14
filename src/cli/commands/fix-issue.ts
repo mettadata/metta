@@ -109,7 +109,7 @@ export function registerFixIssueCommand(program: Command): void {
           const list = await ctx.issuesStore.list()
           if (list.length === 0) {
             if (json) {
-              outputJson({ issues: [] })
+              outputJson({ issues: [], severity_filter: options.severity ?? null })
             } else {
               console.log('No issues found.')
             }

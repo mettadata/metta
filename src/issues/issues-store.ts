@@ -52,6 +52,14 @@ function parseIssue(content: string, filename: string): Issue {
   return { title: title || filename.replace('.md', ''), captured, context, status: 'logged', severity, description }
 }
 
+const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,59}$/
+
+function assertSafeSlug(slug: string): void {
+  if (typeof slug !== 'string' || !SLUG_RE.test(slug)) {
+    throw new Error(`Invalid issue slug '${slug}' — must match ${SLUG_RE}`)
+  }
+}
+
 export class IssuesStore {
   private state: StateStore
 
@@ -97,15 +105,18 @@ export class IssuesStore {
   }
 
   async show(slug: string): Promise<Issue> {
+    assertSafeSlug(slug)
     const content = await this.state.readRaw(join('issues', `${slug}.md`))
     return parseIssue(content, slug)
   }
 
   async exists(slug: string): Promise<boolean> {
+    assertSafeSlug(slug)
     return this.state.exists(join('issues', `${slug}.md`))
   }
 
   async archive(slug: string): Promise<void> {
+    assertSafeSlug(slug)
     if (!(await this.exists(slug))) {
       throw new Error(`Issue '${slug}' not found`)
     }
@@ -115,6 +126,7 @@ export class IssuesStore {
   }
 
   async remove(slug: string): Promise<void> {
+    assertSafeSlug(slug)
     await this.state.delete(join('issues', `${slug}.md`))
   }
 }

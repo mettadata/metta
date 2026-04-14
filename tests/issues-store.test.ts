@@ -97,4 +97,14 @@ describe('IssuesStore', () => {
       code: 'ENOENT',
     })
   })
+
+  it('rejects path-traversal slugs on archive/remove/show/exists', async () => {
+    const bad = ['../escape', '..\\escape', '/abs/path', 'a/b', 'Foo', '']
+    for (const slug of bad) {
+      await expect(store.archive(slug)).rejects.toThrow(/Invalid issue slug/)
+      await expect(store.remove(slug)).rejects.toThrow(/Invalid issue slug/)
+      await expect(store.show(slug)).rejects.toThrow(/Invalid issue slug/)
+      await expect(store.exists(slug)).rejects.toThrow(/Invalid issue slug/)
+    }
+  })
 })
