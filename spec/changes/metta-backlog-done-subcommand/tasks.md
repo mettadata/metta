@@ -8,7 +8,7 @@
 
 ## Batch 1 — Store hardening + skill update (parallel-safe)
 
-### Task 1.1 — Harden BacklogStore: add SLUG_RE, assertSafeSlug, archive(), and guards
+### Task 1.1 — Harden BacklogStore: add SLUG_RE, assertSafeSlug, archive(), and guards [x]
 
 **Files:**
 - `src/backlog/backlog-store.ts` (modify)

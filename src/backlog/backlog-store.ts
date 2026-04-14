@@ -19,6 +19,14 @@ function slugify(text: string): string {
     .slice(0, 60)
 }
 
+const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,59}$/
+
+function assertSafeSlug(slug: string): void {
+  if (typeof slug !== 'string' || !SLUG_RE.test(slug)) {
+    throw new Error(`Invalid backlog slug '${slug}' — must match ${SLUG_RE}`)
+  }
+}
+
 function formatItem(item: BacklogItem): string {
   const lines = [
     `# ${item.title}`,
@@ -97,15 +105,31 @@ export class BacklogStore {
   }
 
   async show(slug: string): Promise<BacklogItem> {
+    assertSafeSlug(slug)
     const content = await this.state.readRaw(join('backlog', `${slug}.md`))
     return parseItem(content, slug)
   }
 
   async remove(slug: string): Promise<void> {
+    assertSafeSlug(slug)
     await this.state.delete(join('backlog', `${slug}.md`))
   }
 
   async exists(slug: string): Promise<boolean> {
+    assertSafeSlug(slug)
     return this.state.exists(join('backlog', `${slug}.md`))
+  }
+
+  async archive(slug: string, changeName?: string): Promise<void> {
+    assertSafeSlug(slug)
+    if (changeName !== undefined) assertSafeSlug(changeName)
+    if (!(await this.exists(slug))) throw new Error(`Backlog item '${slug}' not found`)
+    let content = await this.state.readRaw(join('backlog', `${slug}.md`))
+    if (changeName) {
+      if (!content.endsWith('\n')) content += '\n'
+      content += `\n**Shipped-in**: ${changeName}\n`
+    }
+    await mkdir(join(this.specDir, 'backlog', 'done'), { recursive: true })
+    await this.state.writeRaw(join('backlog', 'done', `${slug}.md`), content)
   }
 }
