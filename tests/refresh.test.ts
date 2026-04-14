@@ -106,6 +106,8 @@ A composable framework.
   describe('buildWorkflowSection', () => {
     it('includes all command categories', () => {
       const result = buildWorkflowSection()
+      expect(result).toContain('### How to work')
+      expect(result).toContain('metta quick <description>')
       expect(result).toContain('### Lifecycle')
       expect(result).toContain('### Status')
       expect(result).toContain('### Specs & Docs')

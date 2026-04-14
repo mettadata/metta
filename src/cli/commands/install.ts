@@ -1,5 +1,5 @@
 import { Command } from 'commander'
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, writeFile, readFile, copyFile, chmod } from 'node:fs/promises'
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { execFile } from 'node:child_process'
@@ -10,6 +10,47 @@ import { claudeCodeAdapter } from '../../delivery/claude-code-adapter.js'
 import { installCommands } from '../../delivery/command-installer.js'
 
 const execAsync = promisify(execFile)
+
+async function installMettaGuardHook(root: string): Promise<void> {
+  const hookDir = join(root, '.claude', 'hooks')
+  const hookPath = join(hookDir, 'metta-guard-edit.mjs')
+  const settingsPath = join(root, '.claude', 'settings.json')
+
+  const templateHook = new URL('../../templates/hooks/metta-guard-edit.mjs', import.meta.url).pathname
+  await mkdir(hookDir, { recursive: true })
+  await copyFile(templateHook, hookPath)
+  await chmod(hookPath, 0o755)
+
+  let settings: Record<string, unknown> = {}
+  if (existsSync(settingsPath)) {
+    const raw = await readFile(settingsPath, 'utf8')
+    try {
+      settings = JSON.parse(raw)
+    } catch (err) {
+      throw new Error(`.claude/settings.json exists but is not valid JSON — refusing to overwrite. Fix it and re-run metta install. Cause: ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }
+
+  const rawHooks = settings.hooks
+  const hooks: Record<string, unknown> = rawHooks && typeof rawHooks === 'object' && !Array.isArray(rawHooks)
+    ? (rawHooks as Record<string, unknown>)
+    : {}
+  const rawPre = hooks.PreToolUse
+  const preToolUse: Array<Record<string, unknown>> = Array.isArray(rawPre) ? rawPre : []
+  const alreadyRegistered = preToolUse.some((entry) => {
+    const hooksArr = Array.isArray(entry?.hooks) ? (entry.hooks as Array<Record<string, unknown>>) : []
+    return hooksArr.some((h) => typeof h?.command === 'string' && h.command.includes('metta-guard-edit.mjs'))
+  })
+  if (!alreadyRegistered) {
+    preToolUse.push({
+      matcher: 'Edit|Write|NotebookEdit|MultiEdit',
+      hooks: [{ type: 'command', command: '.claude/hooks/metta-guard-edit.mjs' }],
+    })
+    hooks.PreToolUse = preToolUse
+    settings.hooks = hooks
+    await writeFile(settingsPath, JSON.stringify(settings, null, 2) + '\n')
+  }
+}
 
 function askYesNo(question: string): Promise<boolean> {
   const rl = createInterface({ input: process.stdin, output: process.stdout })
@@ -123,6 +164,16 @@ Banned patterns and forbidden operations.
           installedCommands.push(...installed)
         }
 
+        // Install Claude Code PreToolUse guard hook + settings.json entry
+        let guardInstalled = false
+        try {
+          await installMettaGuardHook(root)
+          guardInstalled = true
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err)
+          console.error(`Warning: failed to install metta-guard hook — ${message}`)
+        }
+
         // Generate CLAUDE.md using the same code as metta refresh
         try {
           const { runRefresh } = await import('./refresh.js')
@@ -154,6 +205,7 @@ Banned patterns and forbidden operations.
             constitution: 'spec/project.md',
             detected_tools: detectedTools,
             installed_commands: installedCommands,
+            guard_hook_installed: guardInstalled,
           })
         } else {
           console.log('Metta initialized')
@@ -166,6 +218,9 @@ Banned patterns and forbidden operations.
           if (detectedTools.length > 0) {
             console.log(`  Detected: ${detectedTools.join(', ')}`)
             console.log(`  Installed: ${installedCommands.length} slash commands`)
+          }
+          if (guardInstalled) {
+            console.log('  Installed: PreToolUse guard hook (.claude/hooks/metta-guard-edit.mjs)')
           }
           if (committed) {
             console.log('  Committed: initial metta setup')
