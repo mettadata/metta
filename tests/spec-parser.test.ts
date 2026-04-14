@@ -119,6 +119,56 @@ The system MUST do B.
     expect(result.title).toBe('Empty Spec')
     expect(result.requirements).toHaveLength(0)
   })
+
+  it('preserves inline code backticks in requirement text and scenario steps', () => {
+    const markdown = `# CLI
+
+## Requirement: Install Command
+
+The system MUST support \`metta install\` and \`metta init\` as bootstrap commands.
+
+### Scenario: Init with JSON flag
+- GIVEN a fresh repository
+- WHEN the user runs \`metta init --json\`
+- THEN a JSON manifest is written
+
+## Requirement: Lock Validation
+
+\`SpecMerger\` MUST validate the lock hash before applying any delta.
+
+### Scenario: Hash mismatch aborts merge
+- GIVEN a stale lock hash
+- WHEN the merger runs
+- THEN the operation aborts
+`
+    const result = parseSpec(markdown)
+
+    const install = result.requirements[0]
+    expect(install.text).toContain('`metta install`')
+    expect(install.text).toContain('`metta init`')
+    expect(install.scenarios[0].steps[1]).toBe('WHEN the user runs `metta init --json`')
+
+    const lock = result.requirements[1]
+    expect(lock.text.startsWith('`SpecMerger`')).toBe(true)
+
+    // Also exercise parseDeltaSpec for scenario 2 coverage.
+    const deltaMarkdown = `# CLI (Delta)
+
+## MODIFIED: Requirement: Install Command
+
+The system MUST support \`metta install\` as the bootstrap command.
+
+### Scenario: Init with JSON flag
+- GIVEN a fresh repository
+- WHEN the user runs \`metta init --json\`
+- THEN a JSON manifest is written
+`
+    const delta = parseDeltaSpec(deltaMarkdown)
+    expect(delta.deltas[0].requirement.text).toContain('`metta install`')
+    expect(delta.deltas[0].requirement.scenarios[0].steps[1]).toBe(
+      'WHEN the user runs `metta init --json`',
+    )
+  })
 })
 
 describe('parseDeltaSpec', () => {

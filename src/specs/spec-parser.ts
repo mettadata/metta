@@ -1,7 +1,7 @@
 import { unified } from 'unified'
 import remarkParse from 'remark-parse'
 import { createHash } from 'node:crypto'
-import type { Root, Content, Heading, Text } from 'mdast'
+import type { Root, Content, Heading, Text, InlineCode } from 'mdast'
 
 export interface ParsedScenario {
   name: string
@@ -40,6 +40,7 @@ function contentHash(text: string): string {
 
 function extractText(node: Content): string {
   if (node.type === 'text') return (node as Text).value
+  if (node.type === 'inlineCode') return `\`${(node as InlineCode).value}\``
   if ('children' in node) {
     return (node.children as Content[]).map(extractText).join('')
   }
