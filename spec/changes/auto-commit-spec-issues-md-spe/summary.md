@@ -1,24 +1,26 @@
 # Summary: auto-commit-spec-issues-md-spe
 
-Added `autoCommitFile()` helper in `src/cli/helpers.ts` and wired it into `metta issue` and `metta backlog add`. After the store writes the file, the CLI runs `git add <path> && git commit -m "<conventional message>"`. If the working tree has other uncommitted changes or git is unavailable, the commit is skipped silently with a reason in JSON output / stdout line.
+Added `autoCommitFile()` helper in `src/cli/helpers.ts` and wired it into `metta issue` and `metta backlog add`. After the store writes the file, the CLI runs `git add -- <path> && git commit -m "<conventional message>"`. Graceful skip when the working tree has other tracked modifications, not a git repo, or git fails — never throws.
 
 ## Files changed
-- `src/cli/helpers.ts` (added helper)
+- `src/cli/helpers.ts` (added `autoCommitFile` helper)
 - `src/cli/commands/issue.ts` (wired helper)
-- `src/cli/commands/backlog.ts` (wired helper)
+- `src/cli/commands/backlog.ts` (wired helper + added try/catch to add action)
+- `tests/auto-commit.test.ts` (new — 4 unit tests)
 
-## Gates
-- `npm run build` — PASS
-- `npx vitest run` — 325/325 PASS
-- Smoke in `mktemp -d`: `metta issue "smoke test" --severity minor` → file created, `chore: log issue smoke-test-issue` committed automatically (SHA `c8c146c`).
+## Review (3 reviewers, parallel)
+- Correctness: PASS_WITH_WARNINGS → addressed (try/catch on backlog add)
+- Security: PASS (non-blocking `--` separator suggestion applied)
+- Quality: PASS_WITH_WARNINGS → addressed (dirty check scope narrowed to tracked-only, helper unit tests added, error prefix)
 
-## JSON output additions
-Both commands now include `committed: bool` and `commit_sha: string | undefined` fields in `--json` mode, so skills and automation can detect success.
+See `review.md` for full breakdown.
 
-## Fallback behavior
-Graceful skip (no error) when:
-- Not a git repository
-- Working tree has uncommitted changes to other files
-- git command fails
+## Verification (3 verifiers, parallel)
+- `npx vitest run`: 329/329 PASS (was 325, now 329 — +4 new helper tests)
+- `npx tsc --noEmit` + `npm run lint`: PASS
+- Goal-vs-intent: 5/5 goals implemented with file:line citations
 
-In each case, the file is still written; only the commit is skipped and the reason is reported.
+## Smoke test
+`mktemp -d` → `git init` → `metta install --git-init` → `metta issue "smoke test" --severity minor` → file created at `spec/issues/smoke-test-issue.md`, auto-committed as `chore: log issue smoke-test-issue` (SHA `c8c146c`).
+
+Change ready to finalize and ship.
