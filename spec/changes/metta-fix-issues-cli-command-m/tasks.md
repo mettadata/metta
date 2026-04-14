@@ -2,7 +2,7 @@
 
 ## Batch 1 — Foundation (parallel)
 
-### Task 1.1 — Extend IssuesStore with archive and remove methods
+### Task 1.1 — Extend IssuesStore with archive and remove methods [x]
 
 **Files:**
 - `src/issues/issues-store.ts` (modify)

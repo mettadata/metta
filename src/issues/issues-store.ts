@@ -104,4 +104,17 @@ export class IssuesStore {
   async exists(slug: string): Promise<boolean> {
     return this.state.exists(join('issues', `${slug}.md`))
   }
+
+  async archive(slug: string): Promise<void> {
+    if (!(await this.exists(slug))) {
+      throw new Error(`Issue '${slug}' not found`)
+    }
+    const content = await this.state.readRaw(join('issues', `${slug}.md`))
+    await mkdir(join(this.specDir, 'issues', 'resolved'), { recursive: true })
+    await this.state.writeRaw(join('issues', 'resolved', `${slug}.md`), content)
+  }
+
+  async remove(slug: string): Promise<void> {
+    await this.state.delete(join('issues', `${slug}.md`))
+  }
 }
