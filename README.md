@@ -200,7 +200,6 @@ metta specs show <cap>           # Show a spec
 metta specs diff <cap>           # Pending changes
 
 # Organization
-metta idea <description>         # Capture an idea
 metta issue <description>        # Log an issue
 metta changes list               # List active changes
 metta backlog list               # List backlog items

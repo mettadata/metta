@@ -81,7 +81,7 @@ npx tsx /path/to/metta/src/cli/index.ts --json init
 **Expected:**
 - `.metta/config.yaml` exists
 - `spec/project.md` (constitution template) exists
-- `spec/specs/`, `spec/changes/`, `spec/archive/`, `spec/ideas/`, `spec/issues/`, `spec/backlog/`, `spec/gaps/` directories exist
+- `spec/specs/`, `spec/changes/`, `spec/archive/`, `spec/issues/`, `spec/backlog/`, `spec/gaps/` directories exist
 - `.metta/.gitignore` excludes `state.yaml`, `local.yaml`, `logs/`
 
 ### 2.2 Propose a Change
@@ -140,20 +140,9 @@ npx tsx .../src/cli/index.ts instructions intent
 - `budget.context_tokens`, `budget.budget_tokens`
 - `next_steps`, `gates`
 
-### 2.5 Ideas and Issues
+### 2.5 Issues
 
 ```bash
-# Capture ideas
-npx tsx .../src/cli/index.ts idea "dark mode toggle"
-npx tsx .../src/cli/index.ts idea "bulk export feature"
-
-# List ideas
-npx tsx .../src/cli/index.ts ideas list
-npx tsx .../src/cli/index.ts --json ideas list
-
-# Show idea
-npx tsx .../src/cli/index.ts ideas show dark-mode-toggle
-
 # Log issues
 npx tsx .../src/cli/index.ts issue "login flash on hydration" --severity major
 npx tsx .../src/cli/index.ts issue "payment rounding error" --severity critical
@@ -166,7 +155,7 @@ npx tsx .../src/cli/index.ts issues show login-flash-on-hydration
 ```
 
 **Expected:**
-- Files created in `spec/ideas/` and `spec/issues/`
+- Files created in `spec/issues/`
 - List shows slugs and titles
 - Show displays full content with metadata
 - Severity correctly recorded (critical/major/minor)

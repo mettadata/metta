@@ -44,8 +44,8 @@ The `metta idea` CLI command and its supporting store MUST be removed. The follo
 
 ### Scenario: idea references removed from docs and templates
 - GIVEN the repository at head
-- WHEN a reader greps for `metta idea` or `spec/ideas` under `src/templates/`, `src/cli/commands/refresh.ts`, `README.md`, and top-level docs
-- THEN no matches are found except inside change/spec/archive history files (which are immutable records)
+- WHEN a reader greps for `metta idea` or `spec/ideas` under `src/templates/`, `src/cli/commands/refresh.ts`, `README.md`, and active top-level docs (`QA-TEST-GUIDE.md`)
+- THEN no matches are found except inside immutable historical records (`spec/changes/`, `spec/archive/`, the v0.1 build log at root `tasks.md`, and design proposals under `docs/proposed/`)
 
 ### Scenario: refresh no longer emits an Ideas row
 - GIVEN a project where `metta refresh` is run after this change
