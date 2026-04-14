@@ -549,6 +549,96 @@ describe('CLI', { timeout: 30000 }, () => {
     })
   })
 
+  describe('metta backlog done', () => {
+    it('happy path — archives item, --json reports archived slug', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await runCli(['backlog', 'add', 'foo', '--priority', 'medium'], tempDir)
+
+      const { stdout, code } = await runCli(['--json', 'backlog', 'done', 'foo'], tempDir)
+      expect(code).toBe(0)
+      const data = JSON.parse(stdout)
+      expect(data.archived).toBe('foo')
+
+      const { existsSync } = await import('node:fs')
+      expect(existsSync(join(tempDir, 'spec', 'backlog', 'done', 'foo.md'))).toBe(true)
+      expect(existsSync(join(tempDir, 'spec', 'backlog', 'foo.md'))).toBe(false)
+    })
+
+    it('--change stamps Shipped-in metadata into archived file', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await runCli(['backlog', 'add', 'bar'], tempDir)
+
+      const { code } = await runCli(['backlog', 'done', 'bar', '--change', 'my-change'], tempDir)
+      expect(code).toBe(0)
+
+      const { readFile } = await import('node:fs/promises')
+      const archived = await readFile(join(tempDir, 'spec', 'backlog', 'done', 'bar.md'), 'utf8')
+      expect(archived).toContain('**Shipped-in**: my-change')
+    })
+
+    it('unknown slug exits 4 with not_found error', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      const { stdout, code } = await runCli(['--json', 'backlog', 'done', 'does-not-exist'], tempDir)
+      expect(code).toBe(4)
+      const data = JSON.parse(stdout)
+      expect(data.error.type).toBe('not_found')
+    })
+
+    it('hostile --change value exits 4 with invalid_change error', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await runCli(['backlog', 'add', 'baz'], tempDir)
+
+      const { stdout, code } = await runCli(
+        ['--json', 'backlog', 'done', 'baz', '--change', '../../etc/passwd'],
+        tempDir,
+      )
+      expect(code).toBe(4)
+      const data = JSON.parse(stdout)
+      expect(data.error.type).toBe('invalid_change')
+    })
+
+    it('commits archive with conventional message', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await runCli(['backlog', 'add', 'qux'], tempDir)
+
+      const { code } = await runCli(['backlog', 'done', 'qux'], tempDir)
+      expect(code).toBe(0)
+
+      const { stdout: log } = await execAsync('git', ['log', '--format=%s'], { cwd: tempDir })
+      expect(log).toContain('chore: archive shipped backlog item qux')
+
+      // Commit must move the file from spec/backlog/ to spec/backlog/done/.
+      // Git detects this as a rename, so use --name-status (R = rename)
+      // with --no-renames disabled (default). The status line has both paths.
+      const { stdout: status } = await execAsync(
+        'git', ['show', '--name-status', '--format=', 'HEAD'], { cwd: tempDir },
+      )
+      // Either the rename form "R<score>\tspec/backlog/qux.md\tspec/backlog/done/qux.md"
+      // or separate D + A lines — both acceptable proofs that both sides were staged.
+      expect(status).toMatch(/spec\/backlog\/qux\.md/)
+      expect(status).toMatch(/spec\/backlog\/done\/qux\.md/)
+    })
+  })
+
+  describe('metta-backlog skill template — done option', () => {
+    it('template and deployed copy are byte-identical', async () => {
+      const { readFile } = await import('node:fs/promises')
+      const templatePath = join(import.meta.dirname, '..', 'src', 'templates', 'skills', 'metta-backlog', 'SKILL.md')
+      const deployedPath = join(import.meta.dirname, '..', '.claude', 'skills', 'metta-backlog', 'SKILL.md')
+      const template = await readFile(templatePath, 'utf8')
+      const deployed = await readFile(deployedPath, 'utf8')
+      expect(template).toBe(deployed)
+    })
+
+    it('body mentions `metta backlog done` and `--change`', async () => {
+      const { readFile } = await import('node:fs/promises')
+      const templatePath = join(import.meta.dirname, '..', 'src', 'templates', 'skills', 'metta-backlog', 'SKILL.md')
+      const contents = await readFile(templatePath, 'utf8')
+      expect(contents).toContain('metta backlog done')
+      expect(contents).toContain('--change')
+    })
+  })
+
   describe('metta-fix-issues skill template', () => {
     it('template exists with frontmatter name metta:fix-issues', async () => {
       const { readFile } = await import('node:fs/promises')
