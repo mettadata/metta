@@ -2,7 +2,7 @@
 
 ## Batch 1 — Source edits (independent, parallel-safe)
 
-### Task 1.1 — Remove `runRefresh` from `install.ts` and strip `CLAUDE.md` from git add
+### Task 1.1 — Remove `runRefresh` from `install.ts` and strip `CLAUDE.md` from git add [x]
 
 **Files**
 - `src/cli/commands/install.ts`
