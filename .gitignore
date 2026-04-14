@@ -2,3 +2,4 @@ node_modules/
 dist/
 demo/
 demos/
+.claude/settings.local.json
