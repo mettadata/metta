@@ -307,6 +307,11 @@ The system MUST support \`metta install\` for Beta with new behavior.
     const names = (updatedContent.match(/^## Requirement: (.+)$/gm) ?? []).map(h => h.trim())
     expect(new Set(names).size).toBe(names.length)
 
+    // Original symptom: scenario lines must never be left orphaned without
+    // their backtick-wrapped subject. Lock in by asserting no `WHEN ` line
+    // ends without trailing content.
+    expect(updatedContent).not.toMatch(/^WHEN\s*$/m)
+
     // Inline backticks survive
     expect(updatedContent).toContain('`metta install`')
     expect(updatedContent).toContain('new behavior')

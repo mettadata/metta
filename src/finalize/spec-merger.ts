@@ -128,6 +128,13 @@ export class SpecMerger {
     await this.specLockManager.update(capability, parsed)
   }
 
+  /**
+   * Apply a single delta (ADDED/MODIFIED/RENAMED/REMOVED) to a capability spec on disk.
+   * Returns null on success. Returns a MergeConflict when MODIFIED/RENAMED/REMOVED
+   * targets a requirement that does not exist — caller MUST record the conflict and
+   * skip recording the capability as merged. Idempotent: applying the same delta to
+   * already-applied content produces byte-identical output.
+   */
   private async applyDelta(
     state: StateStore,
     capability: string,
@@ -198,11 +205,20 @@ export class SpecMerger {
 
       content = joinRequirements(preamble, sections)
     } else if (delta.operation === 'REMOVED') {
-      // Remove the requirement section
-      const reqPattern = new RegExp(
-        `## Requirement: ${delta.requirement.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[\\s\\S]*?(?=## Requirement:|$)`,
-      )
-      content = content.replace(reqPattern, '')
+      // Use the same section-keyed split as MODIFIED/RENAMED so we never silently
+      // mis-match across requirement bodies that happen to contain `## Requirement:`.
+      const { preamble, sections } = splitRequirements(content)
+      if (!sections.has(delta.requirement.name)) {
+        return {
+          capability,
+          requirementId: delta.requirement.id,
+          reason: 'requirement not found',
+          baseHash: '',
+          currentHash: '',
+        }
+      }
+      sections.delete(delta.requirement.name)
+      content = joinRequirements(preamble, sections)
     }
 
     await state.writeRaw(specPath, content)
