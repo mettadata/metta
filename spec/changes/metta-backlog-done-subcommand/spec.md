@@ -82,7 +82,7 @@ The command MUST execute the following steps in order:
 
 **Given** `spec/backlog/my-item.md` exists  
 **When** the user runs `metta backlog done my-item --json`  
-**Then** stdout contains exactly `{ "archived": "my-item" }`  
+**Then** stdout contains a JSON object whose `archived` field equals `"my-item"` (additional observability fields such as `shipped_in`, `committed`, `commit_sha` MAY be present)  
 **And** the command exits with code 0
 
 #### Scenario 1.5 — Git unavailable — command still succeeds
