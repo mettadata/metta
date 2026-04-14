@@ -167,6 +167,75 @@ describe('CLI', { timeout: 30000 }, () => {
     })
   })
 
+  describe('metta next post-finalize', () => {
+    async function git(args: string[]): Promise<void> {
+      await execAsync('git', args, { cwd: tempDir })
+    }
+
+    async function setupRepoWithMain(): Promise<void> {
+      await git(['init', '--initial-branch=main'])
+      await git(['config', 'user.email', 'test@example.com'])
+      await git(['config', 'user.name', 'Test'])
+      await writeFile(join(tempDir, 'README.md'), '# test\n')
+      await git(['add', '.'])
+      await git(['commit', '-m', 'initial'])
+    }
+
+    it('returns ship when on metta/* branch ahead of main', async () => {
+      await setupRepoWithMain()
+      await git(['checkout', '-b', 'metta/example'])
+      await writeFile(join(tempDir, 'change.txt'), 'work\n')
+      await git(['add', '.'])
+      await git(['commit', '-m', 'change'])
+      const { stdout } = await runCli(['--json', 'next'], tempDir)
+      const data = JSON.parse(stdout)
+      expect(data.next).toBe('ship')
+      expect(data.change).toBe('example')
+      expect(data.branch).toBe('metta/example')
+      expect(data.command).toContain('--branch metta/example')
+    })
+
+    it('returns propose when on metta/* branch with zero commits ahead', async () => {
+      await setupRepoWithMain()
+      await git(['checkout', '-b', 'metta/clean'])
+      const { stdout } = await runCli(['--json', 'next'], tempDir)
+      const data = JSON.parse(stdout)
+      expect(data.next).toBe('propose')
+    })
+
+    it('returns propose when on main', async () => {
+      await setupRepoWithMain()
+      const { stdout } = await runCli(['--json', 'next'], tempDir)
+      const data = JSON.parse(stdout)
+      expect(data.next).toBe('propose')
+    })
+
+    it('returns propose when main branch is missing', async () => {
+      await git(['init', '--initial-branch=metta/orphan'])
+      await git(['config', 'user.email', 'test@example.com'])
+      await git(['config', 'user.name', 'Test'])
+      await writeFile(join(tempDir, 'README.md'), '# test\n')
+      await git(['add', '.'])
+      await git(['commit', '-m', 'initial'])
+      const { stdout, code } = await runCli(['--json', 'next'], tempDir)
+      expect(code).toBe(0)
+      const data = JSON.parse(stdout)
+      expect(data.next).toBe('propose')
+    })
+  })
+
+  describe('metta-next skill template', () => {
+    it('template and deployed copy handle ship action and are byte-identical', async () => {
+      const { readFile } = await import('node:fs/promises')
+      const templatePath = join(import.meta.dirname, '..', 'src', 'templates', 'skills', 'metta-next', 'SKILL.md')
+      const deployedPath = join(import.meta.dirname, '..', '.claude', 'skills', 'metta-next', 'SKILL.md')
+      const template = await readFile(templatePath, 'utf8')
+      const deployed = await readFile(deployedPath, 'utf8')
+      expect(template).toBe(deployed)
+      expect(template).toMatch(/metta next.*says "ship"/i)
+    })
+  })
+
   describe('metta propose', () => {
     it('creates a change with standard workflow', async () => {
       await runCli(['install', '--git-init'], tempDir)
