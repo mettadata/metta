@@ -1,0 +1,87 @@
+version: 12
+hash: sha256:ec7e5c9293a2
+updated: 2026-04-14T09:09:20.513Z
+status: draft
+source: change
+requirements:
+  - id: fix-issue-cli-command
+    hash: sha256:eab2ce23d2cd
+    scenarios:
+      - no-args-prints-usage
+      - single-slug-prints-details-and-delegate-hint
+      - single-slug-not-found-exits-non-zero
+      - all-lists-issues-sorted-severity-first
+      - all-severity-filters-to-matching-tier
+      - remove-issue-archives-and-commits
+  - id: issues-store-archival
+    hash: sha256:886719c00bc6
+    scenarios:
+      - archive-moves-content-to-resolved-directory
+      - archive-on-missing-slug-throws
+      - archive-is-idempotent-when-resolved-copy-already-exists
+      - remove-deletes-the-open-issue-file
+  - id: skill-template
+    hash: sha256:b8100c99554a
+    scenarios:
+      - template-file-exists-with-correct-frontmatter-name
+      - deployed-skill-is-byte-identical-to-template
+      - skill-body-references-all-four-cli-invocation-modes
+  - id: cli-registration
+    hash: sha256:22b5bedfc67f
+    scenarios:
+      - command-appears-in-help-output
+      - registerfixissuecommand-is-called-in-index-ts
+  - id: fix-issue-cli-command
+    hash: sha256:eab2ce23d2cd
+    scenarios:
+      - no-args-prints-usage
+      - single-slug-prints-details-and-delegate-hint
+      - single-slug-not-found-exits-non-zero
+      - all-lists-issues-sorted-severity-first
+      - all-severity-filters-to-matching-tier
+      - remove-issue-archives-and-commits
+  - id: issues-store-archival
+    hash: sha256:886719c00bc6
+    scenarios:
+      - archive-moves-content-to-resolved-directory
+      - archive-on-missing-slug-throws
+      - archive-is-idempotent-when-resolved-copy-already-exists
+      - remove-deletes-the-open-issue-file
+  - id: skill-template
+    hash: sha256:b8100c99554a
+    scenarios:
+      - template-file-exists-with-correct-frontmatter-name
+      - deployed-skill-is-byte-identical-to-template
+      - skill-body-references-all-four-cli-invocation-modes
+  - id: cli-registration
+    hash: sha256:22b5bedfc67f
+    scenarios:
+      - command-appears-in-help-output
+      - registerfixissuecommand-is-called-in-index-ts
+  - id: fix-issue-cli-command
+    hash: sha256:eab2ce23d2cd
+    scenarios:
+      - no-args-prints-usage
+      - single-slug-prints-details-and-delegate-hint
+      - single-slug-not-found-exits-non-zero
+      - all-lists-issues-sorted-severity-first
+      - all-severity-filters-to-matching-tier
+      - remove-issue-archives-and-commits
+  - id: issues-store-archival
+    hash: sha256:886719c00bc6
+    scenarios:
+      - archive-moves-content-to-resolved-directory
+      - archive-on-missing-slug-throws
+      - archive-is-idempotent-when-resolved-copy-already-exists
+      - remove-deletes-the-open-issue-file
+  - id: skill-template
+    hash: sha256:b8100c99554a
+    scenarios:
+      - template-file-exists-with-correct-frontmatter-name
+      - deployed-skill-is-byte-identical-to-template
+      - skill-body-references-all-four-cli-invocation-modes
+  - id: cli-registration
+    hash: sha256:22b5bedfc67f
+    scenarios:
+      - command-appears-in-help-output
+      - registerfixissuecommand-is-called-in-index-ts
