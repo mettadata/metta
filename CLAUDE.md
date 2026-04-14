@@ -55,7 +55,6 @@ Stack: TypeScript (strict mode, ES2022 target), Node.js >= 22, ESM only, Command
 - `metta fix-gap --all` -- fix gaps automatically
 
 ### Organization
-- `metta idea <description>` -- capture an idea
 - `metta issue <description>` -- log an issue
 - `metta changes list` -- list active changes
 - `metta backlog list` -- list backlog items
@@ -96,7 +95,6 @@ Stack: TypeScript (strict mode, ES2022 target), Node.js >= 22, ESM only, Command
 | [Active Changes](spec/changes/) | `spec/changes/` | Work in flight |
 | [Archive](spec/archive/) | `spec/archive/` | Completed changes with artifacts |
 | [Gaps](spec/gaps/) | `spec/gaps/` | Reconciliation gaps (spec vs code) |
-| [Ideas](spec/ideas/) | `spec/ideas/` | Captured feature ideas |
 | [Issues](spec/issues/) | `spec/issues/` | Logged issues |
 | [Backlog](spec/backlog/) | `spec/backlog/` | Prioritized backlog items |
 | [Architecture](docs/architecture.md) | `docs/architecture.md` | System design and components |
