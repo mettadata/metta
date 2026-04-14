@@ -19,7 +19,7 @@ Delete lines 177-183 (the `// Generate CLAUDE.md using the same code as metta re
 
 ---
 
-### Task 1.2 — Add post-discovery refresh step to `/metta:init` skill (both copies)
+### Task 1.2 [x] — Add post-discovery refresh step to `/metta:init` skill (both copies)
 
 **Files**
 - `src/templates/skills/metta-init/SKILL.md`

@@ -31,4 +31,11 @@ project:
 ```
 Do NOT write flat keys like `name:`, `description:`, `stack:` at the root level.
 
-4. Report to user what was generated
+4. After the discovery agent returns, run `metta refresh` via Bash to regenerate CLAUDE.md from the written spec/project.md, then stage and commit separately:
+   ```
+   metta refresh
+   git add CLAUDE.md && git commit -m "chore: generate CLAUDE.md from discovery"
+   ```
+   If refresh or commit fails, warn the user but continue.
+
+5. Report to user what was generated
