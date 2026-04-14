@@ -19,7 +19,7 @@ Append two new async methods to the `IssuesStore` class after the existing `exis
 
 ---
 
-### Task 1.2 — Create metta-fix-issues skill template and deployed copy
+### Task 1.2 — Create metta-fix-issues skill template and deployed copy [x]
 
 **Files:**
 - `src/templates/skills/metta-fix-issues/SKILL.md` (create)
