@@ -76,7 +76,7 @@ Three new `it` blocks present, each self-contained with inline fixtures. No fixt
 
 ## Batch 3 — Full build and smoke (depends on all of Batch 2)
 
-### Task 3.1 — Full build, test suite, and smoke run
+### Task 3.1 — Full build, test suite, and smoke run[x]
 
 **Files**
 - None written (verification only)
