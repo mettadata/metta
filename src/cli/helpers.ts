@@ -1,4 +1,6 @@
-import { join } from 'node:path'
+import { join, relative } from 'node:path'
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
 import { ConfigLoader } from '../config/config-loader.js'
 import { ArtifactStore } from '../artifacts/artifact-store.js'
 import { WorkflowEngine } from '../workflow/workflow-engine.js'
@@ -65,6 +67,55 @@ export function createCliContext(projectRoot?: string): CliContext {
     templateEngine,
     instructionGenerator,
     stateStore,
+  }
+}
+
+const execAsync = promisify(execFile)
+
+export interface AutoCommitResult {
+  committed: boolean
+  sha?: string
+  reason?: string
+}
+
+export async function autoCommitFile(
+  projectRoot: string,
+  filePath: string,
+  message: string,
+): Promise<AutoCommitResult> {
+  const rel = relative(projectRoot, filePath)
+  try {
+    await execAsync('git', ['rev-parse', '--is-inside-work-tree'], { cwd: projectRoot })
+  } catch {
+    return { committed: false, reason: 'not a git repository' }
+  }
+  try {
+    const { stdout } = await execAsync(
+      'git',
+      ['status', '--porcelain', '--untracked-files=no'],
+      { cwd: projectRoot },
+    )
+    const otherDirty = stdout
+      .split('\n')
+      .filter(Boolean)
+      .some((line) => {
+        const path = line.slice(3).trim()
+        return path !== rel && path !== `"${rel}"`
+      })
+    if (otherDirty) {
+      return { committed: false, reason: 'working tree has other uncommitted tracked changes' }
+    }
+  } catch {
+    return { committed: false, reason: 'failed to read git status' }
+  }
+  try {
+    await execAsync('git', ['add', '--', rel], { cwd: projectRoot })
+    await execAsync('git', ['commit', '-m', message], { cwd: projectRoot })
+    const { stdout } = await execAsync('git', ['rev-parse', 'HEAD'], { cwd: projectRoot })
+    return { committed: true, sha: stdout.trim() }
+  } catch (err) {
+    const raw = err instanceof Error ? err.message : String(err)
+    return { committed: false, reason: `git commit failed: ${raw}` }
   }
 }
 

@@ -1,5 +1,6 @@
 import { Command } from 'commander'
-import { createCliContext, outputJson } from '../helpers.js'
+import { join } from 'node:path'
+import { autoCommitFile, createCliContext, outputJson } from '../helpers.js'
 import type { Severity } from '../../issues/issues-store.js'
 
 export function registerIssueCommand(program: Command): void {
@@ -18,10 +19,14 @@ export function registerIssueCommand(program: Command): void {
           process.exit(4)
         }
         const slug = await ctx.issuesStore.create(description, description, options.severity as Severity)
+        const filePath = join(ctx.projectRoot, 'spec', 'issues', `${slug}.md`)
+        const commit = await autoCommitFile(ctx.projectRoot, filePath, `chore: log issue ${slug}`)
         if (json) {
-          outputJson({ slug, severity: options.severity, status: 'logged' })
+          outputJson({ slug, severity: options.severity, status: 'logged', committed: commit.committed, commit_sha: commit.sha })
         } else {
           console.log(`Issue logged: ${slug} (${options.severity})`)
+          if (commit.committed) { console.log(`  Committed: ${commit.sha?.slice(0, 7)}`) }
+          else if (commit.reason) { console.log(`  Not committed: ${commit.reason}`) }
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
