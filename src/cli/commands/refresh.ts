@@ -147,7 +147,6 @@ export function buildWorkflowSection(): string {
   lines.push('- `metta fix-gap --all` -- fix gaps automatically\n')
 
   lines.push('### Organization')
-  lines.push('- `metta idea <description>` -- capture an idea')
   lines.push('- `metta issue <description>` -- log an issue')
   lines.push('- `metta changes list` -- list active changes')
   lines.push('- `metta backlog list` -- list backlog items\n')
@@ -175,7 +174,6 @@ export function buildReferenceSection(): string {
   lines.push('| [Active Changes](spec/changes/) | `spec/changes/` | Work in flight |')
   lines.push('| [Archive](spec/archive/) | `spec/archive/` | Completed changes with artifacts |')
   lines.push('| [Gaps](spec/gaps/) | `spec/gaps/` | Reconciliation gaps (spec vs code) |')
-  lines.push('| [Ideas](spec/ideas/) | `spec/ideas/` | Captured feature ideas |')
   lines.push('| [Issues](spec/issues/) | `spec/issues/` | Logged issues |')
   lines.push('| [Backlog](spec/backlog/) | `spec/backlog/` | Prioritized backlog items |')
   lines.push('| [Architecture](docs/architecture.md) | `docs/architecture.md` | System design and components |')
