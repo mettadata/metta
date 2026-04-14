@@ -39,7 +39,7 @@ Copy `.claude/skills/metta-fix-gap/SKILL.md` and apply all token substitutions f
 
 ## Batch 2 — CLI command implementation (depends on 1.1)
 
-### Task 2.1 — Create src/cli/commands/fix-issue.ts
+### Task 2.1 — Create src/cli/commands/fix-issue.ts [x]
 
 **Files:**
 - `src/cli/commands/fix-issue.ts` (create)
