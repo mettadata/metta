@@ -380,4 +380,140 @@ describe('CLI', { timeout: 30000 }, () => {
       expect(data.gates.map((g: { name: string }) => g.name)).toContain('tests')
     })
   })
+
+  describe('metta fix-issue', () => {
+    it('no args emits skill-usage hint', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      const { stdout, code } = await runCli(['fix-issue'], tempDir)
+      expect(code).toBe(0)
+      expect(stdout).toContain('Usage: metta fix-issue')
+      expect(stdout).toContain('/metta-fix-issues')
+    })
+
+    it('errors with exit 4 on unknown slug', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      const { stdout, stderr, code } = await runCli(['--json', 'fix-issue', 'does-not-exist'], tempDir)
+      expect(code).toBe(4)
+      const combined = stdout + stderr
+      const data = JSON.parse(stdout)
+      expect(data.error.code).toBe(4)
+      expect(data.error.type).toBe('not_found')
+      expect(combined).toContain('does-not-exist')
+    })
+
+    it('single-slug prints pipeline instructions', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      const seed = await runCli(['--json', 'issue', 'foo problem', '--severity', 'minor'], tempDir)
+      const seedData = JSON.parse(seed.stdout)
+      const slug = seedData.slug
+      const { stdout, code } = await runCli(['--json', 'fix-issue', slug], tempDir)
+      expect(code).toBe(0)
+      const data = JSON.parse(stdout)
+      expect(data.issue.slug).toBe(slug)
+      expect(data.issue.severity).toBe('minor')
+      expect(data.issue.title).toBeTruthy()
+    })
+
+    it('single-slug prose output includes delegate hint', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await runCli(['issue', 'spec merger strips inline backticks', '--severity', 'major'], tempDir)
+      const { stdout, code } = await runCli(['fix-issue', 'spec-merger-strips-inline-backticks'], tempDir)
+      expect(code).toBe(0)
+      expect(stdout).toContain('Severity: major')
+      expect(stdout).toContain('Status: logged')
+      expect(stdout).toContain('metta execute --skill fix-issues --target spec-merger-strips-inline-backticks')
+    })
+
+    it('--all sorts by severity critical then major then minor', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      // Seed out of order: minor, critical, major
+      await runCli(['issue', 'zeta minor thing', '--severity', 'minor'], tempDir)
+      await runCli(['issue', 'alpha critical thing', '--severity', 'critical'], tempDir)
+      await runCli(['issue', 'mu major thing', '--severity', 'major'], tempDir)
+
+      const { stdout, code } = await runCli(['--json', 'fix-issue', '--all'], tempDir)
+      expect(code).toBe(0)
+      const data = JSON.parse(stdout)
+      expect(data.issues.length).toBe(3)
+      expect(data.issues[0].severity).toBe('critical')
+      expect(data.issues[1].severity).toBe('major')
+      expect(data.issues[2].severity).toBe('minor')
+      expect(data.severity_filter).toBeNull()
+    })
+
+    it('--all --severity major filters to major only', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await runCli(['issue', 'zeta minor thing', '--severity', 'minor'], tempDir)
+      await runCli(['issue', 'alpha critical thing', '--severity', 'critical'], tempDir)
+      await runCli(['issue', 'mu major thing', '--severity', 'major'], tempDir)
+
+      const { stdout, code } = await runCli(['--json', 'fix-issue', '--all', '--severity', 'major'], tempDir)
+      expect(code).toBe(0)
+      const data = JSON.parse(stdout)
+      expect(data.issues.length).toBe(1)
+      expect(data.issues[0].severity).toBe('major')
+      expect(data.severity_filter).toBe('major')
+    })
+
+    it('--remove-issue archives to spec/issues/resolved/ and deletes original', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await runCli(['issue', 'stale issue', '--severity', 'minor'], tempDir)
+      const { existsSync } = await import('node:fs')
+      // Precondition
+      expect(existsSync(join(tempDir, 'spec', 'issues', 'stale-issue.md'))).toBe(true)
+
+      const { code } = await runCli(['fix-issue', '--remove-issue', 'stale-issue'], tempDir)
+      expect(code).toBe(0)
+
+      expect(existsSync(join(tempDir, 'spec', 'issues', 'resolved', 'stale-issue.md'))).toBe(true)
+      expect(existsSync(join(tempDir, 'spec', 'issues', 'stale-issue.md'))).toBe(false)
+    })
+
+    it('--remove-issue errors with exit 4 on unknown slug', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      const { stdout, code } = await runCli(['--json', 'fix-issue', '--remove-issue', 'does-not-exist'], tempDir)
+      expect(code).toBe(4)
+      const data = JSON.parse(stdout)
+      expect(data.error.code).toBe(4)
+      expect(data.error.type).toBe('not_found')
+    })
+
+    it('--remove-issue commits the archive move', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await runCli(['issue', 'stale issue', '--severity', 'minor'], tempDir)
+      const { code } = await runCli(['fix-issue', '--remove-issue', 'stale-issue'], tempDir)
+      expect(code).toBe(0)
+      const { stdout: log } = await execAsync('git', ['log', '--format=%s'], { cwd: tempDir })
+      expect(log).toContain('fix(issues): remove resolved issue stale-issue')
+    })
+  })
+
+  describe('metta-fix-issues skill template', () => {
+    it('template exists with frontmatter name metta:fix-issues', async () => {
+      const { readFile } = await import('node:fs/promises')
+      const templatePath = join(import.meta.dirname, '..', 'src', 'templates', 'skills', 'metta-fix-issues', 'SKILL.md')
+      const contents = await readFile(templatePath, 'utf8')
+      expect(contents).toMatch(/^---\n[\s\S]*?name:\s*metta:fix-issues[\s\S]*?\n---/)
+    })
+
+    it('deployed copy is byte-identical to template', async () => {
+      const { readFile } = await import('node:fs/promises')
+      const templatePath = join(import.meta.dirname, '..', 'src', 'templates', 'skills', 'metta-fix-issues', 'SKILL.md')
+      const deployedPath = join(import.meta.dirname, '..', '.claude', 'skills', 'metta-fix-issues', 'SKILL.md')
+      const template = await readFile(templatePath, 'utf8')
+      const deployed = await readFile(deployedPath, 'utf8')
+      expect(template).toBe(deployed)
+    })
+
+    it('body references all four CLI invocation modes', async () => {
+      const { readFile } = await import('node:fs/promises')
+      const templatePath = join(import.meta.dirname, '..', 'src', 'templates', 'skills', 'metta-fix-issues', 'SKILL.md')
+      const contents = await readFile(templatePath, 'utf8')
+      expect(contents).toContain('fix-issue')
+      expect(contents).toContain('fix-issue --all')
+      expect(contents).toContain('fix-issue --remove-issue')
+      // No-argument interactive-selection mode marker
+      expect(contents).toMatch(/No-Argument Mode|interactive selection/i)
+    })
+  })
 })

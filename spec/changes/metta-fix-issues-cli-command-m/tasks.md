@@ -78,7 +78,7 @@ Add one import line after the existing `registerFixGapCommand` import (line 34):
 
 ## Batch 4 — Test coverage (depends on 2.1, 1.2, 3.1)
 
-### Task 4.1 — Add CLI and skill tests to tests/cli.test.ts
+### Task 4.1 — Add CLI and skill tests to tests/cli.test.ts [x]
 
 **Files:**
 - `tests/cli.test.ts` (modify)
