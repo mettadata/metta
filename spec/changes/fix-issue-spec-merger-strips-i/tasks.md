@@ -18,7 +18,7 @@ Add `InlineCode` to the existing `import type { Root, Content, Heading, Text } f
 
 ---
 
-### Task 1.2 — Replace regex-removal-plus-append with section-split in spec-merger.ts
+### Task 1.2 — Replace regex-removal-plus-append with section-split in spec-merger.ts [x]
 
 **Files**
 - `src/finalize/spec-merger.ts` (write)
