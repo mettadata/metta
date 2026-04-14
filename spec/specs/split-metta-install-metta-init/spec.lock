@@ -1,0 +1,37 @@
+version: 5
+hash: sha256:03757fb90004
+updated: 2026-04-14T05:24:40.521Z
+status: draft
+source: change
+requirements:
+  - id: init-command-drives-discovery
+    hash: sha256:414ca1f26d3e
+    scenarios:
+      - init-after-install-in-a-brownfield-project
+      - init-on-a-greenfield-project
+      - init-before-install-is-blocked
+      - init-does-not-mutate-the-repository
+  - id: init-skill-invokes-init-command
+    hash: sha256:906f7cb9e6ba
+    scenarios:
+      - skill-template-references-init-command
+      - skill-propagates-to-installed-projects
+  - id: install-command-scaffolds-only
+    hash: sha256:2a2e54f18dd0
+    scenarios:
+      - fresh-install-in-a-git-repo
+      - install-on-a-project-that-already-has-metta
+      - install-without-a-git-repository
+      - human-readable-install-output-points-at-init
+  - id: init-command-drives-discovery
+    hash: sha256:414ca1f26d3e
+    scenarios:
+      - init-after-install-in-a-brownfield-project
+      - init-on-a-greenfield-project
+      - init-before-install-is-blocked
+      - init-does-not-mutate-the-repository
+  - id: init-skill-invokes-init-command
+    hash: sha256:906f7cb9e6ba
+    scenarios:
+      - skill-template-references-init-command
+      - skill-propagates-to-installed-projects

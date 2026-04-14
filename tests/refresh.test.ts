@@ -137,7 +137,7 @@ A composable framework.
   describe('buildReferenceSection', () => {
     it('includes reference links', () => {
       const result = buildReferenceSection()
-      expect(result).toContain('[Project Constitution](spec/project.md)')
+      expect(result).toContain('[Constitution](spec/project.md)')
       expect(result).toContain('[Active Specs](spec/specs/)')
     })
   })
@@ -318,7 +318,7 @@ Test.
       await runRefresh(tempDir, false)
       const content = await readFile(join(tempDir, 'CLAUDE.md'), 'utf-8')
       expect(content).toContain('<!-- metta:reference-start -->')
-      expect(content).toContain('[Project Constitution](spec/project.md)')
+      expect(content).toContain('[Constitution](spec/project.md)')
       expect(content).toContain('<!-- metta:reference-end -->')
     })
   })

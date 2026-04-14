@@ -1,6 +1,32 @@
 import { Command } from 'commander'
 import { join } from 'node:path'
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
 import { createCliContext, outputJson, color, banner } from '../helpers.js'
+
+const execAsync = promisify(execFile)
+
+async function detectShipCandidate(
+  root: string,
+  baseBranch: string,
+): Promise<{ change: string; branch: string } | null> {
+  let branch: string
+  try {
+    const { stdout } = await execAsync('git', ['symbolic-ref', '--short', 'HEAD'], { cwd: root })
+    branch = stdout.trim()
+  } catch {
+    return null
+  }
+  const match = branch.match(/^metta\/(.+)$/)
+  if (!match) return null
+  try {
+    const { stdout } = await execAsync('git', ['rev-list', '--count', `${baseBranch}..HEAD`], { cwd: root })
+    if (parseInt(stdout.trim(), 10) === 0) return null
+  } catch {
+    return null
+  }
+  return { change: match[1], branch }
+}
 
 export function registerNextCommand(program: Command): void {
   program
@@ -15,6 +41,24 @@ export function registerNextCommand(program: Command): void {
         const changes = await ctx.artifactStore.listChanges()
 
         if (changes.length === 0) {
+          const config = await ctx.configLoader.load()
+          const baseBranch = config.git?.pr_base ?? 'main'
+          const candidate = await detectShipCandidate(ctx.projectRoot, baseBranch)
+          if (candidate) {
+            if (json) {
+              outputJson({
+                next: 'ship',
+                action: 'ship',
+                command: `metta ship --branch ${candidate.branch}`,
+                change: candidate.change,
+                branch: candidate.branch,
+              })
+            } else {
+              console.log(banner('ship', `Ready to ship: ${candidate.change}`))
+              console.log(`Next: metta ship --branch ${candidate.branch}`)
+            }
+            return
+          }
           if (json) {
             outputJson({ next: 'propose', command: 'metta propose <description>', message: 'No active changes. Start one with metta propose.' })
           } else {

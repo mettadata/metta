@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { Command } from 'commander'
+import { registerInstallCommand } from './commands/install.js'
 import { registerInitCommand } from './commands/init.js'
 import { registerProposeCommand } from './commands/propose.js'
 import { registerQuickCommand } from './commands/quick.js'
@@ -46,6 +47,7 @@ program
   .option('--debug', 'Debug output')
   .option('--quiet', 'Minimal output')
 
+registerInstallCommand(program)
 registerInitCommand(program)
 registerProposeCommand(program)
 registerQuickCommand(program)

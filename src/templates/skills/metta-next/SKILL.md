@@ -21,3 +21,4 @@ Automatically advance to whatever's next in the metta workflow.
 - Let the CLI drive — `metta next` tells you what to do
 - MUST write files, git commit, and call `metta complete` for each artifact
 - If `metta next` says "finalize", run `/metta:ship` to finalize and merge
+- If `metta next` says "ship", run `/metta:ship` (or the returned command) to merge the branch to main

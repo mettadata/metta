@@ -1,0 +1,21 @@
+version: 3
+hash: sha256:ee94d96708fa
+updated: 2026-04-14T06:06:22.398Z
+status: draft
+source: change
+requirements:
+  - id: next-skill-runs-ship
+    hash: sha256:ce28026940a8
+    scenarios:
+      - skill-advances-from-ship-response
+  - id: next-command-advances-post-finalize
+    hash: sha256:6c3bb9566d4e
+    scenarios:
+      - next-after-finalize-on-a-metta-branch
+      - next-on-main-with-no-active-changes
+      - next-on-a-metta-branch-with-no-unmerged-commits
+      - next-when-main-branch-is-missing
+  - id: next-skill-runs-ship
+    hash: sha256:ce28026940a8
+    scenarios:
+      - skill-advances-from-ship-response
