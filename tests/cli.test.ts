@@ -236,6 +236,35 @@ describe('CLI', { timeout: 30000 }, () => {
     })
   })
 
+  describe('metta-issue skill template', () => {
+    it('template and deployed copy reference the issue CLI and are byte-identical', async () => {
+      const { readFile } = await import('node:fs/promises')
+      const templatePath = join(import.meta.dirname, '..', 'src', 'templates', 'skills', 'metta-issue', 'SKILL.md')
+      const deployedPath = join(import.meta.dirname, '..', '.claude', 'skills', 'metta-issue', 'SKILL.md')
+      const template = await readFile(templatePath, 'utf8')
+      const deployed = await readFile(deployedPath, 'utf8')
+      expect(template).toBe(deployed)
+      expect(template).toContain('name: metta:issue')
+      expect(template).toContain('metta issue')
+      expect(template).toContain('--severity')
+    })
+  })
+
+  describe('metta-backlog skill template', () => {
+    it('template and deployed copy cover all subcommands and are byte-identical', async () => {
+      const { readFile } = await import('node:fs/promises')
+      const templatePath = join(import.meta.dirname, '..', 'src', 'templates', 'skills', 'metta-backlog', 'SKILL.md')
+      const deployedPath = join(import.meta.dirname, '..', '.claude', 'skills', 'metta-backlog', 'SKILL.md')
+      const template = await readFile(templatePath, 'utf8')
+      const deployed = await readFile(deployedPath, 'utf8')
+      expect(template).toBe(deployed)
+      expect(template).toContain('name: metta:backlog')
+      for (const sub of ['list', 'show', 'add', 'promote']) {
+        expect(template).toContain(sub)
+      }
+    })
+  })
+
   describe('metta propose', () => {
     it('creates a change with standard workflow', async () => {
       await runCli(['install', '--git-init'], tempDir)
@@ -267,16 +296,6 @@ describe('CLI', { timeout: 30000 }, () => {
       const data = JSON.parse(stdout)
       expect(data.change).toBe('test-change')
       expect(data.workflow).toBe('standard')
-    })
-  })
-
-  describe('metta idea', () => {
-    it('captures an idea', async () => {
-      await runCli(['install', '--git-init'], tempDir)
-      const { stdout, code } = await runCli(['--json', 'idea', 'dark mode toggle'], tempDir)
-      expect(code).toBe(0)
-      const data = JSON.parse(stdout)
-      expect(data.slug).toBe('dark-mode-toggle')
     })
   })
 

@@ -123,7 +123,7 @@ A composable framework.
         'metta complete', 'metta specs list',
         'metta docs generate', 'metta import',
         'metta gaps list', 'metta fix-gap',
-        'metta idea', 'metta issue',
+        'metta issue',
         'metta changes list', 'metta backlog list',
         'metta doctor', 'metta config get',
         'metta gate run', 'metta refresh', 'metta update',
