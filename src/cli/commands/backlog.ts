@@ -1,5 +1,6 @@
 import { Command } from 'commander'
-import { createCliContext, outputJson } from '../helpers.js'
+import { join } from 'node:path'
+import { autoCommitFile, createCliContext, outputJson } from '../helpers.js'
 
 export function registerBacklogCommand(program: Command): void {
   const backlog = program
@@ -52,10 +53,14 @@ export function registerBacklogCommand(program: Command): void {
       const json = program.opts().json
       const ctx = createCliContext()
       const slug = await ctx.backlogStore.add(title, title, options.source, options.priority)
+      const filePath = join(ctx.projectRoot, 'spec', 'backlog', `${slug}.md`)
+      const commit = await autoCommitFile(ctx.projectRoot, filePath, `chore: add backlog item ${slug}`)
       if (json) {
-        outputJson({ slug, status: 'added' })
+        outputJson({ slug, status: 'added', committed: commit.committed, commit_sha: commit.sha })
       } else {
         console.log(`Added to backlog: ${slug}`)
+        if (commit.committed) { console.log(`  Committed: ${commit.sha?.slice(0, 7)}`) }
+        else if (commit.reason) { console.log(`  Not committed: ${commit.reason}`) }
       }
     })
 
