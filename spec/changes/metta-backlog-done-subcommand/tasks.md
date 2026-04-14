@@ -169,7 +169,7 @@
 
 ## Batch 3 — CLI tests (depends on 2.1 and 1.2)
 
-### Task 3.1 — Add CLI integration tests and skill static-content assertions
+### Task 3.1 — Add CLI integration tests and skill static-content assertions [x]
 
 **Files:**
 - `tests/cli.test.ts` (modify — append new describe blocks)
