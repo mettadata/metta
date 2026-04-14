@@ -90,7 +90,7 @@
 
 ## Batch 2 — CLI subcommand (depends on 1.1)
 
-### Task 2.1 — Add `backlog done <slug> [--change <name>]` subcommand
+### Task 2.1 — Add `backlog done <slug> [--change <name>]` subcommand [x]
 
 **Files:**
 - `src/cli/commands/backlog.ts` (modify)
