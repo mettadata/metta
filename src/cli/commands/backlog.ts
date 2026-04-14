@@ -3,9 +3,9 @@ import { execFile } from 'node:child_process'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { autoCommitFile, createCliContext, outputJson } from '../helpers.js'
+import { SLUG_RE } from '../../util/slug.js'
 
 const execAsync = promisify(execFile)
-const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,59}$/
 
 export function registerBacklogCommand(program: Command): void {
   const backlog = program

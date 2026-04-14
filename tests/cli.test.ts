@@ -606,6 +606,12 @@ describe('CLI', { timeout: 30000 }, () => {
 
       const { stdout: log } = await execAsync('git', ['log', '--format=%s'], { cwd: tempDir })
       expect(log).toContain('chore: archive shipped backlog item qux')
+
+      // Commit should include BOTH the deletion and the addition to guard
+      // against a future refactor that only stages one side.
+      const { stdout: stat } = await execAsync('git', ['show', '--stat', '--format=', 'HEAD'], { cwd: tempDir })
+      expect(stat).toContain('spec/backlog/qux.md')
+      expect(stat).toContain('spec/backlog/done/qux.md')
     })
   })
 

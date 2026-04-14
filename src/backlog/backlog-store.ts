@@ -1,6 +1,7 @@
 import { readdir, mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { StateStore } from '../state/state-store.js'
+import { assertSafeSlug as assertSlug } from '../util/slug.js'
 
 export interface BacklogItem {
   title: string
@@ -19,12 +20,8 @@ function slugify(text: string): string {
     .slice(0, 60)
 }
 
-const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,59}$/
-
 function assertSafeSlug(slug: string): void {
-  if (typeof slug !== 'string' || !SLUG_RE.test(slug)) {
-    throw new Error(`Invalid backlog slug '${slug}' — must match ${SLUG_RE}`)
-  }
+  assertSlug(slug, 'backlog slug')
 }
 
 function formatItem(item: BacklogItem): string {
