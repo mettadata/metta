@@ -607,11 +607,16 @@ describe('CLI', { timeout: 30000 }, () => {
       const { stdout: log } = await execAsync('git', ['log', '--format=%s'], { cwd: tempDir })
       expect(log).toContain('chore: archive shipped backlog item qux')
 
-      // Commit should include BOTH the deletion and the addition to guard
-      // against a future refactor that only stages one side.
-      const { stdout: stat } = await execAsync('git', ['show', '--stat', '--format=', 'HEAD'], { cwd: tempDir })
-      expect(stat).toContain('spec/backlog/qux.md')
-      expect(stat).toContain('spec/backlog/done/qux.md')
+      // Commit must move the file from spec/backlog/ to spec/backlog/done/.
+      // Git detects this as a rename, so use --name-status (R = rename)
+      // with --no-renames disabled (default). The status line has both paths.
+      const { stdout: status } = await execAsync(
+        'git', ['show', '--name-status', '--format=', 'HEAD'], { cwd: tempDir },
+      )
+      // Either the rename form "R<score>\tspec/backlog/qux.md\tspec/backlog/done/qux.md"
+      // or separate D + A lines — both acceptable proofs that both sides were staged.
+      expect(status).toMatch(/spec\/backlog\/qux\.md/)
+      expect(status).toMatch(/spec\/backlog\/done\/qux\.md/)
     })
   })
 
