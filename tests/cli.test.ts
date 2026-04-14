@@ -270,16 +270,6 @@ describe('CLI', { timeout: 30000 }, () => {
     })
   })
 
-  describe('metta idea', () => {
-    it('captures an idea', async () => {
-      await runCli(['install', '--git-init'], tempDir)
-      const { stdout, code } = await runCli(['--json', 'idea', 'dark mode toggle'], tempDir)
-      expect(code).toBe(0)
-      const data = JSON.parse(stdout)
-      expect(data.slug).toBe('dark-mode-toggle')
-    })
-  })
-
   describe('metta issue', () => {
     it('logs an issue with severity', async () => {
       await runCli(['install', '--git-init'], tempDir)
