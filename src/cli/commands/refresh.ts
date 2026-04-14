@@ -123,6 +123,10 @@ export function buildWorkflowSection(): string {
   const lines: string[] = []
   lines.push('## Metta Workflow\n')
 
+  lines.push('### How to work')
+  lines.push('For any code change — bug fix, feature, refactor — start with `metta quick <description>` (or `metta propose` for anything non-trivial) before editing files. The framework scaffolds a change branch, tracks intent, and runs review/verification. Doc-only fixes and this workflow itself are the exceptions.')
+  lines.push('')
+
   lines.push('### Lifecycle')
   lines.push('- `metta propose <description>` -- start a new change (standard workflow)')
   lines.push('- `metta quick <description>` -- quick mode (skip planning)')

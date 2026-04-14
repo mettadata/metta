@@ -148,6 +148,36 @@ describe('CLI', { timeout: 30000 }, () => {
     })
   })
 
+  describe('metta install guard hook', () => {
+    it('writes metta-guard-edit.mjs and registers PreToolUse in settings.json', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      const { readFile } = await import('node:fs/promises')
+      const hookPath = join(tempDir, '.claude', 'hooks', 'metta-guard-edit.mjs')
+      const settingsPath = join(tempDir, '.claude', 'settings.json')
+      const hookContents = await readFile(hookPath, 'utf8')
+      expect(hookContents).toContain('metta-guard')
+      expect(hookContents).toContain('Edit')
+      const settings = JSON.parse(await readFile(settingsPath, 'utf8'))
+      const preToolUse = settings.hooks?.PreToolUse ?? []
+      const hasGuard = preToolUse.some((e: { hooks?: Array<{ command?: string }> }) =>
+        (e.hooks ?? []).some((h) => h.command?.includes('metta-guard-edit.mjs')),
+      )
+      expect(hasGuard).toBe(true)
+    })
+
+    it('is idempotent — second install does not duplicate the PreToolUse entry', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await runCli(['install'], tempDir)
+      const { readFile } = await import('node:fs/promises')
+      const settings = JSON.parse(await readFile(join(tempDir, '.claude', 'settings.json'), 'utf8'))
+      const preToolUse = settings.hooks?.PreToolUse ?? []
+      const guardEntries = preToolUse.filter((e: { hooks?: Array<{ command?: string }> }) =>
+        (e.hooks ?? []).some((h) => h.command?.includes('metta-guard-edit.mjs')),
+      )
+      expect(guardEntries.length).toBe(1)
+    })
+  })
+
   describe('metta-init skill template', () => {
     it('references metta init --json and not metta install --json', async () => {
       const { readFile } = await import('node:fs/promises')

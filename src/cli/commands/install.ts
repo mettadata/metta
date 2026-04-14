@@ -1,5 +1,5 @@
 import { Command } from 'commander'
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, writeFile, readFile, copyFile, chmod } from 'node:fs/promises'
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { execFile } from 'node:child_process'
@@ -10,6 +10,42 @@ import { claudeCodeAdapter } from '../../delivery/claude-code-adapter.js'
 import { installCommands } from '../../delivery/command-installer.js'
 
 const execAsync = promisify(execFile)
+
+async function installMettaGuardHook(root: string): Promise<void> {
+  const hookDir = join(root, '.claude', 'hooks')
+  const hookPath = join(hookDir, 'metta-guard-edit.mjs')
+  const settingsPath = join(root, '.claude', 'settings.json')
+
+  const templateHook = new URL('../../templates/hooks/metta-guard-edit.mjs', import.meta.url).pathname
+  await mkdir(hookDir, { recursive: true })
+  await copyFile(templateHook, hookPath)
+  await chmod(hookPath, 0o755)
+
+  let settings: Record<string, unknown> = {}
+  if (existsSync(settingsPath)) {
+    try {
+      settings = JSON.parse(await readFile(settingsPath, 'utf8'))
+    } catch {
+      settings = {}
+    }
+  }
+
+  const hooks = (settings.hooks as Record<string, unknown>) ?? {}
+  const preToolUse = (hooks.PreToolUse as Array<Record<string, unknown>>) ?? []
+  const alreadyRegistered = preToolUse.some((entry) => {
+    const hooksArr = (entry.hooks as Array<Record<string, unknown>>) ?? []
+    return hooksArr.some((h) => typeof h.command === 'string' && h.command.includes('metta-guard-edit.mjs'))
+  })
+  if (!alreadyRegistered) {
+    preToolUse.push({
+      matcher: 'Edit|Write|NotebookEdit|MultiEdit',
+      hooks: [{ type: 'command', command: '.claude/hooks/metta-guard-edit.mjs' }],
+    })
+    hooks.PreToolUse = preToolUse
+    settings.hooks = hooks
+    await writeFile(settingsPath, JSON.stringify(settings, null, 2) + '\n')
+  }
+}
 
 function askYesNo(question: string): Promise<boolean> {
   const rl = createInterface({ input: process.stdin, output: process.stdout })
@@ -121,6 +157,13 @@ Banned patterns and forbidden operations.
           detectedTools.push('Claude Code')
           const installed = await installCommands(claudeCodeAdapter, root)
           installedCommands.push(...installed)
+        }
+
+        // Install Claude Code PreToolUse guard hook + settings.json entry
+        try {
+          await installMettaGuardHook(root)
+        } catch {
+          // Hook install failure shouldn't block init
         }
 
         // Generate CLAUDE.md using the same code as metta refresh
