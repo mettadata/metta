@@ -84,6 +84,7 @@ For any code change — bug fix, feature, refactor — start with `metta quick <
 | metta-issue-metta-backlog-slas | 11 |
 | schemas | 126 |
 | spec-model | 26 |
+| spec:-metta-fix-issues-cli-command-m | 78 |
 | split-metta-install-metta-init | 20 |
 | state-store | 73 |
 | workflow-engine | 69 |
