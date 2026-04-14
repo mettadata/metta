@@ -2,7 +2,7 @@
 
 ## Batch 1 — Source fixes (parallel-safe, different files)
 
-### Task 1.1 — Fix `extractText` inline-code branch in spec-parser.ts
+### Task 1.1 — Fix `extractText` inline-code branch in spec-parser.ts [x]
 
 **Files**
 - `src/specs/spec-parser.ts` (write)
