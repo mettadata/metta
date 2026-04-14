@@ -31,6 +31,9 @@ Stack: TypeScript (strict mode, ES2022 target), Node.js >= 22, ESM only, Command
 <!-- metta:workflow-start -->
 ## Metta Workflow
 
+### How to work
+For any code change — bug fix, feature, refactor — start with `metta quick <description>` (or `metta propose` for anything non-trivial) before editing files. The framework scaffolds a change branch, tracks intent, and runs review/verification. Doc-only fixes and this workflow itself are the exceptions.
+
 ### Lifecycle
 - `metta propose <description>` -- start a new change (standard workflow)
 - `metta quick <description>` -- quick mode (skip planning)
