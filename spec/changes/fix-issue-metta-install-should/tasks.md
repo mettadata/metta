@@ -74,7 +74,7 @@ Both agent files are byte-identical and contain no reference to `CLAUDE.md` in t
 
 ## Batch 2 — Test updates (depends on Batch 1)
 
-### Task 2.1 — Add negative CLAUDE.md assertion to install test block
+### Task 2.1 [x] — Add negative CLAUDE.md assertion to install test block
 
 **Files**
 - `tests/cli.test.ts`

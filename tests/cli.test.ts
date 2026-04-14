@@ -62,6 +62,13 @@ describe('CLI', { timeout: 30000 }, () => {
       expect(existsSync(join(tempDir, 'spec', 'project.md'))).toBe(true)
     })
 
+    it('does not create CLAUDE.md', async () => {
+      const { code } = await runCli(['install', '--git-init'], tempDir)
+      expect(code).toBe(0)
+      const { existsSync } = await import('node:fs')
+      expect(existsSync(join(tempDir, 'CLAUDE.md'))).toBe(false)
+    })
+
     it('outputs JSON with git_initialized when --git-init is used', async () => {
       const { stdout } = await runCli(['--json', 'install', '--git-init'], tempDir)
       const data = JSON.parse(stdout)
@@ -84,6 +91,7 @@ describe('CLI', { timeout: 30000 }, () => {
       const data = JSON.parse(stdout)
       expect(data).not.toHaveProperty('discovery')
       expect(data).not.toHaveProperty('mode')
+      expect(data).not.toHaveProperty('claude_md')
     })
 
     it('human-mode output directs user to metta init', async () => {
