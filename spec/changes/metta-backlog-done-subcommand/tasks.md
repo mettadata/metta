@@ -60,7 +60,7 @@
 
 ---
 
-### Task 1.2 — Extend /metta-backlog skill with `done` branch (byte-identical pair)
+### Task 1.2 — Extend /metta-backlog skill with `done` branch (byte-identical pair) [x]
 
 **Files:**
 - `src/templates/skills/metta-backlog/SKILL.md` (modify)
