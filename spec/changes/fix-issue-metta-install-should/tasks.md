@@ -110,7 +110,7 @@ Test suite contains a static content guard on the skill and a unit-level integra
 
 ## Batch 3 — Build, test, smoke (depends on Batches 1 and 2)
 
-### Task 3.1 — Full build, test suite, and smoke run
+### Task 3.1 — Full build, test suite, and smoke run[x]
 
 **Files**
 - None modified; verification only.
