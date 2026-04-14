@@ -46,6 +46,7 @@ process.stderr.write(
     `metta-guard: ${toolName} blocked — no active metta change.`,
     `Start one with /metta:quick <description> or metta quick <description>.`,
     `Then retry the edit.`,
+    `Emergency bypass: disable this hook in .claude/settings.local.json.`,
   ].join('\n') + '\n',
 )
 process.exit(2)

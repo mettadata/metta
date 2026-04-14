@@ -23,18 +23,23 @@ async function installMettaGuardHook(root: string): Promise<void> {
 
   let settings: Record<string, unknown> = {}
   if (existsSync(settingsPath)) {
+    const raw = await readFile(settingsPath, 'utf8')
     try {
-      settings = JSON.parse(await readFile(settingsPath, 'utf8'))
-    } catch {
-      settings = {}
+      settings = JSON.parse(raw)
+    } catch (err) {
+      throw new Error(`.claude/settings.json exists but is not valid JSON — refusing to overwrite. Fix it and re-run metta install. Cause: ${err instanceof Error ? err.message : String(err)}`)
     }
   }
 
-  const hooks = (settings.hooks as Record<string, unknown>) ?? {}
-  const preToolUse = (hooks.PreToolUse as Array<Record<string, unknown>>) ?? []
+  const rawHooks = settings.hooks
+  const hooks: Record<string, unknown> = rawHooks && typeof rawHooks === 'object' && !Array.isArray(rawHooks)
+    ? (rawHooks as Record<string, unknown>)
+    : {}
+  const rawPre = hooks.PreToolUse
+  const preToolUse: Array<Record<string, unknown>> = Array.isArray(rawPre) ? rawPre : []
   const alreadyRegistered = preToolUse.some((entry) => {
-    const hooksArr = (entry.hooks as Array<Record<string, unknown>>) ?? []
-    return hooksArr.some((h) => typeof h.command === 'string' && h.command.includes('metta-guard-edit.mjs'))
+    const hooksArr = Array.isArray(entry?.hooks) ? (entry.hooks as Array<Record<string, unknown>>) : []
+    return hooksArr.some((h) => typeof h?.command === 'string' && h.command.includes('metta-guard-edit.mjs'))
   })
   if (!alreadyRegistered) {
     preToolUse.push({
@@ -160,10 +165,13 @@ Banned patterns and forbidden operations.
         }
 
         // Install Claude Code PreToolUse guard hook + settings.json entry
+        let guardInstalled = false
         try {
           await installMettaGuardHook(root)
-        } catch {
-          // Hook install failure shouldn't block init
+          guardInstalled = true
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err)
+          console.error(`Warning: failed to install metta-guard hook — ${message}`)
         }
 
         // Generate CLAUDE.md using the same code as metta refresh
@@ -197,6 +205,7 @@ Banned patterns and forbidden operations.
             constitution: 'spec/project.md',
             detected_tools: detectedTools,
             installed_commands: installedCommands,
+            guard_hook_installed: guardInstalled,
           })
         } else {
           console.log('Metta initialized')
@@ -209,6 +218,9 @@ Banned patterns and forbidden operations.
           if (detectedTools.length > 0) {
             console.log(`  Detected: ${detectedTools.join(', ')}`)
             console.log(`  Installed: ${installedCommands.length} slash commands`)
+          }
+          if (guardInstalled) {
+            console.log('  Installed: PreToolUse guard hook (.claude/hooks/metta-guard-edit.mjs)')
           }
           if (committed) {
             console.log('  Committed: initial metta setup')
