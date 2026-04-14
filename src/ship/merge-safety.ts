@@ -40,9 +40,9 @@ export class MergeSafetyPipeline {
       return { status: 'failure', steps }
     }
     try {
-      const status = await this.git('status --porcelain')
+      const status = await this.git('status --porcelain --untracked-files=no')
       if (status.length > 0) {
-        steps.push({ step: 'preflight', status: 'fail', detail: 'working tree has uncommitted changes' })
+        steps.push({ step: 'preflight', status: 'fail', detail: 'working tree has uncommitted changes to tracked files' })
         return { status: 'failure', steps }
       }
     } catch (err) {
