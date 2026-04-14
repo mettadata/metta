@@ -36,7 +36,7 @@ Replace the MODIFIED branch (lines 141-151) and RENAMED branch (lines 152-168) i
 
 ## Batch 2 — Tests (depends on 1.1 and 1.2)
 
-### Task 2.1 — Add inline-code round-trip test to spec-parser.test.ts
+### Task 2.1 — Add inline-code round-trip test to spec-parser.test.ts [x]
 
 **Files**
 - `tests/spec-parser.test.ts` (write)
