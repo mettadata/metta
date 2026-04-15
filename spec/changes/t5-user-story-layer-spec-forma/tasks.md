@@ -320,7 +320,7 @@ Command registered; `--help` works; no TypeScript errors.
 
 ---
 
-### 3.2 spec-parser.ts — extend ParsedRequirement with `fulfills`
+### 3.2 spec-parser.ts — extend ParsedRequirement with `fulfills` [x]
 
 **Files**
 - `src/specs/spec-parser.ts` (modify)

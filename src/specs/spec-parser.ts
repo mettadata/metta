@@ -15,6 +15,27 @@ export interface ParsedRequirement {
   keyword: 'MUST' | 'SHOULD' | 'MAY'
   scenarios: ParsedScenario[]
   hash: string
+  fulfills: string[]
+  warnings: string[]
+}
+
+function parseFulfillsLine(
+  text: string,
+  req: Partial<ParsedRequirement>,
+): boolean {
+  const match = text.match(/^(?:\*\*Fulfills:\*\*|Fulfills:)\s*(.*)$/)
+  if (!match) return false
+  const raw = match[1].trim()
+  const tokens = raw.split(',').map(t => t.trim()).filter(Boolean)
+  const valid = tokens.filter(t => /^US-\d+$/.test(t))
+  if (tokens.length === 0 || valid.length !== tokens.length) {
+    req.warnings = req.warnings ?? []
+    req.warnings.push(`Malformed Fulfills line: "${text}"`)
+    req.fulfills = []
+  } else {
+    req.fulfills = valid
+  }
+  return true
 }
 
 export type DeltaOperation = 'ADDED' | 'MODIFIED' | 'REMOVED' | 'RENAMED'
@@ -105,6 +126,8 @@ export function parseSpec(markdown: string): ParsedSpec {
           text: '',
           keyword: 'SHOULD',
           scenarios: [],
+          fulfills: [],
+          warnings: [],
         }
         reqTextParts = []
         continue
@@ -140,6 +163,7 @@ export function parseSpec(markdown: string): ParsedSpec {
         const text = extractText(node)
         reqTextParts.push(text)
         currentReq.keyword = extractKeyword(text)
+        parseFulfillsLine(text, currentReq)
       }
     }
   }
@@ -208,6 +232,8 @@ export function parseDeltaSpec(markdown: string): ParsedDeltaSpec {
               text: '',
               keyword: 'SHOULD',
               scenarios: [],
+              fulfills: [],
+              warnings: [],
             },
           }
           reqTextParts = []
@@ -246,6 +272,7 @@ export function parseDeltaSpec(markdown: string): ParsedDeltaSpec {
         const text = extractText(node)
         reqTextParts.push(text)
         currentDelta.req.keyword = extractKeyword(text)
+        parseFulfillsLine(text, currentDelta.req)
       }
     }
   }

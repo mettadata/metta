@@ -171,6 +171,65 @@ The system MUST support \`metta install\` as the bootstrap command.
   })
 })
 
+describe('Fulfills field parsing', () => {
+  it('parses **Fulfills:** line into fulfills array of US-N IDs', () => {
+    const markdown = `# Feature
+
+## Requirement: Login
+
+The system MUST authenticate users.
+
+**Fulfills:** US-1, US-3
+
+### Scenario: Works
+- GIVEN x
+- WHEN y
+- THEN z
+`
+    const result = parseSpec(markdown)
+    expect(result.requirements[0].fulfills).toEqual(['US-1', 'US-3'])
+    expect(result.requirements[0].warnings).toEqual([])
+  })
+
+  it('produces empty fulfills array when no Fulfills line is present', () => {
+    const markdown = `# Feature
+
+## Requirement: Logout
+
+The system MUST support logout.
+
+### Scenario: Works
+- GIVEN x
+- WHEN y
+- THEN z
+`
+    const result = parseSpec(markdown)
+    expect(result.requirements[0].fulfills).toEqual([])
+    expect(result.requirements[0].warnings).toEqual([])
+  })
+
+  it('surfaces a warning and does not throw for malformed Fulfills', () => {
+    const markdown = `# Feature
+
+## Requirement: Weird
+
+The system MUST do something.
+
+**Fulfills:** not-a-story
+
+### Scenario: Works
+- GIVEN x
+- WHEN y
+- THEN z
+`
+    expect(() => parseSpec(markdown)).not.toThrow()
+    const result = parseSpec(markdown)
+    expect(result.requirements[0].fulfills).toEqual([])
+    expect(result.requirements[0].warnings.length).toBeGreaterThan(0)
+    expect(result.requirements[0].warnings[0]).toContain('Fulfills')
+  })
+})
+
 describe('parseDeltaSpec', () => {
   it('parses ADDED, MODIFIED, and REMOVED deltas', () => {
     const markdown = `# Authentication (Delta)
