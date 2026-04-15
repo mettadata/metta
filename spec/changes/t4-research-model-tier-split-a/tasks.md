@@ -59,7 +59,7 @@ Tasks 1.1, 1.2, and 1.3 touch separate files and have no shared state. Run in pa
 
 ---
 
-### Task 1.2 — Add Concrete-tech grounding bullet to metta-propose skill
+### Task 1.2 — Add Concrete-tech grounding bullet to metta-propose skill [x]
 
 **Files**
 - `src/templates/skills/metta-propose/SKILL.md` (canonical source, edit)

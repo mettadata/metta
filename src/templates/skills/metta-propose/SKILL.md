@@ -29,6 +29,7 @@ You are the **orchestrator** for a new spec-driven change. You manage the workfl
    **Rounds:**
 
    - **Round 1 — Scope + architecture (ALWAYS run):** Ask 2–4 questions on scope boundaries (what's included vs excluded?), architectural choices (patterns, libraries, approaches), and technology picks.
+   - **Concrete-tech grounding:** When a question presents technology options (libraries, frameworks, tools, ORMs, test runners, auth providers), invoke `WebSearch` first to surface current best-practice options for the user's stack. Generic scope/architecture questions skip this. Cite findings to the user when offering options.
 
      Example questions for "add user authentication":
      - "Auth strategy?" → [JWT tokens, Session cookies, OAuth only, I'm done — proceed with these answers]
