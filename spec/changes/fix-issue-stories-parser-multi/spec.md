@@ -1,6 +1,6 @@
 # fix-issue-stories-parser-multi
 
-## MODIFIED: Requirement: stories-parser-tolerates-compact-format
+## ADDED: Requirement: stories-parser-tolerates-compact-format
 
 `parseStories` MUST correctly extract all 5 labeled fields (`asA`, `iWantTo`, `soThat`, `priority`, `independentTestCriteria`) from a story whose fields appear on consecutive lines within a single paragraph (no blank-line separators). The parser MUST split paragraph text on newlines and match each line independently against the field-prefix table. Single-line-per-paragraph format MUST continue to work unchanged.
 
