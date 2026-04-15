@@ -28,7 +28,7 @@ Note existing areas from the todos array for consistency in infer_area step.
 
 <step name="extract_content">
 **With arguments:** Use as the title/focus.
-- `/gsd:add-todo Add auth token refresh` → title = "Add auth token refresh"
+- `/gsd-add-todo Add auth token refresh` → title = "Add auth token refresh"
 
 **Without arguments:** Analyze recent conversation to extract:
 - The specific problem, idea, or task discussed
@@ -70,6 +70,8 @@ If potential duplicate found:
 1. Read the existing todo
 2. Compare scope
 
+
+**Text mode (`workflow.text_mode: true` in config or `--text` flag):** Set `TEXT_MODE=true` if `--text` is present in `$ARGUMENTS` OR `text_mode` from init JSON is `true`. When TEXT_MODE is active, replace every `AskUserQuestion` call with a plain-text numbered list and ask the user to type their choice number. This is required for non-Claude runtimes (OpenAI Codex, Gemini CLI, etc.) where `AskUserQuestion` is not available.
 If overlapping, use AskUserQuestion:
 - header: "Duplicate?"
 - question: "Similar todo exists: [title]. What would you like to do?"
@@ -141,7 +143,7 @@ Would you like to:
 
 1. Continue with current work
 2. Add another todo
-3. View all todos (/gsd:check-todos)
+3. View all todos (/gsd-check-todos)
 ```
 </step>
 

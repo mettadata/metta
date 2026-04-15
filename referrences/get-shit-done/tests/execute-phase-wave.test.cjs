@@ -1,7 +1,7 @@
 /**
  * Execute-phase wave filter tests
  *
- * Validates the /gsd:execute-phase --wave feature contract:
+ * Validates the /gsd-execute-phase --wave feature contract:
  * - Command frontmatter advertises --wave
  * - Workflow parses WAVE_FILTER
  * - Workflow enforces lower-wave safety
@@ -9,7 +9,7 @@
  */
 
 const { test, describe } = require('node:test');
-const assert = require('node:assert');
+const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 
@@ -89,7 +89,7 @@ describe('execute-phase docs: user-facing wave flag', () => {
     const content = fs.readFileSync(COMMANDS_DOC_PATH, 'utf-8');
     assert.ok(content.includes('`--wave N`'), 'COMMANDS.md should mention --wave N');
     assert.ok(
-      content.includes('/gsd:execute-phase 1 --wave 2'),
+      content.includes('/gsd-execute-phase 1 --wave 2'),
       'COMMANDS.md should include a wave-filter example'
     );
   });
@@ -101,7 +101,7 @@ describe('execute-phase docs: user-facing wave flag', () => {
       'help.md should describe wave-specific execution'
     );
     assert.ok(
-      content.includes('Usage: `/gsd:execute-phase 5 --wave 2`'),
+      content.includes('Usage: `/gsd-execute-phase 5 --wave 2`'),
       'help.md should include wave-filter usage'
     );
   });

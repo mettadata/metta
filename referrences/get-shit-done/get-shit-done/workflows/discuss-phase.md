@@ -4,6 +4,12 @@ Extract implementation decisions that downstream agents need. Analyze the phase 
 You are a thinking partner, not an interviewer. The user is the visionary — you are the builder. Your job is to capture decisions that will guide research and planning, not to figure out implementation yourself.
 </purpose>
 
+<required_reading>
+@~/.claude/get-shit-done/references/domain-probes.md
+@~/.claude/get-shit-done/references/gate-prompts.md
+@~/.claude/get-shit-done/references/universal-anti-patterns.md
+</required_reading>
+
 <downstream_awareness>
 **CONTEXT.md feeds into:**
 
@@ -107,6 +113,15 @@ Phase: "API documentation"
 
 <answer_validation>
 **IMPORTANT: Answer validation** — After every AskUserQuestion call, check if the response is empty or whitespace-only. If so:
+
+**Exception — "Other" with empty text:** If the user selected "Other" (or "Chat more") and the response body is empty or whitespace-only, this is NOT an empty answer — it is a signal that the user wants to type freeform input. In this case:
+1. Output a single plain-text line: "What would you like to discuss?"
+2. STOP generating. Do not call any tools. Do not output any further text.
+3. Wait for the user's next message.
+4. After receiving their message, reflect it back and continue.
+Do NOT retry the AskUserQuestion or generate more questions when "Other" is selected with empty text.
+
+**All other empty responses:** If the response is empty or whitespace-only (and the user did NOT select "Other"):
 1. Retry the question once with the same parameters
 2. If still empty, present the options as a plain-text numbered list and ask the user to type their choice number
 Never proceed with an empty answer.
@@ -118,7 +133,7 @@ This is required for Claude Code remote sessions (`/rc` mode) where the Claude A
 cannot forward TUI menu selections back to the host.
 
 Enable text mode:
-- Per-session: pass `--text` flag to any command (e.g., `/gsd:discuss-phase --text`)
+- Per-session: pass `--text` flag to any command (e.g., `/gsd-discuss-phase --text`)
 - Per-project: `gsd-tools config-set workflow.text_mode true`
 
 Text mode applies to ALL workflows in the session, not just discuss-phase.
@@ -126,7 +141,7 @@ Text mode applies to ALL workflows in the session, not just discuss-phase.
 
 <process>
 
-**Express path available:** If you already have a PRD or acceptance criteria document, use `/gsd:plan-phase {phase} --prd path/to/prd.md` to skip this discussion and go straight to planning.
+**Express path available:** If you already have a PRD or acceptance criteria document, use `/gsd-plan-phase {phase} --prd path/to/prd.md` to skip this discussion and go straight to planning.
 
 <step name="initialize" priority="first">
 Phase number from argument (required).
@@ -137,13 +152,15 @@ if [[ "$INIT" == @file:* ]]; then INIT=$(cat "${INIT#@file:}"); fi
 AGENT_SKILLS_ADVISOR=$(node "$HOME/.claude/get-shit-done/bin/gsd-tools.cjs" agent-skills gsd-advisor 2>/dev/null)
 ```
 
-Parse JSON for: `commit_docs`, `phase_found`, `phase_dir`, `phase_number`, `phase_name`, `phase_slug`, `padded_phase`, `has_research`, `has_context`, `has_plans`, `has_verification`, `plan_count`, `roadmap_exists`, `planning_exists`.
+Parse JSON for: `commit_docs`, `phase_found`, `phase_dir`, `phase_number`, `phase_name`, `phase_slug`, `padded_phase`, `has_research`, `has_context`, `has_plans`, `has_verification`, `plan_count`, `roadmap_exists`, `planning_exists`, `response_language`.
+
+**If `response_language` is set:** All user-facing questions, prompts, and explanations in this workflow MUST be presented in `{response_language}`. This includes AskUserQuestion labels, option text, gray area descriptions, and discussion summaries. Technical terms, code, and file paths remain in English. Subagent prompts stay in English — only user-facing output is translated.
 
 **If `phase_found` is false:**
 ```
 Phase [X] not found in roadmap.
 
-Use /gsd:progress ${GSD_WS} to see available phases.
+Use /gsd-progress ${GSD_WS} to see available phases.
 ```
 Exit workflow.
 
@@ -244,7 +261,7 @@ Check `has_plans` and `plan_count` from init. **If `has_plans` is true:**
 - header: "Plans exist"
 - question: "Phase [X] already has {plan_count} plan(s) created without user context. Your decisions here won't affect existing plans unless you replan."
 - options:
-  - "Continue and replan after" — Capture context, then run /gsd:plan-phase {X} ${GSD_WS} to replan
+  - "Continue and replan after" — Capture context, then run /gsd-plan-phase {X} ${GSD_WS} to replan
   - "View existing plans" — Show plans before deciding
   - "Cancel" — Skip discuss-phase
 
@@ -444,6 +461,34 @@ Check if advisor mode should activate:
 
 If ADVISOR_MODE is false, skip all advisor-specific steps — workflow proceeds with existing conversational flow unchanged.
 
+**User Profile Language Detection:**
+
+Check USER-PROFILE.md for communication preferences that indicate a non-technical product owner:
+
+```bash
+PROFILE_CONTENT=$(cat "$HOME/.claude/get-shit-done/USER-PROFILE.md" 2>/dev/null || true)
+```
+
+Set NON_TECHNICAL_OWNER = true if ANY of the following are present in USER-PROFILE.md:
+- `learning_style: guided`
+- The word `jargon` appears in a `frustration_triggers` section
+- `explanation_depth: practical-detailed` (without a technical modifier)
+- `explanation_depth: high-level`
+
+NON_TECHNICAL_OWNER = false if USER-PROFILE.md does not exist or none of the above signals are present.
+
+When NON_TECHNICAL_OWNER is true, reframe gray area labels and descriptions in product-outcome language before presenting them to the user. Preserve the same underlying decision — only change the framing:
+- Technical implementation term → outcome the user will experience
+  - "Token architecture" → "Color system: which approach prevents the dark theme from flashing white on open"
+  - "CSS variable strategy" → "Theme colors: how your brand colors stay consistent in both light and dark mode"
+  - "Component API surface area" → "How the building blocks connect: how tightly coupled should these parts be"
+  - "Caching strategy: SWR vs React Query" → "Loading speed: should screens show saved data right away or wait for fresh data"
+- All decisions stay the same. Only the question language adapts.
+
+This reframing applies to:
+1. Gray area labels and descriptions in `present_gray_areas`
+2. Advisor research rationale rewrites in `advisor_research` synthesis
+
 **Output your analysis internally, then present to user.**
 
 Example analysis for "Post Feed" phase (with code and prior context):
@@ -573,6 +618,7 @@ After user selects gray areas in present_gray_areas, spawn parallel research age
       If agent returned too many, trim least viable. If too few, accept as-is.
    d. Rewrite rationale paragraph to weave in project context and ongoing discussion context that the agent did not have access to
    e. If agent returned only 1 option, convert from table format to direct recommendation: "Standard approach for {area}: {option}. {rationale}"
+   f. **If NON_TECHNICAL_OWNER is true:** After completing steps a–e, apply a plain language rewrite to the rationale paragraph. Replace implementation-level terms with outcome descriptions the user can reason about without technical context. The table option names may also be rewritten in plain language if they are implementation terms — the Recommendation column value and the table structure remain intact. Do not remove detail; translate it. Example: "SWR uses stale-while-revalidate to serve cached responses immediately" → "This approach shows you something right away, then quietly updates in the background — users see data instantly."
 
 4. Store synthesized tables for use in discuss_areas.
 
@@ -598,6 +644,20 @@ Table-first discussion flow — present research-backed comparison tables, then 
 3. **Record the user's selection:**
    - If user picks from table options → record as locked decision for that area
    - If user picks "Other" → receive their input, reflect it back for confirmation, record
+
+   **Thinking partner (conditional):**
+   If `features.thinking_partner` is enabled in config, check the user's answer for tradeoff signals
+   (see `references/thinking-partner.md` for signal list). If tradeoff detected:
+
+   ```
+   I notice competing priorities here — {option_A} optimizes for {goal_A} while {option_B} optimizes for {goal_B}.
+
+   Want me to think through the tradeoffs before we lock this in?
+   [Yes, analyze] / [No, decision made]
+   ```
+
+   If yes: provide 3-5 bullet analysis (what each optimizes/sacrifices, alignment with PROJECT.md goals, recommendation). Then return to normal flow.
+   If no or thinking_partner disabled: continue to next area.
 
 4. **After recording pick, Claude decides whether follow-up questions are needed:**
    - If the pick has ambiguity that would affect downstream planning → ask 1-2 targeted follow-up questions using AskUserQuestion
@@ -811,7 +871,7 @@ Write after each area:
 }
 ```
 
-This is a structured checkpoint, not the final CONTEXT.md — the `write_context` step still produces the canonical output. But if the session dies, the next `gsd:discuss-phase` invocation can detect this checkpoint and offer to resume from it instead of starting from scratch.
+This is a structured checkpoint, not the final CONTEXT.md — the `write_context` step still produces the canonical output. But if the session dies, the next `/gsd-discuss-phase` invocation can detect this checkpoint and offer to resume from it instead of starting from scratch.
 
 **On session resume:** In the `check_existing` step, also check for `*-DISCUSS-CHECKPOINT.json`. If found and no CONTEXT.md exists:
 - Display: "Found interrupted discussion checkpoint ({N} areas completed). Resume from checkpoint?"
@@ -977,14 +1037,14 @@ Created: .planning/phases/${PADDED_PHASE}-${SLUG}/${PADDED_PHASE}-CONTEXT.md
 
 `/clear` then:
 
-`/gsd:plan-phase ${PHASE} ${GSD_WS}`
+`/gsd-plan-phase ${PHASE} ${GSD_WS}`
 
 ---
 
 **Also available:**
-- `/gsd:discuss-phase ${PHASE} --chain ${GSD_WS}` — re-run with auto plan+execute after
-- `/gsd:plan-phase ${PHASE} --skip-research ${GSD_WS}` — plan without research
-- `/gsd:ui-phase ${PHASE} ${GSD_WS}` — generate UI design contract before planning (if phase has frontend work)
+- `/gsd-discuss-phase ${PHASE} --chain ${GSD_WS}` — re-run with auto plan+execute after
+- `/gsd-plan-phase ${PHASE} --skip-research ${GSD_WS}` — plan without research
+- `/gsd-ui-phase ${PHASE} ${GSD_WS}` — generate UI design contract before planning (if phase has frontend work)
 - Review/edit CONTEXT.md before continuing
 
 ---
@@ -1101,7 +1161,7 @@ Context captured. Launching plan-phase...
 
 Launch plan-phase using the Skill tool to avoid nested Task sessions (which cause runtime freezes due to deep agent nesting — see #686):
 ```
-Skill(skill="gsd:plan-phase", args="${PHASE} --auto ${GSD_WS}")
+Skill(skill="gsd-plan-phase", args="${PHASE} --auto ${GSD_WS}")
 ```
 
 This keeps the auto-advance chain flat — discuss, plan, and execute all run at the same nesting level rather than spawning increasingly deep Task agents.
@@ -1117,22 +1177,22 @@ This keeps the auto-advance chain flat — discuss, plan, and execute all run at
 
   /clear then:
 
-  Next: /gsd:discuss-phase ${NEXT_PHASE} ${WAS_CHAIN ? "--chain" : "--auto"} ${GSD_WS}
+  Next: /gsd-discuss-phase ${NEXT_PHASE} ${WAS_CHAIN ? "--chain" : "--auto"} ${GSD_WS}
   ```
 - **PLANNING COMPLETE** → Planning done, execution didn't complete:
   ```
   Auto-advance partial: Planning complete, execution did not finish.
-  Continue: /gsd:execute-phase ${PHASE} ${GSD_WS}
+  Continue: /gsd-execute-phase ${PHASE} ${GSD_WS}
   ```
 - **PLANNING INCONCLUSIVE / CHECKPOINT** → Stop chain:
   ```
   Auto-advance stopped: Planning needs input.
-  Continue: /gsd:plan-phase ${PHASE} ${GSD_WS}
+  Continue: /gsd-plan-phase ${PHASE} ${GSD_WS}
   ```
 - **GAPS FOUND** → Stop chain:
   ```
   Auto-advance stopped: Gaps found during execution.
-  Continue: /gsd:plan-phase ${PHASE} --gaps ${GSD_WS}
+  Continue: /gsd-plan-phase ${PHASE} --gaps ${GSD_WS}
   ```
 
 **If none of `--auto`, `--chain`, nor config enabled:**

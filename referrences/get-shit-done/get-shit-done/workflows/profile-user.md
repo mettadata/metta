@@ -30,6 +30,8 @@ PROFILE_PATH="$HOME/.claude/get-shit-done/USER-PROFILE.md"
 
 **If profile exists AND --refresh NOT set AND --questionnaire NOT set:**
 
+
+**Text mode (`workflow.text_mode: true` in config or `--text` flag):** Set `TEXT_MODE=true` if `--text` is present in `$ARGUMENTS` OR `text_mode` from init JSON is `true`. When TEXT_MODE is active, replace every `AskUserQuestion` call with a plain-text numbered list and ask the user to type their choice number. This is required for non-Claude runtimes (OpenAI Codex, Gemini CLI, etc.) where `AskUserQuestion` is not available.
 Use AskUserQuestion:
 - header: "Existing Profile"
 - question: "You already have a profile. What would you like to do?"
@@ -46,7 +48,7 @@ If "Cancel": Display "No changes made." and exit.
 
 Backup existing profile:
 ```bash
-cp "$HOME/.claude/get-shit-done/USER-PROFILE.md" "$HOME/.claude/get-shit-done/USER-PROFILE.backup.md"
+cp "$HOME/.claude/get-shit-done/USER-PROFILE.md" "$HOME/.claude/USER-PROFILE.backup.md"
 ```
 
 Display: "Re-analyzing your sessions to update your profile."
@@ -118,7 +120,7 @@ Use AskUserQuestion:
 - options:
   - "Let's go" -- Proceed to step 3 (session analysis)
   - "Use questionnaire instead" -- Jump to step 4b (questionnaire path)
-  - "Not now" -- Display "No worries. Run /gsd:profile-user when ready." and exit
+  - "Not now" -- Display "No worries. Run /gsd-profile-user when ready." and exit
 
 ---
 
@@ -333,7 +335,7 @@ Use AskUserQuestion with multiSelect:
 - header: "Artifacts"
 - question: "Which artifacts should I generate?"
 - options (ALL pre-selected by default):
-  - "/gsd:dev-preferences command file" -- "Load your preferences in any session"
+  - "/gsd-dev-preferences command file" -- "Load your preferences in any session"
   - "CLAUDE.md profile section" -- "Add profile to this project's CLAUDE.md"
   - "Global CLAUDE.md" -- "Add profile to $HOME/.claude/CLAUDE.md for all projects"
 
@@ -345,13 +347,13 @@ Use AskUserQuestion with multiSelect:
 
 Generate selected artifacts sequentially (file I/O is fast, no benefit from parallel agents):
 
-**For /gsd:dev-preferences (if selected):**
+**For /gsd-dev-preferences (if selected):**
 
 ```bash
 node $HOME/.claude/get-shit-done/bin/gsd-tools.cjs generate-dev-preferences --analysis "$ANALYSIS_PATH" --json 2>/dev/null
 ```
 
-Display: "✓ Generated /gsd:dev-preferences at $HOME/.claude/commands/gsd/dev-preferences.md"
+Display: "✓ Generated /gsd-dev-preferences at $HOME/.claude/commands/gsd/dev-preferences.md"
 
 **For CLAUDE.md profile section (if selected):**
 
@@ -381,7 +383,7 @@ Read both old backup and new analysis to compare dimension ratings/confidence.
 
 Read the backed-up profile:
 ```bash
-BACKUP_PATH="$HOME/.claude/get-shit-done/USER-PROFILE.backup.md"
+BACKUP_PATH="$HOME/.claude/USER-PROFILE.backup.md"
 ```
 
 Compare each dimension's rating and confidence between old and new. Display diff table showing only changed dimensions:
@@ -410,7 +412,7 @@ Your profile:    $HOME/.claude/get-shit-done/USER-PROFILE.md
 Then list paths for each generated artifact:
 ```
 Artifacts:
-  ✓ /gsd:dev-preferences   $HOME/.claude/commands/gsd/dev-preferences.md
+  ✓ /gsd-dev-preferences   $HOME/.claude/commands/gsd/dev-preferences.md
   ✓ CLAUDE.md section       ./CLAUDE.md
   ✓ Global CLAUDE.md        $HOME/.claude/CLAUDE.md
 ```

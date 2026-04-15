@@ -90,7 +90,7 @@ body:
       label: What happened?
       description: Describe what went wrong. Be specific about which GSD command you were running.
       placeholder: |
-        When I ran `/gsd:plan`, the system...
+        When I ran `/gsd-plan`, the system...
     validations:
       required: true
 
@@ -111,8 +111,8 @@ body:
       placeholder: |
         1. Install GSD with `npx get-shit-done-cc@latest`
         2. Select runtime: Claude Code
-        3. Run `/gsd:init` with a new project
-        4. Run `/gsd:plan`
+        3. Run `/gsd-init` with a new project
+        4. Run `/gsd-plan`
         5. Error appears at step...
     validations:
       required: true

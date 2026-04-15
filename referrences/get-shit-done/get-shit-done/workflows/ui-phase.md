@@ -44,11 +44,11 @@ UI_ENABLED=$(node "$HOME/.claude/get-shit-done/bin/gsd-tools.cjs" config-get wor
 
 **If `UI_ENABLED` is `false`:**
 ```
-UI phase is disabled in config. Enable via /gsd:settings.
+UI phase is disabled in config. Enable via /gsd-settings.
 ```
 Exit workflow.
 
-**If `planning_exists` is false:** Error — run `/gsd:new-project` first.
+**If `planning_exists` is false:** Error — run `/gsd-new-project` first.
 
 ## 2. Parse and Validate Phase
 
@@ -65,7 +65,7 @@ PHASE_INFO=$(node "$HOME/.claude/get-shit-done/bin/gsd-tools.cjs" roadmap get-ph
 **If `has_context` is false:**
 ```
 No CONTEXT.md found for Phase {N}.
-Recommended: run /gsd:discuss-phase {N} first to capture design preferences.
+Recommended: run /gsd-discuss-phase {N} first to capture design preferences.
 Continuing without user decisions — UI researcher will ask all questions.
 ```
 Continue (non-blocking).
@@ -83,6 +83,8 @@ Continue (non-blocking).
 UI_SPEC_FILE=$(ls "${PHASE_DIR}"/*-UI-SPEC.md 2>/dev/null | head -1)
 ```
 
+
+**Text mode (`workflow.text_mode: true` in config or `--text` flag):** Set `TEXT_MODE=true` if `--text` is present in `$ARGUMENTS` OR `text_mode` from init JSON is `true`. When TEXT_MODE is active, replace every `AskUserQuestion` call with a plain-text numbered list and ask the user to type their choice number. This is required for non-Claude runtimes (OpenAI Codex, Gemini CLI, etc.) where `AskUserQuestion` is not available.
 **If exists:** Use AskUserQuestion:
 - header: "Existing UI-SPEC"
 - question: "UI-SPEC.md already exists for Phase {N}. What would you like to do?"
@@ -120,7 +122,7 @@ Answer: "What visual and interaction contracts does this phase need?"
 - {state_path} (Project State)
 - {roadmap_path} (Roadmap)
 - {requirements_path} (Requirements)
-- {context_path} (USER DECISIONS from /gsd:discuss-phase)
+- {context_path} (USER DECISIONS from /gsd-discuss-phase)
 - {research_path} (Technical Research — stack decisions)
 </files_to_read>
 
@@ -238,7 +240,7 @@ Max revision iterations reached. Remaining issues:
 
 Options:
 1. Force approve — proceed with current UI-SPEC (FLAGs become accepted)
-2. Edit manually — open UI-SPEC.md in editor, re-run /gsd:ui-phase
+2. Edit manually — open UI-SPEC.md in editor, re-run /gsd-ui-phase
 3. Abandon — exit without approving
 ```
 
@@ -261,11 +263,17 @@ Dimensions: 6/6 passed
 
 ## ▶ Next Up
 
+{If CONTEXT.md exists for this phase:}
 **Plan Phase {N}** — planner will use UI-SPEC.md as design context
 
-`/clear` then:
+`/clear` then: `/gsd-plan-phase {N}`
 
-`/gsd:plan-phase {N}`
+{If CONTEXT.md does NOT exist:}
+**Discuss Phase {N}** — gather implementation context before planning
+
+`/clear` then: `/gsd-discuss-phase {N}`
+
+(or `/gsd-plan-phase {N}` to skip discussion)
 
 ───────────────────────────────────────────────────────────────
 ```

@@ -28,7 +28,7 @@ AUDITOR_MODEL=$(node "$HOME/.claude/get-shit-done/bin/gsd-tools.cjs" resolve-mod
 SECURITY_CFG=$(node "$HOME/.claude/get-shit-done/bin/gsd-tools.cjs" config-get workflow.security_enforcement --raw 2>/dev/null || echo "true")
 ```
 
-If `SECURITY_CFG` is `false`: exit with "Security enforcement disabled. Enable via /gsd:settings."
+If `SECURITY_CFG` is `false`: exit with "Security enforcement disabled. Enable via /gsd-settings."
 
 Display banner: `GSD > SECURE PHASE {N}: {name}`
 
@@ -42,7 +42,7 @@ SUMMARY_FILES=$(ls "${PHASE_DIR}"/*-SUMMARY.md 2>/dev/null)
 
 - **State A** (`SECURITY_FILE` non-empty): Audit existing
 - **State B** (`SECURITY_FILE` empty, `PLAN_FILES` and `SUMMARY_FILES` non-empty): Run from artifacts
-- **State C** (`SUMMARY_FILES` empty): Exit — "Phase {N} not executed. Run /gsd:execute-phase {N} first."
+- **State C** (`SUMMARY_FILES` empty): Exit — "Phase {N} not executed. Run /gsd-execute-phase {N} first."
 
 ## 2. Discovery
 
@@ -73,6 +73,8 @@ If `threats_open: 0` → skip to Step 6 directly.
 
 ## 4. Present Threat Plan
 
+
+**Text mode (`workflow.text_mode: true` in config or `--text` flag):** Set `TEXT_MODE=true` if `--text` is present in `$ARGUMENTS` OR `text_mode` from init JSON is `true`. When TEXT_MODE is active, replace every `AskUserQuestion` call with a plain-text numbered list and ask the user to type their choice number. This is required for non-Claude runtimes (OpenAI Codex, Gemini CLI, etc.) where `AskUserQuestion` is not available.
 Call AskUserQuestion with threat table and options:
 1. "Verify all open threats" → Step 5
 2. "Accept all open — document in accepted risks log" → add to SECURITY.md accepted risks, set all CLOSED, Step 6
@@ -123,7 +125,7 @@ Handle return:
 ```
 GSD > PHASE {N} SECURITY BLOCKED
 {K} threats open — phase advancement blocked until threats_open: 0
-▶ Fix mitigations then re-run: /gsd:secure-phase {N}
+▶ Fix mitigations then re-run: /gsd-secure-phase {N}
 ▶ Or document accepted risks in SECURITY.md and re-run.
 ```
 
@@ -141,8 +143,8 @@ node "$HOME/.claude/get-shit-done/bin/gsd-tools.cjs" commit "docs(phase-${PHASE}
 ```
 GSD > PHASE {N} THREAT-SECURE
 threats_open: 0 — all threats have dispositions.
-▶ /gsd:validate-phase {N}    validate test coverage
-▶ /gsd:verify-work {N}       run UAT
+▶ /gsd-validate-phase {N}    validate test coverage
+▶ /gsd-verify-work {N}       run UAT
 ```
 
 Display `/clear` reminder.

@@ -15,6 +15,7 @@ import { GSD } from './index.js';
 import { CLITransport } from './cli-transport.js';
 import { WSTransport } from './ws-transport.js';
 import { InitRunner } from './init-runner.js';
+import { validateWorkstreamName } from './workstream-utils.js';
 
 // ─── Parsed CLI args ─────────────────────────────────────────────────────────
 
@@ -29,8 +30,24 @@ export interface ParsedCliArgs {
   wsPort: number | undefined;
   model: string | undefined;
   maxBudget: number | undefined;
+  /** Workstream name for multi-workstream projects. Routes .planning/ to .planning/workstreams/<name>/. */
+  ws: string | undefined;
   help: boolean;
   version: boolean;
+}
+
+/**
+ * Strip `--pick <field>` from argv before parseArgs so the global parser stays strict.
+ * Query dispatch removes --pick separately in main(); this only affects CLI parsing.
+ */
+function argvForCliParse(argv: string[]): string[] {
+  if (argv[0] !== 'query') return argv;
+  const copy = [...argv];
+  const pickIdx = copy.indexOf('--pick');
+  if (pickIdx !== -1 && pickIdx + 1 < copy.length) {
+    copy.splice(pickIdx, 2);
+  }
+  return copy;
 }
 
 /**
@@ -39,10 +56,11 @@ export interface ParsedCliArgs {
  */
 export function parseCliArgs(argv: string[]): ParsedCliArgs {
   const { values, positionals } = parseArgs({
-    args: argv,
+    args: argvForCliParse(argv),
     options: {
       'project-dir': { type: 'string', default: process.cwd() },
       'ws-port': { type: 'string' },
+      ws: { type: 'string' },
       model: { type: 'string' },
       'max-budget': { type: 'string' },
       init: { type: 'string' },
@@ -69,6 +87,7 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
     wsPort: values['ws-port'] ? Number(values['ws-port']) : undefined,
     model: values.model as string | undefined,
     maxBudget: values['max-budget'] ? Number(values['max-budget']) : undefined,
+    ws: values.ws as string | undefined,
     help: values.help as boolean,
     version: values.version as boolean,
   };
@@ -81,17 +100,20 @@ Usage: gsd-sdk <command> [args] [options]
 
 Commands:
   run <prompt>          Run a full milestone from a text prompt
-  auto                  Run the full autonomous lifecycle (discover → execute → advance)
+  auto                  Run the full autonomous lifecycle (discover -> execute -> advance)
   init [input]          Bootstrap a new project from a PRD or description
                         input can be:
                           @path/to/prd.md   Read input from a file
                           "description"     Use text directly
                           (empty)           Read from stdin
+  query <command>       Execute a registered native query command (registry: sdk/src/query/index.ts)
+                        Use --pick <field> to extract a specific field
 
 Options:
   --init <input>        Bootstrap from a PRD before running (auto only)
                         Accepts @path/to/prd.md or "description text"
   --project-dir <dir>   Project directory (default: cwd)
+  --ws <name>           Route .planning/ to .planning/workstreams/<name>/
   --ws-port <port>      Enable WebSocket transport on <port>
   --model <model>       Override LLM model
   --max-budget <n>      Max budget per step in USD
@@ -194,8 +216,65 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
     return;
   }
 
+  // Validate --ws flag if provided
+  if (args.ws !== undefined && !validateWorkstreamName(args.ws)) {
+    console.error(`Error: Invalid workstream name "${args.ws}". Use alphanumeric, hyphens, underscores, or dots only.`);
+    process.exitCode = 1;
+    return;
+  }
+
+  // ─── Query command ──────────────────────────────────────────────────────
+  if (args.command === 'query') {
+    const { createRegistry } = await import('./query/index.js');
+    const { extractField } = await import('./query/registry.js');
+    const { GSDError, exitCodeFor } = await import('./errors.js');
+
+    const queryArgs = argv.slice(1); // everything after 'query'
+    const queryCommand = queryArgs[0];
+
+    if (!queryCommand) {
+      console.error('Error: "gsd-sdk query" requires a command');
+      process.exitCode = 10;
+      return;
+    }
+
+    // Extract --pick before dispatch
+    const pickIdx = queryArgs.indexOf('--pick');
+    let pickField: string | undefined;
+    if (pickIdx !== -1) {
+      if (pickIdx + 1 >= queryArgs.length) {
+        console.error('Error: --pick requires a field name');
+        process.exitCode = 10;
+        return;
+      }
+      pickField = queryArgs[pickIdx + 1];
+      queryArgs.splice(pickIdx, 2);
+    }
+
+    try {
+      const registry = createRegistry();
+      const result = await registry.dispatch(queryCommand, queryArgs.slice(1), args.projectDir);
+      let output: unknown = result.data;
+
+      if (pickField) {
+        output = extractField(output, pickField);
+      }
+
+      console.log(JSON.stringify(output, null, 2));
+    } catch (err) {
+      if (err instanceof GSDError) {
+        console.error(`Error: ${err.message}`);
+        process.exitCode = exitCodeFor(err.classification);
+      } else {
+        console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
+        process.exitCode = 1;
+      }
+    }
+    return;
+  }
+
   if (args.command !== 'run' && args.command !== 'init' && args.command !== 'auto') {
-    console.error('Error: Expected "gsd-sdk run <prompt>", "gsd-sdk auto", or "gsd-sdk init [input]"');
+    console.error('Error: Expected "gsd-sdk run <prompt>", "gsd-sdk auto", "gsd-sdk init [input]", or "gsd-sdk query <command>"');
     console.error(USAGE);
     process.exitCode = 1;
     return;
@@ -226,6 +305,7 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
       projectDir: args.projectDir,
       model: args.model,
       maxBudgetUsd: args.maxBudget,
+      workstream: args.ws,
     });
 
     // Wire CLI transport
@@ -296,6 +376,7 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
       model: args.model,
       maxBudgetUsd: args.maxBudget,
       autoMode: true,
+      workstream: args.ws,
     });
 
     // Wire CLI transport (always active)
@@ -384,6 +465,7 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
     projectDir: args.projectDir,
     model: args.model,
     maxBudgetUsd: args.maxBudget,
+    workstream: args.ws,
   });
 
   // Wire CLI transport (always active)

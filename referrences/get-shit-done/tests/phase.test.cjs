@@ -3,7 +3,7 @@
  */
 
 const { test, describe, beforeEach, afterEach } = require('node:test');
-const assert = require('node:assert');
+const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 const { runGsdTools, createTempProject, cleanup } = require('./helpers.cjs');
@@ -655,6 +655,154 @@ describe('phase add command', () => {
     const roadmap = fs.readFileSync(path.join(tmpDir, '.planning', 'ROADMAP.md'), 'utf-8');
     assert.ok(roadmap.includes('**Requirements**: TBD'), 'new phase entry should include Requirements TBD');
   });
+
+  test('skips 999.x backlog phases when calculating next phase number', () => {
+    fs.writeFileSync(
+      path.join(tmpDir, '.planning', 'ROADMAP.md'),
+      `# Roadmap v1.0
+
+### Phase 1: Foundation
+**Goal:** Setup
+
+### Phase 2: API
+**Goal:** Build API
+
+### Phase 3: UI
+**Goal:** Build UI
+
+### Phase 999.1: Future Idea A
+**Goal:** Backlog item
+
+### Phase 999.2: Future Idea B
+**Goal:** Backlog item
+
+---
+`
+    );
+
+    const result = runGsdTools('phase add Dashboard', tmpDir);
+    assert.ok(result.success, `Command failed: ${result.error}`);
+
+    const output = JSON.parse(result.output);
+    assert.strictEqual(output.phase_number, 4, 'should be phase 4, not 1000');
+    assert.strictEqual(output.slug, 'dashboard');
+
+    assert.ok(
+      fs.existsSync(path.join(tmpDir, '.planning', 'phases', '04-dashboard')),
+      'directory should be 04-dashboard, not 1000-dashboard'
+    );
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// phase add — orphan directory collision prevention (#2026)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('phase add — orphan directory collision prevention (#2026)', () => {
+  let tmpDir;
+
+  beforeEach(() => {
+    tmpDir = createTempProject();
+  });
+
+  afterEach(() => {
+    cleanup(tmpDir);
+  });
+
+  test('orphan directory with higher number than ROADMAP pushes maxPhase up', () => {
+    // Orphan directory 05-orphan exists on disk but is NOT in ROADMAP.md
+    const orphanDir = path.join(tmpDir, '.planning', 'phases', '05-orphan');
+    fs.mkdirSync(orphanDir, { recursive: true });
+    fs.writeFileSync(path.join(orphanDir, 'SUMMARY.md'), 'existing work');
+
+    fs.writeFileSync(
+      path.join(tmpDir, '.planning', 'ROADMAP.md'),
+      [
+        '# Roadmap',
+        '## Milestone v1',
+        '### Phase 1: First phase',
+        '**Plans:** 0 plans',
+        '---',
+      ].join('\n')
+    );
+
+    const result = runGsdTools('phase add dashboard', tmpDir);
+    assert.ok(result.success, `Command failed: ${result.error}`);
+
+    const output = JSON.parse(result.output);
+    // ROADMAP max is 1, but orphan 05-orphan means disk max is 5 → new phase = 6
+    assert.strictEqual(output.phase_number, 6, 'should be phase 6 (orphan 05 pushes max to 5)');
+
+    // The new directory must be 06-dashboard, not 02-dashboard
+    assert.ok(
+      fs.existsSync(path.join(tmpDir, '.planning', 'phases', '06-dashboard')),
+      'new phase directory must be 06-dashboard, not collide with orphan 05-orphan'
+    );
+
+    // The orphan directory must be untouched
+    assert.ok(
+      fs.existsSync(path.join(orphanDir, 'SUMMARY.md')),
+      'orphan directory content must be preserved (not overwritten)'
+    );
+  });
+
+  test('orphan directories with 999.x prefix are skipped when calculating disk max', () => {
+    // 999.x backlog orphans must not inflate the next sequential phase number
+    const backlogOrphan = path.join(tmpDir, '.planning', 'phases', '999-backlog-stuff');
+    fs.mkdirSync(backlogOrphan, { recursive: true });
+
+    fs.writeFileSync(
+      path.join(tmpDir, '.planning', 'ROADMAP.md'),
+      [
+        '# Roadmap',
+        '### Phase 1: Foundation',
+        '**Plans:** 0 plans',
+        '---',
+      ].join('\n')
+    );
+
+    const result = runGsdTools('phase add new-feature', tmpDir);
+    assert.ok(result.success, `Command failed: ${result.error}`);
+
+    const output = JSON.parse(result.output);
+    // ROADMAP max is 1, disk orphan is 999 (backlog) → should be ignored → new phase = 2
+    assert.strictEqual(output.phase_number, 2, 'backlog 999.x orphan must not inflate phase count');
+    assert.ok(
+      fs.existsSync(path.join(tmpDir, '.planning', 'phases', '02-new-feature')),
+      'new phase directory should be 02-new-feature'
+    );
+  });
+
+  test('project_code prefix in orphan directory name is stripped before comparing', () => {
+    // Orphan directory has project_code prefix e.g. CK-05-orphan
+    const orphanDir = path.join(tmpDir, '.planning', 'phases', 'CK-05-old-feature');
+    fs.mkdirSync(orphanDir, { recursive: true });
+
+    fs.writeFileSync(
+      path.join(tmpDir, '.planning', 'config.json'),
+      JSON.stringify({ project_code: 'CK' })
+    );
+    fs.writeFileSync(
+      path.join(tmpDir, '.planning', 'ROADMAP.md'),
+      [
+        '# Roadmap',
+        '### Phase 1: Foundation',
+        '**Plans:** 0 plans',
+        '---',
+      ].join('\n')
+    );
+
+    const result = runGsdTools('phase add new-feature', tmpDir, { HOME: tmpDir });
+    assert.ok(result.success, `Command failed: ${result.error}`);
+
+    const output = JSON.parse(result.output);
+    // ROADMAP max is 1, disk has CK-05-old-feature → strip prefix → disk max is 5 → new phase = 6
+    assert.strictEqual(output.phase_number, 6, 'project_code prefix must be stripped before disk max calculation');
+    assert.ok(
+      fs.existsSync(path.join(tmpDir, '.planning', 'phases', 'CK-06-new-feature')),
+      'new phase directory must be CK-06-new-feature'
+    );
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -740,6 +888,95 @@ describe('phase add with project_code', () => {
       ['CK-01-foundation', 'CK-02-api', 'CK-03-ui'],
       'prefixed phases should sort numerically'
     );
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// phase add-batch command (#2165)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('phase add-batch command (#2165)', () => {
+  let tmpDir;
+
+  beforeEach(() => {
+    tmpDir = createTempProject();
+    fs.writeFileSync(
+      path.join(tmpDir, '.planning', 'ROADMAP.md'),
+      [
+        '# Roadmap v1.0',
+        '',
+        '### Phase 1: Foundation',
+        '**Goal:** Setup',
+        '',
+        '---',
+        '',
+      ].join('\n')
+    );
+  });
+
+  afterEach(() => {
+    cleanup(tmpDir);
+  });
+
+  test('adds multiple phases with sequential numbers in a single call', () => {
+    // Use array form to avoid shell quoting issues with JSON args
+    const result = runGsdTools(['phase', 'add-batch', '--descriptions', '["Alpha","Beta","Gamma"]'], tmpDir);
+    assert.ok(result.success, `Command failed: ${result.error}`);
+
+    const output = JSON.parse(result.output);
+    assert.strictEqual(output.count, 3, 'should report 3 phases added');
+    assert.strictEqual(output.phases[0].phase_number, 2);
+    assert.strictEqual(output.phases[1].phase_number, 3);
+    assert.strictEqual(output.phases[2].phase_number, 4);
+
+    assert.ok(fs.existsSync(path.join(tmpDir, '.planning', 'phases', '02-alpha')), '02-alpha dir must exist');
+    assert.ok(fs.existsSync(path.join(tmpDir, '.planning', 'phases', '03-beta')), '03-beta dir must exist');
+    assert.ok(fs.existsSync(path.join(tmpDir, '.planning', 'phases', '04-gamma')), '04-gamma dir must exist');
+
+    const roadmap = fs.readFileSync(path.join(tmpDir, '.planning', 'ROADMAP.md'), 'utf-8');
+    assert.ok(roadmap.includes('### Phase 2: Alpha'), 'roadmap should include Phase 2');
+    assert.ok(roadmap.includes('### Phase 3: Beta'), 'roadmap should include Phase 3');
+    assert.ok(roadmap.includes('### Phase 4: Gamma'), 'roadmap should include Phase 4');
+  });
+
+  test('no duplicate phase numbers when multiple add-batch calls are made sequentially', () => {
+    // Regression for #2165: parallel `phase add` invocations produced duplicates
+    // because each read disk state before any write landed. add-batch serializes
+    // the entire batch under a single lock so the next call sees the updated state.
+    const r1 = runGsdTools(['phase', 'add-batch', '--descriptions', '["Wave-One-A","Wave-One-B"]'], tmpDir);
+    assert.ok(r1.success, `First batch failed: ${r1.error}`);
+
+    const r2 = runGsdTools(['phase', 'add-batch', '--descriptions', '["Wave-Two-A","Wave-Two-B"]'], tmpDir);
+    assert.ok(r2.success, `Second batch failed: ${r2.error}`);
+
+    const out1 = JSON.parse(r1.output);
+    const out2 = JSON.parse(r2.output);
+    const allNums = [...out1.phases, ...out2.phases].map(p => p.phase_number);
+    const unique = new Set(allNums);
+    assert.strictEqual(unique.size, allNums.length, `Duplicate phase numbers detected: ${allNums}`);
+
+    // Directories must all exist and be unique
+    const dirs = fs.readdirSync(path.join(tmpDir, '.planning', 'phases'));
+    assert.strictEqual(dirs.length, 4, `Expected 4 phase dirs, got: ${dirs}`);
+  });
+
+  test('each phase directory contains a .gitkeep file', () => {
+    const result = runGsdTools(['phase', 'add-batch', '--descriptions', '["Setup","Build"]'], tmpDir);
+    assert.ok(result.success, `Command failed: ${result.error}`);
+
+    assert.ok(
+      fs.existsSync(path.join(tmpDir, '.planning', 'phases', '02-setup', '.gitkeep')),
+      '.gitkeep must exist in 02-setup'
+    );
+    assert.ok(
+      fs.existsSync(path.join(tmpDir, '.planning', 'phases', '03-build', '.gitkeep')),
+      '.gitkeep must exist in 03-build'
+    );
+  });
+
+  test('returns error for empty descriptions array', () => {
+    const result = runGsdTools(['phase', 'add-batch', '--descriptions', '[]'], tmpDir);
+    assert.ok(!result.success, 'should fail on empty array');
   });
 });
 
@@ -1869,9 +2106,9 @@ describe('normalizePhaseName', () => {
     assert.strictEqual(normalizePhaseName('12A.2'), '12A.2');
   });
 
-  test('uppercases letters', () => {
-    assert.strictEqual(normalizePhaseName('3a'), '03A');
-    assert.strictEqual(normalizePhaseName('12b.1'), '12B.1');
+  test('preserves letter case', () => {
+    assert.strictEqual(normalizePhaseName('3a'), '03a');
+    assert.strictEqual(normalizePhaseName('12b.1'), '12b.1');
   });
 
   test('handles multi-level decimal phases', () => {
@@ -2015,6 +2252,247 @@ describe('phase complete milestone-scoped next-phase', () => {
     // With the fix, only phase 5 is in milestone, so it IS the last phase
     assert.strictEqual(output.is_last_phase, true, 'should be last phase — only phase 5 is in milestone');
     assert.strictEqual(output.next_phase, null, 'no next phase in milestone');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// exact token matching (no prefix collisions)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('phase resolution uses exact token matching', () => {
+  let tmpDir;
+
+  beforeEach(() => {
+    tmpDir = createTempProject();
+  });
+
+  afterEach(() => {
+    cleanup(tmpDir);
+  });
+
+  test('1009 must NOT match 1009A-feature-consistency when 1009 dir is absent', () => {
+    const phasesDir = path.join(tmpDir, '.planning', 'phases');
+    fs.mkdirSync(path.join(phasesDir, '1009A-feature-consistency'));
+    fs.writeFileSync(path.join(phasesDir, '1009A-feature-consistency', 'PLAN.md'), '# Plan');
+
+    const result = runGsdTools('find-phase 1009', tmpDir);
+    assert.ok(result.success, `Command failed: ${result.error}`);
+    const output = JSON.parse(result.output);
+    assert.strictEqual(output.found, false, 'should NOT find phase 1009 when only 1009A exists');
+  });
+
+  test('1009 matches 1009-pipeline-accuracy-fix when both exist', () => {
+    const phasesDir = path.join(tmpDir, '.planning', 'phases');
+    fs.mkdirSync(path.join(phasesDir, '1009-pipeline-accuracy-fix'));
+    fs.mkdirSync(path.join(phasesDir, '1009A-feature-consistency'));
+    fs.writeFileSync(path.join(phasesDir, '1009-pipeline-accuracy-fix', 'PLAN.md'), '# Plan');
+
+    const result = runGsdTools('find-phase 1009', tmpDir);
+    assert.ok(result.success, `Command failed: ${result.error}`);
+    const output = JSON.parse(result.output);
+    assert.strictEqual(output.found, true, 'should find phase 1009');
+    assert.ok(
+      output.directory.includes('1009-pipeline-accuracy-fix'),
+      `should match 1009-pipeline-accuracy-fix, got: ${output.directory}`
+    );
+  });
+
+  test('999.6 must NOT match 999.60-episode-processing when 999.6 dir is absent', () => {
+    const phasesDir = path.join(tmpDir, '.planning', 'phases');
+    fs.mkdirSync(path.join(phasesDir, '999.60-episode-processing'));
+    fs.writeFileSync(path.join(phasesDir, '999.60-episode-processing', 'PLAN.md'), '# Plan');
+
+    const result = runGsdTools('find-phase 999.6', tmpDir);
+    assert.ok(result.success, `Command failed: ${result.error}`);
+    const output = JSON.parse(result.output);
+    assert.strictEqual(output.found, false, 'should NOT find phase 999.6 when only 999.60 exists');
+  });
+
+  test('999.6 matches 999.6-ground-truth-dataset when both exist', () => {
+    const phasesDir = path.join(tmpDir, '.planning', 'phases');
+    fs.mkdirSync(path.join(phasesDir, '999.6-ground-truth-dataset'));
+    fs.mkdirSync(path.join(phasesDir, '999.60-episode-processing'));
+    fs.writeFileSync(path.join(phasesDir, '999.6-ground-truth-dataset', 'PLAN.md'), '# Plan');
+
+    const result = runGsdTools('find-phase 999.6', tmpDir);
+    assert.ok(result.success, `Command failed: ${result.error}`);
+    const output = JSON.parse(result.output);
+    assert.strictEqual(output.found, true, 'should find phase 999.6');
+    assert.ok(
+      output.directory.includes('999.6-ground-truth-dataset'),
+      `should match 999.6-ground-truth-dataset, got: ${output.directory}`
+    );
+  });
+
+  test('normal non-colliding phases still resolve', () => {
+    const phasesDir = path.join(tmpDir, '.planning', 'phases');
+    fs.mkdirSync(path.join(phasesDir, '01-foundation'));
+    fs.mkdirSync(path.join(phasesDir, '02-implementation'));
+    fs.writeFileSync(path.join(phasesDir, '01-foundation', 'PLAN.md'), '# Plan');
+    fs.writeFileSync(path.join(phasesDir, '02-implementation', 'PLAN.md'), '# Plan');
+
+    const r1 = runGsdTools('find-phase 1', tmpDir);
+    assert.ok(r1.success, `Command failed for phase 1: ${r1.error}`);
+    const o1 = JSON.parse(r1.output);
+    assert.strictEqual(o1.found, true, 'should find phase 1');
+    assert.ok(o1.directory.includes('01-foundation'), `should match 01-foundation, got: ${o1.directory}`);
+
+    const r2 = runGsdTools('find-phase 2', tmpDir);
+    assert.ok(r2.success, `Command failed for phase 2: ${r2.error}`);
+    const o2 = JSON.parse(r2.output);
+    assert.strictEqual(o2.found, true, 'should find phase 2');
+    assert.ok(o2.directory.includes('02-implementation'), `should match 02-implementation, got: ${o2.directory}`);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// phase complete — Performance Metrics gate (Step 2 — Gate 4)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('phase complete updates Performance Metrics', () => {
+  let tmpDir;
+
+  beforeEach(() => {
+    tmpDir = createTempProject();
+  });
+
+  afterEach(() => {
+    cleanup(tmpDir);
+  });
+
+  test('after cmdPhaseComplete: Performance Metrics has updated total plans count', () => {
+    fs.writeFileSync(
+      path.join(tmpDir, '.planning', 'STATE.md'),
+      `# Project State\n\n**Current Phase:** 2\n**Status:** Executing Phase 2\n**Total Plans in Phase:** 3\n**Current Plan:** 3\n**Completed Phases:** 0\n**Total Phases:** 3\n**Progress:** 0%\n\n## Performance Metrics\n\n**Velocity:**\n- Total plans completed: 0\n- Average duration: N/A\n- Total execution time: 0 hours\n\n**By Phase:**\n\n| Phase | Plans | Total | Avg/Plan |\n|-------|-------|-------|----------|\n\n## Accumulated Context\n`
+    );
+
+    const phaseDir = path.join(tmpDir, '.planning', 'phases', '02-core');
+    fs.mkdirSync(phaseDir, { recursive: true });
+    fs.writeFileSync(path.join(phaseDir, '02-01-PLAN.md'), '# Plan 1\n');
+    fs.writeFileSync(path.join(phaseDir, '02-02-PLAN.md'), '# Plan 2\n');
+    fs.writeFileSync(path.join(phaseDir, '02-03-PLAN.md'), '# Plan 3\n');
+    fs.writeFileSync(path.join(phaseDir, '02-01-SUMMARY.md'), '# Summary\n');
+    fs.writeFileSync(path.join(phaseDir, '02-02-SUMMARY.md'), '# Summary\n');
+    fs.writeFileSync(path.join(phaseDir, '02-03-SUMMARY.md'), '# Summary\n');
+
+    fs.writeFileSync(
+      path.join(tmpDir, '.planning', 'ROADMAP.md'),
+      `# Roadmap\n\n## Phase 2: Core\n\n- [ ] Phase 2: Core Systems\n`
+    );
+
+    const result = runGsdTools('phase complete 2', tmpDir);
+    assert.ok(result.success, `phase complete failed: ${result.error}`);
+
+    const stateAfter = fs.readFileSync(path.join(tmpDir, '.planning', 'STATE.md'), 'utf-8');
+    assert.ok(stateAfter.match(/Total plans completed:\s*3/), 'Total plans completed should be 3');
+  });
+
+  test('after cmdPhaseComplete: By Phase table has row for completed phase', () => {
+    fs.writeFileSync(
+      path.join(tmpDir, '.planning', 'STATE.md'),
+      `# Project State\n\n**Current Phase:** 1\n**Status:** Executing Phase 1\n**Total Plans in Phase:** 2\n**Current Plan:** 2\n**Completed Phases:** 0\n**Total Phases:** 2\n**Progress:** 0%\n\n## Performance Metrics\n\n**Velocity:**\n- Total plans completed: 0\n- Average duration: N/A\n- Total execution time: 0 hours\n\n**By Phase:**\n\n| Phase | Plans | Total | Avg/Plan |\n|-------|-------|-------|----------|\n\n## Accumulated Context\n`
+    );
+
+    const phaseDir = path.join(tmpDir, '.planning', 'phases', '01-setup');
+    fs.mkdirSync(phaseDir, { recursive: true });
+    fs.writeFileSync(path.join(phaseDir, '01-01-PLAN.md'), '# Plan\n');
+    fs.writeFileSync(path.join(phaseDir, '01-02-PLAN.md'), '# Plan\n');
+    fs.writeFileSync(path.join(phaseDir, '01-01-SUMMARY.md'), '# Summary\n');
+    fs.writeFileSync(path.join(phaseDir, '01-02-SUMMARY.md'), '# Summary\n');
+
+    fs.writeFileSync(
+      path.join(tmpDir, '.planning', 'ROADMAP.md'),
+      `# Roadmap\n\n## Phase 1: Setup\n\n- [ ] Phase 1: Setup\n`
+    );
+
+    const result = runGsdTools('phase complete 1', tmpDir);
+    assert.ok(result.success, `phase complete failed: ${result.error}`);
+
+    const stateAfter = fs.readFileSync(path.join(tmpDir, '.planning', 'STATE.md'), 'utf-8');
+    assert.ok(stateAfter.match(/\|\s*1\s*\|\s*2\s*\|/), 'By Phase table should have row for phase 1 with 2 plans');
+    // Row must appear BEFORE the next section, not after it (regression: empty table body regex)
+    const rowIdx = stateAfter.indexOf('| 1 |');
+    const accIdx = stateAfter.indexOf('## Accumulated Context');
+    if (accIdx !== -1) {
+      assert.ok(rowIdx < accIdx, 'By Phase row must appear before ## Accumulated Context section');
+    }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// phase complete — backlog phase (999.x) exclusion (#2129)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('phase complete excludes 999.x backlog from next-phase (#2129)', () => {
+  let tmpDir;
+
+  beforeEach(() => {
+    tmpDir = createTempProject();
+  });
+
+  afterEach(() => {
+    cleanup(tmpDir);
+  });
+
+  test('next phase skips 999.x backlog dirs and falls back to roadmap', () => {
+    // ROADMAP defines phases 1, 2, 3 and a backlog 999.1
+    fs.writeFileSync(
+      path.join(tmpDir, '.planning', 'ROADMAP.md'),
+      [
+        '# Roadmap',
+        '',
+        '- [ ] Phase 1: Setup',
+        '- [ ] Phase 2: Core',
+        '- [ ] Phase 3: Polish',
+        '- [ ] Phase 999.1: Backlog idea',
+        '',
+        '### Phase 1: Setup',
+        '**Goal:** Initial setup',
+        '',
+        '### Phase 2: Core',
+        '**Goal:** Build core',
+        '',
+        '### Phase 3: Polish',
+        '**Goal:** Polish everything',
+        '',
+        '### Phase 999.1: Backlog idea',
+        '**Goal:** Parked idea',
+      ].join('\n')
+    );
+    fs.writeFileSync(
+      path.join(tmpDir, '.planning', 'STATE.md'),
+      [
+        '# State',
+        '',
+        '**Current Phase:** 02',
+        '**Status:** In progress',
+        '**Current Plan:** 02-01',
+        '**Last Activity:** 2025-01-01',
+        '**Last Activity Description:** Working',
+      ].join('\n')
+    );
+
+    // Phase 1 and 2 exist on disk, phase 3 does NOT exist yet, 999.1 DOES exist
+    const p1 = path.join(tmpDir, '.planning', 'phases', '01-setup');
+    fs.mkdirSync(p1, { recursive: true });
+    fs.writeFileSync(path.join(p1, '01-01-PLAN.md'), '# Plan');
+    fs.writeFileSync(path.join(p1, '01-01-SUMMARY.md'), '# Summary');
+
+    const p2 = path.join(tmpDir, '.planning', 'phases', '02-core');
+    fs.mkdirSync(p2, { recursive: true });
+    fs.writeFileSync(path.join(p2, '02-01-PLAN.md'), '# Plan');
+    fs.writeFileSync(path.join(p2, '02-01-SUMMARY.md'), '# Summary');
+
+    // Backlog stub on disk — this is what triggers the bug
+    fs.mkdirSync(path.join(tmpDir, '.planning', 'phases', '999.1-backlog-idea'), { recursive: true });
+
+    const result = runGsdTools('phase complete 2', tmpDir);
+    assert.ok(result.success, `Command failed: ${result.error}`);
+
+    const output = JSON.parse(result.output);
+    // Should find phase 3 from roadmap, NOT 999.1 from filesystem
+    assert.strictEqual(output.next_phase, '3', 'next_phase should be 3, not 999.1');
+    assert.strictEqual(output.is_last_phase, false, 'should not be last phase');
   });
 });
 

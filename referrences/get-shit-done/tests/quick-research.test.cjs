@@ -1,7 +1,7 @@
 /**
  * GSD Quick Research Flag Tests
  *
- * Validates the --research flag for /gsd:quick:
+ * Validates the --research flag for /gsd-quick:
  * - Command frontmatter advertises --research
  * - Workflow includes research step (Step 4.75)
  * - Research artifacts work within quick task directories
@@ -9,7 +9,7 @@
  */
 
 const { test, describe, beforeEach, afterEach } = require('node:test');
-const assert = require('node:assert');
+const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 const { runGsdTools, createTempProject, cleanup } = require('./helpers.cjs');

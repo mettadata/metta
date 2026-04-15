@@ -28,7 +28,7 @@ AUDITOR_MODEL=$(node "$HOME/.claude/get-shit-done/bin/gsd-tools.cjs" resolve-mod
 NYQUIST_CFG=$(node "$HOME/.claude/get-shit-done/bin/gsd-tools.cjs" config-get workflow.nyquist_validation --raw)
 ```
 
-If `NYQUIST_CFG` is `false`: exit with "Nyquist validation is disabled. Enable via /gsd:settings."
+If `NYQUIST_CFG` is `false`: exit with "Nyquist validation is disabled. Enable via /gsd-settings."
 
 Display banner: `GSD > VALIDATE PHASE {N}: {name}`
 
@@ -41,7 +41,7 @@ SUMMARY_FILES=$(ls "${PHASE_DIR}"/*-SUMMARY.md 2>/dev/null)
 
 - **State A** (`VALIDATION_FILE` non-empty): Audit existing
 - **State B** (`VALIDATION_FILE` empty, `SUMMARY_FILES` non-empty): Reconstruct from artifacts
-- **State C** (`SUMMARY_FILES` empty): Exit — "Phase {N} not executed. Run /gsd:execute-phase {N} ${GSD_WS} first."
+- **State C** (`SUMMARY_FILES` empty): Exit — "Phase {N} not executed. Run /gsd-execute-phase {N} ${GSD_WS} first."
 
 ## 2. Discovery
 
@@ -83,6 +83,8 @@ No gaps → skip to Step 6, set `nyquist_compliant: true`.
 
 ## 4. Present Gap Plan
 
+
+**Text mode (`workflow.text_mode: true` in config or `--text` flag):** Set `TEXT_MODE=true` if `--text` is present in `$ARGUMENTS` OR `text_mode` from init JSON is `true`. When TEXT_MODE is active, replace every `AskUserQuestion` call with a plain-text numbered list and ask the user to type their choice number. This is required for non-Claude runtimes (OpenAI Codex, Gemini CLI, etc.) where `AskUserQuestion` is not available.
 Call AskUserQuestion with gap table and options:
 1. "Fix all gaps" → Step 5
 2. "Skip — mark manual-only" → add to Manual-Only, Step 6
@@ -144,14 +146,14 @@ node "$HOME/.claude/get-shit-done/bin/gsd-tools.cjs" commit "docs(phase-${PHASE}
 ```
 GSD > PHASE {N} IS NYQUIST-COMPLIANT
 All requirements have automated verification.
-▶ Next: /gsd:audit-milestone ${GSD_WS}
+▶ Next: /gsd-audit-milestone ${GSD_WS}
 ```
 
 **Partial:**
 ```
 GSD > PHASE {N} VALIDATED (PARTIAL)
 {M} automated, {K} manual-only.
-▶ Retry: /gsd:validate-phase {N} ${GSD_WS}
+▶ Retry: /gsd-validate-phase {N} ${GSD_WS}
 ```
 
 Display `/clear` reminder.
