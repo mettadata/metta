@@ -75,7 +75,7 @@
 
 ## Batch 2 — Orchestrator (depends on Batch 1)
 
-### Task 2.1: `checkConstitution` orchestrator function
+### Task 2.1: `checkConstitution` orchestrator function [x]
 
 - **Files**
   - Create: `src/constitution/checker.ts`
