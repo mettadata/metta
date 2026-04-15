@@ -1,0 +1,12 @@
+version: 1
+hash: sha256:8ac274a5424e
+updated: 2026-04-15T05:43:56.393Z
+status: draft
+source: change
+requirements:
+  - id: stories-parser-tolerates-compact-format
+    hash: sha256:fa1b666d4d3f
+    scenarios:
+      - compact-stories-md-parses-all-fields
+      - spaced-stories-md-existing-format-still-works
+      - mixed-format-works
