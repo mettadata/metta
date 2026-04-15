@@ -3,21 +3,22 @@
 <!-- metta:project-start source:spec/project.md -->
 ## Project
 
-**metta** -- A composable, spec-driven development framework for AI-native software engineering. CLI tool orchestrating the full change lifecycle: propose, plan, execute, verify, finalize, ship. Works with any AI coding tool via instruction mode — the framework manages state and specs while the AI tool executes.
+**metta** -- **metta** is a composable, spec-driven development framework for AI-native software engineering. It is a CLI / developer tool that orchestrates the full change lifecycle — propose → plan → execute → verify → finalize → ship — for internal developers adopting metta on their own projects. The framework works with any AI coding tool via instruction mode: metta manages state and specs while the AI tool executes the work.
 
-Stack: TypeScript (strict mode, ES2022 target), Node.js >= 22, ESM only, Commander.js (CLI), Zod (schema validation on every state read/write), YAML (state persistence, templates, workflow definitions), Anthropic SDK (AI provider), remark-parse + unified (markdown spec parsing), Vitest (testing)
+Stack: **Language:** TypeScript (strict mode, ES2022 target), **Runtime:** Node.js >= 22 (ESM only), **Frameworks & libraries:**, - Commander.js — CLI argument parsing, - Zod — schema validation on every state read/write, - Vitest — unit testing, - remark-parse + unified — markdown spec parsing, - Anthropic SDK — AI provider integration, **Persistence:** Filesystem-based — `.metta/` YAML state files, `spec/` spec store, git as the transaction log, **Toolchain:** `tsc` for build, `npm` for package management (tsx is not currently part of the dev loop)
 <!-- metta:project-end -->
 
 <!-- metta:conventions-start source:spec/project.md -->
 ## Conventions
 
-- Classes for stateful modules, interfaces for contracts
+- Classes for stateful modules; interfaces for contracts
+- `camelCase` for functions/variables, `PascalCase` for classes/types, `kebab-case` for filenames
 - Always include `.js` extensions in TypeScript import paths (Node16 ESM)
 - Validate all state and config with Zod schemas
 - Custom error classes with typed hierarchies
 - Conventional commits: `feat:`, `fix:`, `chore:`, `refactor:`, `test:`, `docs:`
-- Barrel exports via `index.ts` at `src/` root
-- Template files (YAML workflows, gates, artifacts, skills, agents) copied to `dist/` at build time
+- Barrel exports via `index.ts` at the `src/` root
+- Template files (YAML workflows, gates, artifacts, skills, agents) are copied to `dist/` at build time — never inlined as string literals
 - Functional core, imperative shell: pure logic in modules, I/O at the edges
 - Maintain near 1:1 test-to-source file ratio
 - No CommonJS
@@ -77,16 +78,20 @@ For any code change — bug fix, feature, refactor — start with `metta quick <
 |------------|-------------|
 | artifact-store | 19 |
 | config-loader | 59 |
-| context-engine | 49 |
+| context-engine | 72 |
 | execution-engine | 49 |
 | finalize-ship | 26 |
+| fix-issue-stories-parser-multi | 3 |
 | fix-metta-next-gap-detect-unme | 8 |
 | metta-issue-metta-backlog-slas | 11 |
 | schemas | 126 |
 | spec-model | 26 |
+| spec:-fix-issue-metta-ship-merged-fi | 10 |
 | spec:-metta-fix-issues-cli-command-m | 78 |
 | split-metta-install-metta-init | 20 |
 | state-store | 73 |
+| t8-post-merge-gate-re-run-afte | 5 |
+| user-story-layer-for-spec-format-(t5) | 84 |
 | workflow-engine | 69 |
 <!-- metta:specs-end -->
 
