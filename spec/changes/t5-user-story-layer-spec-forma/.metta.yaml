@@ -1,7 +1,7 @@
 workflow: standard
 created: 2026-04-15T03:59:57.673Z
 status: active
-current_artifact: implementation
+current_artifact: stories
 base_versions: {}
 artifacts:
   intent: complete
@@ -11,4 +11,4 @@ artifacts:
   tasks: complete
   implementation: complete
   verification: ready
-  stories: ready
+  stories: complete
