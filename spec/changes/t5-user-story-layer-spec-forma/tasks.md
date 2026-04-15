@@ -444,7 +444,7 @@ Also ensure `metta instructions stories` produces output that includes the `mett
 
 ---
 
-### 4.2 metta-propose skill update
+### 4.2 metta-propose skill update [x]
 
 **Files**
 - `src/templates/skills/metta-propose/SKILL.md` (modify)
