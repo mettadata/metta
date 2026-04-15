@@ -151,4 +151,72 @@ describe('parseStories', () => {
     const path = await writeFixture(dir, md)
     await expect(parseStories(path)).rejects.toBeInstanceOf(StoriesParseError)
   })
+
+  it('parses compact format with all 5 labeled fields on consecutive lines', async () => {
+    const md = [
+      '# Compact stories',
+      '',
+      '## US-1: compact case',
+      '',
+      '**As a** maintainer',
+      '**I want to** see all fields parsed',
+      '**So that** terse formats work',
+      '**Priority:** P1',
+      '**Independent Test Criteria:** parser populates all five fields without blank lines',
+      '',
+      '**Acceptance Criteria:**',
+      '',
+      '- **Given** compact paragraph **When** parser runs **Then** all fields populated',
+    ].join('\n')
+    const path = await writeFixture(dir, md)
+    const doc = await parseStories(path)
+    expect(doc.kind).toBe('stories')
+    if (doc.kind !== 'stories') throw new Error('expected stories')
+    expect(doc.stories[0].asA).toBe('maintainer')
+    expect(doc.stories[0].iWantTo).toBe('see all fields parsed')
+    expect(doc.stories[0].soThat).toBe('terse formats work')
+    expect(doc.stories[0].priority).toBe('P1')
+    expect(doc.stories[0].independentTestCriteria).toBe('parser populates all five fields without blank lines')
+  })
+
+  it('parses mixed format (one story compact, one spaced)', async () => {
+    const md = [
+      '# Mixed',
+      '',
+      '## US-1: compact',
+      '',
+      '**As a** A',
+      '**I want to** B',
+      '**So that** C',
+      '**Priority:** P1',
+      '**Independent Test Criteria:** D',
+      '',
+      '**Acceptance Criteria:**',
+      '',
+      '- **Given** g1 **When** w1 **Then** t1',
+      '',
+      '## US-2: spaced',
+      '',
+      '**As a** X',
+      '',
+      '**I want to** Y',
+      '',
+      '**So that** Z',
+      '',
+      '**Priority:** P2',
+      '',
+      '**Independent Test Criteria:** W',
+      '',
+      '**Acceptance Criteria:**',
+      '',
+      '- **Given** g2 **When** w2 **Then** t2',
+    ].join('\n')
+    const path = await writeFixture(dir, md)
+    const doc = await parseStories(path)
+    expect(doc.kind).toBe('stories')
+    if (doc.kind !== 'stories') throw new Error('expected stories')
+    expect(doc.stories.length).toBe(2)
+    expect(doc.stories[0].iWantTo).toBe('B')
+    expect(doc.stories[1].iWantTo).toBe('Y')
+  })
 })
