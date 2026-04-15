@@ -42,7 +42,12 @@ grep -E "^| ${phase_number}" .planning/REQUIREMENTS.md 2>/dev/null || true
 ls "$phase_dir"/*-SUMMARY.md "$phase_dir"/*-PLAN.md 2>/dev/null || true
 ```
 
-Extract **phase goal** from ROADMAP.md (the outcome to verify, not tasks) and **requirements** from REQUIREMENTS.md if it exists.
+Load full milestone phases for deferred-item filtering (Step 9b):
+```bash
+node "$HOME/.claude/get-shit-done/bin/gsd-tools.cjs" roadmap analyze
+```
+
+Extract **phase goal** from ROADMAP.md (the outcome to verify, not tasks), **requirements** from REQUIREMENTS.md if it exists, and **all milestone phases** from roadmap analyze (for cross-referencing gaps against later phases).
 </step>
 
 <step name="establish_must_haves">
@@ -178,6 +183,89 @@ grep -E "Phase ${PHASE_NUM}" .planning/REQUIREMENTS.md 2>/dev/null || true
 For each requirement: parse description → identify supporting truths/artifacts → status: ✓ SATISFIED / ✗ BLOCKED / ? NEEDS HUMAN.
 </step>
 
+<step name="behavioral_verification">
+**Run the project's test suite and CLI commands to verify behavior, not just structure.**
+
+Static checks (grep, file existence, wiring) catch structural gaps but miss runtime
+failures. This step runs actual tests and project commands to verify the phase goal
+is behaviorally achieved.
+
+This follows Anthropic's harness engineering principle: separating generation from
+evaluation, with the evaluator interacting with the running system rather than
+inspecting static artifacts.
+
+**Step 1: Run test suite**
+
+```bash
+# Detect test runner and run all tests (timeout: 5 minutes)
+TEST_EXIT=0
+timeout 300 bash -c '
+if [ -f "package.json" ]; then
+  npm test 2>&1
+elif [ -f "Cargo.toml" ]; then
+  cargo test 2>&1
+elif [ -f "go.mod" ]; then
+  go test ./... 2>&1
+elif [ -f "pyproject.toml" ] || [ -f "requirements.txt" ]; then
+  python -m pytest -q --tb=short 2>&1 || uv run python -m pytest -q --tb=short 2>&1
+else
+  echo "⚠ No test runner detected — skipping test suite"
+  exit 1
+fi
+'
+TEST_EXIT=$?
+if [ "${TEST_EXIT}" -eq 0 ]; then
+  echo "✓ Test suite passed"
+elif [ "${TEST_EXIT}" -eq 124 ]; then
+  echo "⚠ Test suite timed out after 5 minutes"
+else
+  echo "✗ Test suite failed (exit code ${TEST_EXIT})"
+fi
+```
+
+Record: total tests, passed, failed, coverage (if available).
+
+**If any tests fail:** Mark as `behavioral_failures` — these are BLOCKER severity
+regardless of whether static checks passed. A phase cannot be verified if tests fail.
+
+**Step 2: Run project CLI/commands from success criteria (if testable)**
+
+For each success criterion that describes a user command (e.g., "User can run
+`mixtiq validate`", "User can run `npm start`"):
+
+1. Check if the command exists and required inputs are available:
+   - Look for example files in `templates/`, `fixtures/`, `test/`, `examples/`, or `testdata/`
+   - Check if the CLI binary/script exists on PATH or in the project
+2. **If no suitable inputs or fixtures exist:** Mark as `? NEEDS HUMAN` with reason
+   "No test fixtures available — requires manual verification" and move on.
+   Do NOT invent example inputs.
+3. If inputs are available: run the command and verify it exits successfully.
+
+```bash
+# Only run if both command and input exist
+if command -v {project_cli} &>/dev/null && [ -f "{example_input}" ]; then
+  {project_cli} {example_input} 2>&1
+fi
+```
+
+Record: command, exit code, output summary, pass/fail (or SKIPPED if no fixtures).
+
+**Step 3: Report**
+
+```
+## Behavioral Verification
+
+| Check | Result | Detail |
+|-------|--------|--------|
+| Test suite | {N} passed, {M} failed | {first failure if any} |
+| {CLI command 1} | ✓ / ✗ | {output summary} |
+| {CLI command 2} | ✓ / ✗ | {output summary} |
+```
+
+**If all behavioral checks pass:** Continue to scan_antipatterns.
+**If any fail:** Add to verification gaps with BLOCKER severity.
+</step>
+
 <step name="scan_antipatterns">
 Extract files modified in this phase from SUMMARY.md, scan each:
 
@@ -303,6 +391,25 @@ Classify status using this decision tree IN ORDER (most restrictive first):
 **Score:** `verified_truths / total_truths`
 </step>
 
+<step name="filter_deferred_items">
+Before reporting gaps, cross-reference each gap against later phases in the milestone using the full roadmap data loaded in load_context (from `roadmap analyze`).
+
+For each potential gap identified in determine_status:
+1. Check if the gap's failed truth or missing item is covered by a later phase's goal or success criteria
+2. **Match criteria:** The gap's concern appears in a later phase's goal text, success criteria text, or the later phase's name clearly suggests it covers this area
+3. If a clear match is found → move the gap to a `deferred` list with the matching phase reference and evidence text
+4. If no match in any later phase → keep as a real `gap`
+
+**Important:** Be conservative. Only defer a gap when there is clear, specific evidence in a later phase. Vague or tangential matches should NOT cause deferral — when in doubt, keep it as a real gap.
+
+**Deferred items do NOT affect the status determination.** Recalculate after filtering:
+- If gaps list is now empty and no human items exist → `passed`
+- If gaps list is now empty but human items exist → `human_needed`
+- If gaps list still has items → `gaps_found`
+
+Include deferred items in VERIFICATION.md frontmatter (`deferred:` section) and body (Deferred Items table) for transparency. If no deferred items exist, omit these sections.
+</step>
+
 <step name="generate_fix_plans">
 If gaps_found:
 
@@ -344,7 +451,8 @@ Orchestrator routes: `passed` → update_roadmap | `gaps_found` → create/execu
 - [ ] Test quality audited (disabled tests, circular patterns, assertion strength, provenance)
 - [ ] Human verification items identified
 - [ ] Overall status determined
-- [ ] Fix plans generated (if gaps_found)
+- [ ] Deferred items filtered against later milestone phases (if gaps found)
+- [ ] Fix plans generated (if gaps_found after filtering)
 - [ ] VERIFICATION.md created with complete report
 - [ ] Results returned to orchestrator
 </success_criteria>

@@ -10,7 +10,7 @@
 process.env.GSD_TEST_MODE = '1';
 
 const { test, describe, beforeEach, afterEach } = require('node:test');
-const assert = require('node:assert');
+const assert = require('node:assert/strict');
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
@@ -139,8 +139,8 @@ describe('Source code integration (Copilot)', () => {
     assert.ok(src.includes('--copilot'), 'help text has --copilot option');
   });
 
-  test('CLI-02: promptRuntime runtimeMap has Copilot as option 6', () => {
-    assert.ok(src.includes("'6': 'copilot'"), 'runtimeMap has 6 -> copilot');
+  test('CLI-02: promptRuntime runtimeMap has Copilot as option 7', () => {
+    assert.ok(src.includes("'7': 'copilot'"), 'runtimeMap has 7 -> copilot');
   });
 
   test('CLI-02: promptRuntime allRuntimes array includes copilot', () => {
@@ -659,7 +659,7 @@ describe('copyCommandsAsCopilotSkills', () => {
     assert.ok(skillContent.includes('description: Run all remaining phases autonomously'),
       'description preserved');
     // argument-hint present and double-quoted
-    assert.ok(skillContent.includes('argument-hint: "[--from N] [--only N] [--interactive]"'), 'argument-hint present and quoted');
+    assert.ok(skillContent.includes('argument-hint: "[--from N] [--to N] [--only N] [--interactive]"'), 'argument-hint present and quoted');
     // allowed-tools comma-separated
     assert.ok(skillContent.includes('allowed-tools: Read, Write, Bash, Glob, Grep, AskUserQuestion, Task'),
       'allowed-tools is comma-separated');
@@ -1081,7 +1081,7 @@ describe('Copilot manifest and patches fixes', () => {
       assert.ok(!output.includes('/gsd:reapply-patches'), 'does not use colon format');
     });
 
-    test('reportLocalPatches shows /gsd:reapply-patches for Claude (unchanged)', () => {
+    test('reportLocalPatches shows /gsd-reapply-patches for Claude', () => {
       // Create patches directory with metadata
       const patchesDir = path.join(tmpDir, 'gsd-local-patches');
       fs.mkdirSync(patchesDir, { recursive: true });
@@ -1094,7 +1094,8 @@ describe('Copilot manifest and patches fixes', () => {
 
       assert.ok(result.length > 0, 'returns patched files list');
       const output = logs.join('\n');
-      assert.ok(output.includes('/gsd:reapply-patches'), 'uses colon format for Claude');
+      assert.ok(output.includes('/gsd-reapply-patches'), 'uses hyphen format for Claude');
+      assert.ok(!output.includes('/gsd:reapply-patches'), 'does not use colon format for Claude');
     });
   });
 });
@@ -1179,14 +1180,24 @@ describe('E2E: Copilot full install verification', () => {
     const gsdAgents = files.filter(f => f.startsWith('gsd-') && f.endsWith('.agent.md')).sort();
     const expected = [
       'gsd-advisor-researcher.agent.md',
+      'gsd-ai-researcher.agent.md',
       'gsd-assumptions-analyzer.agent.md',
+      'gsd-code-fixer.agent.md',
+      'gsd-code-reviewer.agent.md',
       'gsd-codebase-mapper.agent.md',
+      'gsd-debug-session-manager.agent.md',
       'gsd-debugger.agent.md',
       'gsd-doc-verifier.agent.md',
       'gsd-doc-writer.agent.md',
+      'gsd-domain-researcher.agent.md',
+      'gsd-eval-auditor.agent.md',
+      'gsd-eval-planner.agent.md',
       'gsd-executor.agent.md',
+      'gsd-framework-selector.agent.md',
       'gsd-integration-checker.agent.md',
+      'gsd-intel-updater.agent.md',
       'gsd-nyquist-auditor.agent.md',
+      'gsd-pattern-mapper.agent.md',
       'gsd-phase-researcher.agent.md',
       'gsd-plan-checker.agent.md',
       'gsd-planner.agent.md',

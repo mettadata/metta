@@ -4,14 +4,14 @@
 
 [English](README.md) · **Português** · [简体中文](README.zh-CN.md) · [日本語](README.ja-JP.md)
 
-**Um sistema leve e poderoso de meta-prompting, engenharia de contexto e desenvolvimento orientado a especificação para Claude Code, OpenCode, Gemini CLI, Kilo, Codex, Copilot, Cursor, Windsurf, Antigravity e Augment.**
+**Um sistema leve e poderoso de meta-prompting, engenharia de contexto e desenvolvimento orientado a especificação para Claude Code, OpenCode, Gemini CLI, Kilo, Codex, Copilot, Cursor, Windsurf, Antigravity, Augment, Trae e Cline.**
 
 **Resolve context rot — a degradação de qualidade que acontece conforme o Claude enche a janela de contexto.**
 
 [![npm version](https://img.shields.io/npm/v/get-shit-done-cc?style=for-the-badge&logo=npm&logoColor=white&color=CB3837)](https://www.npmjs.com/package/get-shit-done-cc)
 [![npm downloads](https://img.shields.io/npm/dm/get-shit-done-cc?style=for-the-badge&logo=npm&logoColor=white&color=CB3837)](https://www.npmjs.com/package/get-shit-done-cc)
 [![Tests](https://img.shields.io/github/actions/workflow/status/gsd-build/get-shit-done/test.yml?branch=main&style=for-the-badge&logo=github&label=Tests)](https://github.com/gsd-build/get-shit-done/actions/workflows/test.yml)
-[![Discord](https://img.shields.io/badge/Discord-Join-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/gsd)
+[![Discord](https://img.shields.io/badge/Discord-Join-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/mYgfVNfA2r)
 [![X (Twitter)](https://img.shields.io/badge/X-@gsd__foundation-000000?style=for-the-badge&logo=x&logoColor=white)](https://x.com/gsd_foundation)
 [![$GSD Token](https://img.shields.io/badge/$GSD-Dexscreener-1C1C1C?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSIxMiIgY3k9IjEyIiByPSIxMCIgZmlsbD0iIzAwRkYwMCIvPjwvc3ZnPg==&logoColor=00FF00)](https://dexscreener.com/solana/dwudwjvan7bzkw9zwlbyv6kspdlvhwzrqy6ebk8xzxkv)
 [![GitHub stars](https://img.shields.io/github/stars/gsd-build/get-shit-done?style=for-the-badge&logo=github&color=181717)](https://github.com/gsd-build/get-shit-done)
@@ -73,6 +73,16 @@ Para quem quer descrever o que precisa e receber isso construído do jeito certo
 
 Quality gates embutidos capturam problemas reais: detecção de schema drift sinaliza mudanças ORM sem migrations, segurança ancora verificação a modelos de ameaça, e detecção de redução de escopo impede o planner de descartar requisitos silenciosamente.
 
+### Destaques v1.32.0
+
+- **Gates de consistência STATE.md** — `state validate` detecta divergência entre STATE.md e o filesystem; `state sync` reconstrói a partir do estado real do projeto
+- **Flag `--to N`** — Para a execução autônoma após completar uma fase específica
+- **Research gate** — Bloqueia planejamento quando RESEARCH.md tem perguntas abertas não resolvidas
+- **Filtro de escopo do verificador** — Lacunas abordadas em fases posteriores são marcadas como "adiadas", não como lacunas
+- **Guard de leitura antes de edição** — Hook consultivo previne loops de retry infinitos em runtimes não-Claude
+- **Redução de contexto** — Truncamento de Markdown e ordenação de prompts cache-friendly para menor uso de tokens
+- **4 novos runtimes** — Trae, Kilo, Augment e Cline (12 runtimes no total)
+
 ---
 
 ## Primeiros passos
@@ -82,19 +92,20 @@ npx get-shit-done-cc@latest
 ```
 
 O instalador pede:
-1. **Runtime** — Claude Code, OpenCode, Gemini, Kilo, Codex, Copilot, Cursor, Antigravity, ou todos
+1. **Runtime** — Claude Code, OpenCode, Gemini, Kilo, Codex, Copilot, Cursor, Windsurf, Antigravity, Augment, Trae, Cline, ou todos
 2. **Local** — Global (todos os projetos) ou local (apenas projeto atual)
 
 Verifique com:
-- Claude Code / Gemini: `/gsd:help`
-- OpenCode: `/gsd-help`
-- Kilo: `/gsd-help`
+- Claude Code / Gemini / Copilot / Antigravity: `/gsd-help`
+- OpenCode / Kilo / Augment / Trae: `/gsd-help`
 - Codex: `$gsd-help`
-- Copilot: `/gsd:help`
-- Antigravity: `/gsd:help`
+- Cline: GSD instala via `.clinerules` — verifique se `.clinerules` existe
 
 > [!NOTE]
-> A instalação do Codex usa skills (`skills/gsd-*/SKILL.md`) em vez de prompts customizados.
+> Claude Code 2.1.88+ e Codex instalam como skills (`skills/gsd-*/SKILL.md`). Cline usa `.clinerules`. O instalador lida com todos os formatos automaticamente.
+
+> [!TIP]
+> Para instalação a partir do código-fonte ou ambientes sem npm, consulte **[docs/manual-update.md](docs/manual-update.md)**.
 
 ### Mantendo atualizado
 
@@ -136,12 +147,24 @@ npx get-shit-done-cc --cursor --local
 npx get-shit-done-cc --antigravity --global
 npx get-shit-done-cc --antigravity --local
 
+# Augment
+npx get-shit-done-cc --augment --global     # Install to ~/.augment/
+npx get-shit-done-cc --augment --local      # Install to ./.augment/
+
+# Trae
+npx get-shit-done-cc --trae --global        # Install to ~/.trae/
+npx get-shit-done-cc --trae --local         # Install to ./.trae/
+
+# Cline
+npx get-shit-done-cc --cline --global       # Install to ~/.cline/
+npx get-shit-done-cc --cline --local        # Install to ./.clinerules
+
 # Todos
 npx get-shit-done-cc --all --global
 ```
 
 Use `--global` (`-g`) ou `--local` (`-l`) para pular a pergunta de local.
-Use `--claude`, `--opencode`, `--gemini`, `--kilo`, `--codex`, `--copilot`, `--cursor`, `--antigravity` ou `--all` para pular a pergunta de runtime.
+Use `--claude`, `--opencode`, `--gemini`, `--kilo`, `--codex`, `--copilot`, `--cursor`, `--windsurf`, `--antigravity`, `--augment`, `--trae`, `--cline` ou `--all` para pular a pergunta de runtime.
 
 </details>
 
@@ -158,12 +181,12 @@ claude --dangerously-skip-permissions
 
 ## Como funciona
 
-> **Já tem código?** Rode `/gsd:map-codebase` primeiro para analisar stack, arquitetura, convenções e riscos.
+> **Já tem código?** Rode `/gsd-map-codebase` primeiro para analisar stack, arquitetura, convenções e riscos.
 
 ### 1. Inicializar projeto
 
 ```
-/gsd:new-project
+/gsd-new-project
 ```
 
 O sistema:
@@ -177,7 +200,7 @@ O sistema:
 ### 2. Discutir fase
 
 ```
-/gsd:discuss-phase 1
+/gsd-discuss-phase 1
 ```
 
 Captura suas preferências de implementação antes do planejamento.
@@ -187,7 +210,7 @@ Captura suas preferências de implementação antes do planejamento.
 ### 3. Planejar fase
 
 ```
-/gsd:plan-phase 1
+/gsd-plan-phase 1
 ```
 
 1. Pesquisa abordagens
@@ -199,7 +222,7 @@ Captura suas preferências de implementação antes do planejamento.
 ### 4. Executar fase
 
 ```
-/gsd:execute-phase 1
+/gsd-execute-phase 1
 ```
 
 1. Executa planos em ondas
@@ -212,7 +235,7 @@ Captura suas preferências de implementação antes do planejamento.
 ### 5. Verificar trabalho
 
 ```
-/gsd:verify-work 1
+/gsd-verify-work 1
 ```
 
 Validação manual orientada para confirmar que a feature realmente funciona como esperado.
@@ -222,25 +245,25 @@ Validação manual orientada para confirmar que a feature realmente funciona com
 ### 6. Repetir -> Entregar -> Completar
 
 ```
-/gsd:discuss-phase 2
-/gsd:plan-phase 2
-/gsd:execute-phase 2
-/gsd:verify-work 2
-/gsd:ship 2
-/gsd:complete-milestone
-/gsd:new-milestone
+/gsd-discuss-phase 2
+/gsd-plan-phase 2
+/gsd-execute-phase 2
+/gsd-verify-work 2
+/gsd-ship 2
+/gsd-complete-milestone
+/gsd-new-milestone
 ```
 
 Ou deixe o GSD decidir:
 
 ```
-/gsd:next
+/gsd-next
 ```
 
 ### Modo rápido
 
 ```
-/gsd:quick
+/gsd-quick
 ```
 
 Para tarefas ad-hoc sem ciclo completo de planejamento.
@@ -296,36 +319,36 @@ Cada tarefa gera commit próprio, facilitando `git bisect`, rollback e rastreabi
 
 | Comando | O que faz |
 |---------|-----------|
-| `/gsd:new-project [--auto]` | Inicializa projeto completo |
-| `/gsd:discuss-phase [N] [--auto] [--analyze] [--chain]` | Captura decisões antes do plano (`--chain` encadeia automaticamente em plan+execute) |
-| `/gsd:plan-phase [N] [--auto] [--reviews]` | Pesquisa + plano + validação |
-| `/gsd:execute-phase <N>` | Executa planos em ondas paralelas |
-| `/gsd:verify-work [N]` | UAT manual |
-| `/gsd:ship [N] [--draft]` | Cria PR da fase validada |
-| `/gsd:next` | Avança automaticamente para o próximo passo |
-| `/gsd:fast <text>` | Tarefas triviais sem planejamento |
-| `/gsd:complete-milestone` | Fecha o marco e marca release |
-| `/gsd:new-milestone [name]` | Inicia próximo marco |
+| `/gsd-new-project [--auto]` | Inicializa projeto completo |
+| `/gsd-discuss-phase [N] [--auto] [--analyze] [--chain]` | Captura decisões antes do plano (`--chain` encadeia automaticamente em plan+execute) |
+| `/gsd-plan-phase [N] [--auto] [--reviews]` | Pesquisa + plano + validação |
+| `/gsd-execute-phase <N>` | Executa planos em ondas paralelas |
+| `/gsd-verify-work [N]` | UAT manual |
+| `/gsd-ship [N] [--draft]` | Cria PR da fase validada |
+| `/gsd-next` | Avança automaticamente para o próximo passo |
+| `/gsd-fast <text>` | Tarefas triviais sem planejamento |
+| `/gsd-complete-milestone` | Fecha o marco e marca release |
+| `/gsd-new-milestone [name]` | Inicia próximo marco |
 
 ### Qualidade e utilidades
 
 | Comando | O que faz |
 |---------|-----------|
-| `/gsd:review` | Peer review com múltiplas IAs |
-| `/gsd:pr-branch` | Cria branch limpa para PR |
-| `/gsd:settings` | Configura perfis e agentes |
-| `/gsd:set-profile <profile>` | Troca perfil (quality/balanced/budget/inherit) |
-| `/gsd:quick [--full] [--discuss] [--research]` | Execução rápida com garantias do GSD (`--full` ativa todas as etapas, `--validate` ativa apenas verificação) |
-| `/gsd:health [--repair]` | Verifica e repara `.planning/` |
+| `/gsd-review` | Peer review com múltiplas IAs |
+| `/gsd-pr-branch` | Cria branch limpa para PR |
+| `/gsd-settings` | Configura perfis e agentes |
+| `/gsd-set-profile <profile>` | Troca perfil (quality/balanced/budget/inherit) |
+| `/gsd-quick [--full] [--discuss] [--research]` | Execução rápida com garantias do GSD (`--full` ativa todas as etapas, `--validate` ativa apenas verificação) |
+| `/gsd-health [--repair]` | Verifica e repara `.planning/` |
 
-> Para a lista completa de comandos e opções, use `/gsd:help`.
+> Para a lista completa de comandos e opções, use `/gsd-help`.
 
 ---
 
 ## Configuração
 
 As configurações do projeto ficam em `.planning/config.json`.
-Você pode configurar no `/gsd:new-project` ou ajustar depois com `/gsd:settings`.
+Você pode configurar no `/gsd-new-project` ou ajustar depois com `/gsd-settings`.
 
 ### Ajustes principais
 
@@ -345,7 +368,7 @@ Você pode configurar no `/gsd:new-project` ou ajustar depois com `/gsd:settings
 
 Troca rápida:
 ```
-/gsd:set-profile budget
+/gsd-set-profile budget
 ```
 
 ---
@@ -389,7 +412,7 @@ Adicione padrões sensíveis ao deny list do Claude Code:
 - Verifique se os arquivos foram instalados no diretório correto
 
 **Comandos não funcionam como esperado?**
-- Rode `/gsd:help`
+- Rode `/gsd-help`
 - Reinstale com `npx get-shit-done-cc@latest`
 
 **Em Docker/container?**
@@ -411,6 +434,9 @@ npx get-shit-done-cc --codex --global --uninstall
 npx get-shit-done-cc --copilot --global --uninstall
 npx get-shit-done-cc --cursor --global --uninstall
 npx get-shit-done-cc --antigravity --global --uninstall
+npx get-shit-done-cc --augment --global --uninstall
+npx get-shit-done-cc --trae --global --uninstall
+npx get-shit-done-cc --cline --global --uninstall
 
 # Instalações locais (projeto atual)
 npx get-shit-done-cc --claude --local --uninstall
@@ -421,6 +447,9 @@ npx get-shit-done-cc --codex --local --uninstall
 npx get-shit-done-cc --copilot --local --uninstall
 npx get-shit-done-cc --cursor --local --uninstall
 npx get-shit-done-cc --antigravity --local --uninstall
+npx get-shit-done-cc --augment --local --uninstall
+npx get-shit-done-cc --trae --local --uninstall
+npx get-shit-done-cc --cline --local --uninstall
 ```
 
 ---

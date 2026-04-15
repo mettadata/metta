@@ -6,7 +6,7 @@
 
 ## 설정 파일
 
-GSD는 프로젝트 설정을 `.planning/config.json`에 저장합니다. `/gsd:new-project` 실행 시 생성되며 `/gsd:settings`를 통해 업데이트할 수 있습니다.
+GSD는 프로젝트 설정을 `.planning/config.json`에 저장합니다. `/gsd-new-project` 실행 시 생성되며 `/gsd-settings`를 통해 업데이트할 수 있습니다.
 
 ### 전체 스키마
 
@@ -33,7 +33,8 @@ GSD는 프로젝트 설정을 `.planning/config.json`에 저장합니다. `/gsd:
     "research_before_questions": false,
     "discuss_mode": "discuss",
     "skip_discuss": false,
-    "text_mode": false
+    "text_mode": false,
+    "use_worktrees": true
   },
   "hooks": {
     "context_warnings": true,
@@ -96,12 +97,13 @@ GSD는 프로젝트 설정을 `.planning/config.json`에 저장합니다. `/gsd:
 | `workflow.auto_advance` | boolean | `false` | discuss → plan → execute를 중단 없이 자동으로 연결 |
 | `workflow.nyquist_validation` | boolean | `true` | plan 단계 리서치 중 테스트 커버리지 매핑 |
 | `workflow.ui_phase` | boolean | `true` | 프론트엔드 단계를 위한 UI 디자인 계약서 생성 |
-| `workflow.ui_safety_gate` | boolean | `true` | plan 단계에서 프론트엔드 단계에 대해 /gsd:ui-phase 실행 여부 확인 |
+| `workflow.ui_safety_gate` | boolean | `true` | plan 단계에서 프론트엔드 단계에 대해 /gsd-ui-phase 실행 여부 확인 |
 | `workflow.node_repair` | boolean | `true` | 검증 실패 시 자율적 태스크 복구 |
 | `workflow.node_repair_budget` | number | `2` | 실패한 태스크당 최대 복구 시도 횟수 |
 | `workflow.research_before_questions` | boolean | `false` | 토론 질문 후가 아닌 전에 리서치 실행 |
-| `workflow.discuss_mode` | string | `'discuss'` | `/gsd:discuss-phase`의 컨텍스트 수집 방식을 제어합니다. `'discuss'` (기본값)는 질문을 하나씩 합니다. `'assumptions'`는 코드베이스를 먼저 읽고 신뢰도 수준이 있는 구조화된 가정을 생성하여 틀린 부분만 수정하도록 요청합니다. v1.28에서 추가 |
-| `workflow.skip_discuss` | boolean | `false` | `true`로 설정하면 `/gsd:autonomous`가 discuss 단계를 완전히 건너뛰고 ROADMAP 단계 목표로부터 최소한의 CONTEXT.md를 작성합니다. 개발자 선호사항이 PROJECT.md/REQUIREMENTS.md에 모두 캡처된 프로젝트에 유용합니다. v1.28에서 추가 |
+| `workflow.use_worktrees` | boolean | `true` | `false`이면 git worktree 격리 비활성화 (v1.31) |
+| `workflow.discuss_mode` | string | `'discuss'` | `/gsd-discuss-phase`의 컨텍스트 수집 방식을 제어합니다. `'discuss'` (기본값)는 질문을 하나씩 합니다. `'assumptions'`는 코드베이스를 먼저 읽고 신뢰도 수준이 있는 구조화된 가정을 생성하여 틀린 부분만 수정하도록 요청합니다. v1.28에서 추가 |
+| `workflow.skip_discuss` | boolean | `false` | `true`로 설정하면 `/gsd-autonomous`가 discuss 단계를 완전히 건너뛰고 ROADMAP 단계 목표로부터 최소한의 CONTEXT.md를 작성합니다. 개발자 선호사항이 PROJECT.md/REQUIREMENTS.md에 모두 캡처된 프로젝트에 유용합니다. v1.28에서 추가 |
 | `workflow.text_mode` | boolean | `false` | AskUserQuestion TUI 메뉴를 일반 텍스트 번호 목록으로 대체합니다. TUI 메뉴가 렌더링되지 않는 Claude Code 원격 세션 (`/rc` 모드)에 필요합니다. discuss 단계에서 `--text` 플래그로 세션별 설정도 가능합니다. v1.28에서 추가 |
 
 ### 권장 프리셋
@@ -132,7 +134,7 @@ GSD는 프로젝트 설정을 `.planning/config.json`에 저장합니다. `/gsd:
 | 설정 | 타입 | 기본값 | 설명 |
 |------|------|--------|------|
 | `hooks.context_warnings` | boolean | `true` | context monitor 훅을 통해 컨텍스트 윈도우 사용 경고 표시 |
-| `hooks.workflow_guard` | boolean | `false` | GSD 워크플로우 컨텍스트 밖에서 파일 편집이 발생할 때 경고 ((`/gsd:quick` 또는 `/gsd:fast` 사용 권고)) |
+| `hooks.workflow_guard` | boolean | `false` | GSD 워크플로우 컨텍스트 밖에서 파일 편집이 발생할 때 경고 ((`/gsd-quick` 또는 `/gsd-fast` 사용 권고)) |
 
 프롬프트 주입 방지 훅 (`gsd-prompt-guard.js`)은 항상 활성화되며 비활성화할 수 없습니다. 워크플로우 토글이 아닌 보안 기능입니다.
 
@@ -168,7 +170,7 @@ GSD는 프로젝트 설정을 `.planning/config.json`에 저장합니다. `/gsd:
 | `git.branching_strategy` | enum | `none` | `none`, `phase`, 또는 `milestone` |
 | `git.phase_branch_template` | string | `gsd/phase-{phase}-{slug}` | phase 전략의 브랜치 이름 템플릿 |
 | `git.milestone_branch_template` | string | `gsd/{milestone}-{slug}` | milestone 전략의 브랜치 이름 템플릿 |
-| `git.quick_branch_template` | string 또는 null | `null` | `/gsd:quick` 태스크를 위한 선택적 브랜치 이름 템플릿 |
+| `git.quick_branch_template` | string 또는 null | `null` | `/gsd-quick` 태스크를 위한 선택적 브랜치 이름 템플릿 |
 
 ### 전략 비교
 
@@ -229,6 +231,26 @@ quick 태스크 브랜칭 예시:
 |------|------|--------|------|
 | `safety.always_confirm_destructive` | boolean | `true` | 파괴적 작업(삭제, 덮어쓰기) 확인 |
 | `safety.always_confirm_external_services` | boolean | `true` | 외부 서비스 상호작용 확인 |
+
+---
+
+## 보안 설정 (v1.31)
+
+| 설정 | 타입 | 기본값 | 설명 |
+|------|------|--------|------|
+| `security_enforcement` | boolean | `true` | 위협 모델 보안 검증 활성화 |
+| `security_asvs_level` | number (1-3) | `1` | OWASP ASVS 검증 레벨 |
+| `security_block_on` | string | `"high"` | 페이즈 진행을 차단하는 최소 심각도 |
+
+---
+
+## 응답 언어 설정 (v1.32)
+
+| 설정 | 타입 | 기본값 | 설명 |
+|------|------|--------|------|
+| `response_language` | string | (없음) | 에이전트 응답의 언어 코드 (예: `"pt"`, `"ko"`, `"ja"`) |
+
+`response_language`가 설정되면 모든 페이즈와 스폰된 에이전트에서 일관된 언어 출력을 보장합니다.
 
 ---
 
@@ -309,7 +331,7 @@ quick 태스크 브랜칭 예시:
 | 값 | 동작 | 사용 시점 |
 |----|------|----------|
 | `false` (기본값) | Claude 별칭 반환 (`opus`, `sonnet`, `haiku`) | 네이티브 Anthropic API를 사용하는 Claude Code |
-| `true` | 별칭을 전체 Claude 모델 ID로 매핑 (`claude-opus-4-0`) | 전체 ID가 필요한 API를 사용하는 Claude Code |
+| `true` | 별칭을 전체 Claude 모델 ID로 매핑 (`claude-opus-4-6`) | 전체 ID가 필요한 API를 사용하는 Claude Code |
 | `"omit"` | 빈 문자열 반환 (런타임이 기본값 선택) | 비 Claude 런타임 (Codex, OpenCode, Gemini CLI, Kilo) |
 
 ### 프로필 철학
@@ -330,6 +352,7 @@ quick 태스크 브랜칭 예시:
 | `CLAUDE_CONFIG_DIR` | 기본 설정 디렉토리 재정의 (`~/.claude/`) |
 | `GEMINI_API_KEY` | context monitor가 훅 이벤트 이름을 전환하기 위해 감지 |
 | `WSL_DISTRO_NAME` | 인스톨러가 WSL 경로 처리를 위해 감지 |
+| `GSD_SKIP_SCHEMA_CHECK` | 스키마 드리프트 감지 바이패스 (v1.31) |
 
 ---
 
@@ -339,4 +362,4 @@ quick 태스크 브랜칭 예시:
 
 **위치:** `~/.gsd/defaults.json`
 
-`/gsd:new-project`가 새 `config.json`을 생성할 때 전역 기본값을 읽어 초기 설정으로 병합합니다. 프로젝트별 설정은 항상 전역 설정보다 우선합니다.
+`/gsd-new-project`가 새 `config.json`을 생성할 때 전역 기본값을 읽어 초기 설정으로 병합합니다. 프로젝트별 설정은 항상 전역 설정보다 우선합니다.

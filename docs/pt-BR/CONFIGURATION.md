@@ -66,7 +66,7 @@ Esta versão resume os parâmetros principais em Português. Para schema complet
 | `git.branching_strategy` | `none`, `phase`, `milestone` | `none` | Estratégia de criação de branches |
 | `git.phase_branch_template` | string | `gsd/phase-{phase}-{slug}` | Nome para branch por fase |
 | `git.milestone_branch_template` | string | `gsd/{milestone}-{slug}` | Nome para branch de milestone |
-| `git.quick_branch_template` | string ou `null` | `null` | Branch opcional para `/gsd:quick` |
+| `git.quick_branch_template` | string ou `null` | `null` | Branch opcional para `/gsd-quick` |
 
 ## Perfis de modelo
 
@@ -80,5 +80,22 @@ Esta versão resume os parâmetros principais em Português. Para schema complet
 Troca rápida:
 
 ```bash
-/gsd:set-profile budget
+/gsd-set-profile budget
 ```
+
+## Novidades de configuração v1.31--v1.32
+
+| Chave | Tipo | Padrão | Descrição |
+|------|------|--------|-----------|
+| `workflow.use_worktrees` | boolean | `true` | Desativa isolamento por git worktree quando `false` (v1.31) |
+| `security_enforcement` | boolean | `true` | Ativa verificação de segurança ancorada em threat model (v1.31) |
+| `security_asvs_level` | number (1-3) | `1` | Nível de verificação OWASP ASVS (v1.31) |
+| `security_block_on` | string | `"high"` | Severidade mínima para bloquear avanço de fase (v1.31) |
+| `response_language` | string | (nenhum) | Código de idioma para saída dos agentes (ex: `"pt"`, `"ko"`, `"ja"`) (v1.32) |
+| `project_code` | string | (nenhum) | Prefixo para diretórios de fase (ex: `"ABC"` -> `ABC-01-setup/`) (v1.31) |
+
+**Variáveis de ambiente adicionais:**
+
+| Variável | Finalidade |
+|----------|------------|
+| `GSD_SKIP_SCHEMA_CHECK` | Desativa detecção de schema drift (v1.31) |

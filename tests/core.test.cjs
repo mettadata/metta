@@ -6,7 +6,7 @@
  */
 
 const { test, describe, beforeEach, afterEach } = require('node:test');
-const assert = require('node:assert');
+const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
@@ -31,6 +31,7 @@ const {
   findProjectRoot,
   detectSubRepos,
   planningDir,
+  timeAgo,
 } = require('../get-shit-done/bin/lib/core.cjs');
 
 // ─── loadConfig ────────────────────────────────────────────────────────────────
@@ -99,6 +100,18 @@ describe('loadConfig', () => {
     assert.strictEqual(config.model_overrides, null);
   });
 
+  test('reads response_language when set', () => {
+    writeConfig({ response_language: 'Portuguese' });
+    const config = loadConfig(tmpDir);
+    assert.strictEqual(config.response_language, 'Portuguese');
+  });
+
+  test('returns response_language as null when not set', () => {
+    writeConfig({ model_profile: 'balanced' });
+    const config = loadConfig(tmpDir);
+    assert.strictEqual(config.response_language, null);
+  });
+
   test('returns defaults when config.json contains invalid JSON', () => {
     fs.writeFileSync(
       path.join(tmpDir, '.planning', 'config.json'),
@@ -125,6 +138,55 @@ describe('loadConfig', () => {
     writeConfig({ commit_docs: false, planning: { commit_docs: true } });
     const config = loadConfig(tmpDir);
     assert.strictEqual(config.commit_docs, false);
+  });
+
+  test('warns on unknown config keys to stderr (#1535)', (t) => {
+    writeConfig({ model_profile: 'quality', active_project: 'my-project', custom_flag: true });
+    const origWrite = process.stderr.write;
+    let stderrOutput = '';
+    process.stderr.write = (chunk) => { stderrOutput += chunk; };
+    t.after(() => { process.stderr.write = origWrite; });
+    const config = loadConfig(tmpDir);
+    // Known key still loads correctly
+    assert.strictEqual(config.model_profile, 'quality');
+    // Warning emitted for unknown keys
+    assert.ok(stderrOutput.includes('active_project'), 'should warn about active_project');
+    assert.ok(stderrOutput.includes('custom_flag'), 'should warn about custom_flag');
+    assert.ok(stderrOutput.includes('ignored'), 'should mention keys will be ignored');
+  });
+
+  test('known config keys are derived from VALID_CONFIG_KEYS (not hardcoded)', () => {
+    // Verify that loadConfig's unknown-key check uses config-set's VALID_CONFIG_KEYS
+    // as its source of truth. If a new key is added to config-set, it should
+    // automatically be recognized by loadConfig without a separate update.
+    const { VALID_CONFIG_KEYS } = require('../get-shit-done/bin/lib/config.cjs');
+    // Every top-level key from VALID_CONFIG_KEYS should be recognized
+    const topLevelKeys = [...VALID_CONFIG_KEYS].map(k => k.split('.')[0]);
+    for (const key of topLevelKeys) {
+      writeConfig({ [key]: 'test-value' });
+      const origWrite = process.stderr.write;
+      let stderrOutput = '';
+      process.stderr.write = (chunk) => { stderrOutput += chunk; };
+      try {
+        loadConfig(tmpDir);
+        assert.ok(
+          !stderrOutput.includes(key),
+          `VALID_CONFIG_KEYS key "${key}" should not trigger unknown-key warning`
+        );
+      } finally {
+        process.stderr.write = origWrite;
+      }
+    }
+  });
+
+  test('does not warn when all config keys are known', (t) => {
+    writeConfig({ model_profile: 'balanced', workflow: { research: false }, git: { branching_strategy: 'per-phase' } });
+    const origWrite = process.stderr.write;
+    let stderrOutput = '';
+    process.stderr.write = (chunk) => { stderrOutput += chunk; };
+    t.after(() => { process.stderr.write = origWrite; });
+    loadConfig(tmpDir);
+    assert.strictEqual(stderrOutput, '', 'should not emit any warnings for valid config');
   });
 });
 
@@ -1009,8 +1071,10 @@ describe('stale hook filter', () => {
 
 describe('stale hook path', () => {
   test('gsd-check-update.js checks configDir/hooks/ where hooks are actually installed (#1421)', () => {
+    // The stale-hook scan logic lives in the worker (moved from inline -e template literal).
+    // The worker receives configDir via env and constructs the hooksDir path.
     const content = fs.readFileSync(
-      path.join(__dirname, '..', 'hooks', 'gsd-check-update.js'), 'utf-8'
+      path.join(__dirname, '..', 'hooks', 'gsd-check-update-worker.js'), 'utf-8'
     );
     // Hooks are installed at configDir/hooks/ (e.g. ~/.claude/hooks/),
     // not configDir/get-shit-done/hooks/ which doesn't exist (#1421)
@@ -1568,9 +1632,11 @@ describe('findProjectRoot', () => {
 // ─── reapStaleTempFiles ─────────────────────────────────────────────────────
 
 describe('reapStaleTempFiles', () => {
+  const gsdTmpDir = path.join(os.tmpdir(), 'gsd');
+
   test('removes stale gsd-*.json files older than maxAgeMs', () => {
-    const tmpDir = os.tmpdir();
-    const stalePath = path.join(tmpDir, `gsd-reap-test-${Date.now()}.json`);
+    fs.mkdirSync(gsdTmpDir, { recursive: true });
+    const stalePath = path.join(gsdTmpDir, `gsd-reap-test-${Date.now()}.json`);
     fs.writeFileSync(stalePath, '{}');
     // Set mtime to 10 minutes ago
     const oldTime = new Date(Date.now() - 10 * 60 * 1000);
@@ -1582,8 +1648,8 @@ describe('reapStaleTempFiles', () => {
   });
 
   test('preserves fresh gsd-*.json files', () => {
-    const tmpDir = os.tmpdir();
-    const freshPath = path.join(tmpDir, `gsd-reap-fresh-${Date.now()}.json`);
+    fs.mkdirSync(gsdTmpDir, { recursive: true });
+    const freshPath = path.join(gsdTmpDir, `gsd-reap-fresh-${Date.now()}.json`);
     fs.writeFileSync(freshPath, '{}');
 
     reapStaleTempFiles('gsd-reap-fresh-', { maxAgeMs: 5 * 60 * 1000 });
@@ -1594,8 +1660,8 @@ describe('reapStaleTempFiles', () => {
   });
 
   test('removes stale temp directories when present', () => {
-    const tmpDir = os.tmpdir();
-    const staleDir = fs.mkdtempSync(path.join(tmpDir, 'gsd-reap-dir-'));
+    fs.mkdirSync(gsdTmpDir, { recursive: true });
+    const staleDir = fs.mkdtempSync(path.join(gsdTmpDir, 'gsd-reap-dir-'));
     fs.writeFileSync(path.join(staleDir, 'data.jsonl'), 'test');
     // Set mtime to 10 minutes ago
     const oldTime = new Date(Date.now() - 10 * 60 * 1000);
@@ -1685,5 +1751,105 @@ describe('planningDir', () => {
       () => planningDir(cwd, '../../../tmp', null),
       /invalid path characters/
     );
+  });
+});
+
+// ─── timeAgo ──────────────────────────────────────────────────────────────────
+
+describe('timeAgo', () => {
+  const now = () => Date.now();
+  const dateAt = (msAgo) => new Date(now() - msAgo);
+
+  // ─── seconds boundary ───
+  test('returns "just now" for dates under 5 seconds old', () => {
+    assert.strictEqual(timeAgo(dateAt(0)), 'just now');
+    assert.strictEqual(timeAgo(dateAt(4_000)), 'just now');
+  });
+
+  test('returns "N seconds ago" between 5 and 59 seconds', () => {
+    assert.strictEqual(timeAgo(dateAt(5_000)), '5 seconds ago');
+    assert.strictEqual(timeAgo(dateAt(30_000)), '30 seconds ago');
+    assert.strictEqual(timeAgo(dateAt(59_000)), '59 seconds ago');
+  });
+
+  // ─── minutes boundary ───
+  test('transitions to minutes at 60 seconds', () => {
+    assert.strictEqual(timeAgo(dateAt(60_000)), '1 minute ago');
+  });
+
+  test('uses singular "1 minute ago" for exactly one minute', () => {
+    assert.strictEqual(timeAgo(dateAt(60_000)), '1 minute ago');
+    assert.strictEqual(timeAgo(dateAt(119_000)), '1 minute ago');
+  });
+
+  test('uses plural "N minutes ago" for 2-59 minutes', () => {
+    assert.strictEqual(timeAgo(dateAt(120_000)), '2 minutes ago');
+    assert.strictEqual(timeAgo(dateAt(5 * 60_000)), '5 minutes ago');
+    assert.strictEqual(timeAgo(dateAt(59 * 60_000)), '59 minutes ago');
+  });
+
+  // ─── hours boundary ───
+  test('transitions to hours at 60 minutes', () => {
+    assert.strictEqual(timeAgo(dateAt(60 * 60_000)), '1 hour ago');
+  });
+
+  test('uses singular "1 hour ago" for exactly one hour', () => {
+    assert.strictEqual(timeAgo(dateAt(60 * 60_000)), '1 hour ago');
+    assert.strictEqual(timeAgo(dateAt(119 * 60_000)), '1 hour ago');
+  });
+
+  test('uses plural "N hours ago" for 2-23 hours', () => {
+    assert.strictEqual(timeAgo(dateAt(2 * 3600_000)), '2 hours ago');
+    assert.strictEqual(timeAgo(dateAt(23 * 3600_000)), '23 hours ago');
+  });
+
+  // ─── days boundary ───
+  test('transitions to days at 24 hours', () => {
+    assert.strictEqual(timeAgo(dateAt(24 * 3600_000)), '1 day ago');
+  });
+
+  test('uses singular "1 day ago" for exactly one day', () => {
+    assert.strictEqual(timeAgo(dateAt(24 * 3600_000)), '1 day ago');
+  });
+
+  test('uses plural "N days ago" for 2-29 days', () => {
+    assert.strictEqual(timeAgo(dateAt(2 * 86400_000)), '2 days ago');
+    assert.strictEqual(timeAgo(dateAt(29 * 86400_000)), '29 days ago');
+  });
+
+  // ─── months boundary ───
+  test('transitions to months at 30 days', () => {
+    assert.strictEqual(timeAgo(dateAt(30 * 86400_000)), '1 month ago');
+  });
+
+  test('uses singular "1 month ago" for exactly one month (30 days)', () => {
+    assert.strictEqual(timeAgo(dateAt(30 * 86400_000)), '1 month ago');
+    assert.strictEqual(timeAgo(dateAt(59 * 86400_000)), '1 month ago');
+  });
+
+  test('uses plural "N months ago" for 2-11 months', () => {
+    assert.strictEqual(timeAgo(dateAt(60 * 86400_000)), '2 months ago');
+    assert.strictEqual(timeAgo(dateAt(180 * 86400_000)), '6 months ago');
+  });
+
+  // ─── years boundary ───
+  test('transitions to years at 365 days', () => {
+    assert.strictEqual(timeAgo(dateAt(365 * 86400_000)), '1 year ago');
+  });
+
+  test('uses singular "1 year ago" for exactly one year', () => {
+    assert.strictEqual(timeAgo(dateAt(365 * 86400_000)), '1 year ago');
+  });
+
+  test('uses plural "N years ago" for 2+ years', () => {
+    assert.strictEqual(timeAgo(dateAt(2 * 365 * 86400_000)), '2 years ago');
+    assert.strictEqual(timeAgo(dateAt(10 * 365 * 86400_000)), '10 years ago');
+  });
+
+  // ─── edge cases ───
+  test('handles future dates as "just now" (negative elapsed)', () => {
+    // A date 5 seconds in the future has negative elapsed time, which floors to a negative
+    // number of seconds and hits the "under 5 seconds" branch.
+    assert.strictEqual(timeAgo(new Date(Date.now() + 5_000)), 'just now');
   });
 });

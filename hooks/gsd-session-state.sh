@@ -1,4 +1,5 @@
 #!/bin/bash
+# gsd-hook-version: {{GSD_VERSION}}
 # gsd-session-state.sh — SessionStart hook: inject project state reminder
 # Outputs STATE.md head on every session start for orientation.
 #
@@ -20,7 +21,7 @@ if [ -f .planning/STATE.md ]; then
   echo 'STATE.md exists - check for blockers and current phase.'
   head -20 .planning/STATE.md
 else
-  echo 'No .planning/ found - suggest /gsd:new-project if starting new work.'
+  echo 'No .planning/ found - suggest /gsd-new-project if starting new work.'
 fi
 
 echo ''
