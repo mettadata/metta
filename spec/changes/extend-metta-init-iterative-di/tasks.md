@@ -54,7 +54,7 @@ above. Tests in Task 2.1 will enforce these programmatically.
 
 ---
 
-### Task 1.2 — Grant WebSearch+WebFetch and add grounding sections to metta-discovery.md
+### Task 1.2 — Grant WebSearch+WebFetch and add grounding sections to metta-discovery.md [x]
 
 **Files:** `src/templates/agents/metta-discovery.md`
 
