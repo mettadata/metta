@@ -4,8 +4,8 @@ status: active
 current_artifact: intent
 base_versions: {}
 artifacts:
-  intent: ready
-  stories: pending
+  intent: complete
+  stories: ready
   spec: pending
   research: pending
   design: pending
