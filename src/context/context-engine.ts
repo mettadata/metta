@@ -25,6 +25,8 @@ export interface LoadedContext {
   totalTokens: number
   budget: number
   truncations: string[]
+  warning: 'smart-zone' | 'over-budget' | null
+  droppedOptionals: string[]
 }
 
 export interface SectionExtractionOptions {
@@ -33,14 +35,17 @@ export interface SectionExtractionOptions {
 }
 
 const CONTEXT_MANIFESTS: Record<string, ContextManifest> = {
-  intent: { required: [], optional: ['project_context', 'existing_specs'], budget: 20000 },
-  spec: { required: ['intent'], optional: ['project_context', 'existing_specs', 'research'], budget: 40000 },
-  research: { required: ['spec'], optional: ['project_context', 'existing_specs', 'architecture'], budget: 50000 },
-  design: { required: ['research', 'spec'], optional: ['architecture', 'project_context'], budget: 60000 },
-  tasks: { required: ['design', 'spec'], optional: ['research_contracts', 'research_schemas', 'architecture'], budget: 40000 },
-  execution: { required: ['tasks'], optional: ['research_contracts', 'research_schemas'], budget: 10000 },
-  verification: { required: ['spec', 'tasks', 'summary'], optional: ['research_contracts', 'research_schemas', 'design'], budget: 50000 },
+  intent: { required: [], optional: ['project_context', 'existing_specs'], budget: 50_000 },
+  stories: { required: ['intent'], optional: ['project_context', 'existing_specs'], budget: 50_000 },
+  spec: { required: ['intent', 'stories'], optional: ['project_context', 'existing_specs', 'research'], budget: 60_000 },
+  research: { required: ['spec'], optional: ['project_context', 'existing_specs', 'architecture'], budget: 80_000 },
+  design: { required: ['research', 'spec'], optional: ['architecture', 'project_context'], budget: 100_000 },
+  tasks: { required: ['design', 'spec'], optional: ['research_contracts', 'research_schemas', 'architecture'], budget: 100_000 },
+  execution: { required: ['tasks'], optional: ['research_contracts', 'research_schemas'], budget: 150_000 },
+  verification: { required: ['spec', 'tasks', 'summary'], optional: ['research_contracts', 'research_schemas', 'design'], budget: 120_000 },
 }
+
+export const ARTIFACT_KINDS = Object.keys(CONTEXT_MANIFESTS) as string[]
 
 function contentHash(text: string): string {
   return `sha256:${createHash('sha256').update(text).digest('hex').slice(0, 12)}`
@@ -74,6 +79,7 @@ export class ContextEngine {
     const files: LoadedFile[] = []
     let totalTokens = 0
     const truncations: string[] = []
+    const droppedOptionals: string[] = []
 
     // Load required files
     for (const source of manifest.required) {
@@ -98,27 +104,54 @@ export class ContextEngine {
       }
     }
 
-    // Load optional files in order until budget is reached
+    // Load optional files in order: fit-as-is, else skeleton-fallback, else drop.
     for (const source of manifest.optional) {
-      if (totalTokens >= budget) break
-
+      const remaining = budget - totalTokens
+      if (remaining < 100) {
+        droppedOptionals.push(source)
+        continue
+      }
       const filePath = this.resolveSourcePath(source, changePath, specDir)
       try {
-        const remaining = budget - totalTokens
-        if (remaining < 100) break
-
-        const loaded = await this.loadFile(filePath, remaining)
-        files.push(loaded)
-        totalTokens += loaded.tokens
-        if (loaded.truncated) {
-          truncations.push(filePath)
+        const content = await readFile(filePath, 'utf-8')
+        const fullTokens = countTokens(content)
+        if (fullTokens <= remaining) {
+          const loaded = await this.loadFile(filePath, remaining)
+          files.push(loaded)
+          totalTokens += loaded.tokens
+          if (loaded.truncated) truncations.push(filePath)
+        } else {
+          const skeleton = this.headingSkeleton(content)
+          const skeletonTokens = countTokens(skeleton)
+          if (skeletonTokens > 0 && skeletonTokens <= remaining) {
+            files.push({
+              path: filePath,
+              content: skeleton,
+              tokens: skeletonTokens,
+              hash: contentHash(content),
+              loadedAt: new Date().toISOString(),
+              truncated: false,
+              strategy: 'skeleton',
+            })
+            totalTokens += skeletonTokens
+          } else {
+            droppedOptionals.push(source)
+          }
         }
       } catch {
-        // Optional files that don't exist are silently skipped
+        // Missing optional — silent skip. The source is absent, not "dropped".
       }
     }
 
-    return { files, totalTokens, budget, truncations }
+    const utilization = budget === 0 ? 0 : totalTokens / budget
+    let warning: 'smart-zone' | 'over-budget' | null = null
+    if (droppedOptionals.length > 0 || truncations.length > 0 || utilization >= 1.0) {
+      warning = 'over-budget'
+    } else if (utilization >= 0.8) {
+      warning = 'smart-zone'
+    }
+
+    return { files, totalTokens, budget, truncations, warning, droppedOptionals }
   }
 
   async loadFile(filePath: string, budgetRemaining: number): Promise<LoadedFile> {

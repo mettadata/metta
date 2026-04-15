@@ -26,6 +26,8 @@ export interface InstructionOutput {
   budget: {
     context_tokens: number
     budget_tokens: number
+    warning?: 'smart-zone' | 'over-budget'
+    dropped_optionals?: string[]
   }
   questions?: InstructionQuestion[]
 }
@@ -78,6 +80,15 @@ export class InstructionGenerator {
       return Object.keys(t)[0]
     })
 
+    const budget: InstructionOutput['budget'] = {
+      context_tokens: context.totalTokens,
+      budget_tokens: context.budget,
+    }
+    if (context.warning) {
+      budget.warning = context.warning
+      budget.dropped_optionals = context.droppedOptionals
+    }
+
     return {
       artifact: params.artifact.id,
       change: params.changeName,
@@ -96,10 +107,7 @@ export class InstructionGenerator {
       output_path: `spec/changes/${params.changeName}/${params.artifact.generates}`,
       next_steps: params.nextSteps,
       gates: params.artifact.gates,
-      budget: {
-        context_tokens: context.totalTokens,
-        budget_tokens: context.budget,
-      },
+      budget,
       questions: params.questions,
     }
   }
