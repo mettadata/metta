@@ -1,0 +1,17 @@
+version: 2
+hash: sha256:44cb811c2a97
+updated: 2026-04-15T06:13:11.628Z
+status: draft
+source: change
+requirements:
+  - id: post-merge-gate-execution
+    hash: sha256:fe57a43372bc
+    scenarios:
+      - post-merge-gates-all-pass
+      - any-post-merge-gate-fails-rollback
+      - rollback-failure-surfaces-clearly
+      - no-gate-registry-injected
+  - id: ship-cli-passes-gate-registry
+    hash: sha256:a1f7067dab95
+    scenarios:
+      - ship-passes-the-loaded-registry
