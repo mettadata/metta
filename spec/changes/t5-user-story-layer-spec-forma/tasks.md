@@ -100,7 +100,7 @@ Both files present; diff clean; frontmatter fields correct.
 
 ---
 
-### 1.3 stories.md artifact template
+### 1.3 stories.md artifact template [x]
 
 **Files**
 - `src/templates/artifacts/stories.md` (new)
