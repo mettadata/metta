@@ -26,6 +26,7 @@ You are the **orchestrator** for a quick change (intent → implementation → r
 
    - **Exit-option declaration:** every `AskUserQuestion` call within the loop MUST include a final selectable option exactly spelled `I'm done — proceed with these answers`.
    - **Round 1 (scope + architecture):** always runs once the loop is engaged. Ask 2–4 questions covering scope boundaries and architectural approach.
+   - **Concrete-tech grounding:** When a question presents technology options (libraries, frameworks, tools, ORMs, test runners, auth providers), invoke `WebSearch` first to surface current best-practice options for the user's stack. Generic scope/architecture questions skip this. Cite findings to the user when offering options.
    - **Round 2 (data model + integration points):** conditional — run when the change involves file schemas, API contracts, external system calls, or store methods. Skip otherwise.
    - **Round 3 (edge cases + non-functional):** conditional — run when the change touches runtime code paths. Skip for docs-only or skill-only changes.
    - **Round 4+ (open-ended):** repeat while you honestly find remaining ambiguity; stop when none remains. Soft ceiling: 1–2 open-ended rounds usually suffice — resist asking for the sake of asking.
