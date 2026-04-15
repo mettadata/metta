@@ -141,7 +141,7 @@
 
 ---
 
-### Task 4.2: CLI integration tests for `check-constitution`
+### Task 4.2: CLI integration tests for `check-constitution` [x]
 
 - **Files**
   - Modify: `tests/cli.test.ts` (add CLI-CC-1 through CLI-CC-6)
