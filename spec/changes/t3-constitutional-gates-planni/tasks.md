@@ -8,7 +8,7 @@
 
 ## Batch 1 — Foundation (parallel-safe)
 
-### Task 1.1: ViolationSchema + ViolationListSchema
+### Task 1.1: ViolationSchema + ViolationListSchema [x]
 
 - **Files**
   - Create: `src/schemas/violation.ts`
