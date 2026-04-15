@@ -44,7 +44,7 @@ Verify byte identity with: `diff src/templates/skills/metta-propose/SKILL.md .cl
 
 ---
 
-### Task 1.2 — Rewrite metta-quick SKILL.md: LIGHT DISCOVERY → gated DISCOVERY LOOP
+### Task 1.2 — Rewrite metta-quick SKILL.md: LIGHT DISCOVERY → gated DISCOVERY LOOP [x]
 
 **Files:**
 - `src/templates/skills/metta-quick/SKILL.md` (write)

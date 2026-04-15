@@ -14,10 +14,27 @@ You are the **orchestrator** for a quick change (intent → implementation → r
 1. `metta quick "$ARGUMENTS" --json` → creates change on branch `metta/<change-name>`
 
 2. **LIGHT DISCOVERY (mandatory — do NOT skip):**
-   Before writing the intent, YOU (the orchestrator) MUST check if the change has ambiguity.
-   - If the description is clear and specific (e.g. "fix typo in header") → proceed without questions
-   - If there are decisions to make (e.g. which approach, what scope, what behavior) → ask 1-3 quick questions using AskUserQuestion
-   - Pass answers to the proposer subagent
+   Before writing the intent, YOU (the orchestrator, not a subagent) MUST evaluate whether the change carries meaningful ambiguity BEFORE asking any questions.
+
+   **Trivial-detection gate (first action):**
+   - Trivial examples: single-line fix, typo correction, one-file delete — **zero questions**, proceed directly to spawning the proposer subagent.
+   - Functional criterion: if the description leaves no approach, scope, or integration decisions unresolved → trivially scoped, skip the loop.
+   - Non-trivial: multi-file change, existing contract touched, scope or approach unclear → enter the **DISCOVERY LOOP** below.
+
+   **DISCOVERY LOOP (entered only when non-trivial):**
+   Self-contained since this skill invokes independently of `/metta:propose`.
+
+   - **Exit-option declaration:** every `AskUserQuestion` call within the loop MUST include a final selectable option exactly spelled `I'm done — proceed with these answers`.
+   - **Round 1 (scope + architecture):** always runs once the loop is engaged. Ask 2–4 questions covering scope boundaries and architectural approach.
+   - **Round 2 (data model + integration points):** conditional — run when the change involves file schemas, API contracts, external system calls, or store methods. Skip otherwise.
+   - **Round 3 (edge cases + non-functional):** conditional — run when the change touches runtime code paths. Skip for docs-only or skill-only changes.
+   - **Round 4+ (open-ended):** repeat while you honestly find remaining ambiguity; stop when none remains.
+   - **Between-round status line** (print verbatim format before each new round):
+     `Resolved: <A>, <B>. Open: <C> — proceeding to Round N.`
+     When no further rounds are needed: `Resolved: all questions. Proceeding to proposer subagent.`
+   - **Exit criterion:** the loop exits when (a) you honestly find no further ambiguity, or (b) the user selects the early-exit option `I'm done — proceed with these answers`.
+
+   **Cumulative context:** pass the full set of all question-answer pairs from all completed rounds to the proposer subagent; answers from later rounds supplement, not replace, earlier answers.
 
 3. **Spawn a metta-proposer agent** (subagent_type: "metta-proposer") for the intent:
    `metta instructions intent --json --change <name>` → get template + persona
