@@ -13,6 +13,7 @@ import pytest
 import json
 import tempfile
 import shutil
+import tomllib
 from pathlib import Path
 from datetime import datetime, timezone
 
@@ -254,17 +255,66 @@ class TestExtensionManifest:
         with pytest.raises(ValidationError, match="Invalid command name"):
             ExtensionManifest(manifest_path)
 
-    def test_no_commands(self, temp_dir, valid_manifest_data):
-        """Test manifest with no commands provided."""
+    def test_no_commands_no_hooks(self, temp_dir, valid_manifest_data):
+        """Test manifest with no commands and no hooks provided."""
         import yaml
 
         valid_manifest_data["provides"]["commands"] = []
+        valid_manifest_data.pop("hooks", None)
 
         manifest_path = temp_dir / "extension.yml"
         with open(manifest_path, 'w') as f:
             yaml.dump(valid_manifest_data, f)
 
-        with pytest.raises(ValidationError, match="must provide at least one command"):
+        with pytest.raises(ValidationError, match="must provide at least one command or hook"):
+            ExtensionManifest(manifest_path)
+
+    def test_hooks_only_extension(self, temp_dir, valid_manifest_data):
+        """Test manifest with hooks but no commands is valid."""
+        import yaml
+
+        valid_manifest_data["provides"]["commands"] = []
+        valid_manifest_data["hooks"] = {
+            "after_specify": {
+                "command": "speckit.test-ext.notify",
+                "optional": True,
+                "prompt": "Run notification?",
+            }
+        }
+
+        manifest_path = temp_dir / "extension.yml"
+        with open(manifest_path, 'w') as f:
+            yaml.dump(valid_manifest_data, f)
+
+        manifest = ExtensionManifest(manifest_path)
+        assert manifest.id == valid_manifest_data["extension"]["id"]
+        assert len(manifest.commands) == 0
+        assert len(manifest.hooks) == 1
+
+    def test_commands_null_rejected(self, temp_dir, valid_manifest_data):
+        """Test manifest with commands: null is rejected."""
+        import yaml
+
+        valid_manifest_data["provides"]["commands"] = None
+
+        manifest_path = temp_dir / "extension.yml"
+        with open(manifest_path, 'w') as f:
+            yaml.dump(valid_manifest_data, f)
+
+        with pytest.raises(ValidationError, match="Invalid provides.commands"):
+            ExtensionManifest(manifest_path)
+
+    def test_hooks_not_dict_rejected(self, temp_dir, valid_manifest_data):
+        """Test manifest with hooks as a list is rejected."""
+        import yaml
+
+        valid_manifest_data["hooks"] = ["not", "a", "dict"]
+
+        manifest_path = temp_dir / "extension.yml"
+        with open(manifest_path, 'w') as f:
+            yaml.dump(valid_manifest_data, f)
+
+        with pytest.raises(ValidationError, match="Invalid hooks"):
             ExtensionManifest(manifest_path)
 
     def test_manifest_hash(self, extension_dir):
@@ -636,8 +686,8 @@ class TestExtensionManager:
         with pytest.raises(ValidationError, match="conflicts with core command namespace"):
             manager.install_from_directory(ext_dir, "0.1.0", register_commands=False)
 
-    def test_install_rejects_alias_without_extension_namespace(self, temp_dir, project_dir):
-        """Install should reject legacy short aliases that can shadow core commands."""
+    def test_install_accepts_short_alias(self, temp_dir, project_dir):
+        """Install should accept legacy short aliases for community extension compat."""
         import yaml
 
         ext_dir = temp_dir / "alias-shortcut"
@@ -668,8 +718,8 @@ class TestExtensionManager:
         (ext_dir / "commands" / "cmd.md").write_text("---\ndescription: Test\n---\n\nBody")
 
         manager = ExtensionManager(project_dir)
-        with pytest.raises(ValidationError, match="Invalid alias 'speckit.shortcut'"):
-            manager.install_from_directory(ext_dir, "0.1.0", register_commands=False)
+        # Should not raise — short aliases are allowed
+        manager.install_from_directory(ext_dir, "0.1.0", register_commands=False)
 
     def test_install_rejects_namespace_squatting(self, temp_dir, project_dir):
         """Install should reject commands and aliases outside the extension namespace."""
@@ -1013,6 +1063,21 @@ $ARGUMENTS
         assert 'prompt = "' in output
         assert "\\n" in output
         assert "\\\"\\\"\\\"" in output
+
+    def test_render_toml_command_preserves_multiline_description(self):
+        """Multiline descriptions should render as parseable TOML with preserved semantics."""
+        from specify_cli.agents import CommandRegistrar as AgentCommandRegistrar
+
+        registrar = AgentCommandRegistrar()
+        output = registrar.render_toml_command(
+            {"description": "first line\nsecond line\n"},
+            "body",
+            "extension:test-ext",
+        )
+
+        parsed = tomllib.loads(output)
+
+        assert parsed["description"] == "first line\nsecond line\n"
 
     def test_register_commands_for_claude(self, extension_dir, project_dir):
         """Test registering commands for Claude agent."""
@@ -2929,6 +2994,122 @@ class TestExtensionAddCLI:
             f"Expected download_extension to be called with resolved ID 'acme-jira-integration', "
             f"but was called with '{download_called_with[0]}'"
         )
+
+    def test_add_bundled_extension_not_found_gives_clear_error(self, tmp_path):
+        """extension add should give a clear error when a bundled extension is not found locally."""
+        from typer.testing import CliRunner
+        from unittest.mock import patch, MagicMock
+        from specify_cli import app
+
+        runner = CliRunner()
+
+        # Create project structure
+        project_dir = tmp_path / "test-project"
+        project_dir.mkdir()
+        (project_dir / ".specify").mkdir()
+        (project_dir / ".specify" / "extensions").mkdir(parents=True)
+
+        # Mock catalog that returns a bundled extension without download_url
+        mock_catalog = MagicMock()
+        mock_catalog.get_extension_info.return_value = {
+            "id": "git",
+            "name": "Git Branching Workflow",
+            "version": "1.0.0",
+            "description": "Git branching extension",
+            "bundled": True,
+            "_install_allowed": True,
+        }
+        mock_catalog.search.return_value = []
+
+        with patch("specify_cli.extensions.ExtensionCatalog", return_value=mock_catalog), \
+             patch("specify_cli._locate_bundled_extension", return_value=None), \
+             patch.object(Path, "cwd", return_value=project_dir):
+            result = runner.invoke(
+                app,
+                ["extension", "add", "git"],
+                catch_exceptions=True,
+            )
+
+        assert result.exit_code != 0
+        assert "bundled with spec-kit" in result.output
+        assert "reinstall" in result.output.lower()
+
+
+class TestDownloadExtensionBundled:
+    """Tests for download_extension handling of bundled extensions."""
+
+    def test_download_extension_raises_for_bundled(self, temp_dir):
+        """download_extension should raise a clear error for bundled extensions without a URL."""
+        from unittest.mock import patch
+
+        project_dir = temp_dir / "project"
+        project_dir.mkdir()
+        (project_dir / ".specify").mkdir()
+
+        catalog = ExtensionCatalog(project_dir)
+
+        bundled_ext_info = {
+            "name": "Git Branching Workflow",
+            "id": "git",
+            "version": "1.0.0",
+            "description": "Git workflow",
+            "bundled": True,
+        }
+
+        with patch.object(catalog, "get_extension_info", return_value=bundled_ext_info):
+            with pytest.raises(ExtensionError, match="bundled with spec-kit"):
+                catalog.download_extension("git")
+
+    def test_download_extension_allows_bundled_with_url(self, temp_dir):
+        """download_extension should allow bundled extensions that have a download_url (newer version)."""
+        from unittest.mock import patch, MagicMock
+        import urllib.request
+
+        project_dir = temp_dir / "project"
+        project_dir.mkdir()
+        (project_dir / ".specify").mkdir()
+
+        catalog = ExtensionCatalog(project_dir)
+
+        bundled_with_url = {
+            "name": "Git Branching Workflow",
+            "id": "git",
+            "version": "2.0.0",
+            "description": "Git workflow",
+            "bundled": True,
+            "download_url": "https://example.com/git-2.0.0.zip",
+        }
+
+        mock_response = MagicMock()
+        mock_response.read.return_value = b"fake zip data"
+        mock_response.__enter__ = lambda s: s
+        mock_response.__exit__ = MagicMock(return_value=False)
+
+        with patch.object(catalog, "get_extension_info", return_value=bundled_with_url), \
+             patch.object(urllib.request, "urlopen", return_value=mock_response):
+            result = catalog.download_extension("git")
+            assert result.name == "git-2.0.0.zip"
+
+    def test_download_extension_raises_no_url_for_non_bundled(self, temp_dir):
+        """download_extension should raise 'no download URL' for non-bundled extensions without URL."""
+        from unittest.mock import patch
+
+        project_dir = temp_dir / "project"
+        project_dir.mkdir()
+        (project_dir / ".specify").mkdir()
+
+        catalog = ExtensionCatalog(project_dir)
+
+        non_bundled_ext_info = {
+            "name": "Some Extension",
+            "id": "some-ext",
+            "version": "1.0.0",
+            "description": "Test",
+        }
+
+        with patch.object(catalog, "get_extension_info", return_value=non_bundled_ext_info):
+            with pytest.raises(ExtensionError, match="has no download URL"):
+                catalog.download_extension("some-ext")
 
 
 class TestExtensionUpdateCLI:
