@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, mkdir, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { exec } from 'node:child_process'
@@ -36,7 +36,7 @@ describe('MergeSafetyPipeline', () => {
     const result = await pipeline.run('feature', mainBranch)
 
     expect(result.status).toBe('success')
-    expect(result.steps.every(s => s.status === 'pass')).toBe(true)
+    expect(result.steps.every(s => s.status === 'pass' || s.status === 'skip')).toBe(true)
     expect(result.mergeCommit).toBeDefined()
     expect(result.snapshotTag).toBeDefined()
   })
@@ -75,6 +75,58 @@ describe('MergeSafetyPipeline', () => {
     expect(result.status).toBe('success')
     const driftStep = result.steps.find(s => s.step === 'base-drift-check')
     expect(driftStep?.status).toBe('pass')
+  })
+
+  it('fails when source is metta/* branch with no archive', async () => {
+    await execAsync('git checkout -b metta/foo', { cwd: tempDir })
+    await execAsync('echo "x" > x.txt && git add . && git commit -m "x"', { cwd: tempDir })
+    await execAsync('git checkout main || git checkout master', { cwd: tempDir })
+
+    const mainBranch = (await execAsync('git branch --show-current', { cwd: tempDir })).stdout.trim()
+    const targetHeadBefore = (await execAsync(`git rev-parse ${mainBranch}`, { cwd: tempDir })).stdout.trim()
+
+    const pipeline = new MergeSafetyPipeline(tempDir)
+    const result = await pipeline.run('metta/foo', mainBranch)
+
+    expect(result.status).toBe('failure')
+    const finalizeStep = result.steps.find(s => s.step === 'finalize-check')
+    expect(finalizeStep?.status).toBe('fail')
+    expect(finalizeStep?.detail).toContain('metta finalize --change foo')
+
+    const targetHeadAfter = (await execAsync(`git rev-parse ${mainBranch}`, { cwd: tempDir })).stdout.trim()
+    expect(targetHeadAfter).toBe(targetHeadBefore)
+  })
+
+  it('passes finalize-check when archive directory exists', async () => {
+    await execAsync('git checkout -b metta/bar', { cwd: tempDir })
+    await execAsync('echo "y" > y.txt && git add . && git commit -m "y"', { cwd: tempDir })
+    await execAsync('git checkout main || git checkout master', { cwd: tempDir })
+
+    await mkdir(join(tempDir, 'spec', 'archive', '2026-04-15-bar'), { recursive: true })
+
+    const mainBranch = (await execAsync('git branch --show-current', { cwd: tempDir })).stdout.trim()
+
+    const pipeline = new MergeSafetyPipeline(tempDir)
+    const result = await pipeline.run('metta/bar', mainBranch)
+
+    const finalizeStep = result.steps.find(s => s.step === 'finalize-check')
+    expect(finalizeStep?.status).toBe('pass')
+    expect(finalizeStep?.detail).toBe('2026-04-15-bar')
+  })
+
+  it('skips finalize-check on non-metta branches', async () => {
+    await execAsync('git checkout -b plain-feature', { cwd: tempDir })
+    await execAsync('echo "z" > z.txt && git add . && git commit -m "z"', { cwd: tempDir })
+    await execAsync('git checkout main || git checkout master', { cwd: tempDir })
+
+    const mainBranch = (await execAsync('git branch --show-current', { cwd: tempDir })).stdout.trim()
+
+    const pipeline = new MergeSafetyPipeline(tempDir)
+    const result = await pipeline.run('plain-feature', mainBranch)
+
+    const finalizeStep = result.steps.find(s => s.step === 'finalize-check')
+    expect(finalizeStep?.status).toBe('skip')
+    expect(result.status).toBe('success')
   })
 
   it('detects merge conflicts', async () => {
