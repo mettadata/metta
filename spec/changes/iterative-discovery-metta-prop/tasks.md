@@ -136,7 +136,7 @@ Use `fs.readFileSync` with `utf-8` encoding and `path.resolve` from the repo roo
 
 ## Batch 3 — Full suite gate (depends on Batch 1 and Batch 2)
 
-### Task 3.1 — Build and full test suite verification
+### Task 3.1 — Build and full test suite verification[x]
 
 **Files:** None modified — read-only gate task.
 
