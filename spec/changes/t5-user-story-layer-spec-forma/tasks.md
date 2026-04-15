@@ -188,7 +188,7 @@ Workflow YAML updated; structural ordering verified by script.
 
 ## Batch 2 — Parser + validator (depends on 1.1)
 
-### 2.1 stories-parser.ts + tests
+### 2.1 stories-parser.ts + tests [x]
 
 **Files**
 - `src/specs/stories-parser.ts` (new)
