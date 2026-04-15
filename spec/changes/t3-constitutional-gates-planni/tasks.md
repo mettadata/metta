@@ -41,7 +41,7 @@
 
 ---
 
-### Task 1.3: ComplexityTrackingParser
+### Task 1.3: ComplexityTrackingParser [x]
 
 - **Files**
   - Create: `src/constitution/complexity-tracking.ts`
@@ -173,7 +173,7 @@
 
 ## Batch 5 — Full verification (depends on all previous batches)
 
-### Task 5.1: Full suite + smoke test
+### Task 5.1: Full suite + smoke test [x]
 
 - **Files**
   - No new source files. May create a fixture: `tests/fixtures/singleton-spec.md` (a synthetic `spec.md` containing a deliberate singleton violation for smoke testing).
