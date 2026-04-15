@@ -8,7 +8,7 @@ runs after all edits are merged.
 
 ## Batch 1 — Edit SKILL.md and metta-discovery.md (parallel)
 
-### Task 1.1 — Add DISCOVERY LOOP to metta-init SKILL.md
+### Task 1.1 — Add DISCOVERY LOOP to metta-init SKILL.md [x]
 
 **Files:** `src/templates/skills/metta-init/SKILL.md`
 
