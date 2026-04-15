@@ -33,9 +33,10 @@ import shutil
 import json
 import json5
 import stat
+import shlex
 import yaml
 from pathlib import Path
-from typing import Any, Optional, Tuple
+from typing import Any, Optional
 
 import typer
 from rich.console import Console
@@ -91,6 +92,36 @@ def _build_ai_assistant_help() -> str:
 
     return base_help + " Use " + aliases_text + "."
 AI_ASSISTANT_HELP = _build_ai_assistant_help()
+
+
+def _build_integration_equivalent(
+    integration_key: str,
+    ai_commands_dir: str | None = None,
+) -> str:
+    """Build the modern --integration equivalent for legacy --ai usage."""
+
+    parts = [f"--integration {integration_key}"]
+    if integration_key == "generic" and ai_commands_dir:
+        parts.append(
+            f'--integration-options="--commands-dir {shlex.quote(ai_commands_dir)}"'
+        )
+    return " ".join(parts)
+
+
+def _build_ai_deprecation_warning(
+    integration_key: str,
+    ai_commands_dir: str | None = None,
+) -> str:
+    """Build the legacy --ai deprecation warning message."""
+
+    replacement = _build_integration_equivalent(
+        integration_key,
+        ai_commands_dir=ai_commands_dir,
+    )
+    return (
+        "[bold]--ai[/bold] is deprecated and will no longer be available in version 1.0.0 or later.\n\n"
+        f"Use [bold]{replacement}[/bold] instead."
+    )
 
 SCRIPT_TYPE_CHOICES = {"sh": "POSIX Shell (bash/zsh)", "ps": "PowerShell"}
 
@@ -384,6 +415,7 @@ def check_tool(tool: str, tracker: StepTracker = None) -> bool:
 
     return found
 
+
 def is_git_repo(path: Path = None) -> bool:
     """Check if the specified path is inside a git repository."""
     if path is None:
@@ -393,7 +425,6 @@ def is_git_repo(path: Path = None) -> bool:
         return False
 
     try:
-        # Use git command to check if inside a work tree
         subprocess.run(
             ["git", "rev-parse", "--is-inside-work-tree"],
             check=True,
@@ -404,16 +435,9 @@ def is_git_repo(path: Path = None) -> bool:
     except (subprocess.CalledProcessError, FileNotFoundError):
         return False
 
-def init_git_repo(project_path: Path, quiet: bool = False) -> Tuple[bool, Optional[str]]:
-    """Initialize a git repository in the specified path.
 
-    Args:
-        project_path: Path to initialize git repository in
-        quiet: if True suppress console output (tracker handles status)
-
-    Returns:
-        Tuple of (success: bool, error_message: Optional[str])
-    """
+def init_git_repo(project_path: Path, quiet: bool = False) -> tuple[bool, Optional[str]]:
+    """Initialize a git repository in the specified path."""
     try:
         original_cwd = Path.cwd()
         os.chdir(project_path)
@@ -425,19 +449,18 @@ def init_git_repo(project_path: Path, quiet: bool = False) -> Tuple[bool, Option
         if not quiet:
             console.print("[green]✓[/green] Git repository initialized")
         return True, None
-
     except subprocess.CalledProcessError as e:
         error_msg = f"Command: {' '.join(e.cmd)}\nExit code: {e.returncode}"
         if e.stderr:
             error_msg += f"\nError: {e.stderr.strip()}"
         elif e.stdout:
             error_msg += f"\nOutput: {e.stdout.strip()}"
-
         if not quiet:
             console.print(f"[red]Error initializing git repository:[/red] {e}")
         return False, error_msg
     finally:
         os.chdir(original_cwd)
+
 
 def handle_vscode_settings(sub_item, dest_file, rel_path, verbose=False, tracker=None) -> None:
     """Handle merging or copying of .vscode/settings.json files.
@@ -604,6 +627,81 @@ def _locate_core_pack() -> Path | None:
     return None
 
 
+def _locate_bundled_extension(extension_id: str) -> Path | None:
+    """Return the path to a bundled extension, or None.
+
+    Checks the wheel's core_pack first, then falls back to the
+    source-checkout ``extensions/<id>/`` directory.
+    """
+    import re as _re
+    if not _re.match(r'^[a-z0-9-]+$', extension_id):
+        return None
+
+    core = _locate_core_pack()
+    if core is not None:
+        candidate = core / "extensions" / extension_id
+        if (candidate / "extension.yml").is_file():
+            return candidate
+
+    # Source-checkout / editable install: look relative to repo root
+    repo_root = Path(__file__).parent.parent.parent
+    candidate = repo_root / "extensions" / extension_id
+    if (candidate / "extension.yml").is_file():
+        return candidate
+
+    return None
+
+
+def _locate_bundled_workflow(workflow_id: str) -> Path | None:
+    """Return the path to a bundled workflow directory, or None.
+
+    Checks the wheel's core_pack first, then falls back to the
+    source-checkout ``workflows/<id>/`` directory.
+    """
+    import re as _re
+    if not _re.match(r'^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$', workflow_id):
+        return None
+
+    core = _locate_core_pack()
+    if core is not None:
+        candidate = core / "workflows" / workflow_id
+        if (candidate / "workflow.yml").is_file():
+            return candidate
+
+    # Source-checkout / editable install: look relative to repo root
+    repo_root = Path(__file__).parent.parent.parent
+    candidate = repo_root / "workflows" / workflow_id
+    if (candidate / "workflow.yml").is_file():
+        return candidate
+
+    return None
+
+
+def _locate_bundled_preset(preset_id: str) -> Path | None:
+    """Return the path to a bundled preset, or None.
+
+    Checks the wheel's core_pack first, then falls back to the
+    source-checkout ``presets/<id>/`` directory.
+    """
+    import re as _re
+    if not _re.match(r'^[a-z0-9-]+$', preset_id):
+        return None
+
+    core = _locate_core_pack()
+    if core is not None:
+        candidate = core / "presets" / preset_id
+        if (candidate / "preset.yml").is_file():
+            return candidate
+
+    # Source-checkout / editable install: look relative to repo root
+    repo_root = Path(__file__).parent.parent.parent
+    candidate = repo_root / "presets" / preset_id
+    if (candidate / "preset.yml").is_file():
+        return candidate
+
+    return None
+
+
 def _install_shared_infra(
     project_path: Path,
     script_type: str,
@@ -683,41 +781,45 @@ def _install_shared_infra(
 
 
 def ensure_executable_scripts(project_path: Path, tracker: StepTracker | None = None) -> None:
-    """Ensure POSIX .sh scripts under .specify/scripts (recursively) have execute bits (no-op on Windows)."""
+    """Ensure POSIX .sh scripts under .specify/scripts and .specify/extensions (recursively) have execute bits (no-op on Windows)."""
     if os.name == "nt":
         return  # Windows: skip silently
-    scripts_root = project_path / ".specify" / "scripts"
-    if not scripts_root.is_dir():
-        return
+    scan_roots = [
+        project_path / ".specify" / "scripts",
+        project_path / ".specify" / "extensions",
+    ]
     failures: list[str] = []
     updated = 0
-    for script in scripts_root.rglob("*.sh"):
-        try:
-            if script.is_symlink() or not script.is_file():
-                continue
+    for scripts_root in scan_roots:
+        if not scripts_root.is_dir():
+            continue
+        for script in scripts_root.rglob("*.sh"):
             try:
-                with script.open("rb") as f:
-                    if f.read(2) != b"#!":
-                        continue
-            except Exception:
-                continue
-            st = script.stat()
-            mode = st.st_mode
-            if mode & 0o111:
-                continue
-            new_mode = mode
-            if mode & 0o400:
-                new_mode |= 0o100
-            if mode & 0o040:
-                new_mode |= 0o010
-            if mode & 0o004:
-                new_mode |= 0o001
-            if not (new_mode & 0o100):
-                new_mode |= 0o100
-            os.chmod(script, new_mode)
-            updated += 1
-        except Exception as e:
-            failures.append(f"{script.relative_to(scripts_root)}: {e}")
+                if script.is_symlink() or not script.is_file():
+                    continue
+                try:
+                    with script.open("rb") as f:
+                        if f.read(2) != b"#!":
+                            continue
+                except Exception:
+                    continue
+                st = script.stat()
+                mode = st.st_mode
+                if mode & 0o111:
+                    continue
+                new_mode = mode
+                if mode & 0o400:
+                    new_mode |= 0o100
+                if mode & 0o040:
+                    new_mode |= 0o010
+                if mode & 0o004:
+                    new_mode |= 0o001
+                if not (new_mode & 0o100):
+                    new_mode |= 0o100
+                os.chmod(script, new_mode)
+                updated += 1
+            except Exception as e:
+                failures.append(f"{script.relative_to(project_path)}: {e}")
     if tracker:
         detail = f"{updated} updated" + (f", {len(failures)} failed" if failures else "")
         tracker.add("chmod", "Set script permissions recursively")
@@ -840,7 +942,7 @@ def init(
     ai_skills: bool = typer.Option(False, "--ai-skills", help="Install Prompt.MD templates as agent skills (requires --ai)"),
     offline: bool = typer.Option(False, "--offline", help="Deprecated (no-op). All scaffolding now uses bundled assets.", hidden=True),
     preset: str = typer.Option(None, "--preset", help="Install a preset during initialization (by preset ID)"),
-    branch_numbering: str = typer.Option(None, "--branch-numbering", help="Branch numbering strategy: 'sequential' (001, 002, ...) or 'timestamp' (YYYYMMDD-HHMMSS)"),
+    branch_numbering: str = typer.Option(None, "--branch-numbering", help="Branch numbering strategy: 'sequential' (001, 002, …, 1000, … — expands past 999 automatically) or 'timestamp' (YYYYMMDD-HHMMSS)"),
     integration: str = typer.Option(None, "--integration", help="Use the new integration system (e.g. --integration copilot). Mutually exclusive with --ai."),
     integration_options: str = typer.Option(None, "--integration-options", help='Options for the integration (e.g. --integration-options="--commands-dir .myagent/cmds")'),
 ):
@@ -886,6 +988,7 @@ def init(
     """
 
     show_banner()
+    ai_deprecation_warning: str | None = None
 
     # Detect when option values are likely misinterpreted flags (parameter ordering issue)
     if ai_assistant and ai_assistant.startswith("--"):
@@ -924,6 +1027,10 @@ def init(
         if not resolved_integration:
             console.print(f"[red]Error:[/red] Unknown agent '{ai_assistant}'. Choose from: {', '.join(sorted(INTEGRATION_REGISTRY))}")
             raise typer.Exit(1)
+        ai_deprecation_warning = _build_ai_deprecation_warning(
+            resolved_integration.key,
+            ai_commands_dir=ai_commands_dir,
+        )
 
     # Deprecation warnings for --ai-skills and --ai-commands-dir (only when
     # an integration has been resolved from --ai or --integration)
@@ -968,9 +1075,11 @@ def init(
         console.print(f"[red]Error:[/red] Invalid --branch-numbering value '{branch_numbering}'. Choose from: {', '.join(sorted(BRANCH_NUMBERING_CHOICES))}")
         raise typer.Exit(1)
 
+    dir_existed_before = False
     if here:
         project_name = Path.cwd().name
         project_path = Path.cwd()
+        dir_existed_before = True
 
         existing_items = list(project_path.iterdir())
         if existing_items:
@@ -985,17 +1094,29 @@ def init(
                     raise typer.Exit(0)
     else:
         project_path = Path(project_name).resolve()
+        dir_existed_before = project_path.exists()
         if project_path.exists():
-            error_panel = Panel(
-                f"Directory '[cyan]{project_name}[/cyan]' already exists\n"
-                "Please choose a different project name or remove the existing directory.",
-                title="[red]Directory Conflict[/red]",
-                border_style="red",
-                padding=(1, 2)
-            )
-            console.print()
-            console.print(error_panel)
-            raise typer.Exit(1)
+            if not project_path.is_dir():
+                console.print(f"[red]Error:[/red] '{project_name}' exists but is not a directory.")
+                raise typer.Exit(1)
+            existing_items = list(project_path.iterdir())
+            if force:
+                if existing_items:
+                    console.print(f"[yellow]Warning:[/yellow] Directory '{project_name}' is not empty ({len(existing_items)} items)")
+                    console.print("[yellow]Template files will be merged with existing content and may overwrite existing files[/yellow]")
+                console.print(f"[cyan]--force supplied: merging into existing directory '[cyan]{project_name}[/cyan]'[/cyan]")
+            else:
+                error_panel = Panel(
+                    f"Directory '[cyan]{project_name}[/cyan]' already exists\n"
+                    "Please choose a different project name or remove the existing directory.\n"
+                    "Use [bold]--force[/bold] to merge into the existing directory.",
+                    title="[red]Directory Conflict[/red]",
+                    border_style="red",
+                    padding=(1, 2)
+                )
+                console.print()
+                console.print(error_panel)
+                raise typer.Exit(1)
 
     if ai_assistant:
         if ai_assistant not in AGENT_CONFIG:
@@ -1098,13 +1219,11 @@ def init(
     for key, label in [
         ("chmod", "Ensure scripts executable"),
         ("constitution", "Constitution setup"),
-        ("git", "Initialize git repository"),
+        ("git", "Install git extension"),
+        ("workflow", "Install bundled workflow"),
         ("final", "Finalize"),
     ]:
         tracker.add(key, label)
-
-    # Track git error message outside Live context so it persists
-    git_error_message = None
 
     with Live(tracker.render(), console=console, refresh_per_second=8, transient=True) as live:
         tracker.attach_refresh(lambda: live.update(tracker.render()))
@@ -1152,25 +1271,92 @@ def init(
             _install_shared_infra(project_path, selected_script, tracker=tracker)
             tracker.complete("shared-infra", f"scripts ({selected_script}) + templates")
 
-            ensure_executable_scripts(project_path, tracker=tracker)
-
             ensure_constitution_from_template(project_path, tracker=tracker)
 
             if not no_git:
                 tracker.start("git")
+                git_messages = []
+                git_has_error = False
+                # Step 1: Initialize git repo if needed
                 if is_git_repo(project_path):
-                    tracker.complete("git", "existing repo detected")
+                    git_messages.append("existing repo detected")
                 elif should_init_git:
                     success, error_msg = init_git_repo(project_path, quiet=True)
                     if success:
-                        tracker.complete("git", "initialized")
+                        git_messages.append("initialized")
                     else:
-                        tracker.error("git", "init failed")
-                        git_error_message = error_msg
+                        git_has_error = True
+                        # Sanitize multi-line error_msg to single line for tracker
+                        if error_msg:
+                            sanitized = error_msg.replace('\n', ' ').strip()
+                            git_messages.append(f"init failed: {sanitized[:120]}")
+                        else:
+                            git_messages.append("init failed")
                 else:
-                    tracker.skip("git", "git not available")
+                    git_messages.append("git not available")
+                # Step 2: Install bundled git extension
+                try:
+                    from .extensions import ExtensionManager
+                    bundled_path = _locate_bundled_extension("git")
+                    if bundled_path:
+                        manager = ExtensionManager(project_path)
+                        if manager.registry.is_installed("git"):
+                            git_messages.append("extension already installed")
+                        else:
+                            manager.install_from_directory(
+                                bundled_path, get_speckit_version()
+                            )
+                            git_messages.append("extension installed")
+                    else:
+                        git_has_error = True
+                        git_messages.append("bundled extension not found")
+                except Exception as ext_err:
+                    git_has_error = True
+                    sanitized_ext = str(ext_err).replace('\n', ' ').strip()
+                    git_messages.append(
+                        f"extension install failed: {sanitized_ext[:120]}"
+                    )
+                summary = "; ".join(git_messages)
+                if git_has_error:
+                    tracker.error("git", summary)
+                else:
+                    tracker.complete("git", summary)
             else:
                 tracker.skip("git", "--no-git flag")
+
+            # Install bundled speckit workflow
+            try:
+                bundled_wf = _locate_bundled_workflow("speckit")
+                if bundled_wf:
+                    from .workflows.catalog import WorkflowRegistry
+                    from .workflows.engine import WorkflowDefinition
+                    wf_registry = WorkflowRegistry(project_path)
+                    if wf_registry.is_installed("speckit"):
+                        tracker.complete("workflow", "already installed")
+                    else:
+                        import shutil as _shutil
+                        dest_wf = project_path / ".specify" / "workflows" / "speckit"
+                        dest_wf.mkdir(parents=True, exist_ok=True)
+                        _shutil.copy2(
+                            bundled_wf / "workflow.yml",
+                            dest_wf / "workflow.yml",
+                        )
+                        definition = WorkflowDefinition.from_yaml(dest_wf / "workflow.yml")
+                        wf_registry.add("speckit", {
+                            "name": definition.name,
+                            "version": definition.version,
+                            "description": definition.description,
+                            "source": "bundled",
+                        })
+                        tracker.complete("workflow", "speckit installed")
+                else:
+                    tracker.skip("workflow", "bundled workflow not found")
+            except Exception as wf_err:
+                sanitized_wf = str(wf_err).replace('\n', ' ').strip()
+                tracker.error("workflow", f"install failed: {sanitized_wf[:120]}")
+
+            # Fix permissions after all installs (scripts + extensions)
+            ensure_executable_scripts(project_path, tracker=tracker)
 
             # Persist the CLI options so later operations (e.g. preset add)
             # can adapt their behaviour without re-scanning the filesystem.
@@ -1198,27 +1384,44 @@ def init(
                     preset_manager = PresetManager(project_path)
                     speckit_ver = get_speckit_version()
 
-                    # Try local directory first, then catalog
+                    # Try local directory first, then bundled, then catalog
                     local_path = Path(preset).resolve()
                     if local_path.is_dir() and (local_path / "preset.yml").exists():
                         preset_manager.install_from_directory(local_path, speckit_ver)
                     else:
-                        preset_catalog = PresetCatalog(project_path)
-                        pack_info = preset_catalog.get_pack_info(preset)
-                        if not pack_info:
-                            console.print(f"[yellow]Warning:[/yellow] Preset '{preset}' not found in catalog. Skipping.")
+                        bundled_path = _locate_bundled_preset(preset)
+                        if bundled_path:
+                            preset_manager.install_from_directory(bundled_path, speckit_ver)
                         else:
-                            try:
-                                zip_path = preset_catalog.download_pack(preset)
-                                preset_manager.install_from_zip(zip_path, speckit_ver)
-                                # Clean up downloaded ZIP to avoid cache accumulation
+                            preset_catalog = PresetCatalog(project_path)
+                            pack_info = preset_catalog.get_pack_info(preset)
+                            if not pack_info:
+                                console.print(f"[yellow]Warning:[/yellow] Preset '{preset}' not found in catalog. Skipping.")
+                            elif pack_info.get("bundled") and not pack_info.get("download_url"):
+                                from .extensions import REINSTALL_COMMAND
+                                console.print(
+                                    f"[yellow]Warning:[/yellow] Preset '{preset}' is bundled with spec-kit "
+                                    f"but could not be found in the installed package."
+                                )
+                                console.print(
+                                    "This usually means the spec-kit installation is incomplete or corrupted."
+                                )
+                                console.print(f"Try reinstalling: {REINSTALL_COMMAND}")
+                            else:
+                                zip_path = None
                                 try:
-                                    zip_path.unlink(missing_ok=True)
-                                except OSError:
-                                    # Best-effort cleanup; failure to delete is non-fatal
-                                    pass
-                            except PresetError as preset_err:
-                                console.print(f"[yellow]Warning:[/yellow] Failed to install preset '{preset}': {preset_err}")
+                                    zip_path = preset_catalog.download_pack(preset)
+                                    preset_manager.install_from_zip(zip_path, speckit_ver)
+                                except PresetError as preset_err:
+                                    console.print(f"[yellow]Warning:[/yellow] Failed to install preset '{preset}': {preset_err}")
+                                finally:
+                                    if zip_path is not None:
+                                        # Clean up downloaded ZIP to avoid cache accumulation
+                                        try:
+                                            zip_path.unlink(missing_ok=True)
+                                        except OSError:
+                                            # Best-effort cleanup; failure to delete is non-fatal
+                                            pass
                 except Exception as preset_err:
                     console.print(f"[yellow]Warning:[/yellow] Failed to install preset: {preset_err}")
 
@@ -1237,7 +1440,7 @@ def init(
                 _label_width = max(len(k) for k, _ in _env_pairs)
                 env_lines = [f"{k.ljust(_label_width)} → [bright_black]{v}[/bright_black]" for k, v in _env_pairs]
                 console.print(Panel("\n".join(env_lines), title="Debug Environment", border_style="magenta"))
-            if not here and project_path.exists():
+            if not here and project_path.exists() and not dir_existed_before:
                 shutil.rmtree(project_path)
             raise typer.Exit(1)
         finally:
@@ -1245,23 +1448,6 @@ def init(
 
     console.print(tracker.render())
     console.print("\n[bold green]Project ready.[/bold green]")
-
-    # Show git error details if initialization failed
-    if git_error_message:
-        console.print()
-        git_error_panel = Panel(
-            f"[yellow]Warning:[/yellow] Git repository initialization failed\n\n"
-            f"{git_error_message}\n\n"
-            f"[dim]You can initialize git manually later with:[/dim]\n"
-            f"[cyan]cd {project_path if not here else '.'}[/cyan]\n"
-            f"[cyan]git init[/cyan]\n"
-            f"[cyan]git add .[/cyan]\n"
-            f"[cyan]git commit -m \"Initial commit\"[/cyan]",
-            title="[red]Git Initialization Failed[/red]",
-            border_style="red",
-            padding=(1, 2)
-        )
-        console.print(git_error_panel)
 
     # Agent folder security notice
     agent_config = AGENT_CONFIG.get(selected_ai)
@@ -1278,6 +1464,16 @@ def init(
             console.print()
             console.print(security_notice)
 
+    if ai_deprecation_warning:
+        deprecation_notice = Panel(
+            ai_deprecation_warning,
+            title="[bold red]Deprecation Warning[/bold red]",
+            border_style="red",
+            padding=(1, 2),
+        )
+        console.print()
+        console.print(deprecation_notice)
+
     steps_lines = []
     if not here:
         steps_lines.append(f"1. Go to the project folder: [cyan]cd {project_name}[/cyan]")
@@ -1287,7 +1483,7 @@ def init(
         step_num = 2
 
     # Determine skill display mode for the next-steps panel.
-    # Skills integrations (codex, kimi, agy) should show skill invocation syntax.
+    # Skills integrations (codex, kimi, agy, trae, cursor-agent) should show skill invocation syntax.
     from .integrations.base import SkillsIntegration as _SkillsInt
     _is_skills_integration = isinstance(resolved_integration, _SkillsInt)
 
@@ -1295,7 +1491,9 @@ def init(
     claude_skill_mode = selected_ai == "claude" and (ai_skills or _is_skills_integration)
     kimi_skill_mode = selected_ai == "kimi"
     agy_skill_mode = selected_ai == "agy" and _is_skills_integration
-    native_skill_mode = codex_skill_mode or claude_skill_mode or kimi_skill_mode or agy_skill_mode
+    trae_skill_mode = selected_ai == "trae"
+    cursor_agent_skill_mode = selected_ai == "cursor-agent" and (ai_skills or _is_skills_integration)
+    native_skill_mode = codex_skill_mode or claude_skill_mode or kimi_skill_mode or agy_skill_mode or trae_skill_mode or cursor_agent_skill_mode
 
     if codex_skill_mode and not ai_skills:
         # Integration path installed skills; show the helpful notice
@@ -1304,15 +1502,20 @@ def init(
     if claude_skill_mode and not ai_skills:
         steps_lines.append(f"{step_num}. Start Claude in this project directory; spec-kit skills were installed to [cyan].claude/skills[/cyan]")
         step_num += 1
+    if cursor_agent_skill_mode and not ai_skills:
+        steps_lines.append(f"{step_num}. Start Cursor Agent in this project directory; spec-kit skills were installed to [cyan].cursor/skills[/cyan]")
+        step_num += 1
     usage_label = "skills" if native_skill_mode else "slash commands"
 
     def _display_cmd(name: str) -> str:
-        if codex_skill_mode or agy_skill_mode:
+        if codex_skill_mode or agy_skill_mode or trae_skill_mode:
             return f"$speckit-{name}"
         if claude_skill_mode:
             return f"/speckit-{name}"
         if kimi_skill_mode:
             return f"/skill:speckit-{name}"
+        if cursor_agent_skill_mode:
+            return f"/speckit-{name}"
         return f"/speckit.{name}"
 
     steps_lines.append(f"{step_num}. Start using {usage_label} with your AI agent:")
@@ -2082,28 +2285,50 @@ def preset_add(
             console.print(f"[green]✓[/green] Preset '{manifest.name}' v{manifest.version} installed (priority {priority})")
 
         elif pack_id:
-            catalog = PresetCatalog(project_root)
-            pack_info = catalog.get_pack_info(pack_id)
-
-            if not pack_info:
-                console.print(f"[red]Error:[/red] Preset '{pack_id}' not found in catalog")
-                raise typer.Exit(1)
-
-            if not pack_info.get("_install_allowed", True):
-                catalog_name = pack_info.get("_catalog_name", "unknown")
-                console.print(f"[red]Error:[/red] Preset '{pack_id}' is from the '{catalog_name}' catalog which is discovery-only (install not allowed).")
-                console.print("Add the catalog with --install-allowed or install from the preset's repository directly with --from.")
-                raise typer.Exit(1)
-
-            console.print(f"Installing preset [cyan]{pack_info.get('name', pack_id)}[/cyan]...")
-
-            try:
-                zip_path = catalog.download_pack(pack_id)
-                manifest = manager.install_from_zip(zip_path, speckit_version, priority)
+            # Try bundled preset first, then catalog
+            bundled_path = _locate_bundled_preset(pack_id)
+            if bundled_path:
+                console.print(f"Installing bundled preset [cyan]{pack_id}[/cyan]...")
+                manifest = manager.install_from_directory(bundled_path, speckit_version, priority)
                 console.print(f"[green]✓[/green] Preset '{manifest.name}' v{manifest.version} installed (priority {priority})")
-            finally:
-                if 'zip_path' in locals() and zip_path.exists():
-                    zip_path.unlink(missing_ok=True)
+            else:
+                catalog = PresetCatalog(project_root)
+                pack_info = catalog.get_pack_info(pack_id)
+
+                if not pack_info:
+                    console.print(f"[red]Error:[/red] Preset '{pack_id}' not found in catalog")
+                    raise typer.Exit(1)
+
+                # Bundled presets should have been caught above; if we reach
+                # here the bundled files are missing from the installation.
+                if pack_info.get("bundled") and not pack_info.get("download_url"):
+                    from .extensions import REINSTALL_COMMAND
+                    console.print(
+                        f"[red]Error:[/red] Preset '{pack_id}' is bundled with spec-kit "
+                        f"but could not be found in the installed package."
+                    )
+                    console.print(
+                        "\nThis usually means the spec-kit installation is incomplete or corrupted."
+                    )
+                    console.print("Try reinstalling spec-kit:")
+                    console.print(f"  {REINSTALL_COMMAND}")
+                    raise typer.Exit(1)
+
+                if not pack_info.get("_install_allowed", True):
+                    catalog_name = pack_info.get("_catalog_name", "unknown")
+                    console.print(f"[red]Error:[/red] Preset '{pack_id}' is from the '{catalog_name}' catalog which is discovery-only (install not allowed).")
+                    console.print("Add the catalog with --install-allowed or install from the preset's repository directly with --from.")
+                    raise typer.Exit(1)
+
+                console.print(f"Installing preset [cyan]{pack_info.get('name', pack_id)}[/cyan]...")
+
+                try:
+                    zip_path = catalog.download_pack(pack_id)
+                    manifest = manager.install_from_zip(zip_path, speckit_version, priority)
+                    console.print(f"[green]✓[/green] Preset '{manifest.name}' v{manifest.version} installed (priority {priority})")
+                finally:
+                    if 'zip_path' in locals() and zip_path.exists():
+                        zip_path.unlink(missing_ok=True)
         else:
             console.print("[red]Error:[/red] Specify a preset ID, --from URL, or --dev path")
             raise typer.Exit(1)
@@ -2949,7 +3174,7 @@ def extension_add(
     priority: int = typer.Option(10, "--priority", help="Resolution priority (lower = higher precedence, default 10)"),
 ):
     """Install an extension."""
-    from .extensions import ExtensionManager, ExtensionCatalog, ExtensionError, ValidationError, CompatibilityError
+    from .extensions import ExtensionManager, ExtensionCatalog, ExtensionError, ValidationError, CompatibilityError, REINSTALL_COMMAND
 
     project_root = Path.cwd()
 
@@ -3024,45 +3249,71 @@ def extension_add(
                         zip_path.unlink()
 
             else:
-                # Install from catalog
-                catalog = ExtensionCatalog(project_root)
+                # Try bundled extensions first (shipped with spec-kit)
+                bundled_path = _locate_bundled_extension(extension)
+                if bundled_path is not None:
+                    manifest = manager.install_from_directory(bundled_path, speckit_version, priority=priority)
+                else:
+                    # Install from catalog (also resolves display names to IDs)
+                    catalog = ExtensionCatalog(project_root)
 
-                # Check if extension exists in catalog (supports both ID and display name)
-                ext_info, catalog_error = _resolve_catalog_extension(extension, catalog, "add")
-                if catalog_error:
-                    console.print(f"[red]Error:[/red] Could not query extension catalog: {catalog_error}")
-                    raise typer.Exit(1)
-                if not ext_info:
-                    console.print(f"[red]Error:[/red] Extension '{extension}' not found in catalog")
-                    console.print("\nSearch available extensions:")
-                    console.print("  specify extension search")
-                    raise typer.Exit(1)
+                    # Check if extension exists in catalog (supports both ID and display name)
+                    ext_info, catalog_error = _resolve_catalog_extension(extension, catalog, "add")
+                    if catalog_error:
+                        console.print(f"[red]Error:[/red] Could not query extension catalog: {catalog_error}")
+                        raise typer.Exit(1)
+                    if not ext_info:
+                        console.print(f"[red]Error:[/red] Extension '{extension}' not found in catalog")
+                        console.print("\nSearch available extensions:")
+                        console.print("  specify extension search")
+                        raise typer.Exit(1)
 
-                # Enforce install_allowed policy
-                if not ext_info.get("_install_allowed", True):
-                    catalog_name = ext_info.get("_catalog_name", "community")
-                    console.print(
-                        f"[red]Error:[/red] '{extension}' is available in the "
-                        f"'{catalog_name}' catalog but installation is not allowed from that catalog."
-                    )
-                    console.print(
-                        f"\nTo enable installation, add '{extension}' to an approved catalog "
-                        f"(install_allowed: true) in .specify/extension-catalogs.yml."
-                    )
-                    raise typer.Exit(1)
+                    # If catalog resolved a display name to an ID, check bundled again
+                    resolved_id = ext_info['id']
+                    if resolved_id != extension:
+                        bundled_path = _locate_bundled_extension(resolved_id)
+                        if bundled_path is not None:
+                            manifest = manager.install_from_directory(bundled_path, speckit_version, priority=priority)
 
-                # Download extension ZIP (use resolved ID, not original argument which may be display name)
-                extension_id = ext_info['id']
-                console.print(f"Downloading {ext_info['name']} v{ext_info.get('version', 'unknown')}...")
-                zip_path = catalog.download_extension(extension_id)
+                    if bundled_path is None:
+                        # Bundled extensions without a download URL must come from the local package
+                        if ext_info.get("bundled") and not ext_info.get("download_url"):
+                            console.print(
+                                f"[red]Error:[/red] Extension '{ext_info['id']}' is bundled with spec-kit "
+                                f"but could not be found in the installed package."
+                            )
+                            console.print(
+                                "\nThis usually means the spec-kit installation is incomplete or corrupted."
+                            )
+                            console.print("Try reinstalling spec-kit:")
+                            console.print(f"  {REINSTALL_COMMAND}")
+                            raise typer.Exit(1)
 
-                try:
-                    # Install from downloaded ZIP
-                    manifest = manager.install_from_zip(zip_path, speckit_version, priority=priority)
-                finally:
-                    # Clean up downloaded ZIP
-                    if zip_path.exists():
-                        zip_path.unlink()
+                        # Enforce install_allowed policy
+                        if not ext_info.get("_install_allowed", True):
+                            catalog_name = ext_info.get("_catalog_name", "community")
+                            console.print(
+                                f"[red]Error:[/red] '{extension}' is available in the "
+                                f"'{catalog_name}' catalog but installation is not allowed from that catalog."
+                            )
+                            console.print(
+                                f"\nTo enable installation, add '{extension}' to an approved catalog "
+                                f"(install_allowed: true) in .specify/extension-catalogs.yml."
+                            )
+                            raise typer.Exit(1)
+
+                        # Download extension ZIP (use resolved ID, not original argument which may be display name)
+                        extension_id = ext_info['id']
+                        console.print(f"Downloading {ext_info['name']} v{ext_info.get('version', 'unknown')}...")
+                        zip_path = catalog.download_extension(extension_id)
+
+                        try:
+                            # Install from downloaded ZIP
+                            manifest = manager.install_from_zip(zip_path, speckit_version, priority=priority)
+                        finally:
+                            # Clean up downloaded ZIP
+                            if zip_path.exists():
+                                zip_path.unlink()
 
         console.print("\n[green]✓[/green] Extension installed successfully!")
         console.print(f"\n[bold]{manifest.name}[/bold] (v{manifest.version})")
@@ -3986,6 +4237,668 @@ def extension_set_priority(
 
     console.print(f"[green]✓[/green] Extension '{display_name}' priority changed: {old_priority} → {priority}")
     console.print("\n[dim]Lower priority = higher precedence in template resolution[/dim]")
+
+
+# ===== Workflow Commands =====
+
+workflow_app = typer.Typer(
+    name="workflow",
+    help="Manage and run automation workflows",
+    add_completion=False,
+)
+app.add_typer(workflow_app, name="workflow")
+
+workflow_catalog_app = typer.Typer(
+    name="catalog",
+    help="Manage workflow catalogs",
+    add_completion=False,
+)
+workflow_app.add_typer(workflow_catalog_app, name="catalog")
+
+
+@workflow_app.command("run")
+def workflow_run(
+    source: str = typer.Argument(..., help="Workflow ID or YAML file path"),
+    input_values: list[str] | None = typer.Option(
+        None, "--input", "-i", help="Input values as key=value pairs"
+    ),
+):
+    """Run a workflow from an installed ID or local YAML path."""
+    from .workflows.engine import WorkflowEngine
+
+    project_root = Path.cwd()
+    if not (project_root / ".specify").exists():
+        console.print("[red]Error:[/red] Not a spec-kit project (no .specify/ directory)")
+        raise typer.Exit(1)
+    engine = WorkflowEngine(project_root)
+    engine.on_step_start = lambda sid, label: console.print(f"  \u25b8 [{sid}] {label} \u2026")
+
+    try:
+        definition = engine.load_workflow(source)
+    except FileNotFoundError:
+        console.print(f"[red]Error:[/red] Workflow not found: {source}")
+        raise typer.Exit(1)
+    except ValueError as exc:
+        console.print(f"[red]Error:[/red] Invalid workflow: {exc}")
+        raise typer.Exit(1)
+
+    # Validate
+    errors = engine.validate(definition)
+    if errors:
+        console.print("[red]Workflow validation failed:[/red]")
+        for err in errors:
+            console.print(f"  • {err}")
+        raise typer.Exit(1)
+
+    # Parse inputs
+    inputs: dict[str, Any] = {}
+    if input_values:
+        for kv in input_values:
+            if "=" not in kv:
+                console.print(f"[red]Error:[/red] Invalid input format: {kv!r} (expected key=value)")
+                raise typer.Exit(1)
+            key, _, value = kv.partition("=")
+            inputs[key.strip()] = value.strip()
+
+    console.print(f"\n[bold cyan]Running workflow:[/bold cyan] {definition.name} ({definition.id})")
+    console.print(f"[dim]Version: {definition.version}[/dim]\n")
+
+    try:
+        state = engine.execute(definition, inputs)
+    except ValueError as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1)
+    except Exception as exc:
+        console.print(f"[red]Workflow failed:[/red] {exc}")
+        raise typer.Exit(1)
+
+    status_colors = {
+        "completed": "green",
+        "paused": "yellow",
+        "failed": "red",
+        "aborted": "red",
+    }
+    color = status_colors.get(state.status.value, "white")
+    console.print(f"\n[{color}]Status: {state.status.value}[/{color}]")
+    console.print(f"[dim]Run ID: {state.run_id}[/dim]")
+
+    if state.status.value == "paused":
+        console.print(f"\nResume with: [cyan]specify workflow resume {state.run_id}[/cyan]")
+
+
+@workflow_app.command("resume")
+def workflow_resume(
+    run_id: str = typer.Argument(..., help="Run ID to resume"),
+):
+    """Resume a paused or failed workflow run."""
+    from .workflows.engine import WorkflowEngine
+
+    project_root = Path.cwd()
+    if not (project_root / ".specify").exists():
+        console.print("[red]Error:[/red] Not a spec-kit project (no .specify/ directory)")
+        raise typer.Exit(1)
+    engine = WorkflowEngine(project_root)
+    engine.on_step_start = lambda sid, label: console.print(f"  \u25b8 [{sid}] {label} \u2026")
+
+    try:
+        state = engine.resume(run_id)
+    except FileNotFoundError:
+        console.print(f"[red]Error:[/red] Run not found: {run_id}")
+        raise typer.Exit(1)
+    except ValueError as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1)
+    except Exception as exc:
+        console.print(f"[red]Resume failed:[/red] {exc}")
+        raise typer.Exit(1)
+
+    status_colors = {
+        "completed": "green",
+        "paused": "yellow",
+        "failed": "red",
+        "aborted": "red",
+    }
+    color = status_colors.get(state.status.value, "white")
+    console.print(f"\n[{color}]Status: {state.status.value}[/{color}]")
+
+
+@workflow_app.command("status")
+def workflow_status(
+    run_id: str | None = typer.Argument(None, help="Run ID to inspect (shows all if omitted)"),
+):
+    """Show workflow run status."""
+    from .workflows.engine import WorkflowEngine
+
+    project_root = Path.cwd()
+    if not (project_root / ".specify").exists():
+        console.print("[red]Error:[/red] Not a spec-kit project (no .specify/ directory)")
+        raise typer.Exit(1)
+    engine = WorkflowEngine(project_root)
+
+    if run_id:
+        try:
+            from .workflows.engine import RunState
+            state = RunState.load(run_id, project_root)
+        except FileNotFoundError:
+            console.print(f"[red]Error:[/red] Run not found: {run_id}")
+            raise typer.Exit(1)
+
+        status_colors = {
+            "completed": "green",
+            "paused": "yellow",
+            "failed": "red",
+            "aborted": "red",
+            "running": "blue",
+            "created": "dim",
+        }
+        color = status_colors.get(state.status.value, "white")
+
+        console.print(f"\n[bold cyan]Workflow Run: {state.run_id}[/bold cyan]")
+        console.print(f"  Workflow: {state.workflow_id}")
+        console.print(f"  Status:   [{color}]{state.status.value}[/{color}]")
+        console.print(f"  Created:  {state.created_at}")
+        console.print(f"  Updated:  {state.updated_at}")
+
+        if state.current_step_id:
+            console.print(f"  Current:  {state.current_step_id}")
+
+        if state.step_results:
+            console.print(f"\n  [bold]Steps ({len(state.step_results)}):[/bold]")
+            for step_id, step_data in state.step_results.items():
+                s = step_data.get("status", "unknown")
+                sc = {"completed": "green", "failed": "red", "paused": "yellow"}.get(s, "white")
+                console.print(f"    [{sc}]●[/{sc}] {step_id}: {s}")
+    else:
+        runs = engine.list_runs()
+        if not runs:
+            console.print("[yellow]No workflow runs found.[/yellow]")
+            return
+
+        console.print("\n[bold cyan]Workflow Runs:[/bold cyan]\n")
+        for run_data in runs:
+            s = run_data.get("status", "unknown")
+            sc = {"completed": "green", "failed": "red", "paused": "yellow", "running": "blue"}.get(s, "white")
+            console.print(
+                f"  [{sc}]●[/{sc}] {run_data['run_id']}  "
+                f"{run_data.get('workflow_id', '?')}  "
+                f"[{sc}]{s}[/{sc}]  "
+                f"[dim]{run_data.get('updated_at', '?')}[/dim]"
+            )
+
+
+@workflow_app.command("list")
+def workflow_list():
+    """List installed workflows."""
+    from .workflows.catalog import WorkflowRegistry
+
+    project_root = Path.cwd()
+    specify_dir = project_root / ".specify"
+    if not specify_dir.exists():
+        console.print("[red]Error:[/red] Not a spec-kit project (no .specify/ directory)")
+        raise typer.Exit(1)
+
+    registry = WorkflowRegistry(project_root)
+    installed = registry.list()
+
+    if not installed:
+        console.print("[yellow]No workflows installed.[/yellow]")
+        console.print("\nInstall a workflow with:")
+        console.print("  [cyan]specify workflow add <workflow-id>[/cyan]")
+        return
+
+    console.print("\n[bold cyan]Installed Workflows:[/bold cyan]\n")
+    for wf_id, wf_data in installed.items():
+        console.print(f"  [bold]{wf_data.get('name', wf_id)}[/bold] ({wf_id}) v{wf_data.get('version', '?')}")
+        desc = wf_data.get("description", "")
+        if desc:
+            console.print(f"    {desc}")
+        console.print()
+
+
+@workflow_app.command("add")
+def workflow_add(
+    source: str = typer.Argument(..., help="Workflow ID, URL, or local path"),
+):
+    """Install a workflow from catalog, URL, or local path."""
+    from .workflows.catalog import WorkflowCatalog, WorkflowRegistry, WorkflowCatalogError
+    from .workflows.engine import WorkflowDefinition
+
+    project_root = Path.cwd()
+    specify_dir = project_root / ".specify"
+    if not specify_dir.exists():
+        console.print("[red]Error:[/red] Not a spec-kit project (no .specify/ directory)")
+        raise typer.Exit(1)
+
+    registry = WorkflowRegistry(project_root)
+    workflows_dir = project_root / ".specify" / "workflows"
+
+    def _validate_and_install_local(yaml_path: Path, source_label: str) -> None:
+        """Validate and install a workflow from a local YAML file."""
+        try:
+            definition = WorkflowDefinition.from_yaml(yaml_path)
+        except (ValueError, yaml.YAMLError) as exc:
+            console.print(f"[red]Error:[/red] Invalid workflow YAML: {exc}")
+            raise typer.Exit(1)
+        if not definition.id or not definition.id.strip():
+            console.print("[red]Error:[/red] Workflow definition has an empty or missing 'id'")
+            raise typer.Exit(1)
+
+        from .workflows.engine import validate_workflow
+        errors = validate_workflow(definition)
+        if errors:
+            console.print("[red]Error:[/red] Workflow validation failed:")
+            for err in errors:
+                console.print(f"  \u2022 {err}")
+            raise typer.Exit(1)
+
+        dest_dir = workflows_dir / definition.id
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        import shutil
+        shutil.copy2(yaml_path, dest_dir / "workflow.yml")
+        registry.add(definition.id, {
+            "name": definition.name,
+            "version": definition.version,
+            "description": definition.description,
+            "source": source_label,
+        })
+        console.print(f"[green]✓[/green] Workflow '{definition.name}' ({definition.id}) installed")
+
+    # Try as URL (http/https)
+    if source.startswith("http://") or source.startswith("https://"):
+        from ipaddress import ip_address
+        from urllib.parse import urlparse
+        from urllib.request import urlopen  # noqa: S310
+
+        parsed_src = urlparse(source)
+        src_host = parsed_src.hostname or ""
+        src_loopback = src_host == "localhost"
+        if not src_loopback:
+            try:
+                src_loopback = ip_address(src_host).is_loopback
+            except ValueError:
+                # Host is not an IP literal (e.g., a DNS name); keep default non-loopback.
+                pass
+        if parsed_src.scheme != "https" and not (parsed_src.scheme == "http" and src_loopback):
+            console.print("[red]Error:[/red] Only HTTPS URLs are allowed, except HTTP for localhost.")
+            raise typer.Exit(1)
+
+        import tempfile
+        try:
+            with urlopen(source, timeout=30) as resp:  # noqa: S310
+                final_url = resp.geturl()
+                final_parsed = urlparse(final_url)
+                final_host = final_parsed.hostname or ""
+                final_lb = final_host == "localhost"
+                if not final_lb:
+                    try:
+                        final_lb = ip_address(final_host).is_loopback
+                    except ValueError:
+                        # Redirect host is not an IP literal; keep loopback as determined above.
+                        pass
+                if final_parsed.scheme != "https" and not (final_parsed.scheme == "http" and final_lb):
+                    console.print(f"[red]Error:[/red] URL redirected to non-HTTPS: {final_url}")
+                    raise typer.Exit(1)
+                with tempfile.NamedTemporaryFile(suffix=".yml", delete=False) as tmp:
+                    tmp.write(resp.read())
+                    tmp_path = Path(tmp.name)
+        except typer.Exit:
+            raise
+        except Exception as exc:
+            console.print(f"[red]Error:[/red] Failed to download workflow: {exc}")
+            raise typer.Exit(1)
+        try:
+            _validate_and_install_local(tmp_path, source)
+        finally:
+            tmp_path.unlink(missing_ok=True)
+        return
+
+    # Try as a local file/directory
+    source_path = Path(source)
+    if source_path.exists():
+        if source_path.is_file() and source_path.suffix in (".yml", ".yaml"):
+            _validate_and_install_local(source_path, str(source_path))
+            return
+        elif source_path.is_dir():
+            wf_file = source_path / "workflow.yml"
+            if not wf_file.exists():
+                console.print(f"[red]Error:[/red] No workflow.yml found in {source}")
+                raise typer.Exit(1)
+            _validate_and_install_local(wf_file, str(source_path))
+            return
+
+    # Try from catalog
+    catalog = WorkflowCatalog(project_root)
+    try:
+        info = catalog.get_workflow_info(source)
+    except WorkflowCatalogError as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1)
+
+    if not info:
+        console.print(f"[red]Error:[/red] Workflow '{source}' not found in catalog")
+        raise typer.Exit(1)
+
+    if not info.get("_install_allowed", True):
+        console.print(f"[yellow]Warning:[/yellow] Workflow '{source}' is from a discovery-only catalog")
+        console.print("Direct installation is not enabled for this catalog source.")
+        raise typer.Exit(1)
+
+    workflow_url = info.get("url")
+    if not workflow_url:
+        console.print(f"[red]Error:[/red] Workflow '{source}' does not have an install URL in the catalog")
+        raise typer.Exit(1)
+
+    # Validate URL scheme (HTTPS required, HTTP allowed for localhost only)
+    from ipaddress import ip_address
+    from urllib.parse import urlparse
+
+    parsed_url = urlparse(workflow_url)
+    url_host = parsed_url.hostname or ""
+    is_loopback = False
+    if url_host == "localhost":
+        is_loopback = True
+    else:
+        try:
+            is_loopback = ip_address(url_host).is_loopback
+        except ValueError:
+            # Host is not an IP literal (e.g., a regular hostname); treat as non-loopback.
+            pass
+    if parsed_url.scheme != "https" and not (parsed_url.scheme == "http" and is_loopback):
+        console.print(
+            f"[red]Error:[/red] Workflow '{source}' has an invalid install URL. "
+            "Only HTTPS URLs are allowed, except HTTP for localhost/loopback."
+        )
+        raise typer.Exit(1)
+
+    workflow_dir = workflows_dir / source
+    # Validate that source is a safe directory name (no path traversal)
+    try:
+        workflow_dir.resolve().relative_to(workflows_dir.resolve())
+    except ValueError:
+        console.print(f"[red]Error:[/red] Invalid workflow ID: {source!r}")
+        raise typer.Exit(1)
+    workflow_file = workflow_dir / "workflow.yml"
+
+    try:
+        from urllib.request import urlopen  # noqa: S310 — URL comes from catalog
+
+        workflow_dir.mkdir(parents=True, exist_ok=True)
+        with urlopen(workflow_url, timeout=30) as response:  # noqa: S310
+            # Validate final URL after redirects
+            final_url = response.geturl()
+            final_parsed = urlparse(final_url)
+            final_host = final_parsed.hostname or ""
+            final_loopback = final_host == "localhost"
+            if not final_loopback:
+                try:
+                    final_loopback = ip_address(final_host).is_loopback
+                except ValueError:
+                    # Host is not an IP literal (e.g., a regular hostname); treat as non-loopback.
+                    pass
+            if final_parsed.scheme != "https" and not (final_parsed.scheme == "http" and final_loopback):
+                if workflow_dir.exists():
+                    import shutil
+                    shutil.rmtree(workflow_dir, ignore_errors=True)
+                console.print(
+                    f"[red]Error:[/red] Workflow '{source}' redirected to non-HTTPS URL: {final_url}"
+                )
+                raise typer.Exit(1)
+            workflow_file.write_bytes(response.read())
+    except Exception as exc:
+        if workflow_dir.exists():
+            import shutil
+            shutil.rmtree(workflow_dir, ignore_errors=True)
+        console.print(f"[red]Error:[/red] Failed to install workflow '{source}' from catalog: {exc}")
+        raise typer.Exit(1)
+
+    # Validate the downloaded workflow before registering
+    try:
+        definition = WorkflowDefinition.from_yaml(workflow_file)
+    except (ValueError, yaml.YAMLError) as exc:
+        import shutil
+        shutil.rmtree(workflow_dir, ignore_errors=True)
+        console.print(f"[red]Error:[/red] Downloaded workflow is invalid: {exc}")
+        raise typer.Exit(1)
+
+    from .workflows.engine import validate_workflow
+    errors = validate_workflow(definition)
+    if errors:
+        import shutil
+        shutil.rmtree(workflow_dir, ignore_errors=True)
+        console.print("[red]Error:[/red] Downloaded workflow validation failed:")
+        for err in errors:
+            console.print(f"  \u2022 {err}")
+        raise typer.Exit(1)
+
+    # Enforce that the workflow's internal ID matches the catalog key
+    if definition.id and definition.id != source:
+        import shutil
+        shutil.rmtree(workflow_dir, ignore_errors=True)
+        console.print(
+            f"[red]Error:[/red] Workflow ID in YAML ({definition.id!r}) "
+            f"does not match catalog key ({source!r}). "
+            f"The catalog entry may be misconfigured."
+        )
+        raise typer.Exit(1)
+
+    registry.add(source, {
+        "name": definition.name or info.get("name", source),
+        "version": definition.version or info.get("version", "0.0.0"),
+        "description": definition.description or info.get("description", ""),
+        "source": "catalog",
+        "catalog_name": info.get("_catalog_name", ""),
+        "url": workflow_url,
+    })
+    console.print(f"[green]✓[/green] Workflow '{info.get('name', source)}' installed from catalog")
+
+
+@workflow_app.command("remove")
+def workflow_remove(
+    workflow_id: str = typer.Argument(..., help="Workflow ID to uninstall"),
+):
+    """Uninstall a workflow."""
+    from .workflows.catalog import WorkflowRegistry
+
+    project_root = Path.cwd()
+    specify_dir = project_root / ".specify"
+    if not specify_dir.exists():
+        console.print("[red]Error:[/red] Not a spec-kit project (no .specify/ directory)")
+        raise typer.Exit(1)
+
+    registry = WorkflowRegistry(project_root)
+
+    if not registry.is_installed(workflow_id):
+        console.print(f"[red]Error:[/red] Workflow '{workflow_id}' is not installed")
+        raise typer.Exit(1)
+
+    # Remove workflow files
+    workflow_dir = project_root / ".specify" / "workflows" / workflow_id
+    if workflow_dir.exists():
+        import shutil
+        shutil.rmtree(workflow_dir)
+
+    registry.remove(workflow_id)
+    console.print(f"[green]✓[/green] Workflow '{workflow_id}' removed")
+
+
+@workflow_app.command("search")
+def workflow_search(
+    query: str | None = typer.Argument(None, help="Search query"),
+    tag: str | None = typer.Option(None, "--tag", help="Filter by tag"),
+):
+    """Search workflow catalogs."""
+    from .workflows.catalog import WorkflowCatalog, WorkflowCatalogError
+
+    project_root = Path.cwd()
+    if not (project_root / ".specify").exists():
+        console.print("[red]Error:[/red] Not a spec-kit project (no .specify/ directory)")
+        raise typer.Exit(1)
+    catalog = WorkflowCatalog(project_root)
+
+    try:
+        results = catalog.search(query=query, tag=tag)
+    except WorkflowCatalogError as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1)
+
+    if not results:
+        console.print("[yellow]No workflows found.[/yellow]")
+        return
+
+    console.print(f"\n[bold cyan]Workflows ({len(results)}):[/bold cyan]\n")
+    for wf in results:
+        console.print(f"  [bold]{wf.get('name', wf.get('id', '?'))}[/bold] ({wf.get('id', '?')}) v{wf.get('version', '?')}")
+        desc = wf.get("description", "")
+        if desc:
+            console.print(f"    {desc}")
+        tags = wf.get("tags", [])
+        if tags:
+            console.print(f"    [dim]Tags: {', '.join(tags)}[/dim]")
+        console.print()
+
+
+@workflow_app.command("info")
+def workflow_info(
+    workflow_id: str = typer.Argument(..., help="Workflow ID"),
+):
+    """Show workflow details and step graph."""
+    from .workflows.catalog import WorkflowCatalog, WorkflowRegistry, WorkflowCatalogError
+    from .workflows.engine import WorkflowEngine
+
+    project_root = Path.cwd()
+    if not (project_root / ".specify").exists():
+        console.print("[red]Error:[/red] Not a spec-kit project (no .specify/ directory)")
+        raise typer.Exit(1)
+
+    # Check installed first
+    registry = WorkflowRegistry(project_root)
+    installed = registry.get(workflow_id)
+
+    engine = WorkflowEngine(project_root)
+
+    definition = None
+    try:
+        definition = engine.load_workflow(workflow_id)
+    except FileNotFoundError:
+        # Local workflow definition not found on disk; fall back to
+        # catalog/registry lookup below.
+        pass
+
+    if definition:
+        console.print(f"\n[bold cyan]{definition.name}[/bold cyan] ({definition.id})")
+        console.print(f"  Version:     {definition.version}")
+        if definition.author:
+            console.print(f"  Author:      {definition.author}")
+        if definition.description:
+            console.print(f"  Description: {definition.description}")
+        if definition.default_integration:
+            console.print(f"  Integration: {definition.default_integration}")
+        if installed:
+            console.print("  [green]Installed[/green]")
+
+        if definition.inputs:
+            console.print("\n  [bold]Inputs:[/bold]")
+            for name, inp in definition.inputs.items():
+                if isinstance(inp, dict):
+                    req = "required" if inp.get("required") else "optional"
+                    console.print(f"    {name} ({inp.get('type', 'string')}) — {req}")
+
+        if definition.steps:
+            console.print(f"\n  [bold]Steps ({len(definition.steps)}):[/bold]")
+            for step in definition.steps:
+                stype = step.get("type", "command")
+                console.print(f"    → {step.get('id', '?')} [{stype}]")
+        return
+
+    # Try catalog
+    catalog = WorkflowCatalog(project_root)
+    try:
+        info = catalog.get_workflow_info(workflow_id)
+    except WorkflowCatalogError:
+        info = None
+
+    if info:
+        console.print(f"\n[bold cyan]{info.get('name', workflow_id)}[/bold cyan] ({workflow_id})")
+        console.print(f"  Version:     {info.get('version', '?')}")
+        if info.get("description"):
+            console.print(f"  Description: {info['description']}")
+        if info.get("tags"):
+            console.print(f"  Tags:        {', '.join(info['tags'])}")
+        console.print("  [yellow]Not installed[/yellow]")
+    else:
+        console.print(f"[red]Error:[/red] Workflow '{workflow_id}' not found")
+        raise typer.Exit(1)
+
+
+@workflow_catalog_app.command("list")
+def workflow_catalog_list():
+    """List configured workflow catalog sources."""
+    from .workflows.catalog import WorkflowCatalog, WorkflowCatalogError
+
+    project_root = Path.cwd()
+    catalog = WorkflowCatalog(project_root)
+
+    try:
+        configs = catalog.get_catalog_configs()
+    except WorkflowCatalogError as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1)
+
+    console.print("\n[bold cyan]Workflow Catalog Sources:[/bold cyan]\n")
+    for i, cfg in enumerate(configs):
+        install_status = "[green]install allowed[/green]" if cfg["install_allowed"] else "[yellow]discovery only[/yellow]"
+        console.print(f"  [{i}] [bold]{cfg['name']}[/bold] — {install_status}")
+        console.print(f"      {cfg['url']}")
+        if cfg.get("description"):
+            console.print(f"      [dim]{cfg['description']}[/dim]")
+        console.print()
+
+
+@workflow_catalog_app.command("add")
+def workflow_catalog_add(
+    url: str = typer.Argument(..., help="Catalog URL to add"),
+    name: str = typer.Option(None, "--name", help="Catalog name"),
+):
+    """Add a workflow catalog source."""
+    from .workflows.catalog import WorkflowCatalog, WorkflowValidationError
+
+    project_root = Path.cwd()
+    specify_dir = project_root / ".specify"
+    if not specify_dir.exists():
+        console.print("[red]Error:[/red] Not a spec-kit project (no .specify/ directory)")
+        raise typer.Exit(1)
+
+    catalog = WorkflowCatalog(project_root)
+    try:
+        catalog.add_catalog(url, name)
+    except WorkflowValidationError as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1)
+
+    console.print(f"[green]✓[/green] Catalog source added: {url}")
+
+
+@workflow_catalog_app.command("remove")
+def workflow_catalog_remove(
+    index: int = typer.Argument(..., help="Catalog index to remove (from 'catalog list')"),
+):
+    """Remove a workflow catalog source by index."""
+    from .workflows.catalog import WorkflowCatalog, WorkflowValidationError
+
+    project_root = Path.cwd()
+    specify_dir = project_root / ".specify"
+    if not specify_dir.exists():
+        console.print("[red]Error:[/red] Not a spec-kit project (no .specify/ directory)")
+        raise typer.Exit(1)
+
+    catalog = WorkflowCatalog(project_root)
+    try:
+        removed_name = catalog.remove_catalog(index)
+    except WorkflowValidationError as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1)
+
+    console.print(f"[green]✓[/green] Catalog source '{removed_name}' removed")
 
 
 def main():
