@@ -408,7 +408,7 @@ Gate YAML present; name matches workflow reference; fields valid.
 
 ## Batch 4 — Instructions, skill, integration tests, byte-identity tests (depends on Batch 3)
 
-### 4.1 instructions.ts — extend for `stories` artifact
+### 4.1 instructions.ts — extend for `stories` artifact [x]
 
 **Files**
 - `src/cli/commands/instructions.ts` (modify)
