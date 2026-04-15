@@ -242,7 +242,7 @@ Use inline string fixtures (no disk writes needed; `parseStories` takes a path s
 
 ---
 
-### 2.2 story-validator.ts (validation core)
+### 2.2 story-validator.ts (validation core) [x]
 
 **Files**
 - `src/stories/story-validator.ts` (new)
