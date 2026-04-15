@@ -160,4 +160,72 @@ describe('InstructionGenerator', () => {
 
     expect(output.agent.tools).toEqual(['Read', 'Grep', 'Bash'])
   })
+
+  it('omits budget.warning when utilization is under 80%', async () => {
+    const artifact: WorkflowArtifact = {
+      id: 'intent',
+      type: 'intent',
+      template: 'intent.md',
+      generates: 'intent.md',
+      requires: [],
+      agents: ['proposer'],
+      gates: [],
+    }
+    const agent: AgentDefinition = {
+      name: 'proposer',
+      persona: 'p',
+      capabilities: ['propose'],
+      tools: ['Read'],
+      context_budget: 50000,
+    }
+    const output = await generator.generate({
+      artifact,
+      changeName: 'test-change',
+      changePath,
+      workflow: 'standard',
+      status: 'ready',
+      specDir,
+      agent,
+      nextSteps: [],
+    })
+    expect(output.budget.warning).toBeUndefined()
+    expect(output.budget.dropped_optionals).toBeUndefined()
+  })
+
+  it('surfaces over-budget warning and dropped_optionals when context overflows', async () => {
+    // Required intent consumes most of the agent budget; optional project.md (no headings)
+    // cannot fit fully and its skeleton produces zero tokens → dropped.
+    await writeFile(join(changePath, 'intent.md'), 'a'.repeat(4 * 4500)) // 4500 tokens
+    await mkdir(specDir, { recursive: true })
+    await writeFile(join(specDir, 'project.md'), 'y'.repeat(4 * 10_000))
+
+    const artifact: WorkflowArtifact = {
+      id: 'spec',
+      type: 'spec',
+      template: 'intent.md',
+      generates: 'spec.md',
+      requires: ['intent'],
+      agents: ['specifier'],
+      gates: [],
+    }
+    const agent: AgentDefinition = {
+      name: 'specifier',
+      persona: 'p',
+      capabilities: ['spec'],
+      tools: ['Read'],
+      context_budget: 10_000,
+    }
+    const output = await generator.generate({
+      artifact,
+      changeName: 'test-change',
+      changePath,
+      workflow: 'standard',
+      status: 'ready',
+      specDir,
+      agent,
+      nextSteps: [],
+    })
+    expect(output.budget.warning).toBe('over-budget')
+    expect(output.budget.dropped_optionals).toContain('project_context')
+  })
 })

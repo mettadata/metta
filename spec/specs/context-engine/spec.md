@@ -50,13 +50,16 @@ The system MUST maintain a static manifest for each artifact type. Each manifest
 
 | Artifact Type | Required Sources | Optional Sources | Budget (tokens) |
 |---|---|---|---|
-| `intent` | _(none)_ | `project_context`, `existing_specs` | 20,000 |
-| `spec` | `intent` | `project_context`, `existing_specs`, `research` | 40,000 |
-| `research` | `spec` | `project_context`, `existing_specs`, `architecture` | 50,000 |
-| `design` | `research`, `spec` | `architecture`, `project_context` | 60,000 |
-| `tasks` | `design`, `spec` | `research_contracts`, `research_schemas`, `architecture` | 40,000 |
-| `execution` | `tasks` | `research_contracts`, `research_schemas` | 10,000 |
-| `verification` | `spec`, `tasks`, `summary` | `research_contracts`, `research_schemas`, `design` | 50,000 |
+| `intent` | _(none)_ | `project_context`, `existing_specs` | 50,000 |
+| `stories` | `intent` | `project_context`, `existing_specs` | 50,000 |
+| `spec` | `intent`, `stories` | `project_context`, `existing_specs`, `research` | 60,000 |
+| `research` | `spec` | `project_context`, `existing_specs`, `architecture` | 80,000 |
+| `design` | `research`, `spec` | `architecture`, `project_context` | 100,000 |
+| `tasks` | `design`, `spec` | `research_contracts`, `research_schemas`, `architecture` | 100,000 |
+| `execution` | `tasks` | `research_contracts`, `research_schemas` | 150,000 |
+| `verification` | `spec`, `tasks`, `summary` | `research_contracts`, `research_schemas`, `design` | 120,000 |
+
+Budgets follow research-grounded tiers (discovery 50K, research 80K, planning 100K, execution 150K per executor, verification 120K) — see `docs/research/2025-04-15/SUMMARY.md` theme T6.
 
 ### 2.2 Unknown Artifact Types
 
@@ -93,7 +96,9 @@ When `resolve(artifactType, changePath, specDir, agentBudget?)` is called, the s
 4. Load each `optional` file in declaration order, stopping when:
    - `totalTokens >= budget`, OR
    - fewer than `100` tokens remain in the budget.
-5. Return a `LoadedContext` containing `files`, `totalTokens`, `budget`, and `truncations`.
+5. Return a `LoadedContext` containing `files`, `totalTokens`, `budget`, `truncations`, `warning`, and `droppedOptionals`.
+
+For each optional file whose full content exceeds the remaining budget, the system MUST first attempt a heading-skeleton transformation (see §8). If the skeleton's token count is greater than zero AND fits within the remaining budget, the file MUST be loaded with `strategy: 'skeleton'`. Otherwise the optional source name MUST be appended to `droppedOptionals` and the file MUST NOT be loaded. Optional files that are silently absent (ENOENT) MUST NOT appear in `droppedOptionals`.
 
 ### 4.2 Missing and Unreadable File Handling
 
@@ -122,6 +127,50 @@ Then the system MUST silently skip that file.
 ### 4.3 Budget Invariant
 
 The system MUST guarantee that `totalTokens <= budget` after resolution completes.
+
+### 4.4 Warning Derivation
+
+At the end of `resolve`, the system MUST compute `warning` as follows:
+
+- `null` when `totalTokens / budget < 0.8` AND `droppedOptionals.length === 0` AND `truncations.length === 0`.
+- `'smart-zone'` when `0.8 <= totalTokens / budget < 1.0` AND `droppedOptionals.length === 0` AND `truncations.length === 0`.
+- `'over-budget'` otherwise (either utilization ≥ 100%, or at least one file was truncated, or at least one optional source was dropped).
+
+Given a `LoadedContext` where the utilization is 0.65 and no drops/truncations occurred,
+When the warning is evaluated,
+Then `warning` MUST be `null`.
+
+Given a `LoadedContext` where the utilization is 0.9 and no drops/truncations occurred,
+When the warning is evaluated,
+Then `warning` MUST equal `'smart-zone'`.
+
+Given a `LoadedContext` where at least one optional was dropped,
+When the warning is evaluated,
+Then `warning` MUST equal `'over-budget'`.
+
+### 4.5 `context stats` CLI Surface
+
+The system MUST expose a CLI subcommand `metta context stats` that reports token utilization per artifact for a given change.
+
+- The command MUST accept `--change <name>` (optional), `--artifact <kind>` (optional), and the global `--json` flag.
+- When `--change` is omitted and no active changes exist, the command MUST exit with a non-zero code and an error.
+- When `--change` is omitted and exactly one active change exists, the command MUST use that change.
+- When `--change` is omitted and multiple active changes exist, the command MUST exit with a non-zero code listing the changes.
+- Recommendations per artifact row MUST be:
+  - `ok` when utilization < 80%.
+  - `smart-zone` when 80% ≤ utilization < 100%.
+  - `fan-out` when utilization ≥ 100% AND artifact kind equals `execution`.
+  - `split-phase` when utilization ≥ 100% AND artifact kind is not `execution`.
+- The exit code MUST be `0` even when some artifacts exceed 100% utilization; the recommendation is advisory.
+
+Given an active change whose `execution` artifact resolves to a context above its budget,
+When I run `metta context stats --change <name> --artifact execution --json`,
+Then the output MUST include an `artifacts` array with one entry whose `recommendation` equals `"fan-out"`;
+And the process MUST exit `0`.
+
+Given no active changes and no `--change` flag,
+When I run `metta context stats`,
+Then the command MUST exit with a non-zero code and an error describing that no active change was found.
 
 ---
 
@@ -312,7 +361,17 @@ The system MUST:
 | `gates` | `string[]` | Gate IDs from the artifact definition |
 | `budget.context_tokens` | `number` | Tokens actually consumed |
 | `budget.budget_tokens` | `number` | Agent's declared context budget |
+| `budget.warning` | `'smart-zone' \| 'over-budget' \| undefined` | Present only when utilization ≥ 80% or a file was dropped/truncated |
+| `budget.dropped_optionals` | `string[] \| undefined` | Present iff `budget.warning` is present; lists optional source names not loaded |
 | `questions` | `InstructionQuestion[] \| undefined` | Optional discovery questions |
+
+Given a context load where `totalTokens / budget_tokens < 0.8` and no optionals were dropped,
+When `generate` returns,
+Then `output.budget.warning` MUST be `undefined` and `output.budget.dropped_optionals` MUST be `undefined`.
+
+Given a context load where an optional source was dropped due to budget exhaustion,
+When `generate` returns,
+Then `output.budget.warning` MUST equal `'over-budget'` and `output.budget.dropped_optionals` MUST include that source name.
 
 ### 10.3 Output Path Convention
 
