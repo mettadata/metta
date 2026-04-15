@@ -131,7 +131,7 @@ Task 2.1 reads the files edited in Batch 1. Run only after all three Batch 1 tas
 
 ---
 
-### Task 2.1 — Create tests/grounding.test.ts
+### Task 2.1 — Create tests/grounding.test.ts [x]
 
 **Files**
 - `tests/grounding.test.ts` (new file, create)
