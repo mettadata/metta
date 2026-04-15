@@ -109,7 +109,7 @@
 
 ---
 
-### Task 3.2: Skill template — `/metta-check-constitution`
+### Task 3.2: Skill template — `/metta-check-constitution` [x]
 
 - **Files**
   - Create: `src/templates/skills/metta-check-constitution/SKILL.md`
