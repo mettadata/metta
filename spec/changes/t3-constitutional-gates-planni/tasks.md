@@ -57,7 +57,7 @@
 
 ---
 
-### Task 1.4: Agent template — `metta-constitution-checker`
+### Task 1.4: Agent template — `metta-constitution-checker` [x]
 
 - **Files**
   - Create: `src/templates/agents/metta-constitution-checker.md`
