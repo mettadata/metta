@@ -231,7 +231,7 @@ describe('WorkflowEngine', () => {
 
       const standard = await engine.loadWorkflow('standard', searchPaths)
       expect(standard.name).toBe('standard')
-      expect(standard.artifacts).toHaveLength(7)
+      expect(standard.artifacts).toHaveLength(8)
 
       const full = await engine.loadWorkflow('full', searchPaths)
       expect(full.name).toBe('full')

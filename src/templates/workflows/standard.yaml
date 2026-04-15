@@ -11,13 +11,21 @@ artifacts:
     agents: [proposer]
     gates: []
 
+  - id: stories
+    type: stories
+    template: stories.md
+    generates: stories.md
+    requires: [intent]
+    agents: [product]
+    gates: []
+
   - id: spec
     type: spec
     template: spec.md
     generates: spec.md
-    requires: [intent]
+    requires: [stories]
     agents: [specifier]
-    gates: [spec-quality]
+    gates: [spec-quality, stories-valid]
 
   - id: research
     type: research

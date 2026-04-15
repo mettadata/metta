@@ -1,0 +1,6 @@
+name: stories-valid
+description: Validate user stories schema and Fulfills cross-references
+command: metta validate-stories
+timeout: 30000
+required: true
+on_failure: stop
