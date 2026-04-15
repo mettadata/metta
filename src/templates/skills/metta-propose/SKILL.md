@@ -39,7 +39,7 @@ You are the **orchestrator** for a new spec-driven change. You manage the workfl
 
    - **Round 3 — Edge cases + non-functional (conditional):** Run if the change touches runtime code paths; skip for docs-only or skill-only changes. Ask 2–4 questions on error handling, validation, performance, and security.
 
-   - **Round 4+ — Open-ended (while genuine ambiguity remains):** Ask "Are there any remaining unclear points?" with specific candidate questions derived from the running context. Continue until the AI honestly finds nothing more to resolve (exit criterion a) or the user selects the early-exit option (exit criterion b).
+   - **Round 4+ — Open-ended (while genuine ambiguity remains):** Ask "Are there any remaining unclear points?" with specific candidate questions derived from the running context. Continue until the AI honestly finds nothing more to resolve (exit criterion a) or the user selects the early-exit option (exit criterion b). Soft ceiling: 1–2 open-ended rounds usually suffice — resist asking for the sake of asking. Example status line: `Resolved: auth strategy, session duration. Open: password requirements — proceeding to Round 2.`
 
    **Final:** Pass ALL cumulative answers from every completed round to the proposer subagent as structured context for `intent.md`. Answers from later rounds supplement, not replace, earlier answers.
 

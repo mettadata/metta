@@ -28,7 +28,7 @@ You are the **orchestrator** for a quick change (intent → implementation → r
    - **Round 1 (scope + architecture):** always runs once the loop is engaged. Ask 2–4 questions covering scope boundaries and architectural approach.
    - **Round 2 (data model + integration points):** conditional — run when the change involves file schemas, API contracts, external system calls, or store methods. Skip otherwise.
    - **Round 3 (edge cases + non-functional):** conditional — run when the change touches runtime code paths. Skip for docs-only or skill-only changes.
-   - **Round 4+ (open-ended):** repeat while you honestly find remaining ambiguity; stop when none remains.
+   - **Round 4+ (open-ended):** repeat while you honestly find remaining ambiguity; stop when none remains. Soft ceiling: 1–2 open-ended rounds usually suffice — resist asking for the sake of asking.
    - **Between-round status line** (print verbatim format before each new round):
      `Resolved: <A>, <B>. Open: <C> — proceeding to Round N.`
      When no further rounds are needed: `Resolved: all questions. Proceeding to proposer subagent.`
