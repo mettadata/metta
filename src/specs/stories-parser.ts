@@ -222,12 +222,17 @@ export async function parseStories(path: string): Promise<StoriesDocument> {
     if (!current) continue
 
     if (node.type === 'paragraph') {
+      // Tolerate compact format: when a paragraph has multiple labeled lines
+      // (no blank-line separators between fields), match each line independently.
       const paraText = extractText(node).trim()
-      for (const { prefix, key } of FIELD_PREFIXES) {
-        if (paraText.startsWith(prefix)) {
-          const value = stripFieldPrefix(paraText, prefix)
-          ;(current as unknown as Record<string, string>)[key as string] = value
-          break
+      const lines = paraText.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0)
+      for (const line of lines) {
+        for (const { prefix, key } of FIELD_PREFIXES) {
+          if (line.startsWith(prefix)) {
+            const value = stripFieldPrefix(line, prefix)
+            ;(current as unknown as Record<string, string>)[key as string] = value
+            break
+          }
         }
       }
       continue
