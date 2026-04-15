@@ -25,7 +25,7 @@
 
 ---
 
-### Task 1.2: ConstitutionParser
+### Task 1.2: ConstitutionParser [x]
 
 - **Files**
   - Create: `src/constitution/constitution-parser.ts`
