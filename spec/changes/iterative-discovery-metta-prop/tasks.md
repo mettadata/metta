@@ -86,7 +86,7 @@ After writing `src/templates/skills/metta-quick/SKILL.md`, copy it byte-identica
 
 ## Batch 2 — Static test file (depends on Batch 1)
 
-### Task 2.1 — Add skill-discovery-loop.test.ts with 11 assertions
+### Task 2.1 — Add skill-discovery-loop.test.ts with 11 assertions [x]
 
 **Files:**
 - `tests/skill-discovery-loop.test.ts` (create new)
