@@ -231,7 +231,7 @@ Run only after Task 2.1 is committed.
 
 ---
 
-### Task 3.1 — Build and verify full test suite passes
+### Task 3.1 — Build and verify full test suite passes[x]
 
 **Files**
 - No files modified. Read-only gate.
