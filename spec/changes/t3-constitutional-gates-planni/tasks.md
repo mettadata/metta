@@ -93,7 +93,7 @@
 
 ## Batch 3 (depends on 2.1)
 
-### Task 3.1: CLI command `metta check-constitution`
+### Task 3.1: CLI command `metta check-constitution` [x]
 
 - **Files**
   - Create: `src/cli/commands/check-constitution.ts`
