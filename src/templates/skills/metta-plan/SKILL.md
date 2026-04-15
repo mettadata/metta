@@ -17,6 +17,14 @@ You are the **orchestrator** for building planning artifacts. Spawn subagents fo
    c. Subagent writes the artifact file with real content, then git commits
    d. `metta complete <artifact> --json --change <name>` → returns next artifact
 3. Continue until all planning artifacts are complete
+4. **Run constitution check:**
+   After all planning artifacts are committed, run `metta check-constitution --change <name> --json` via Bash.
+   - On exit 0: report "Constitution check passed" with the violations_path. Proceed to implementation.
+   - On exit 4: read the JSON output's `violations` array. For each blocking violation (severity critical, OR major without justification), surface it to the user with the violations_path. Tell the user to either:
+     (a) edit spec.md to eliminate the violation, or
+     (b) for major severity only, add a `## Complexity Tracking` section (or append to existing) with a bullet `- <article>: <rationale>` justifying it. Critical violations are never justifiable — they must be removed.
+   - Do NOT advance to implementation on exit 4. Halt and await user action.
+   - On re-entry to this skill after user edits, the check re-runs automatically.
 
 ## Subagent Prompt
 

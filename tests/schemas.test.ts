@@ -17,6 +17,9 @@ import {
   GateDefinitionSchema,
   PluginManifestSchema,
   StateFileSchema,
+  ViolationSchema,
+  ViolationListSchema,
+  SeveritySchema,
 } from '../src/schemas/index.js'
 
 describe('ChangeMetadataSchema', () => {
@@ -1027,6 +1030,84 @@ describe('ExecutionBatchSchema', () => {
       tasks: [],
       extra: true,
     })
+    expect(result.success).toBe(false)
+  })
+})
+
+describe('ViolationSchema', () => {
+  it('parses a valid violation object', () => {
+    const data = {
+      article: 'No singletons',
+      severity: 'major',
+      evidence: 'a singleton registry instance',
+      suggestion: 'Refactor to inject the registry',
+    }
+    const result = ViolationSchema.safeParse(data)
+    expect(result.success).toBe(true)
+  })
+
+  it('rejects unknown severity values', () => {
+    const data = {
+      article: 'No singletons',
+      severity: 'fatal',
+      evidence: 'evidence text',
+      suggestion: 'fix it',
+    }
+    const result = ViolationSchema.safeParse(data)
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects missing fields', () => {
+    const data = {
+      article: 'No singletons',
+      severity: 'minor',
+      evidence: 'evidence text',
+    }
+    const result = ViolationSchema.safeParse(data)
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects empty string fields', () => {
+    const data = {
+      article: '',
+      severity: 'minor',
+      evidence: 'e',
+      suggestion: 's',
+    }
+    const result = ViolationSchema.safeParse(data)
+    expect(result.success).toBe(false)
+  })
+
+  it('accepts each severity value', () => {
+    for (const severity of ['critical', 'major', 'minor'] as const) {
+      const result = SeveritySchema.safeParse(severity)
+      expect(result.success).toBe(true)
+    }
+  })
+})
+
+describe('ViolationListSchema', () => {
+  it('accepts an empty violations array (clean spec signal)', () => {
+    const result = ViolationListSchema.safeParse({ violations: [] })
+    expect(result.success).toBe(true)
+  })
+
+  it('accepts a populated violations array', () => {
+    const result = ViolationListSchema.safeParse({
+      violations: [
+        {
+          article: 'No singletons',
+          severity: 'critical',
+          evidence: 'a singleton registry instance',
+          suggestion: 'inject the registry',
+        },
+      ],
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('rejects when violations field is missing', () => {
+    const result = ViolationListSchema.safeParse({})
     expect(result.success).toBe(false)
   })
 })

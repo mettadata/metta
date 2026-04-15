@@ -33,6 +33,7 @@ import { registerImportCommand } from './commands/import.js'
 import { registerGapsCommand } from './commands/gaps.js'
 import { registerFixGapCommand } from './commands/fix-gap.js'
 import { registerFixIssueCommand } from './commands/fix-issue.js'
+import { registerCheckConstitutionCommand } from './commands/check-constitution.js'
 import { registerReconcileCommand } from './commands/reconcile.js'
 import { registerDocsCommand } from './commands/docs.js'
 
@@ -79,6 +80,7 @@ registerImportCommand(program)
 registerGapsCommand(program)
 registerFixGapCommand(program)
 registerFixIssueCommand(program)
+registerCheckConstitutionCommand(program)
 registerReconcileCommand(program)
 registerDocsCommand(program)
 

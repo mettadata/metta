@@ -639,6 +639,107 @@ describe('CLI', { timeout: 30000 }, () => {
     })
   })
 
+  describe('byte-identity: metta-constitution-checker agent', () => {
+    it('template and deployed copy are byte-identical with required frontmatter', async () => {
+      const { readFile } = await import('node:fs/promises')
+      const templatePath = join(
+        import.meta.dirname, '..', 'src', 'templates', 'agents', 'metta-constitution-checker.md',
+      )
+      const deployedPath = join(
+        import.meta.dirname, '..', '.claude', 'agents', 'metta-constitution-checker.md',
+      )
+      const template = await readFile(templatePath, 'utf8')
+      const deployed = await readFile(deployedPath, 'utf8')
+      expect(template).toBe(deployed)
+      expect(template).toMatch(/^---\n[\s\S]*?name:\s*metta-constitution-checker[\s\S]*?\n---/)
+      // tools: must restrict to [Read] only
+      expect(template).toMatch(/tools:\s*\[\s*Read\s*\]/)
+    })
+  })
+
+  describe('byte-identity: metta-check-constitution skill', () => {
+    it('template and deployed copy are byte-identical with required frontmatter', async () => {
+      const { readFile } = await import('node:fs/promises')
+      const templatePath = join(
+        import.meta.dirname, '..', 'src', 'templates', 'skills', 'metta-check-constitution', 'SKILL.md',
+      )
+      const deployedPath = join(
+        import.meta.dirname, '..', '.claude', 'skills', 'metta-check-constitution', 'SKILL.md',
+      )
+      const template = await readFile(templatePath, 'utf8')
+      const deployed = await readFile(deployedPath, 'utf8')
+      expect(template).toBe(deployed)
+      expect(template).toMatch(/^---\n[\s\S]*?name:\s*metta:check-constitution[\s\S]*?\n---/)
+    })
+  })
+
+  describe('metta check-constitution', () => {
+    async function runCliWithEnv(
+      args: string[],
+      cwd: string,
+      env: NodeJS.ProcessEnv,
+    ): Promise<{ stdout: string; stderr: string; code: number }> {
+      try {
+        const { stdout, stderr } = await execAsync(
+          'npx',
+          ['tsx', CLI_PATH, ...args],
+          { cwd, timeout: 30000, env },
+        )
+        return { stdout, stderr, code: 0 }
+      } catch (err: unknown) {
+        const e = err as { stdout?: string; stderr?: string; code?: number }
+        return { stdout: e.stdout ?? '', stderr: e.stderr ?? '', code: e.code ?? 1 }
+      }
+    }
+
+    it('errors with exit 4 on missing change', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      const env = { ...process.env, ANTHROPIC_API_KEY: 'sk-test-fake' }
+      const { stdout, code } = await runCliWithEnv(
+        ['--json', 'check-constitution', '--change', 'does-not-exist'],
+        tempDir,
+        env,
+      )
+      expect(code).toBe(4)
+      const data = JSON.parse(stdout)
+      expect(data.error.code).toBe(4)
+      expect(data.error.type).toBe('check_constitution_error')
+      expect(data.error.message.length).toBeGreaterThan(0)
+    })
+
+    it('errors with exit 4 when no ANTHROPIC_API_KEY is set', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await runCli(['propose', 'check constitution probe'], tempDir)
+      const env: NodeJS.ProcessEnv = {}
+      for (const [k, v] of Object.entries(process.env)) {
+        if (k !== 'ANTHROPIC_API_KEY' && v !== undefined) env[k] = v
+      }
+      const { stdout, code } = await runCliWithEnv(
+        ['--json', 'check-constitution'],
+        tempDir,
+        env,
+      )
+      expect(code).toBe(4)
+      const data = JSON.parse(stdout)
+      expect(data.error.code).toBe(4)
+      expect(data.error.type).toBe('check_constitution_error')
+    })
+
+    it('--help shows the command description', async () => {
+      const { stdout, code } = await runCli(['check-constitution', '--help'], tempDir)
+      expect(code).toBe(0)
+      expect(stdout).toContain('check-constitution')
+      expect(stdout.toLowerCase()).toContain('constitution')
+      expect(stdout).toContain('--change')
+    })
+
+    it('is registered in the main help listing', async () => {
+      const { stdout, code } = await runCli(['--help'], tempDir)
+      expect(code).toBe(0)
+      expect(stdout).toContain('check-constitution')
+    })
+  })
+
   describe('metta-fix-issues skill template', () => {
     it('template exists with frontmatter name metta:fix-issues', async () => {
       const { readFile } = await import('node:fs/promises')
