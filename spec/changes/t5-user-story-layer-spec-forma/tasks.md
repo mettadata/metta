@@ -529,7 +529,7 @@ Use `readFile` from `node:fs/promises`. No mocking needed — these are file-on-
 
 ## Batch 5 — Full verification (depends on all prior batches)
 
-### 5.1 Full build + test suite + smoke
+### 5.1 Full build + test suite + smoke [x]
 
 **Files**
 - (no new files; verification only)
