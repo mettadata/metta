@@ -33,6 +33,16 @@ export function registerValidateStoriesCommand(program: Command): void {
       const json = program.opts().json
       const ctx = createCliContext()
       try {
+        // No --change flag and no active changes — nothing to validate.
+        // Used when invoked as a gate post-archive (the change just shipped).
+        if (!options.change) {
+          const changes = await ctx.artifactStore.listChanges()
+          if (changes.length === 0) {
+            if (json) outputJson({ ok: true, change: null, message: 'no active changes to validate' })
+            else console.log('validate-stories: no active changes to validate')
+            process.exit(0)
+          }
+        }
         const changeName = await resolveChangeName(ctx, options.change)
         assertSafeSlug(changeName, 'change name')
 
