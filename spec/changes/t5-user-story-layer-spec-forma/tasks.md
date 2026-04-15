@@ -502,7 +502,7 @@ All 4+ validate-stories CLI tests green; no regressions in existing CLI tests.
 
 ---
 
-### 4.4 Byte-identity and agent frontmatter tests
+### 4.4 Byte-identity and agent frontmatter tests [x]
 
 **Files**
 - `tests/agents-byte-identity.test.ts` (new)
