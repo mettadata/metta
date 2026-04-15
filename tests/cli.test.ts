@@ -639,6 +639,40 @@ describe('CLI', { timeout: 30000 }, () => {
     })
   })
 
+  describe('byte-identity: metta-constitution-checker agent', () => {
+    it('template and deployed copy are byte-identical with required frontmatter', async () => {
+      const { readFile } = await import('node:fs/promises')
+      const templatePath = join(
+        import.meta.dirname, '..', 'src', 'templates', 'agents', 'metta-constitution-checker.md',
+      )
+      const deployedPath = join(
+        import.meta.dirname, '..', '.claude', 'agents', 'metta-constitution-checker.md',
+      )
+      const template = await readFile(templatePath, 'utf8')
+      const deployed = await readFile(deployedPath, 'utf8')
+      expect(template).toBe(deployed)
+      expect(template).toMatch(/^---\n[\s\S]*?name:\s*metta-constitution-checker[\s\S]*?\n---/)
+      // tools: must restrict to [Read] only
+      expect(template).toMatch(/tools:\s*\[\s*Read\s*\]/)
+    })
+  })
+
+  describe('byte-identity: metta-check-constitution skill', () => {
+    it('template and deployed copy are byte-identical with required frontmatter', async () => {
+      const { readFile } = await import('node:fs/promises')
+      const templatePath = join(
+        import.meta.dirname, '..', 'src', 'templates', 'skills', 'metta-check-constitution', 'SKILL.md',
+      )
+      const deployedPath = join(
+        import.meta.dirname, '..', '.claude', 'skills', 'metta-check-constitution', 'SKILL.md',
+      )
+      const template = await readFile(templatePath, 'utf8')
+      const deployed = await readFile(deployedPath, 'utf8')
+      expect(template).toBe(deployed)
+      expect(template).toMatch(/^---\n[\s\S]*?name:\s*metta:check-constitution[\s\S]*?\n---/)
+    })
+  })
+
   describe('metta-fix-issues skill template', () => {
     it('template exists with frontmatter name metta:fix-issues', async () => {
       const { readFile } = await import('node:fs/promises')

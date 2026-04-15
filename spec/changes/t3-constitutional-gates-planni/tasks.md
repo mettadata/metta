@@ -156,7 +156,7 @@
 
 ---
 
-### Task 4.3: Static byte-identity tests
+### Task 4.3: Static byte-identity tests [x]
 
 - **Files**
   - Modify: `tests/schemas.test.ts` (or a new `tests/static-files.test.ts` if cleaner separation is preferred)
