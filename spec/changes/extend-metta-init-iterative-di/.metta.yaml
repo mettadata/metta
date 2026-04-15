@@ -1,13 +1,13 @@
 workflow: standard
 created: 2026-04-15T07:06:36.851Z
 status: active
-current_artifact: stories
+current_artifact: spec
 base_versions: {}
 artifacts:
   intent: complete
   stories: complete
-  spec: ready
-  research: pending
+  spec: complete
+  research: ready
   design: pending
   tasks: pending
   implementation: pending
