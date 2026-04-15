@@ -285,7 +285,7 @@ Import `ParsedRequirement` from `../specs/spec-parser.js` and `StoriesDocument` 
 
 ## Batch 3 — CLI command, spec-parser extension, gate YAML (depends on 2.x)
 
-### 3.1 validate-stories CLI command + registration
+### 3.1 validate-stories CLI command + registration [x]
 
 **Files**
 - `src/cli/commands/validate-stories.ts` (new)
