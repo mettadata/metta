@@ -1,0 +1,13 @@
+version: 1
+hash: sha256:f2091fa2fc86
+updated: 2026-04-15T05:29:05.466Z
+status: draft
+source: change
+requirements:
+  - id: ship-finalize-check
+    hash: sha256:66acdf0477c0
+    scenarios:
+      - unfinalized-metta-branch-is-blocked-before-any-git-ops
+      - finalized-metta-branch-passes-check-and-pipeline-proceeds
+      - non-metta-branch-skips-finalize-check-and-pipeline-proceeds
+      - finalized-metta-branch-with-clean-working-tree-passes-all-preflights
