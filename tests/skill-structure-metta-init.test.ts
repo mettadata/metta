@@ -29,11 +29,19 @@ describe('metta-init SKILL.md structure', () => {
     expect(countOccurrences(full, EXIT_PHRASE)).toBeGreaterThanOrEqual(3)
   })
 
-  it('Round 1 contains no WebSearch references (REQ-37)', async () => {
+  it('Round 1 contains no WebSearch or WebFetch references (REQ-37)', async () => {
     const full = await readFile(SKILL_PATH, 'utf8')
     const parts = sections(full)
     const r1Section = parts.find(p => /^## Round 1/im.test(p)) ?? ''
     expect(r1Section).not.toContain('WebSearch')
+    expect(r1Section).not.toContain('WebFetch')
+  })
+
+  it('template and deployed copy of SKILL.md are byte-identical', async () => {
+    const template = await readFile(SKILL_PATH, 'utf8')
+    const deployedPath = join(import.meta.dirname, '..', '.claude', 'skills', 'metta-init', 'SKILL.md')
+    const deployed = await readFile(deployedPath, 'utf8')
+    expect(deployed).toBe(template)
   })
 
   it('Round 2 and Round 3 reference WebSearch (REQ-38)', async () => {
