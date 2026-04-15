@@ -13,7 +13,7 @@ Tasks 1.1, 1.2, and 1.3 touch separate files and have no shared state. Run in pa
 
 ---
 
-### Task 1.1 — Add WebSearch/WebFetch and Grounding section to metta-researcher
+### Task 1.1 — Add WebSearch/WebFetch and Grounding section to metta-researcher [x]
 
 **Files**
 - `src/templates/agents/metta-researcher.md` (canonical source, edit)
