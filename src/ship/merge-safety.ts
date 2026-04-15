@@ -1,4 +1,6 @@
 import { exec } from 'node:child_process'
+import { readdir } from 'node:fs/promises'
+import { join } from 'node:path'
 import { promisify } from 'node:util'
 
 const execAsync = promisify(exec)
@@ -30,6 +32,31 @@ export class MergeSafetyPipeline {
     dryRun: boolean = false,
   ): Promise<MergeSafetyResult> {
     const steps: MergeSafetyStep[] = []
+
+    // First step: finalize-check — block ship of metta/* branches whose change is not archived
+    const metaMatch = sourceBranch.match(/^metta\/(.+)$/)
+    if (!metaMatch) {
+      steps.push({ step: 'finalize-check', status: 'skip', detail: 'non-metta branch' })
+    } else {
+      const changeName = metaMatch[1]
+      const archiveDir = join(this.cwd, 'spec', 'archive')
+      let archiveMatches: string[] = []
+      try {
+        const entries = await readdir(archiveDir)
+        archiveMatches = entries.filter(e => e.endsWith(`-${changeName}`))
+      } catch {
+        // archive dir doesn't exist
+      }
+      if (archiveMatches.length === 0) {
+        steps.push({
+          step: 'finalize-check',
+          status: 'fail',
+          detail: `change not finalized — run metta finalize --change ${changeName} first`,
+        })
+        return { status: 'failure', steps }
+      }
+      steps.push({ step: 'finalize-check', status: 'pass', detail: archiveMatches[0] })
+    }
 
     // Step 0: Record starting branch and check working tree is clean
     let startingBranch: string | null = null
