@@ -1,11 +1,12 @@
 #!/bin/bash
-# Usage: ./loop.sh [plan|build] [max_iterations]
+set -o pipefail
+# Usage: ./loop_streamed.sh [plan|build] [max_iterations]
 # Examples:
-#   ./loop.sh              # Build mode, unlimited iterations
-#   ./loop.sh 20           # Build mode, max 20 iterations
-#   ./loop.sh build 20     # Build mode, max 20 iterations
-#   ./loop.sh plan         # Plan mode, unlimited iterations
-#   ./loop.sh plan 5       # Plan mode, max 5 iterations
+#   ./loop_streamed.sh              # Build mode, unlimited iterations
+#   ./loop_streamed.sh 20           # Build mode, max 20 iterations
+#   ./loop_streamed.sh build 20     # Build mode, max 20 iterations
+#   ./loop_streamed.sh plan         # Plan mode, unlimited iterations
+#   ./loop_streamed.sh plan 5       # Plan mode, max 5 iterations
 
 # Parse arguments
 if [ "$1" = "plan" ]; then
@@ -53,17 +54,31 @@ while true; do
     fi
 
     # Run Ralph iteration with selected prompt
-    # -p: Headless mode (non-interactive, reads from stdin)
+    # -p: Headless mode (non-interactive, prints output and exits)
     # --dangerously-skip-permissions: Auto-approve all tool calls (YOLO mode)
-    # --output-format=stream-json: Structured output for logging/monitoring
-    # --model opus: Primary agent uses Opus for complex reasoning (task selection, prioritization)
-    #               Can use 'sonnet' in build mode for speed if plan is clear and tasks well-defined
+    # --model opus: Primary agent uses Opus for complex reasoning
     # --verbose: Detailed execution logging
-    cat "$PROMPT_FILE" | claude -p \
+    # --output-format stream-json: Structured output piped to parse_stream.js
+    # --include-partial-messages: Stream partial tool results for live feedback
+
+    FULL_PROMPT="$(cat "$PROMPT_FILE")
+
+Execute the instructions above."
+
+    echo "⏳ Running Claude..."
+    echo ""
+
+    # Stream JSON with partial messages, parse for readable output
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    claude -p "$FULL_PROMPT" \
         --dangerously-skip-permissions \
-        --output-format=stream-json \
         --model opus \
-        --verbose
+        --verbose \
+        --output-format stream-json \
+        --include-partial-messages | node "$SCRIPT_DIR/parse_stream.js"
+
+    echo ""
+    echo "✅ Claude iteration complete"
 
     # Push changes after each iteration
     git push origin "$CURRENT_BRANCH" || {

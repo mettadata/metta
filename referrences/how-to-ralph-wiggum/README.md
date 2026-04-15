@@ -18,7 +18,10 @@ Below is the result - a (likely OCD-fueled) Ralph Playbook that organizes the mi
 
 > Digging into all of this has also brought to mind some possibly valuable [additional enhancements](#enhancements) to the core approach that aim to stay aligned with the guidelines that make Ralph work so well.
 
-> [!TIP] > [📖 View as Formatted Guide →](https://ClaytonFarr.github.io/ralph-playbook/)
+> [!TIP]
+> View as [📖 Formatted Guide →](https://ClaytonFarr.github.io/ralph-playbook/)
+
+Hope this helps you out - [@ClaytonFarr](https://x.com/ClaytonFarr)
 
 ---
 
@@ -27,6 +30,7 @@ Below is the result - a (likely OCD-fueled) Ralph Playbook that organizes the mi
 - [Workflow](#workflow)
 - [Key Principles](#key-principles)
 - [Loop Mechanics](#loop-mechanics)
+- [License](#license)
 - [Files](#files)
 - [Enhancements?](#enhancements)
 
@@ -156,7 +160,7 @@ Creating the right signals & gates to steer Ralph's successful output is **criti
   - If Ralph is generating wrong patterns, add/update utilities and existing code patterns to steer it toward correct ones
 - _Steer downstream_
   - Create backpressure via tests, typechecks, lints, builds, etc. that will reject invalid/unacceptable work
-  - Prompt says "run tests" generically. `AGENTS .md` specifies actual commands to make backpressure project-specific
+  - Prompt says "run tests" generically. `AGENTS.md` specifies actual commands to make backpressure project-specific
   - Backpressure can extend beyond code validation: some acceptance criteria resist programmatic checks - creative quality, aesthetics, UX feel. LLM-as-judge tests can provide backpressure for subjective criteria with binary pass/fail. ([More detailed thoughts below](#non-deterministic-backpressure) on how to approach this with Ralph.)
 - _Remind Ralph to create/use backpressure_
   - Remind Ralph to use backpressure when implementing: "Important: When authoring documentation, capture the why — tests and implementation importance."
@@ -191,9 +195,16 @@ _Tune it like a guitar_ – instead of prescribing everything upfront, observe a
 But signs aren't just prompt text. They're _anything_ Ralph can discover:
 
 - Prompt guardrails - explicit instructions like "don't assume not implemented"
-- `AGENTS .md` - operational learnings about how to build/test
+- `AGENTS.md` - operational learnings about how to build/test
 - Utilities in your codebase - when you add a pattern, Ralph discovers it and follows it
 - Other discoverable, relevant inputs…
+
+> [!TIP]
+>
+> 1. try starting with _nothing_ in `AGENTS.md` (empty file; no _best practices_, etc.)
+> 2. spot-test desired actions, find missteps ([walkthrough example from Geoff](https://x.com/ClaytonFarr/status/2010780371542241508))
+> 3. watch initial loops, see where gaps occur
+> 4. tune behavior _only as needed_, via AGENTS updates and/or code patterns (shared utilities, etc.)
 
 And remember, _the plan is disposable:_
 
@@ -210,7 +221,9 @@ And remember, _the plan is disposable:_
 
 ## Loop Mechanics
 
-### Outer Loop Control
+### I. Task Selection
+
+`loop.sh` acts in effect as an 'outer loop' where each loop = a single task (in separate sessions). When the task is completed, `loop.sh` kicks off a fresh session to select the next task, if any remaining tasks are available.
 
 Geoff's initial minimal form of `loop.sh` script:
 
@@ -225,16 +238,20 @@ _What controls task continuation?_
 The continuation mechanism is elegantly simple:
 
 1. _Bash loop runs_ → feeds `PROMPT.md` to claude
-2. _PROMPT.md instructs_ → "Study IMPLEMENTATION_PLAN.md and choose the most important thing"
+2. _PROMPT.md instructs_ → "Study IMPLEMENTATION_PLAN.md and choose the most important thing..."
 3. _Agent completes one task_ → updates IMPLEMENTATION_PLAN.md on disk, commits, exits
 4. _Bash loop restarts immediately_ → fresh context window
-5. _Agent reads updated plan_ → picks next most important thing
+5. _Agent reads updated plan_ → picks next most important thing...
 
 _Key insight:_ The IMPLEMENTATION_PLAN.md file persists on disk between iterations and acts as shared state between otherwise isolated loop executions. Each iteration deterministically loads the same files (`PROMPT.md` + `AGENTS.md` + `specs/*`) and reads the current state from disk.
 
 _No sophisticated orchestration needed_ - just a dumb bash loop that keeps restarting the agent, and the agent figures out what to do next by reading the plan file each time.
 
-### Inner Loop Control (Task Execution)
+### II. Task Execution
+
+Each task is prompted to keep doing its work against backpressure (tests, etc) until it passes - creating a pseudo inner 'loop' (in single session).
+
+This inner loop is just internal self-correction / iterative reasoning within one long model response, powered by backpressure prompts, tool use, and subagents. It's not a loop in the programming sense.
 
 A single task execution has no hard technical limit. Control relies on:
 
@@ -244,9 +261,9 @@ A single task execution has no hard technical limit. Control relies on:
 
 _Ralph can go in circles, ignore instructions, or take wrong directions_ - this is expected and part of the tuning process. When Ralph "tests you" by failing in specific ways, you add guardrails to the prompt or adjust backpressure mechanisms. The nondeterminism is manageable through observation and iteration.
 
-### Enhanced Loop Example
+### Enhanced `loop.sh` Example
 
-Wraps core loop with mode selection (plan/build), max-iterations support, and git push after each iteration.
+Wraps core loop with mode selection (plan/build), with max-iterations for max number of tasks to complete, and git push after each iteration.
 
 _This enhancement uses two saved prompt files:_
 
@@ -255,12 +272,13 @@ _This enhancement uses two saved prompt files:_
 
 ```bash
 #!/bin/bash
-# Usage: ./loop.sh [plan] [max_iterations]
+# Usage: ./loop.sh [plan|build] [max_iterations]
 # Examples:
-#   ./loop.sh              # Build mode, unlimited iterations
-#   ./loop.sh 20           # Build mode, max 20 iterations
-#   ./loop.sh plan         # Plan mode, unlimited iterations
-#   ./loop.sh plan 5       # Plan mode, max 5 iterations
+#   ./loop.sh              # Build mode, unlimited tasks
+#   ./loop.sh 20           # Build mode, max 20 tasks
+#   ./loop.sh build 20     # Build mode, max 20 tasks
+#   ./loop.sh plan         # Plan mode, unlimited tasks
+#   ./loop.sh plan 5       # Plan mode, max 5 tasks
 
 # Parse arguments
 if [ "$1" = "plan" ]; then
@@ -268,8 +286,13 @@ if [ "$1" = "plan" ]; then
     MODE="plan"
     PROMPT_FILE="PROMPT_plan.md"
     MAX_ITERATIONS=${2:-0}
+elif [ "$1" = "build" ]; then
+    # Explicit build mode (with optional max iterations)
+    MODE="build"
+    PROMPT_FILE="PROMPT_build.md"
+    MAX_ITERATIONS=${2:-0}
 elif [[ "$1" =~ ^[0-9]+$ ]]; then
-    # Build mode with max iterations
+    # Build mode with max tasks (bare number)
     MODE="build"
     PROMPT_FILE="PROMPT_build.md"
     MAX_ITERATIONS=$1
@@ -287,7 +310,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "Mode:   $MODE"
 echo "Prompt: $PROMPT_FILE"
 echo "Branch: $CURRENT_BRANCH"
-[ $MAX_ITERATIONS -gt 0 ] && echo "Max:    $MAX_ITERATIONS iterations"
+[ $MAX_ITERATIONS -gt 0 ] && echo "Max:    $MAX_ITERATIONS iterations (number of tasks)"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 # Verify prompt file exists
@@ -298,7 +321,7 @@ fi
 
 while true; do
     if [ $MAX_ITERATIONS -gt 0 ] && [ $ITERATION -ge $MAX_ITERATIONS ]; then
-        echo "Reached max iterations: $MAX_ITERATIONS"
+        echo "Reached max iterations (number of tasks): $MAX_ITERATIONS"
         break
     fi
 
@@ -333,7 +356,7 @@ _Mode selection:_
 
 _Max-iterations:_
 
-- Limits the _outer loop_ (number of tasks attempted; NOT tool calls within a single task)
+- Limits the _task selection loop_ (number of tasks attempted; NOT tool calls within a single task)
 - Each iteration = one fresh context window = one task from IMPLEMENTATION_PLAN.md = one commit
 - `./loop.sh` runs unlimited (manual stop with Ctrl+C)
 - `./loop.sh 20` runs max 20 iterations then stops
@@ -345,6 +368,28 @@ _Claude CLI flags:_
 - `--output-format=stream-json`: Outputs structured JSON for logging/monitoring/visualization
 - `--model opus`: Primary agent uses Opus for task selection, prioritization, and coordination (can use `sonnet` for speed if tasks are clear)
 - `--verbose`: Provides detailed execution logging
+
+### Streamed Output Variant
+
+An alternative `loop_streamed.sh` that pipes Claude's raw JSON output through `parse_stream.js` for readable, color-coded terminal display showing tool calls, results, and execution stats.
+
+_Differences from base `loop.sh`:_
+
+- Passes prompt as argument (`-p "$FULL_PROMPT"`) instead of stdin pipe
+- Adds `--include-partial-messages` for real-time streaming
+- Pipes output through `parse_stream.js` (Node.js, no dependencies)
+- Appends "Execute the instructions above." to prompt content
+
+_Files:_ [`loop_streamed.sh`](files/loop_streamed.sh) · [`parse_stream.js`](files/parse_stream.js)
+
+— contributed by [@terry-xyz](https://github.com/terry-xyz) · [@blackrosesxyz](https://x.com/blackrosesxyz)
+
+## License
+
+This repository is available under the [MIT License](LICENSE).
+
+Third-party screenshots and externally sourced images are excluded unless
+explicitly noted otherwise. See [NOTICE](NOTICE) for details.
 
 ---
 
@@ -366,7 +411,7 @@ project-root/
 
 ### `loop.sh`
 
-The outer loop script that orchestrates Ralph iterations.
+The primary loop script that orchestrates Ralph iterations.
 
 See [Loop Mechanics](#loop-mechanics) section for detailed implementation examples and configuration options.
 
@@ -376,7 +421,7 @@ _Setup:_ Make the script executable before first use:
 chmod +x loop.sh
 ```
 
-_Core function:_ Continuously feeds prompt file to claude, manages iteration limits, and pushes changes after each task completion.
+_Core function:_ Continuously feeds prompt file to Claude, manages iteration limits, and pushes changes after each task completion.
 
 ### PROMPTS
 
@@ -396,7 +441,7 @@ _Key Language Patterns_ (Geoff's specific phrasing):
 - "don't assume not implemented" (critical - the Achilles' heel)
 - "using parallel subagents" / "up to N subagents"
 - "only 1 subagent for build/tests" (backpressure control)
-- "Think extra hard" (now "Ultrathink)
+- "Think extra hard" (now "Ultrathink")
 - "capture the why"
 - "keep it up to date"
 - "if functionality is missing then it's your job to add it"
@@ -445,7 +490,7 @@ _Note:_ Current subagents names presume using Claude.
 99999999999. For any bugs you notice, resolve them or document them in @IMPLEMENTATION_PLAN.md using a subagent even if it is unrelated to the current piece of work.
 999999999999. Implement functionality completely. Placeholders and stubs waste efforts and time redoing the same work.
 9999999999999. When @IMPLEMENTATION_PLAN.md becomes large periodically clean out the items that are completed from the file using a subagent.
-99999999999999. If you find inconsistencies in the specs/* then use an Opus 4.5 subagent with 'ultrathink' requested to update the specs.
+99999999999999. If you find inconsistencies in the specs/* then use an Opus 4.6 subagent with 'ultrathink' requested to update the specs.
 999999999999999. IMPORTANT: Keep @AGENTS.md operational only — status updates and progress notes belong in `IMPLEMENTATION_PLAN.md`. A bloated AGENTS.md pollutes every future loop's context.
 ```
 
@@ -530,8 +575,6 @@ Referenced in `PROMPT.md` templates for orientation steps.
 
 ## Enhancements?
 
-I'm (Clayton) still determining the value/viability of these possible enhancements, but the opportunities sound promising.
-
 I'm still determining the value/viability of these, but the opportunities sound promising:
 
 - [Claude's AskUserQuestionTool for Planning](#use-claudes-askuserquestiontool-for-planning) - use Claude's built-in interview tool to systematically clarify JTBD, edge cases, and acceptance criteria for specs.
@@ -539,6 +582,8 @@ I'm still determining the value/viability of these, but the opportunities sound 
 - [Non-Deterministic Backpressure](#non-deterministic-backpressure) - Using LLM-as-judge for tests against subjective tasks (tone, aesthetics, UX). Binary pass/fail reviews that iterate until pass.
 - [Ralph-Friendly Work Branches](#ralph-friendly-work-branches) - Asking Ralph to "filter to feature X" at runtime is unreliable. Instead, create scoped plan per branch upfront.
 - [JTBD → Story Map → SLC Release](#jtbd--story-map--slc-release) - Push the power of "Letting Ralph Ralph" to connect JTBD's audience and activities to Simple/Lovable/Complete releases.
+- [Specs Audit](#specs-audit) - Dedicated mode for generating/maintaining specs with quality rules: behavioral outcomes only, topic scoping, consistent naming.
+- [Reverse Engineering Brownfield Projects to Specs](#reverse-engineering-brownfield-projects-to-specs) - Bring brownfield codebases into Ralph's workflow by reverse-engineering existing code into specs before planning new work.
 
 ---
 
@@ -884,11 +929,12 @@ Extends the base enhanced loop script to add work branch support with scoped pla
 set -euo pipefail
 
 # Usage:
-#   ./loop.sh [plan] [max_iterations]       # Plan/build on current branch
+#   ./loop.sh [plan|build] [max_iterations]  # Plan/build on current branch
 #   ./loop.sh plan-work "work description"  # Create scoped plan on current branch
 # Examples:
 #   ./loop.sh                               # Build mode, unlimited
 #   ./loop.sh 20                            # Build mode, max 20
+#   ./loop.sh build 20                      # Build mode, max 20
 #   ./loop.sh plan 5                        # Full planning, max 5
 #   ./loop.sh plan-work "user auth"         # Scoped planning
 
@@ -900,6 +946,9 @@ if [ "$1" = "plan" ]; then
     # Full planning mode
     MODE="plan"
     PROMPT_FILE="PROMPT_plan.md"
+    MAX_ITERATIONS=${2:-0}
+elif [ "$1" = "build" ]; then
+    # Explicit build mode (with optional max iterations)
     MAX_ITERATIONS=${2:-0}
 elif [ "$1" = "plan-work" ]; then
     # Scoped planning mode
@@ -913,7 +962,7 @@ elif [ "$1" = "plan-work" ]; then
     PROMPT_FILE="PROMPT_plan_work.md"
     MAX_ITERATIONS=${3:-5}  # Default 5 for work planning
 elif [[ "$1" =~ ^[0-9]+$ ]]; then
-    # Build mode with max iterations
+    # Build mode with max iterations (bare number)
     MAX_ITERATIONS=$1
 else
     # Build mode, unlimited
@@ -1135,8 +1184,8 @@ To get SLC releases, we need to ground activities in audience context. Audience 
 
 ```
 Audience (who)
-    └── has JTBDs (why)
-            └── fulfilled by Activities (how)
+    └── has JTBDs (desired outcomes)
+            └── fulfilled by Activities (means to achieve outcomes)
 ```
 
 ##### Workflow
@@ -1224,3 +1273,174 @@ _Cardinalities:_
 - One audience → many JTBDs ("Designer" has "capture space", "explore concepts", "present to client")
 - One JTBD → many activities ("capture space" includes upload, measurements, room detection)
 - One activity → can serve multiple JTBDs ("upload photo" serves both "capture" and "gather inspiration")
+
+---
+
+### Specs Audit
+
+A dedicated loop mode for generating and maintaining spec files with enforced quality rules. Ensures specs stay focused on behavioral outcomes (not implementation details), properly scoped topics ("one sentence without 'and'"), and consistent file naming conventions.
+
+_When to use:_ After writing or updating specs, run specs mode to enforce consistency and hygiene across all spec files.
+
+_What it does:_
+
+- Iterates over existing `specs/*` files
+- Enforces quality rules: behavioral outcomes only, no code blocks, no implementation details
+- Validates topic scoping using the "One Sentence Without 'And'" test
+- Creates new spec files when needed based on `specs/README.md`
+- Applies consistent file naming: `<int>-filename.md` (e.g., `01-range-optimization.md`)
+
+_Usage:_ Add a `specs` argument to your loop script that selects `PROMPT_specs.md`:
+
+```bash
+./loop.sh specs        # Specs mode, unlimited iterations
+./loop.sh specs 3      # Specs mode, max 3 iterations
+```
+
+_To add specs mode to `loop.sh`:_ insert a new `elif` branch in the argument parsing:
+
+```bash
+# Parse arguments
+if [ "$1" = "plan" ]; then
+    # Plan mode
+    MODE="plan"
+    PROMPT_FILE="PROMPT_plan.md"
+    MAX_ITERATIONS=${2:-0}
+elif [ "$1" = "specs" ]; then        # ← add this block
+    # Specs mode
+    MODE="specs"
+    PROMPT_FILE="PROMPT_specs.md"
+    MAX_ITERATIONS=${2:-0}
+elif [[ "$1" =~ ^[0-9]+$ ]]; then
+    # Build mode with max iterations
+    ...
+```
+
+_To add specs mode to `loop_streamed.sh`:_ same change — add the `elif` block in the same position. The rest of the script (streaming, `parse_stream.js` piping) works unchanged.
+
+_Files:_ [`PROMPT_specs.md`](files/PROMPT_specs.md)
+
+#### `PROMPT_specs.md` Template
+
+_Notes:_
+
+- Specs define WHAT to verify (outcomes), not HOW to implement (approach). Implementation decisions are left to Ralph during the build phase.
+
+```
+0a. Study `specs/*` with up to 250 parallel Sonnet subagents to learn the application specifications.
+
+1. Identify Jobs to Be Done (JTBD) → Break individual JTBD into topic(s) of concern → Use subagents to load info from URLs into context → LLM understands JTBD topic of concern: subagent writes specs/FILENAME.md for each topic.
+
+## RULES (don't apply to `specs/README.md`)
+
+999. NEVER add code blocks or suggest how a variable should be named. This will be decided by Ralph.
+
+9999.
+- Acceptance criteria (in specs) = Behavioral outcomes, observable results
+for example:
+✓ "Extracts 5-10 dominant colors from any uploaded image"
+✓ "Processes images <5MB in <100ms"
+✓ "Handles edge cases: grayscale, single-color, transparent backgrounds"
+- Test requirements (in plan) = Verification points derived from acceptance criteria
+for example:
+✓ "Required tests: Extract 5-10 colors, Performance <100ms"
+- Implementation approach (up to Ralph) = Technical decisions
+example TO AVOID:
+✗ "Use K-means clustering with 3 iterations"
+
+99999. Topic Scope Test: "One Sentence Without 'And'"
+Can you describe the topic of concern in one sentence without conjoining unrelated capabilities?
+example to follow:
+✓ "The color extraction system analyzes images to identify dominant colors"
+example to avoid:
+✗ "The user system handles authentication, profiles, and billing" → 3 topics
+If you need "and" to describe what it does, it's probably multiple topics
+
+99999999. The key: Specify WHAT to verify (outcomes), not HOW to implement (approach). This maintains "Let Ralph Ralph" principle - Ralph decides implementation details while having clear success signals.
+
+99999999999. Apply all rules to all existing files with up to 100 parallel Sonnet subagents in @specs (except README.md) and create new files if determined its needed based on `specs/README.md`. The names of the files should follow this name convention: <int>-filename.md, for example 01-range-optimization.md, 02-adaptive-behavior.md etc.
+```
+
+— contributed by [@terry-xyz](https://github.com/terry-xyz) · [@blackrosesxyz](https://x.com/blackrosesxyz)
+
+---
+
+### Reverse Engineering Brownfield Projects to Specs
+
+It's easy to start working with specs in Greenfield, but when you're working in Brownfield, you have to take another approach. That's why you need to reverse engineer the implementations of the code back into specs to begin using the Ralph playbook.
+
+_When to use:_ You inherited or joined a codebase with no specs. You want to use Ralph on a project that wasn't built with Ralph. You need to add features to an existing brownfield project.
+
+_Invoke:_ "Reverse-engineer specs for [topic/area] using `PROMPT_reverse_engineer_specs.md`"
+
+_Flow:_
+
+1. Point agent at existing codebase with `PROMPT_reverse_engineer_specs.md` →
+2. Agent investigates code (implementation-aware) →
+3. Agent writes specs describing actual behavior (implementation-free) →
+4. Specs land in `specs/` →
+5. Repeat as needed for all specs
+6. Proceed with normal Ralph phases (plan → build) against documented baseline
+
+You can use an agent orchestration pattern where the sub-agent is the reverse engineer and the orchestrator knows about the Topic of Concern Philosophy:
+
+- **Full domain coverage:** Tell the orchestrator to identify the list of topics in the domain, then spawn sub-agents to create complete specifications for each topic.
+- **Task-scoped coverage:** Provide a specific task you're going to perform and have the agent analyze the codebase, find the relevant topics, then create/update each respective spec.
+
+No modifications to existing prompt files needed — this is purely additive. The generated specs are the same format Ralph already consumes in planning and building phases.
+
+#### Considerations
+
+- **Mono-repo structures:** May require scoping the reverse-engineering to specific packages or services rather than the entire repo. Point the agent at the relevant subdirectory.
+- **Entire-domain specs generation:** Generating specs for an entire domain is a larger investment — worth doing if your team is adopting Ralph as a standard workflow.
+- **Quick development or small changes:** Small code changes may drift from generated specs. Decide upfront whether your team will re-run reverse-engineering to keep specs current, or accept temporary drift.
+- **Spec staleness after refactors:** Once Ralph builds new features on top of reverse-engineered specs, major refactors can invalidate specs silently. Re-run reverse-engineering periodically on heavily changed areas.
+- **Topic granularity:** The prompt enforces "one topic per spec" strictly. On a large codebase, deciding where to draw topic boundaries is a judgment call — too broad and specs become unwieldy, too narrow and you drown in files. Start coarse and split as needed.
+- **Bugs become specs:** The prompt intentionally documents buggy behavior as the defined behavior. Reverse-engineered specs describe what *is*, not what *should be*. Write new specs separately for desired behavior changes.
+- **Token cost on large codebases:** Exhaustive code tracing with sub-agents can burn significant tokens. Scope to the areas you're actually planning to modify first.
+
+#### Compatibility with Core Philosophy
+
+| Principle             | Maintained? | How                                                         |
+| --------------------- | ----------- | ----------------------------------------------------------- |
+| Deterministic setup   | ✅ Yes      | Specs are written artifacts (known state), not ad-hoc context, contains all flaws in code. |
+| Context efficiency    | ⚠️ Partial  | Must be adopted throughout your entire team culture |
+| Capture the why       | ⚠️ Partial  | Not all implemented code contains the why behind things, only captures comments if they express the why intention. |
+| Let Ralph Ralph       | ✅ Yes      | Topics of concern are still chosen by Ralph. |
+| Plan is disposable    | ✅ Yes      | Specs provide stable baseline; plans regenerate against documented reality |
+| Simplicity wins       | ✅ Yes      | Provides a Hawkeye view of your entire specifications. |
+
+#### `PROMPT_reverse_engineer_specs.md` Template
+
+_Notes:_
+
+- Documents actual code behavior (bugs included) — not intended behavior
+- Two-phase process: Phase 1 investigates with full code access, Phase 2 writes specs with zero implementation details
+- One topic per spec, enforced by the "one sentence without 'and'" test
+- Current subagent names presume using Claude
+
+_Files:_ [`PROMPT_reverse_engineer_specs.md`](files/PROMPT_reverse_engineer_specs.md)
+
+```
+0a. Study `specs/*` with up to 250 parallel Sonnet subagents to learn existing specifications.
+0b. Study `src/*` to understand the codebase. Use up to 500 parallel Sonnet subagents for reads/searches. Treat `src/lib` as the project's standard library for shared utilities and components.
+
+1. For each topic assigned (or discovered), reverse-engineer the source code and produce a specification in `specs/`. Use Opus subagents for complex tracing. Ultrathink. Before writing a spec, search to confirm one doesn't already exist for that topic.
+2. One topic per spec. Must pass the "one sentence without 'and'" test. Split if "and" joins unrelated capabilities.
+3. **Two-phase process:** Phase 1 (Investigation) — trace every entry point, branch, code path to terminal. Map data flow, side effects, state mutations, error handling, concurrency, config-driven paths, implicit behavior. Phase 2 (Output) — zero implementation details. No function/class/variable names, file paths, library/framework references. A different team on a different stack must be able to reimplement from the spec alone.
+4. **Document reality, not intent.** Bugs are features. Never add behaviors the code doesn't implement. Never suggest improvements. If a source comment contradicts the code, document the code's behavior and ignore the comment.
+5. **Scope boundaries:** When tracing leaves the topic, stop. Document what crosses the boundary (sent/received) only. Test: "Could this change without changing my topic's outcomes?" If yes, it's across the boundary.
+6. **Shared behavior:** Inline fully in every spec (self-contained). Note shared topics for cross-spec tracking. Shared behavior also gets its own canonical spec.
+7. **Spec format:** Markdown in `specs/`. Each spec includes: topic statement, scope (in-scope and boundaries), data contracts, behaviors (in execution order), and state transitions. Mark notable/surprising behavior, unreachable paths, and shared cross-topic behavior inline. Capture rationale from source comments (strip implementation references). File naming: `specs/NN-kebab-case.md` (e.g., `01-session-management.md`).
+8. When specs are complete and validated, `git add -A` then `git commit` with a message describing which specs were added/updated. After the commit, `git push`.
+
+99999. **Exhaustive checklist before finalizing:** Every entry point documented. Every branch traced to terminal. Every data contract. Every side effect in execution order. Every error path (caught/propagated/ignored). Every config-driven path. Concurrency outcomes. Unreachable paths marked. Notable/surprising behavior marked. Zero implementation details in output. If any item is missing, trace again.
+999999. The code is the source of truth. If specs are inconsistent with the code, update the spec using an Opus 4.6 subagent.
+9999999. Single sources of truth, no duplicated specs. Update existing specs rather than creating new ones.
+99999999. When you learn something new about the project, update @AGENTS.md using a subagent but keep it brief and operational only — no status updates or progress notes.
+999999999. Source comments explaining why behavior must be preserved (regulatory, compatibility, intentional) — capture rationale, strip implementation references. Stale comments are not spec.
+9999999999. Document all configuration-driven paths, not just the currently active one.
+99999999999. If you find inconsistencies in `specs/*` then use an Opus 4.6 subagent with 'ultrathink' to update the specs.
+```
+
+— contributed by Jake Cukjati · [@Byte0fCode](https://x.com/Byte0fCode) · [@jackstine](https://github.com/jackstine)
