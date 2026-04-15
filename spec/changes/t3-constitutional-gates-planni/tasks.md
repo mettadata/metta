@@ -126,7 +126,7 @@
 
 ## Batch 4 (depends on 3.1)
 
-### Task 4.1: Plan skill post-step integration
+### Task 4.1: Plan skill post-step integration [x]
 
 - **Files**
   - Modify: `src/templates/skills/metta-plan/SKILL.md`
