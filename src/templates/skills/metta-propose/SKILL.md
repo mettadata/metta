@@ -13,24 +13,35 @@ You are the **orchestrator** for a new spec-driven change. You manage the workfl
 
 1. `metta propose "$ARGUMENTS" --json` → creates change on branch `metta/<change-name>`
 
-2. **DISCOVERY GATE (mandatory — do NOT skip this step):**
-   Before writing ANY artifacts, YOU (the orchestrator, not a subagent) MUST ask the user discovery questions using AskUserQuestion. This is the most important step — it prevents the entire downstream pipeline from building the wrong thing.
+2. **DISCOVERY LOOP (mandatory — do NOT skip this step):**
+   Before writing ANY artifacts, YOU (the orchestrator) MUST run iterative discovery to capture ALL requirements and resolve ALL implementation details. Do not guess.
 
-   a. Read the existing codebase (scan relevant files, check existing patterns)
-   b. Identify ambiguity — what decisions need user input? Think about:
-      - Architecture choices (which technology/pattern/library?)
-      - Scope boundaries (what's included vs excluded?)
-      - Data model decisions (what fields, what types, what relationships?)
-      - Integration points (how does this connect to existing code?)
-      - Edge cases (what happens when X fails/is empty/overflows?)
-   c. Ask 3-6 focused questions using AskUserQuestion with concrete options
-   d. Wait for answers before proceeding
-   e. Include the answers in the context you pass to the proposer subagent
+   **Exit criterion:** Exit the loop when (a) you honestly find no further ambiguity, or (b) the user selects the early-exit option `I'm done — proceed with these answers`.
 
-   Example questions for "add user authentication":
-   - "Auth strategy?" → [JWT tokens, Session cookies, OAuth only]
-   - "Password requirements?" → [Basic (8+ chars), Strong (uppercase + number + symbol), Passkeys only]
-   - "Session duration?" → [24h, 7 days, Never expires]
+   **Prerequisite:** Read the existing codebase (scan relevant files, check existing patterns) before asking any questions. YOU (the orchestrator, not a subagent) drive this loop via `AskUserQuestion`.
+
+   **Every `AskUserQuestion` call in this loop MUST include a final option labeled exactly:** `I'm done — proceed with these answers`.
+
+   **Between-round status line** — print this between rounds so the user can judge whether to stop early:
+   `Resolved: <X>, <Y>. Open: <Z> — proceeding to Round N.`
+   When no further rounds: `Resolved: all questions. Proceeding to proposer subagent.`
+
+   **Rounds:**
+
+   - **Round 1 — Scope + architecture (ALWAYS run):** Ask 2–4 questions on scope boundaries (what's included vs excluded?), architectural choices (patterns, libraries, approaches), and technology picks.
+
+     Example questions for "add user authentication":
+     - "Auth strategy?" → [JWT tokens, Session cookies, OAuth only, I'm done — proceed with these answers]
+     - "Password requirements?" → [Basic (8+ chars), Strong (uppercase + number + symbol), Passkeys only, I'm done — proceed with these answers]
+     - "Session duration?" → [24h, 7 days, Never expires, I'm done — proceed with these answers]
+
+   - **Round 2 — Data model + integration (conditional):** Run if the change involves file schemas, API contracts, external system calls, or store methods; skip otherwise. Ask 2–4 questions on data shapes, field types, relationships, and integration contracts.
+
+   - **Round 3 — Edge cases + non-functional (conditional):** Run if the change touches runtime code paths; skip for docs-only or skill-only changes. Ask 2–4 questions on error handling, validation, performance, and security.
+
+   - **Round 4+ — Open-ended (while genuine ambiguity remains):** Ask "Are there any remaining unclear points?" with specific candidate questions derived from the running context. Continue until the AI honestly finds nothing more to resolve (exit criterion a) or the user selects the early-exit option (exit criterion b).
+
+   **Final:** Pass ALL cumulative answers from every completed round to the proposer subagent as structured context for `intent.md`. Answers from later rounds supplement, not replace, earlier answers.
 
 3. For each **planning** artifact (intent, spec, research, design, tasks) — spawn one subagent per artifact:
    `metta instructions <artifact> --json --change <name>` → spawn agent → `metta complete <artifact>`

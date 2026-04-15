@@ -2,7 +2,7 @@
 
 ## Batch 1 — Skill file rewrites (parallel, no shared files)
 
-### Task 1.1 — Rewrite metta-propose SKILL.md: DISCOVERY GATE → DISCOVERY LOOP
+### Task 1.1 — Rewrite metta-propose SKILL.md: DISCOVERY GATE → DISCOVERY LOOP [x]
 
 **Files:**
 - `src/templates/skills/metta-propose/SKILL.md` (write)
