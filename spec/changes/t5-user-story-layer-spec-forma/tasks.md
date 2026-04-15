@@ -472,7 +472,7 @@ Skill updated; `stories` phase present; `metta-product` in type list.
 
 ---
 
-### 4.3 CLI integration tests for validate-stories
+### 4.3 CLI integration tests for validate-stories [x]
 
 **Files**
 - `tests/cli.test.ts` (extend)

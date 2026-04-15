@@ -768,4 +768,48 @@ describe('CLI', { timeout: 30000 }, () => {
       expect(contents).toMatch(/No-Argument Mode|interactive selection/i)
     })
   })
+
+  describe('metta validate-stories', () => {
+    it('errors with exit 4 on missing change', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      const { stdout, code } = await runCli(
+        ['--json', 'validate-stories', '--change', 'does-not-exist'],
+        tempDir,
+      )
+      expect(code).toBe(4)
+      const data = JSON.parse(stdout)
+      expect(data.error.code).toBe(4)
+      expect(typeof data.error.type).toBe('string')
+      expect(data.error.type.length).toBeGreaterThan(0)
+    })
+
+    it('errors with exit 4 when stories.md is missing', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      const changeDir = join(tempDir, 'spec', 'changes', 'my-feature')
+      await mkdir(changeDir, { recursive: true })
+      await writeFile(join(changeDir, 'intent.md'), '# Intent\n\nSomething.\n', 'utf8')
+      const { stdout, code } = await runCli(
+        ['--json', 'validate-stories', '--change', 'my-feature'],
+        tempDir,
+      )
+      expect(code).toBe(4)
+      const data = JSON.parse(stdout)
+      expect(data.error.code).toBe(4)
+      expect(data.error.message).toContain('stories.md not found')
+    })
+
+    it('--help shows the command description', async () => {
+      const { stdout, code } = await runCli(['validate-stories', '--help'], tempDir)
+      expect(code).toBe(0)
+      expect(stdout).toContain('validate-stories')
+      expect(stdout).toContain('--change')
+      expect(stdout.toLowerCase()).toContain('stories')
+    })
+
+    it('is registered in the main help listing', async () => {
+      const { stdout, code } = await runCli(['--help'], tempDir)
+      expect(code).toBe(0)
+      expect(stdout).toContain('validate-stories')
+    })
+  })
 })
