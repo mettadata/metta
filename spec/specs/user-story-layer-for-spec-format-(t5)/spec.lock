@@ -1,0 +1,94 @@
+version: 14
+hash: sha256:d84a19cd9760
+updated: 2026-04-15T05:11:07.596Z
+status: draft
+source: change
+requirements:
+  - id: stories-artifact-phase-in-standard-workflow
+    hash: sha256:771263e1ddf2
+    scenarios:
+      - standard-workflow-lists-stories-between-intent-and-spec
+      - spec-artifact-requires-stories-in-standard-workflow
+      - quick-workflow-has-no-stories-artifact
+  - id: stories-document-format
+    hash: sha256:e91b41f02da3
+    scenarios:
+      - well-formed-multi-story-document-is-accepted
+      - internal-sentinel-document-is-accepted
+      - missing-required-field-causes-rejection
+  - id: stories-zod-schema-and-parser
+    hash: sha256:001cebd996a8
+    scenarios:
+      - parser-returns-three-stories-from-valid-document
+      - parser-returns-sentinel-document
+      - parser-throws-storiesparseerror-on-missing-field
+      - parser-throws-on-duplicate-us-n
+      - parser-throws-on-non-monotonic-ids
+  - id: validate-stories-cli-command
+    hash: sha256:eee907bb523d
+    scenarios:
+      - valid-stories-exits-0
+      - invalid-stories-exits-4-with-error-detail
+      - missing-change-directory-exits-4-not-found
+  - id: spec-parser-fulfills-field
+    hash: sha256:dab8dc22d143
+    scenarios:
+      - requirement-with-fulfills-line-exposes-fulfills-array
+      - requirement-without-fulfills-line-has-empty-array
+      - malformed-fulfills-produces-warning-not-error
+  - id: finalize-stories-gate
+    hash: sha256:87dc269a490b
+    scenarios:
+      - clean-change-with-valid-stories-passes-gate
+      - missing-stories-md-fails-gate
+      - broken-fulfills-reference-fails-gate
+      - drift-warning-does-not-block-finalize
+  - id: metta-product-agent
+    hash: sha256:769148c340cc
+    scenarios:
+      - agent-file-exists-with-correct-frontmatter
+      - deployed-copy-is-byte-identical-to-source-template
+  - id: stories-artifact-phase-in-standard-workflow
+    hash: sha256:771263e1ddf2
+    scenarios:
+      - standard-workflow-lists-stories-between-intent-and-spec
+      - spec-artifact-requires-stories-in-standard-workflow
+      - quick-workflow-has-no-stories-artifact
+  - id: stories-document-format
+    hash: sha256:e91b41f02da3
+    scenarios:
+      - well-formed-multi-story-document-is-accepted
+      - internal-sentinel-document-is-accepted
+      - missing-required-field-causes-rejection
+  - id: stories-zod-schema-and-parser
+    hash: sha256:001cebd996a8
+    scenarios:
+      - parser-returns-three-stories-from-valid-document
+      - parser-returns-sentinel-document
+      - parser-throws-storiesparseerror-on-missing-field
+      - parser-throws-on-duplicate-us-n
+      - parser-throws-on-non-monotonic-ids
+  - id: validate-stories-cli-command
+    hash: sha256:eee907bb523d
+    scenarios:
+      - valid-stories-exits-0
+      - invalid-stories-exits-4-with-error-detail
+      - missing-change-directory-exits-4-not-found
+  - id: spec-parser-fulfills-field
+    hash: sha256:dab8dc22d143
+    scenarios:
+      - requirement-with-fulfills-line-exposes-fulfills-array
+      - requirement-without-fulfills-line-has-empty-array
+      - malformed-fulfills-produces-warning-not-error
+  - id: finalize-stories-gate
+    hash: sha256:87dc269a490b
+    scenarios:
+      - clean-change-with-valid-stories-passes-gate
+      - missing-stories-md-fails-gate
+      - broken-fulfills-reference-fails-gate
+      - drift-warning-does-not-block-finalize
+  - id: metta-product-agent
+    hash: sha256:769148c340cc
+    scenarios:
+      - agent-file-exists-with-correct-frontmatter
+      - deployed-copy-is-byte-identical-to-source-template
