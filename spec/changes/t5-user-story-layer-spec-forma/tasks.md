@@ -13,7 +13,7 @@ ADRs in effect: ADR-1 (stories after spec, before research), ADR-2 (discriminate
 
 ## Batch 1 — Parallel-safe foundations (no inter-task deps)
 
-### 1.1 Story schema + schema tests
+### 1.1 Story schema + schema tests [x]
 
 **Files**
 - `src/schemas/story.ts` (new)
