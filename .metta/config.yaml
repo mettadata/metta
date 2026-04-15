@@ -1,4 +1,4 @@
 project:
   name: "metta"
-  description: "A composable, spec-driven development framework for AI-native software engineering"
-  stack: "TypeScript, Node.js >= 22, ESM, Commander.js, Zod, YAML, Anthropic SDK, Vitest"
+  description: "A composable, spec-driven development framework for AI-native software engineering."
+  stack: "TypeScript, Node.js (ESM), Commander.js, Zod, Vitest, remark-parse, Anthropic SDK"
