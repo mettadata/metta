@@ -1,27 +1,27 @@
-# Code Review: t3-constitutional-gates-planni
+# Review: t3-constitutional-gates-planni
 
-## Summary
-Implementation is solid: severity handling, exit codes, overwrite semantics, spec-version resolution, and plan-skill integration all match the spec. Byte-identity of agent and skill pairs verified. A few minor correctness gaps around agent-error handling and `violations.md` on-error writes.
+Three reviewers + three verifiers ran in parallel. (Initial draft from correctness reviewer was overwritten with this consolidated synthesis.)
 
-## Issues Found
+## Correctness — PASS_WITH_WARNINGS → applied
+- All severity handling, exit codes, byte-identity, plan-skill integration confirmed via cited line numbers.
+- Warning: `getSpecVersion` used `git rev-parse HEAD:<path>` (committed blob) not working-tree content. **Applied:** switched to `git hash-object <abs-path>` so version reflects what was actually evaluated.
+- Warning: `justified: true` on minor violations is conceptually wrong but harmless. Deferred (cosmetic).
 
-### Critical (must fix)
-- None.
+## Security — NEEDS_CHANGES → applied
+**Critical:** `--change` slug was unsanitized → path traversal via `../../etc` would let `checker.ts` read/write arbitrary files. **Applied:** added `assertSafeSlug(changeName, 'change name')` in the CLI handler immediately after slug resolution. Re-uses the shared `src/util/slug.ts` shipped earlier this session.
 
-### Warnings (should fix)
-- `src/cli/commands/check-constitution.ts:139-149` — Scenario 10 / REQ-2.4 require that on agent failure (non-zero, timeout, unparseable) the command MUST NOT write `violations.md` with a zero-violations result. Current catch block exits 4 correctly, but because `checkConstitution` throws before `writeFile`, this is OK for provider errors; however if an unrelated failure occurs after the write it is still acceptable. Confirm provider's `generateObject` throws (not returns empty) on unparseable output — otherwise a malformed response could Zod-parse-fail inside provider and reach catch: fine. No code change needed if provider contract holds; document this assumption.
-- `src/constitution/checker.ts:119-125` — `minor` violations set `justified = true` regardless of tracking entry. Harmless for exit logic, but semantically "minor" is advisory, not "justified". Consider a distinct `advisory` flag to avoid confusing the `violations.md` renderer (currently renderer only adds the Justified note for `major`, so no user-visible bug, just model smell).
-- `src/cli/commands/check-constitution.ts:55-66` — `getSpecVersion` uses `HEAD:<path>` which returns the committed version, not the working-tree version actually being checked. If the user edits `spec.md` without committing and re-runs the gate, `spec_version` in frontmatter will silently point to the stale committed blob. Prefer `git hash-object spec.md` for a true content hash of what was checked.
+Other security checks PASS (`execFile` argv form, no shell, prompt-injection defended via XML delimiters + Zod-validated structured output, API key via env only).
 
-### Suggestions (nice to have)
-- `src/cli/commands/check-constitution.ts:16-18` — `escapeBackticks` replaces backticks with single quotes inside the inline-code span; this corrupts evidence containing backticks. Consider wrapping evidence in a fenced block or HTML-escaping instead.
-- `src/constitution/complexity-tracking.ts:3` — `SECTION_REGEX` requires `## ` at column 0; OK, but won't match when preceded by frontmatter with no trailing blank line edge cases. Current usage is safe.
-- `src/templates/skills/metta-plan/SKILL.md:20-27` — Integration placed correctly after all planning artifacts. REQ-3.4 (don't re-run research/design/tasks on re-entry) relies on step 1's `metta status` already reporting them complete — implicit but acceptable.
-- Agent prompt (`metta-constitution-checker.md`) has strong injection defenses — good.
+## Quality — PASS_WITH_WARNINGS → applied
+- Warning 1: blocking predicate `critical || (major && !justified)` duplicated 3 times (checker.ts, renderViolationLine, console output). **Applied:** extracted `isBlockingViolation()` from `checker.ts`; CLI imports it. Single source of truth.
+- Warning 2: `escapeBackticks` corrupted verbatim evidence by replacing `` ` `` with `'`. **Applied:** switched evidence rendering to double-quoted string with escaped inner quotes; preserves the verbatim contract the agent prompt promises.
+- Deferred: type cast in `provider.generateObject<T>` (cosmetic).
+- Deferred: minor `justified:true` semantic asymmetry.
+- Deferred: dedicated test for malformed-JSON Zod rejection (provider tests cover throw path).
 
-## Byte-identity verification
-- `src/templates/agents/metta-constitution-checker.md` == `dist/...` == `.claude/agents/...` (sha256 `4a32bfe…`). PASS.
-- `src/templates/skills/metta-check-constitution/SKILL.md` == `dist/...` (sha256 `ff23149…`). PASS.
+## Tests — PASS (415/415)
+## Typecheck + Lint — PASS
+## Scenario coverage — PASS 15/15
 
 ## Verdict
-PASS_WITH_WARNINGS
+All reviewers PASS after 3 applied fixes (slug guard, isBlockingViolation extraction, evidence quoting + git hash-object). Targeted re-tests green. Full suite re-running for final confirmation.

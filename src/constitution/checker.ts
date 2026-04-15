@@ -129,9 +129,15 @@ export async function checkConstitution(opts: CheckerOptions): Promise<CheckResu
       : { ...v, justified }
   })
 
-  const blocking = annotated.some(
-    v => v.severity === 'critical' || (v.severity === 'major' && !v.justified),
-  )
+  const blocking = annotated.some(isBlockingViolation)
 
   return { violations: annotated, blocking, justifiedMap }
+}
+
+/**
+ * Single source of truth for the blocking-violation predicate.
+ * Critical → always blocking. Major → blocking unless justified. Minor → never blocking.
+ */
+export function isBlockingViolation(v: AnnotatedViolation): boolean {
+  return v.severity === 'critical' || (v.severity === 'major' && !v.justified)
 }

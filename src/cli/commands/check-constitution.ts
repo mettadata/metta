@@ -6,26 +6,24 @@ import { promisify } from 'node:util'
 import { createCliContext, outputJson } from '../helpers.js'
 import {
   checkConstitution,
+  isBlockingViolation,
   type AnnotatedViolation,
   type CheckResult,
 } from '../../constitution/checker.js'
 import { AnthropicProvider } from '../../providers/anthropic-provider.js'
+import { assertSafeSlug } from '../../util/slug.js'
 
 const execAsync = promisify(execFile)
 
-function escapeBackticks(s: string): string {
-  return s.replace(/`/g, "'")
-}
-
 function renderViolationLine(v: AnnotatedViolation): string {
-  const evidence = escapeBackticks(v.evidence)
-  let line = `- **[${v.severity}] ${v.article}** — evidence: \`${evidence}\` — suggestion: ${v.suggestion}`
+  // Preserve evidence verbatim by quoting instead of fencing — inline-code fencing
+  // breaks when evidence contains backticks (reviewers flagged mutating the quote
+  // corrupts the "verbatim excerpt" contract promised to the agent).
+  let line = `- **[${v.severity}] ${v.article}** — evidence: "${v.evidence.replace(/"/g, '\\"')}" — suggestion: ${v.suggestion}`
   if (v.severity === 'major' && v.justified && v.justification) {
-    line += ` Justified in Complexity Tracking: "${v.justification}".`
+    line += ` Justified in Complexity Tracking: "${v.justification.replace(/"/g, '\\"')}".`
   }
-  const isBlocking =
-    v.severity === 'critical' || (v.severity === 'major' && !v.justified)
-  if (isBlocking) {
+  if (isBlockingViolation(v)) {
     line += ' **BLOCKING.**'
   }
   return line
@@ -52,14 +50,17 @@ function renderViolationsMd(
   return [...frontmatter, ...body].join('\n')
 }
 
-async function getSpecVersion(projectRoot: string, specRelPath: string): Promise<string> {
+async function getSpecVersion(projectRoot: string, specAbsPath: string): Promise<string> {
+  // Use git hash-object to hash the WORKING TREE content (the actual bytes we
+  // just checked), not the committed blob. Ensures version reflects what was
+  // evaluated, even when user has uncommitted edits.
   try {
     const { stdout } = await execAsync(
       'git',
-      ['rev-parse', '--short', `HEAD:${specRelPath}`],
+      ['hash-object', specAbsPath],
       { cwd: projectRoot },
     )
-    return stdout.trim() || 'unversioned'
+    return stdout.trim().slice(0, 8) || 'unversioned'
   } catch {
     return 'unversioned'
   }
@@ -91,6 +92,7 @@ export function registerCheckConstitutionCommand(program: Command): void {
 
       try {
         const changeName = await resolveChangeName(ctx, options.change)
+        assertSafeSlug(changeName, 'change name')
         const provider = new AnthropicProvider({ apiKeyEnv: 'ANTHROPIC_API_KEY' })
 
         const result = await checkConstitution({
@@ -100,7 +102,8 @@ export function registerCheckConstitutionCommand(program: Command): void {
         })
 
         const specRelPath = join('spec', 'changes', changeName, 'spec.md')
-        const specVersion = await getSpecVersion(ctx.projectRoot, specRelPath)
+        const specAbsPath = join(ctx.projectRoot, specRelPath)
+        const specVersion = await getSpecVersion(ctx.projectRoot, specAbsPath)
         const checkedIso = new Date().toISOString()
 
         const violationsRelPath = join('spec', 'changes', changeName, 'violations.md')
@@ -121,9 +124,7 @@ export function registerCheckConstitutionCommand(program: Command): void {
             console.log('No violations found.')
           } else {
             for (const v of result.violations) {
-              const blocking =
-                v.severity === 'critical' || (v.severity === 'major' && !v.justified)
-              const tag = blocking ? ' [BLOCKING]' : ''
+              const tag = isBlockingViolation(v) ? ' [BLOCKING]' : ''
               console.log(`[${v.severity}] ${v.article}${tag}`)
               console.log(`  evidence:   ${v.evidence}`)
               console.log(`  suggestion: ${v.suggestion}`)
