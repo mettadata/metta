@@ -132,7 +132,7 @@ File present with required structure.
 
 ---
 
-### 1.4 standard.yaml workflow update
+### 1.4 standard.yaml workflow update [x]
 
 **Files**
 - `src/templates/workflows/standard.yaml` (modify)

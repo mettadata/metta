@@ -19,11 +19,19 @@ artifacts:
     agents: [specifier]
     gates: [spec-quality]
 
+  - id: stories
+    type: stories
+    template: stories.md
+    generates: stories.md
+    requires: [spec]
+    agents: [product]
+    gates: []
+
   - id: research
     type: research
     template: research.md
     generates: research.md
-    requires: [spec]
+    requires: [stories]
     agents: [researcher]
     gates: []
 
