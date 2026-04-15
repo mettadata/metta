@@ -371,7 +371,7 @@ Extend `tests/spec-parser.test.ts` with 3 new cases (add a `describe('Fulfills f
 
 ---
 
-### 3.3 stories-valid gate YAML
+### 3.3 stories-valid gate YAML [x]
 
 **Files**
 - `src/templates/gates/stories-valid.yaml` (new)
