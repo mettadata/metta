@@ -1,18 +1,18 @@
 # Tasks: t8-post-merge-gate-re-run-afte
 
-### Task 1.1 — Inject GateRegistry into MergeSafetyPipeline + execute gates
+### Task 1.1 — Inject GateRegistry into MergeSafetyPipeline + execute gates [x]
 - **Files**: `src/ship/merge-safety.ts`
 - **Action**: Add optional `gateRegistry?: GateRegistry` constructor param. Replace post-merge-gates stub with execution logic per design.md. On any gate fail, run `git reset --hard <snapshotTag>` and add a `rollback` step. On rollback fail, mark rollback step fail.
 - **Verify**: `npm run build`.
 - **Done**: pipeline runs gates, rolls back on fail, preserves snapshot tag.
 
-### Task 1.2 — Wire registry into ship CLI
+### Task 1.2 — Wire registry into ship CLI [x]
 - **Files**: `src/cli/commands/ship.ts`
 - **Action**: Before constructing the pipeline, call `await ctx.gateRegistry.loadFromDirectory(...)` (whatever path the gates live in — check helpers.ts for builtins). Pass the registry as the second constructor arg.
 - **Verify**: `npm run build`. Smoke `metta ship --branch <some metta/* branch>` doesn't error pre-merge.
 - **Done**: ship now runs real post-merge gates.
 
-### Task 1.3 — Add 3 test cases to tests/merge-safety.test.ts
+### Task 1.3 — Add 3 test cases to tests/merge-safety.test.ts [x]
 - **Files**: `tests/merge-safety.test.ts`
 - **Action**:
   1. `'post-merge gates pass when all gates report pass'` — mock registry returning all-pass; verify success status and merge commit landed.
@@ -21,7 +21,7 @@
 - **Verify**: `npx vitest run tests/merge-safety.test.ts`.
 - **Done**: 3 new tests pass; existing tests pass (need to be updated to construct pipeline with optional registry — back-compat path).
 
-### Task 1.4 — Full suite
+### Task 1.4 — Full suite [x]
 - **Files**: none
 - **Action**: `npm run build && npx vitest run`.
 - **Done**: All tests green.

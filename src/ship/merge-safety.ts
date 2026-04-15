@@ -2,6 +2,7 @@ import { exec } from 'node:child_process'
 import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
+import type { GateRegistry } from '../gates/gate-registry.js'
 
 const execAsync = promisify(exec)
 
@@ -19,7 +20,7 @@ export interface MergeSafetyResult {
 }
 
 export class MergeSafetyPipeline {
-  constructor(private cwd: string) {}
+  constructor(private cwd: string, private gateRegistry?: GateRegistry) {}
 
   private async git(args: string): Promise<string> {
     const { stdout } = await execAsync(`git ${args}`, { cwd: this.cwd })
@@ -196,9 +197,38 @@ export class MergeSafetyPipeline {
       return { status: 'failure', steps, snapshotTag }
     }
 
-    // Step 9: Post-merge gates (simplified)
-    steps.push({ step: 'post-merge-gates', status: 'pass' })
-
-    return { status: 'success', steps, mergeCommit, snapshotTag }
+    // Step 9: Post-merge gates (real execution)
+    if (!this.gateRegistry) {
+      steps.push({ step: 'post-merge-gates', status: 'pass', detail: 'no gates configured' })
+      return { status: 'success', steps, mergeCommit, snapshotTag }
+    }
+    const gateNames = this.gateRegistry.list().map(g => g.name)
+    if (gateNames.length === 0) {
+      steps.push({ step: 'post-merge-gates', status: 'pass', detail: 'no gates configured' })
+      return { status: 'success', steps, mergeCommit, snapshotTag }
+    }
+    const results = await this.gateRegistry.runAll(gateNames, this.cwd)
+    const failed = results.find(r => r.status === 'fail')
+    if (!failed) {
+      steps.push({ step: 'post-merge-gates', status: 'pass', detail: `${results.length} gates passed` })
+      return { status: 'success', steps, mergeCommit, snapshotTag }
+    }
+    // Failure path: roll back
+    steps.push({
+      step: 'post-merge-gates',
+      status: 'fail',
+      detail: `${failed.gate} failed; rolled back to ${snapshotTag}`,
+    })
+    try {
+      await this.git(`reset --hard ${snapshotTag}`)
+      steps.push({ step: 'rollback', status: 'pass' })
+    } catch {
+      steps.push({
+        step: 'rollback',
+        status: 'fail',
+        detail: 'rollback also failed — manual intervention required',
+      })
+    }
+    return { status: 'failure', steps, snapshotTag }
   }
 }

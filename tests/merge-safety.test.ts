@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { exec } from 'node:child_process'
 import { promisify } from 'node:util'
 import { MergeSafetyPipeline } from '../src/ship/merge-safety.js'
+import type { GateRegistry } from '../src/gates/gate-registry.js'
 
 const execAsync = promisify(exec)
 
@@ -127,6 +128,82 @@ describe('MergeSafetyPipeline', () => {
     const finalizeStep = result.steps.find(s => s.step === 'finalize-check')
     expect(finalizeStep?.status).toBe('skip')
     expect(result.status).toBe('success')
+  })
+
+  it('post-merge gates pass when all gates report pass', async () => {
+    await execAsync('git checkout -b gate-pass-feature', { cwd: tempDir })
+    await execAsync('echo "gp" > gp.txt && git add . && git commit -m "gp"', { cwd: tempDir })
+    await execAsync('git checkout main || git checkout master', { cwd: tempDir })
+
+    const mainBranch = (await execAsync('git branch --show-current', { cwd: tempDir })).stdout.trim()
+
+    const mockRegistry = {
+      list: () => [{ name: 'tests' }],
+      runAll: async (names: string[]) => names.map(name => ({ gate: name, status: 'pass' as const, duration_ms: 1 })),
+    } as unknown as GateRegistry
+
+    const pipeline = new MergeSafetyPipeline(tempDir, mockRegistry)
+    const result = await pipeline.run('gate-pass-feature', mainBranch)
+
+    expect(result.status).toBe('success')
+    const postStep = result.steps.find(s => s.step === 'post-merge-gates')
+    expect(postStep?.status).toBe('pass')
+    expect(postStep?.detail).toBe('1 gates passed')
+    expect(result.mergeCommit).toBeDefined()
+    const headAfter = (await execAsync('git rev-parse HEAD', { cwd: tempDir })).stdout.trim()
+    expect(headAfter).toBe(result.mergeCommit)
+  })
+
+  it('rolls back to snapshot when a gate fails', async () => {
+    await execAsync('git checkout -b gate-fail-feature', { cwd: tempDir })
+    await execAsync('echo "gf" > gf.txt && git add . && git commit -m "gf"', { cwd: tempDir })
+    await execAsync('git checkout main || git checkout master', { cwd: tempDir })
+
+    const mainBranch = (await execAsync('git branch --show-current', { cwd: tempDir })).stdout.trim()
+    const snapshotSha = (await execAsync(`git rev-parse ${mainBranch}`, { cwd: tempDir })).stdout.trim()
+
+    const mockRegistry = {
+      list: () => [{ name: 'tests' }],
+      runAll: async (names: string[]) => names.map(name => ({ gate: name, status: 'fail' as const, duration_ms: 1 })),
+    } as unknown as GateRegistry
+
+    const pipeline = new MergeSafetyPipeline(tempDir, mockRegistry)
+    const result = await pipeline.run('gate-fail-feature', mainBranch)
+
+    expect(result.status).toBe('failure')
+    const postStep = result.steps.find(s => s.step === 'post-merge-gates')
+    expect(postStep?.status).toBe('fail')
+    expect(postStep?.detail).toContain('tests failed')
+    const rollbackStep = result.steps.find(s => s.step === 'rollback')
+    expect(rollbackStep?.status).toBe('pass')
+    expect(result.snapshotTag).toBeDefined()
+
+    const headAfter = (await execAsync('git rev-parse HEAD', { cwd: tempDir })).stdout.trim()
+    expect(headAfter).toBe(snapshotSha)
+
+    const tagSha = (await execAsync(`git rev-parse ${result.snapshotTag}`, { cwd: tempDir })).stdout.trim()
+    expect(tagSha).toBe(snapshotSha)
+  })
+
+  it('passes with no-gates-configured detail when registry has no gates', async () => {
+    await execAsync('git checkout -b no-gates-feature', { cwd: tempDir })
+    await execAsync('echo "ng" > ng.txt && git add . && git commit -m "ng"', { cwd: tempDir })
+    await execAsync('git checkout main || git checkout master', { cwd: tempDir })
+
+    const mainBranch = (await execAsync('git branch --show-current', { cwd: tempDir })).stdout.trim()
+
+    const mockRegistry = {
+      list: () => [],
+      runAll: async () => [],
+    } as unknown as GateRegistry
+
+    const pipeline = new MergeSafetyPipeline(tempDir, mockRegistry)
+    const result = await pipeline.run('no-gates-feature', mainBranch)
+
+    expect(result.status).toBe('success')
+    const postStep = result.steps.find(s => s.step === 'post-merge-gates')
+    expect(postStep?.status).toBe('pass')
+    expect(postStep?.detail).toBe('no gates configured')
   })
 
   it('detects merge conflicts', async () => {

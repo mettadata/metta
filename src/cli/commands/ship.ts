@@ -31,7 +31,10 @@ export function registerShipCommand(program: Command): void {
           return
         }
 
-        const pipeline = new MergeSafetyPipeline(ctx.projectRoot)
+        const builtinGates = new URL('../../templates/gates', import.meta.url).pathname
+        await ctx.gateRegistry.loadFromDirectory(builtinGates)
+
+        const pipeline = new MergeSafetyPipeline(ctx.projectRoot, ctx.gateRegistry)
         const result = await pipeline.run(sourceBranch, targetBranch, options.dryRun)
 
         if (json) {
