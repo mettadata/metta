@@ -61,7 +61,7 @@ export function registerValidateStoriesCommand(program: Command): void {
         if (existsSync(specPath)) {
           const spec = await parseSpec(specPath)
           const allRefs = spec.requirements.flatMap(
-            (r) => ((r as unknown as { fulfills?: string[] }).fulfills ?? []) as string[],
+            (r) => r.fulfills ?? [],
           )
           errors.push(...validateFulfillsRefs(allRefs, stories))
 
