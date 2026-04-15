@@ -63,7 +63,7 @@ Create `tests/story-schema.test.ts` covering:
 
 ---
 
-### 1.2 metta-product agent template + deployed copy
+### 1.2 metta-product agent template + deployed copy [x]
 
 **Files**
 - `src/templates/agents/metta-product.md` (new)
