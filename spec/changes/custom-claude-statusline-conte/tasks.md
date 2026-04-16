@@ -8,7 +8,7 @@
 - **Verify:** `node src/templates/statusline/statusline.mjs < /dev/null` exits 0 and prints exactly one line matching `/^\[metta: (idle|unknown)\]\n$/`.
 - **Done:** File `src/templates/statusline/statusline.mjs` exists, is non-empty, exports the six named helpers, and `node src/templates/statusline/statusline.mjs < /dev/null` exits with code 0.
 
-### Task 1.2: Update package.json copy-templates script
+### Task 1.2: Update package.json copy-templates script [x]
 - **Files:** `package.json`
 - **Action:** Append `&& cp -r src/templates/statusline dist/templates/statusline` to the end of the `copy-templates` script value. Also update the leading `rm -rf` segment to include `dist/templates/statusline` so stale builds are cleaned. No other changes to `package.json`.
 - **Verify:** `cat package.json | grep copy-templates` shows the updated script ending with `cp -r src/templates/statusline dist/templates/statusline`. Confirm the `rm -rf` segment at the start of `copy-templates` also lists `dist/templates/statusline`.
