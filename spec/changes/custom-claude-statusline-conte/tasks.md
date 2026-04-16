@@ -25,7 +25,7 @@
 ## Batch 2: Unit tests (all touch different files — safe to run in parallel; depend on Batch 1)
 
 ### Task 2.1: Create resolve-context-window.test.ts
-- **Files:** `test/templates/statusline/resolve-context-window.test.ts`
+- [x] **Files:** `tests/statusline-resolve-context-window.test.ts`
 - **Action:** Create the directory `test/templates/statusline/` and write a Vitest test file that imports `resolveContextWindow` from `../../../src/templates/statusline/statusline.mjs`. Cover all six cases from the design test plan: model.id contains `[1m]` → `1_000_000`; `[1m]` as substring with suffix → `1_000_000`; model.id present but no `[1m]` → `200_000`; model absent → `200_000`; model is a string (not object, so `model?.id` is undefined) → `200_000`; model.id is not a string (e.g. number 42) → `200_000`.
 - **Verify:** `npx vitest run test/templates/statusline/resolve-context-window.test.ts` exits 0 with 6 tests passing and 0 failures.
 - **Done:** File `test/templates/statusline/resolve-context-window.test.ts` exists and `vitest run` on it reports 6 passed, 0 failed.
