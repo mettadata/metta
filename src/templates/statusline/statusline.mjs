@@ -54,7 +54,7 @@ export function pickColorForSlug(slug) {
   const palette = [31, 32, 33, 34, 35, 36, 91, 92]
   let hash = 0
   for (let i = 0; i < slug.length; i++) hash += slug.charCodeAt(i)
-  return palette[hash % 8]
+  return palette[hash % palette.length]
 }
 
 export function formatStatusLine({ artifact, slug, ctxPct }) {
