@@ -37,7 +37,7 @@
 - **Done:** File exists and vitest reports 12 passed, 0 failed.
 
 ### Task 2.3: Create compute-percent.test.ts
-- **Files:** `test/templates/statusline/compute-percent.test.ts`
+- [x] **Files:** `test/templates/statusline/compute-percent.test.ts`
 - **Action:** Write a Vitest test file importing `computePercent` from `../../../src/templates/statusline/statusline.mjs`. Cover all six cases from the design: `(100_000, 200_000)` → `50`; `(100_001, 200_000)` → `50` (rounds to nearest); `(430_000, 1_000_000)` → `43`; `(0, 200_000)` → `0`; `(200_000, 200_000)` → `100`; `(210_000, 200_000)` → `105` (no clamping).
 - **Verify:** `npx vitest run test/templates/statusline/compute-percent.test.ts` exits 0 with 6 tests passing and 0 failures.
 - **Done:** File exists and vitest reports 6 passed, 0 failed.
