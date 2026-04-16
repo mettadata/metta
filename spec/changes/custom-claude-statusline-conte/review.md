@@ -1,30 +1,38 @@
 # Code Review: custom-claude-statusline-conte
 
 ## Summary
-The statusline implementation is well-structured with solid security fundamentals. Command execution uses `execFile` with array arguments, and JSON parsing is consistently wrapped in try/catch. A few minor issues worth noting but nothing critical.
+The statusline script and install integration are well-structured with good error handling. However, there is one critical bug in `resolveContextWindow` where the implementation reads `model.id` (a nested property) while the spec requires reading `model` directly as a string. The install function also deviates from spec by storing a structured object for `statusLine` rather than the absolute path string the spec requires.
 
 ## Issues Found
 
 ### Critical (must fix)
-(none)
+
+- `src/templates/statusline/statusline.mjs:9` -- `resolveContextWindow` reads `stdinObj?.model?.id` but the spec says the `model` field is a flat string (e.g. `"model":"claude-opus-4-6[1m]"`), not an object with an `id` sub-field. The spec states: "The script MUST extract `transcript_path` (string) and `model` (string) fields from the parsed object." and "The script MUST treat absent or non-string values for either field as if the field were not supplied." The stdin contract scenarios all show `model` as a direct string value. The function should check `typeof stdinObj?.model === 'string'` and call `.includes('[1m]')` on that string. As implemented, valid spec input like `{"model":"claude-opus-4-6[1m]"}` will always return 200000 (the default), never 1000000, because `model` is a string and `model.id` is `undefined`.
+
+- `src/cli/commands/install.ts:59,78-80,88` -- The spec requires `statusLine` to be set to "the absolute path to the installed script" (a string). The implementation stores a structured object `{ type: 'command', command: '.claude/statusline/statusline.mjs', padding: 0 }` instead. Furthermore, the comparison on line 79 checks `existingCmd === installedCmd` where `installedCmd` is the relative path `.claude/statusline/statusline.mjs`, not an absolute path resolved against the project root as the spec demands. The idempotency check and the stored value both deviate from the spec. (Note: if the Claude Code settings format genuinely requires the object shape, the spec should be amended to match.)
+
+- `tests/statusline-resolve-context-window.test.ts:6` -- All test cases pass `{ model: { id: '...' } }` matching the buggy implementation rather than the spec's `{ model: '...' }` contract. The tests will pass but they validate the wrong behavior. Every test in this file must be updated to match the corrected contract.
 
 ### Warnings (should fix)
 
-- `src/templates/statusline/statusline.mjs:84-85` — **Path traversal via `transcript_path`**: The `readTranscriptTail` function reads whatever path `transcript_path` provides from stdin without any validation or path containment check. A malicious or misconfigured Claude Code process could supply an arbitrary path like `/etc/shadow` or `../../sensitive-file`. While the threat model is limited (stdin comes from Claude Code, not an external attacker), adding a check that the path is under the expected transcript directory would be defense-in-depth. Severity: WARNING.
+- `src/templates/statusline/statusline.mjs:54,57` -- The palette has 8 entries `[31, 32, 33, 34, 35, 36, 91, 92]` and the modulus is hardcoded as `hash % 8`. If the palette changes, the modulus must also change. Using `palette.length` instead of the literal `8` would prevent a future mismatch bug.
 
-- `src/cli/commands/install.ts:30-31` — **Partial settings.json content leak in error messages**: When `settings.json` is malformed, the error message includes the parse error cause which may echo back fragments of the file content. If `settings.json` ever contained sensitive values (API keys, tokens), these could leak into terminal output or logs. Severity: WARNING.
+- `src/cli/commands/install.ts:77-86` -- The idempotency check compares `existingCmd` (the `.command` property of the existing `statusLine` object) to `installedCmd`. If a previous install stored `statusLine` as a plain string (per spec), `(existing as Record<string, unknown>)?.command` would be `undefined`, the comparison would fail, and the warning path would trigger instead of no-op. This breaks idempotency across format changes.
 
-- `src/cli/commands/install.ts:83-84` — **Existing statusLine value echoed to stderr**: At line 83, the existing `statusLine` value is serialized via `JSON.stringify` and written to stderr. If someone placed sensitive data in the `statusLine` field of settings.json, it would be printed. Low risk but worth noting. Severity: WARNING.
+- `src/templates/statusline/statusline.mjs:55-57` -- The hash function `hash += slug.charCodeAt(i)` is a simple additive hash. Anagram slugs (e.g. `abc` vs `bca`) will always produce the same color. The spec only requires same-slug-same-color determinism so this is not a violation, but distribution across the palette will be poor for similar slugs.
 
 ### Suggestions (nice to have)
 
-- `src/templates/statusline/statusline.mjs:64` — **File permission 0o755 is acceptable but 0o700 would be tighter**: The script only needs to be executable by the owner. 0o755 allows group/other read+execute. Since this is a local dev tool in `.claude/`, 0o700 would follow least-privilege. Same applies to `install.ts:64`. Severity: INFO.
+- `src/templates/statusline/statusline.mjs:17-28` -- `readTranscriptTail` uses a manual try/catch pattern for `fd.close()`. Consider using `try/finally` or Node's `FileHandle[Symbol.asyncDispose]` for cleaner resource management.
 
-- `src/templates/statusline/statusline.mjs:76` — **Prototype pollution from `JSON.parse` on stdin**: `readStdin()` parses untrusted JSON from stdin. While `JSON.parse` in V8 does not populate `__proto__` on the returned object (properties named `__proto__` become own properties, not prototype links), the parsed object is only accessed via `.model?.id` and `.transcript_path`, both with `typeof` guards. The current code is safe; no action needed. Severity: INFO (clean).
+- `package.json:18` -- The `copy-templates` script uses `cp -r` which does not explicitly preserve the executable bit on all platforms. On Linux/macOS `cp -r` preserves mode by default, but `cp -r --preserve=mode` would be more explicit per the spec requirement to preserve `0o755`.
 
-- `src/templates/statusline/statusline.mjs:93-95` — **`execFile` usage is correct and safe**: `execFileAsync('metta', ['status', '--json'], ...)` uses `execFile` (not `exec`), passes arguments as an array, and sets a 5-second timeout. No command injection vector. The `JSON.parse(stdout)` on line 94 is inside a try/catch. Severity: INFO (clean).
-
-- `src/templates/statusline/statusline.mjs:35` — **All `JSON.parse` calls are wrapped in try/catch**: Checked all four call sites (lines 35, 76, 94, and `install.ts:69`). All are properly guarded. Severity: INFO (clean).
+- `tests/statusline-install.test.ts:62-76` -- The re-run idempotency test relies on a 50ms `setTimeout` to detect mtime changes, which can be flaky on filesystems with coarse timestamps. Consider comparing file content instead of mtime.
 
 ## Verdict
-PASS_WITH_WARNINGS
+NEEDS_CHANGES
+
+### What must be fixed before merge:
+1. `resolveContextWindow` must read `stdinObj.model` as a string directly, not `stdinObj.model.id`. The spec is unambiguous: `model` is a string field on the stdin JSON object.
+2. `installMettaStatusline` must either store `statusLine` as the absolute path string (resolved against project root) per spec, or the spec must be amended to reflect the actual Claude Code settings format if the object shape is required by Claude Code.
+3. All `resolveContextWindow` tests must be updated to match the corrected contract (flat `model` string, not nested `model.id`).
