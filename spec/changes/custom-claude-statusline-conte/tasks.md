@@ -43,7 +43,7 @@
 - **Done:** File exists and vitest reports 6 passed, 0 failed.
 
 ### Task 2.4: Create format-status-line.test.ts
-- **Files:** `test/templates/statusline/format-status-line.test.ts`
+- [x] **Files:** `test/templates/statusline/format-status-line.test.ts`
 - **Action:** Write a Vitest test file importing `formatStatusLine` and `pickColorForSlug` from `../../../src/templates/statusline/statusline.mjs`. For `pickColorForSlug`: (1) same slug yields same code on two calls; (2) any slug input yields a code in `{31,32,33,34,35,36,91,92}`; (3) empty string does not throw and returns a code. For `formatStatusLine`: (1) active artifact + slug + ctxPct — result contains `] 43%` and includes `\x1b[`; (2) idle + no slug + no pct — exactly `[metta: idle]` with no `\x1b` and no `%`; (3) active artifact + slug + no pct — contains ANSI open and `\x1b[0m` reset, no trailing space or `%`; (4) unknown artifact is not colored even with a slug — result is `[metta: unknown]` with no `\x1b`; (5) ANSI reset `\x1b[0m` appears immediately after the artifact text in any active non-idle result; (6) ctxPct of 0 is included — result ends with `] 0%`.
 - **Verify:** `npx vitest run test/templates/statusline/format-status-line.test.ts` exits 0 with 9 tests passing and 0 failures.
 - **Done:** File exists and vitest reports 9 passed, 0 failed.
