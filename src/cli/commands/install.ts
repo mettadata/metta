@@ -52,6 +52,43 @@ async function installMettaGuardHook(root: string): Promise<void> {
   }
 }
 
+async function installMettaStatusline(root: string): Promise<void> {
+  const statuslineDir = join(root, '.claude', 'statusline')
+  const statuslinePath = join(statuslineDir, 'statusline.mjs')
+  const settingsPath = join(root, '.claude', 'settings.json')
+  const installedCmd = '.claude/statusline/statusline.mjs'
+
+  const templateScript = new URL('../../templates/statusline/statusline.mjs', import.meta.url).pathname
+  await mkdir(statuslineDir, { recursive: true })
+  await copyFile(templateScript, statuslinePath)
+  await chmod(statuslinePath, 0o755)
+
+  let settings: Record<string, unknown> = {}
+  if (existsSync(settingsPath)) {
+    const raw = await readFile(settingsPath, 'utf8')
+    try {
+      settings = JSON.parse(raw)
+    } catch (err) {
+      throw new Error(`.claude/settings.json exists but is not valid JSON — refusing to overwrite. Fix it and re-run metta install. Cause: ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }
+
+  const existing = settings.statusLine
+  if (existing !== undefined) {
+    const existingCmd = (existing as Record<string, unknown>)?.command
+    if (typeof existingCmd === 'string' && existingCmd === installedCmd) {
+      return
+    }
+    process.stderr.write(
+      `Warning: statusLine already set in .claude/settings.json (${JSON.stringify(existingCmd ?? existing)}) — skipping. Remove it manually to let metta manage it.\n`
+    )
+    return
+  }
+
+  settings.statusLine = { type: 'command', command: installedCmd, padding: 0 }
+  await writeFile(settingsPath, JSON.stringify(settings, null, 2) + '\n')
+}
+
 function askYesNo(question: string): Promise<boolean> {
   const rl = createInterface({ input: process.stdin, output: process.stdout })
   return new Promise((resolve) => {
@@ -174,6 +211,16 @@ Banned patterns and forbidden operations.
           console.error(`Warning: failed to install metta-guard hook — ${message}`)
         }
 
+        // Install Claude Code statusline
+        let statuslineInstalled = false
+        try {
+          await installMettaStatusline(root)
+          statuslineInstalled = true
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err)
+          console.error(`Warning: failed to install statusline — ${message}`)
+        }
+
         // Commit setup files
         let committed = false
         try {
@@ -198,6 +245,7 @@ Banned patterns and forbidden operations.
             detected_tools: detectedTools,
             installed_commands: installedCommands,
             guard_hook_installed: guardInstalled,
+            statusline_installed: statuslineInstalled,
           })
         } else {
           console.log('Metta initialized')
@@ -213,6 +261,9 @@ Banned patterns and forbidden operations.
           }
           if (guardInstalled) {
             console.log('  Installed: PreToolUse guard hook (.claude/hooks/metta-guard-edit.mjs)')
+          }
+          if (statuslineInstalled) {
+            console.log('  Installed: statusline (.claude/statusline/statusline.mjs)')
           }
           if (committed) {
             console.log('  Committed: initial metta setup')
@@ -231,3 +282,5 @@ Banned patterns and forbidden operations.
       }
     })
 }
+
+export { installMettaStatusline }
