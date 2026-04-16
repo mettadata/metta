@@ -31,7 +31,7 @@
 - **Done:** File `test/templates/statusline/resolve-context-window.test.ts` exists and `vitest run` on it reports 6 passed, 0 failed.
 
 ### Task 2.2: Create read-transcript-tail.test.ts
-- **Files:** `test/templates/statusline/read-transcript-tail.test.ts`
+- [x] **Files:** `test/templates/statusline/read-transcript-tail.test.ts`
 - **Action:** Write a Vitest test file importing `readTranscriptTail` and `findLatestAssistantUsage` from `../../../src/templates/statusline/statusline.mjs`. Use `os.tmpdir()` + `crypto.randomUUID()` for temp file paths; clean up in `afterEach`. For `readTranscriptTail`: (1) file smaller than tail size — write 3 JSONL lines, assert all 3 returned; (2) file larger than 65 536 bytes — write enough padding so last few lines are beyond offset, assert first element of result is a complete JSON line not a fragment; (3) non-existent path returns `[]`; (4) empty file returns `[]`; (5) offset > 0 drops partial first line — write a 70 000-byte file, assert result[0] is parseable JSON. For `findLatestAssistantUsage`: (1) valid last assistant record returns its `input_tokens`; (2) two assistant records — returns tokens from the later one; (3) only user-role records → `null`; (4) assistant with no usage block → `null`; (5) `input_tokens` is string "100000" (not number) → `null`; (6) one malformed line + one valid assistant line → returns tokens from valid; (7) empty array → `null`.
 - **Verify:** `npx vitest run test/templates/statusline/read-transcript-tail.test.ts` exits 0 with 12 tests passing and 0 failures.
 - **Done:** File exists and vitest reports 12 passed, 0 failed.
