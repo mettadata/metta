@@ -1,0 +1,130 @@
+version: 18
+hash: sha256:280879d4a5fe
+updated: 2026-04-16T02:03:21.039Z
+status: draft
+source: change
+requirements:
+  - id: statusline-script-stdin-contract
+    hash: sha256:c0033e7eba6c
+    scenarios:
+      - valid-stdin-with-both-fields-present
+      - empty-stdin-treated-as-empty-payload
+      - malformed-json-on-stdin-treated-as-empty-payload
+      - stdin-contains-valid-json-but-fields-are-wrong-type
+  - id: context-window-resolution
+    hash: sha256:8c02715f39de
+    scenarios:
+      - model-id-contains-1m-substring
+      - model-id-present-but-does-not-contain-1m
+      - model-field-absent
+      - model-field-contains-1m-as-part-of-a-longer-string
+  - id: context-utilization-calculation
+    hash: sha256:64c1e5c3ee4f
+    scenarios:
+      - transcript-present-with-assistant-usage-entry
+      - transcript-present-but-no-assistant-usage-entry-found
+      - transcript-file-does-not-exist
+      - most-recent-assistant-usage-entry-is-used
+  - id: metta-artifact-resolution
+    hash: sha256:c8e78d79d730
+    scenarios:
+      - metta-status-returns-active-artifact
+      - metta-status-returns-no-active-change
+      - metta-binary-not-found-on-path
+      - metta-status-json-times-out
+  - id: output-format
+    hash: sha256:06af0fa7d7ef
+    scenarios:
+      - full-output-with-artifact-and-context-percentage
+      - output-with-idle-artifact-and-no-context-percentage
+      - unrecoverable-error-fallback
+      - exit-code-is-always-0
+  - id: deterministic-change-slug-coloring
+    hash: sha256:f3ce02c1a0b3
+    scenarios:
+      - active-change-slug-produces-ansi-wrapped-label
+      - same-slug-produces-same-color-on-repeated-runs
+      - idle-artifact-is-not-colored
+      - unknown-fallback-is-not-colored
+  - id: install-auto-registration
+    hash: sha256:a675ed1c5f3e
+    scenarios:
+      - fresh-install-writes-script-and-updates-settings
+      - re-run-install-is-a-no-op
+      - existing-unrelated-keys-in-settings-json-are-preserved
+      - user-authored-statusline-pointing-at-a-different-path-is-not-overwritten
+  - id: install-failure-isolation
+    hash: sha256:577820a30257
+    scenarios:
+      - script-copy-fails-due-to-permissions-error
+      - settings-json-is-unparseable-json
+      - failure-does-not-suppress-guard-hook-installation
+      - warning-message-identifies-the-failed-component
+  - id: template-build-copy
+    hash: sha256:fa92e543f784
+    scenarios:
+      - build-copies-statusline-mjs-to-dist
+      - copied-file-is-executable
+      - build-succeeds-when-statusline-source-directory-is-empty
+  - id: statusline-script-stdin-contract
+    hash: sha256:c0033e7eba6c
+    scenarios:
+      - valid-stdin-with-both-fields-present
+      - empty-stdin-treated-as-empty-payload
+      - malformed-json-on-stdin-treated-as-empty-payload
+      - stdin-contains-valid-json-but-fields-are-wrong-type
+  - id: context-window-resolution
+    hash: sha256:8c02715f39de
+    scenarios:
+      - model-id-contains-1m-substring
+      - model-id-present-but-does-not-contain-1m
+      - model-field-absent
+      - model-field-contains-1m-as-part-of-a-longer-string
+  - id: context-utilization-calculation
+    hash: sha256:64c1e5c3ee4f
+    scenarios:
+      - transcript-present-with-assistant-usage-entry
+      - transcript-present-but-no-assistant-usage-entry-found
+      - transcript-file-does-not-exist
+      - most-recent-assistant-usage-entry-is-used
+  - id: metta-artifact-resolution
+    hash: sha256:c8e78d79d730
+    scenarios:
+      - metta-status-returns-active-artifact
+      - metta-status-returns-no-active-change
+      - metta-binary-not-found-on-path
+      - metta-status-json-times-out
+  - id: output-format
+    hash: sha256:06af0fa7d7ef
+    scenarios:
+      - full-output-with-artifact-and-context-percentage
+      - output-with-idle-artifact-and-no-context-percentage
+      - unrecoverable-error-fallback
+      - exit-code-is-always-0
+  - id: deterministic-change-slug-coloring
+    hash: sha256:f3ce02c1a0b3
+    scenarios:
+      - active-change-slug-produces-ansi-wrapped-label
+      - same-slug-produces-same-color-on-repeated-runs
+      - idle-artifact-is-not-colored
+      - unknown-fallback-is-not-colored
+  - id: install-auto-registration
+    hash: sha256:a675ed1c5f3e
+    scenarios:
+      - fresh-install-writes-script-and-updates-settings
+      - re-run-install-is-a-no-op
+      - existing-unrelated-keys-in-settings-json-are-preserved
+      - user-authored-statusline-pointing-at-a-different-path-is-not-overwritten
+  - id: install-failure-isolation
+    hash: sha256:577820a30257
+    scenarios:
+      - script-copy-fails-due-to-permissions-error
+      - settings-json-is-unparseable-json
+      - failure-does-not-suppress-guard-hook-installation
+      - warning-message-identifies-the-failed-component
+  - id: template-build-copy
+    hash: sha256:fa92e543f784
+    scenarios:
+      - build-copies-statusline-mjs-to-dist
+      - copied-file-is-executable
+      - build-succeeds-when-statusline-source-directory-is-empty
