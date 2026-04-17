@@ -6,4 +6,4 @@ base_versions: {}
 artifacts:
   intent: complete
   implementation: complete
-  verification: ready
+  verification: complete
