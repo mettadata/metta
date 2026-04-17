@@ -25,7 +25,7 @@ artifacts:
     generates: spec.md
     requires: [intent]
     agents: [specifier]
-    gates: [spec-quality]
+    gates: []
 
   - id: research
     type: research
@@ -41,7 +41,7 @@ artifacts:
     generates: design.md
     requires: [research]
     agents: [architect]
-    gates: [design-review]
+    gates: []
 
   - id: architecture
     type: architecture
@@ -57,7 +57,7 @@ artifacts:
     generates: tasks.md
     requires: [design]
     agents: [planner]
-    gates: [task-quality]
+    gates: []
 
   - id: ux-spec
     type: ux-spec
@@ -81,4 +81,4 @@ artifacts:
     generates: summary.md
     requires: [implementation]
     agents: [verifier]
-    gates: [uat]
+    gates: []

@@ -1,0 +1,30 @@
+version: 4
+hash: sha256:a433f87ffc8b
+updated: 2026-04-17T06:37:21.793Z
+status: draft
+source: change
+requirements:
+  - id: gate-execution-must-honor-all-three-on-failure-policies-uniformly
+    hash: sha256:23d4ebeb9656
+    scenarios:
+      - retry-once-retries-on-first-fail
+      - retry-once-does-not-retry-on-initial-pass
+      - continue-with-warning-downgrades-fail-to-warn
+      - stop-on-fail-causes-remaining-gates-to-be-skipped
+      - stop-does-not-affect-gates-earlier-in-the-batch
+  - id: gate-warn-status-must-be-treated-as-pass-across-cli-commands
+    hash: sha256:5411ffcae0cd
+    scenarios:
+      - verify-exits-0-when-a-gate-returns-warn
+      - verify-exits-non-zero-when-any-gate-returns-fail
+      - finalize-accepts-warn-results
+  - id: workflow-yamls-must-not-reference-unimplemented-gates
+    hash: sha256:4f62c46d4184
+    scenarios:
+      - standard-yaml-does-not-reference-unimplemented-gates
+      - full-yaml-does-not-reference-unimplemented-gates
+      - quick-yaml-does-not-reference-unimplemented-gates
+  - id: gateregistry-tests-must-cover-each-policy-branch
+    hash: sha256:c962581e28dd
+    scenarios:
+      - test-suite-asserts-each-on-failure-branch

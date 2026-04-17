@@ -25,4 +25,4 @@ artifacts:
     generates: summary.md
     requires: [implementation]
     agents: [verifier]
-    gates: [uat]
+    gates: []

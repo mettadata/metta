@@ -1,4 +1,7 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { join } from 'node:path'
+import { tmpdir } from 'node:os'
 import { GateRegistry } from '../src/gates/gate-registry.js'
 import type { GateDefinition } from '../src/schemas/gate-definition.js'
 
@@ -83,8 +86,6 @@ describe('GateRegistry', () => {
   })
 
   it('retries once on failure with retry_once policy', async () => {
-    let callCount = 0
-    // Use a command that tracks calls via a side effect
     registry.register({
       name: 'retry-test',
       description: 'Retry test',
@@ -96,5 +97,162 @@ describe('GateRegistry', () => {
     const result = await registry.runWithRetry('retry-test', process.cwd())
     // Should still fail after retry
     expect(result.status).toBe('fail')
+  })
+
+  describe('runWithPolicy', () => {
+    let tempDir: string
+
+    beforeEach(async () => {
+      tempDir = await mkdtemp(join(tmpdir(), 'metta-gate-policy-'))
+    })
+
+    afterEach(async () => {
+      await rm(tempDir, { recursive: true, force: true })
+    })
+
+    it('retry_once — retries on first fail, passes on retry', async () => {
+      const sentinel = join(tempDir, 'sentinel')
+      const flipCmd = `if [ -f ${sentinel} ]; then rm ${sentinel}; exit 0; else touch ${sentinel}; exit 1; fi`
+      registry.register({
+        name: 'flip',
+        description: 'Flip',
+        command: flipCmd,
+        timeout: 5000,
+        required: true,
+        on_failure: 'retry_once',
+      })
+      const result = await registry.runWithPolicy('flip', tempDir)
+      expect(result.status).toBe('pass')
+    })
+
+    it('retry_once — no retry on initial pass', async () => {
+      registry.register({
+        name: 'pass-immediately',
+        description: 'Pass',
+        command: 'true',
+        timeout: 5000,
+        required: true,
+        on_failure: 'retry_once',
+      })
+      const result = await registry.runWithPolicy('pass-immediately', tempDir)
+      expect(result.status).toBe('pass')
+    })
+
+    it('retry_once — both fails return fail', async () => {
+      registry.register({
+        name: 'always-fails',
+        description: 'Always fails',
+        command: 'false',
+        timeout: 5000,
+        required: true,
+        on_failure: 'retry_once',
+      })
+      const result = await registry.runWithPolicy('always-fails', tempDir)
+      expect(result.status).toBe('fail')
+    })
+
+    it('continue_with_warning — downgrades fail to warn', async () => {
+      registry.register({
+        name: 'warn-on-fail',
+        description: 'Warn on fail',
+        command: 'false',
+        timeout: 5000,
+        required: false,
+        on_failure: 'continue_with_warning',
+      })
+      const result = await registry.runWithPolicy('warn-on-fail', tempDir)
+      expect(result.status).toBe('warn')
+      // Verify that failure context is preserved on the downgraded warn result
+      const hasContext = (result.output !== undefined && result.output !== '') || (result.failures !== undefined && result.failures.length > 0)
+      expect(hasContext).toBe(true)
+    })
+
+    it('continue_with_warning — leaves pass unchanged', async () => {
+      registry.register({
+        name: 'warn-but-pass',
+        description: 'Pass',
+        command: 'true',
+        timeout: 5000,
+        required: false,
+        on_failure: 'continue_with_warning',
+      })
+      const result = await registry.runWithPolicy('warn-but-pass', tempDir)
+      expect(result.status).toBe('pass')
+    })
+
+    it('stop — returns fail unchanged', async () => {
+      registry.register({
+        name: 'stop-on-fail',
+        description: 'Stop on fail',
+        command: 'false',
+        timeout: 5000,
+        required: true,
+        on_failure: 'stop',
+      })
+      const result = await registry.runWithPolicy('stop-on-fail', tempDir)
+      expect(result.status).toBe('fail')
+    })
+  })
+
+  describe('runAll stop-propagation', () => {
+    let tempDir: string
+
+    beforeEach(async () => {
+      tempDir = await mkdtemp(join(tmpdir(), 'metta-gate-runall-'))
+    })
+
+    afterEach(async () => {
+      await rm(tempDir, { recursive: true, force: true })
+    })
+
+    it('stop — subsequent gates get skip with reference to failing gate', async () => {
+      registry.register({ name: 'A', description: 'A', command: 'true', timeout: 5000, required: true, on_failure: 'retry_once' })
+      registry.register({ name: 'B', description: 'B', command: 'false', timeout: 5000, required: true, on_failure: 'stop' })
+      registry.register({ name: 'C', description: 'C', command: 'true', timeout: 5000, required: true, on_failure: 'retry_once' })
+
+      const results = await registry.runAll(['A', 'B', 'C'], tempDir)
+      expect(results).toHaveLength(3)
+      expect(results[0]?.status).toBe('pass')
+      expect(results[1]?.status).toBe('fail')
+      expect(results[2]?.status).toBe('skip')
+      expect(results[2]?.output).toContain('Skipped due to earlier fail of B')
+    })
+
+    it('no stop — completes all gates even on fail', async () => {
+      registry.register({ name: 'A', description: 'A', command: 'false', timeout: 5000, required: false, on_failure: 'continue_with_warning' })
+      registry.register({ name: 'B', description: 'B', command: 'true', timeout: 5000, required: true, on_failure: 'retry_once' })
+
+      const results = await registry.runAll(['A', 'B'], tempDir)
+      expect(results).toHaveLength(2)
+      expect(results[0]?.status).toBe('warn')
+      expect(results[1]?.status).toBe('pass')
+    })
+  })
+
+  describe('runWithRetry back-compat alias', () => {
+    let tempDir: string
+
+    beforeEach(async () => {
+      tempDir = await mkdtemp(join(tmpdir(), 'metta-gate-alias-'))
+    })
+
+    afterEach(async () => {
+      await rm(tempDir, { recursive: true, force: true })
+    })
+
+    it('runWithRetry is a back-compat alias for runWithPolicy', async () => {
+      registry.register({
+        name: 'alias-test',
+        description: 'Alias',
+        command: 'true',
+        timeout: 5000,
+        required: true,
+        on_failure: 'retry_once',
+      })
+      const viaRetry = await registry.runWithRetry('alias-test', tempDir)
+      const viaPolicy = await registry.runWithPolicy('alias-test', tempDir)
+      expect(viaRetry.status).toBe('pass')
+      expect(viaPolicy.status).toBe('pass')
+    })
   })
 })
