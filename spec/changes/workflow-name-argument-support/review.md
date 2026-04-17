@@ -1,5 +1,20 @@
 # Code Review: workflow-name-argument-support
 
+## Final verdict: PASS (after fix commits `156bae4d9` and `39bfe7762`)
+
+## Fixes applied to resolve NEEDS_CHANGES findings
+
+1. **Critical (artifact-loop note over-claim):** replaced in all four skill files (source + deployed mirrors) with factually accurate text naming `full` as not yet end-to-end usable and pointing at issue `full-workflow-references-missing-template-files-domain-resea`.
+2. **Logged follow-up issue** via `metta issue` for the missing `full`-workflow templates (severity major).
+3. **Intent contradiction:** `intent.md` Impact + Out-of-Scope sections updated to reflect the REQ-3 byte-identity sync of deployed skills.
+4. **Slug placeholder:** replaced shorthand `full-workflow-missing-artifact-templates` with the real CLI-generated slug in all four skill files.
+
+Byte-identity re-verified empty between source and deployed. 526/526 tests pass. `tsc --noEmit` clean.
+
+---
+
+## Original review findings
+
 ## Summary
 
 The change threads a `--workflow <name>` flag through the `/metta-propose` and `/metta-auto` skill templates with identical parsing wording in both files and tests restored to the REQ-3 byte-identity form. However, the artifact-loop note that claims `metta instructions <artifact> --json` handles `domain-research`, `architecture`, and `ux-spec` stages "automatically" is inaccurate: the required artifact templates (`domain-research.md`, `architecture.md`, `ux-spec.md`) do not exist under `src/templates/artifacts/`, so `metta instructions` will throw `Template '<name>.md' not found` for those stages. The skill's core rewrite (step 1) is correct and consistent; the supplementary note over-promises.
