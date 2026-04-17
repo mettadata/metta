@@ -158,6 +158,8 @@ export class DocGenerator {
 
     const lines: string[] = ['# Architecture\n']
 
+    lines.push('> **Looking for how the workflow system works?** See [`docs/workflows/`](./workflows/) — comprehensive internal reference for skills, YAML workflows, artifacts, agents, gates, state, and walkthroughs.\n')
+
     lines.push('## Components\n')
     for (const cap of capabilities) {
       lines.push(`### ${cap.label}`)
@@ -255,6 +257,8 @@ export class DocGenerator {
     }
 
     const lines: string[] = ['# Getting Started\n']
+
+    lines.push('> **Looking for how the workflow system works?** See [`docs/workflows/`](./workflows/) — comprehensive internal reference for skills, YAML workflows, artifacts, agents, gates, state, and walkthroughs.\n')
 
     if (sections['Project']) {
       lines.push('## Project\n')
