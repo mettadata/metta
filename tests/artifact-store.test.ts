@@ -80,7 +80,21 @@ describe('ArtifactStore', () => {
       await store.markArtifact('advance-test', 'intent', 'complete')
       await store.markArtifact('advance-test', 'implementation', 'ready')
       const meta = await store.getChange('advance-test')
+      expect(meta.artifacts.intent).toBe('complete')
+      expect(meta.artifacts.implementation).toBe('ready')
       expect(meta.current_artifact).toBe('implementation')
+    })
+
+    it('current_artifact does not change for pending, failed, or skipped transitions', async () => {
+      await store.createChange('negative test', 'quick', ['intent', 'implementation', 'verification'])
+      await store.markArtifact('negative-test', 'intent', 'complete')
+      const before = (await store.getChange('negative-test')).current_artifact
+      await store.markArtifact('negative-test', 'implementation', 'pending')
+      expect((await store.getChange('negative-test')).current_artifact).toBe(before)
+      await store.markArtifact('negative-test', 'implementation', 'failed')
+      expect((await store.getChange('negative-test')).current_artifact).toBe(before)
+      await store.markArtifact('negative-test', 'implementation', 'skipped')
+      expect((await store.getChange('negative-test')).current_artifact).toBe(before)
     })
   })
 
