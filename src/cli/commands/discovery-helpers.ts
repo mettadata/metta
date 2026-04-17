@@ -1,6 +1,7 @@
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { stat, readdir } from 'node:fs/promises'
+import { workflowPrimerShort } from '../../delivery/workflow-primer.js'
 
 export const BROWNFIELD_MARKERS = [
   'src', 'app', 'lib', 'pkg', 'cmd', 'internal',
@@ -139,16 +140,7 @@ Stack: {stack_summary}
 <!-- metta:workflow-start -->
 ## Metta Workflow
 
-### How to work
-
-**AI orchestrators MUST invoke the matching metta skill — never call the CLI directly.**
-
-Primary entry points:
-- \`/metta-quick <description>\` — small, scoped fixes
-- \`/metta-propose <description>\` — non-trivial changes
-- \`/metta-fix-issues <slug>\` — resolve a logged issue
-
-Run \`metta refresh\` for the full command reference.
+${workflowPrimerShort().join('\n')}
 <!-- metta:workflow-end -->
 `,
   }

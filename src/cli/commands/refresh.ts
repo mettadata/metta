@@ -3,6 +3,7 @@ import { readdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { outputJson } from '../helpers.js'
+import { workflowPrimerLong } from '../../delivery/workflow-primer.js'
 
 /** Marker pair definition */
 interface MarkerSection {
@@ -123,22 +124,7 @@ export function buildWorkflowSection(): string {
   const lines: string[] = []
   lines.push('## Metta Workflow\n')
 
-  lines.push('### How to work')
-  lines.push('')
-  lines.push('**AI orchestrators MUST invoke the matching metta skill — never call the CLI directly.** The skills wrap artifact authoring, review, and verification with the correct subagent personas; calling the CLI directly bypasses those guarantees and has shipped broken artifacts (see `spec/issues/metta-complete-accepts-stub-placeholder-artifacts-on-intent-.md`).')
-  lines.push('')
-  lines.push('Primary entry points:')
-  lines.push('- `/metta-quick <description>` — small, scoped fixes (bug fixes, one-file edits, tiny refactors)')
-  lines.push('- `/metta-propose <description>` — anything non-trivial (new features, multi-file changes, API surface changes)')
-  lines.push('- `/metta-fix-issues <slug>` — resolve a logged issue from `spec/issues/`')
-  lines.push('')
-  lines.push('Doc-only fixes and edits to this workflow section itself are the exceptions.')
-  lines.push('')
-
-  lines.push('### Forbidden')
-  lines.push('')
-  lines.push('- Invoking `metta quick`, `metta propose`, `metta finalize`, `metta complete`, `metta issue`, or any other `metta <cmd>` directly from an AI orchestrator session. Use the matching skill. (Humans at a terminal can run the CLI freely — this rule applies only to AI-driven sessions.)')
-  lines.push('- Writing placeholder content like `"intent stub"` or `"summary stub"` to any artifact file to satisfy `metta complete`. Artifacts must carry real content authored by the matching `metta-*` subagent.')
+  lines.push(...workflowPrimerLong())
   lines.push('')
 
   lines.push('### Lifecycle')
