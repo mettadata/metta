@@ -1,5 +1,33 @@
 # Code Review: fix-gate-infrastructure-bundle
 
+## Final verdict: PASS (after 4 review-fix commits)
+
+## Critical findings — fixed
+
+1. **`quick.yaml` still had `gates: [uat]`** — stripped in commit `93158930c`.
+2. **`standard.yaml` spec stage dropped `stories-valid` over-eagerly** — restored to `gates: [stories-valid]` in commit `894efb936`.
+
+## Warning findings — fixed
+
+3. **`verify.ts` rendered `warn` with red fail icon** — updated to yellow `⚠`; summary line now reads `"All gates passed (with warnings)."` when warns exist. Commit `bcba3af49`.
+4. **`runWithPolicy` switch lacked `default`** — added `default: return result` (defensive against enum additions). Same commit `bcba3af49`.
+5. **`verify-warn.test.ts` had dead spies** — removed unasserted `consoleLogSpy`/`consoleErrorSpy` + `program.exitOverride()`; added `expect(runAllSpy).toHaveBeenCalled()` assertion.
+
+## Info findings — accepted as-is
+
+- `runAll` re-reads `on_failure === 'stop'` intentionally: per-gate transformation in `runWithPolicy`, batch-level propagation in `runAll`.
+- `merge-safety.ts` silent on warn — by design.
+
+## Re-verification
+
+- `grep` for `spec-quality|design-review|task-quality|uat` across all three workflow YAMLs → no matches
+- `npx tsc --noEmit` → clean
+- `npm test` → 539/539 pass
+
+---
+
+## Original reviewer findings
+
 ## Summary
 
 Solid refactor of `GateRegistry` that cleanly unifies `on_failure` policy handling behind `runWithPolicy`, with `runAll` threading a single `stoppedBy` sentinel. Code and tests are direct and readable. One spec-compliance miss in `quick.yaml` (`uat` still referenced) and a minor UX inconsistency in `verify.ts` where `warn` renders with the red fail icon. A few questions around the public surface of `runWithPolicy` and the robustness of the `verify-warn.test.ts` prototype-spy strategy.
