@@ -1,0 +1,14 @@
+version: 1
+hash: sha256:d0974f7d8b90
+updated: 2026-04-17T04:33:15.716Z
+status: draft
+source: change
+requirements:
+  - id: full-workflow-artifact-templates
+    hash: sha256:d44702773c40
+    scenarios:
+      - domain-research-template-load-succeeds
+      - architecture-template-load-succeeds
+      - ux-spec-template-load-succeeds
+      - full-workflow-propose-instructions-round-trip
+      - build-pipeline-copies-the-new-templates

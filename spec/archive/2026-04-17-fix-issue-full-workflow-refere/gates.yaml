@@ -1,0 +1,18 @@
+finalized_at: 2026-04-17T04:37:20.019Z
+all_passed: true
+results:
+  - gate: build
+    status: pass
+    duration_ms: 5167
+  - gate: lint
+    status: pass
+    duration_ms: 4234
+  - gate: stories-valid
+    status: pass
+    duration_ms: 528
+  - gate: tests
+    status: pass
+    duration_ms: 229933
+  - gate: typecheck
+    status: pass
+    duration_ms: 4430
