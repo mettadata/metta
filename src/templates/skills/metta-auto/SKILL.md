@@ -32,7 +32,7 @@ You are the **orchestrator** for the full Metta lifecycle. Spawn subagents for e
 3. For each **planning** artifact (intent, spec, design, tasks) — one subagent per artifact:
    `metta instructions <artifact> --json` → spawn agent → `metta complete <artifact>`
 
-   When `--workflow full` is used, the loop automatically handles the additional `domain-research`, `architecture`, and `ux-spec` stages — `metta instructions <artifact> --json` returns the correct agent persona per stage, so no per-stage special-casing is needed.
+   When a non-default `--workflow` is used, the artifact loop uses whatever sequence `metta propose` returned — `metta instructions <artifact> --json` provides the correct agent persona per stage. Note: as of this change, the `full` workflow references stage templates (`domain-research`, `architecture`, `ux-spec`) that do not yet exist in `src/templates/artifacts/`; running `--workflow full` will fail on the first missing template. Tracked as issue `full-workflow-missing-artifact-templates` for a follow-up.
 
    For **research**: spawn 2-4 metta-researcher agents in parallel (one per approach)
 

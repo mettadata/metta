@@ -29,7 +29,7 @@ where `<description>` is `$ARGUMENTS` with the `--workflow <name>` pair removed,
 - `src/templates/skills/metta-propose/SKILL.md` — step 1 rewritten; artifact-loop note added
 - `src/templates/skills/metta-auto/SKILL.md` — step 1 rewritten; artifact-loop note added
 
-No other files are touched. Installed copies under `.claude/skills/` in this repository are not modified; users receive the updated text on their next `metta install` or `metta refresh`, consistent with how skill updates are distributed today.
+Both source templates AND their byte-identical deployed copies under `.claude/skills/` are updated (REQ-3 byte-identity requirement, from archived change `iterative-discovery-metta-prop`).
 
 ## Impact
 
@@ -43,7 +43,7 @@ No other files are touched. Installed copies under `.claude/skills/` in this rep
 
 ## Out of Scope
 
-- **Installed `.claude/skills/` in this repository.** The copies under `.claude/skills/metta-propose/SKILL.md` and `.claude/skills/metta-auto/SKILL.md` are not modified. Distribution to existing installs happens via `metta install` / `metta refresh` at the user's discretion.
+- **Creating the missing `full`-workflow template files (`domain-research.md`, `architecture.md`, `ux-spec.md`)** — tracked separately as issue `full-workflow-references-missing-template-files-domain-resea`.
 - **Other skills.** `/metta-quick`, `/metta-fix-issues`, and any future skills are not changed by this work.
 - **Changes to workflow definitions.** The `full.yaml`, `standard.yaml`, and `quick.yaml` workflow files are not modified.
 - **CLI argument-parsing changes.** `src/cli/commands/propose.ts` already parses `--workflow`; no changes are needed there.
