@@ -1,0 +1,16 @@
+workflow: full
+created: 2026-04-17T04:32:11.565Z
+status: abandoned
+current_artifact: domain-research
+base_versions: {}
+artifacts:
+  domain-research: ready
+  intent: pending
+  spec: pending
+  research: pending
+  design: pending
+  architecture: pending
+  tasks: pending
+  implementation: pending
+  ux-spec: pending
+  verification: pending
