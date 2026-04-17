@@ -5,9 +5,9 @@ End-to-end narrated examples of using metta. Each walkthrough follows the comman
 For reference while reading:
 
 - Workflow DAGs and stage tables — [`workflows.md`](./workflows.md)
-- Skill orchestrator contracts — `src/templates/skills/<skill-name>/SKILL.md`
-- Gate definitions and order — [`gates.md`](./gates.md) (if present) and `src/templates/gates/*.yaml`
-- Per-agent personas — `src/templates/agents/metta-<agent>.md`
+- Skill orchestrator contracts — [`skills.md`](./skills.md) and `src/templates/skills/<skill-name>/SKILL.md`
+- Gate definitions and order — [`gates.md`](./gates.md) and `src/templates/gates/*.yaml`
+- Per-agent personas — [`agents.md`](./agents.md) and `src/templates/agents/metta-<agent>.md`
 
 Conventions throughout:
 
@@ -87,13 +87,15 @@ Quick is a single-file typo fix, so the orchestrator spawns **one** `metta-execu
 - Commits: `fix(fix-typo-in-doctor-error-message): correct typo in doctor error message`
 - Writes a short `spec/changes/fix-typo-in-doctor-error-message/summary.md`
 
-The orchestrator then writes a **stories sentinel** to satisfy the `stories-valid` gate that fires at finalize (see Gotchas below) and commits it:
+The orchestrator then writes a **stories sentinel** and commits it:
 
 ```
 spec/changes/fix-typo-in-doctor-error-message/stories.md
 ```
 
 Content is the sentinel form: "No user stories — internal/infrastructure change" plus a short justification.
+
+Why this file exists even though the `quick` workflow has no `stories` artifact: the `stories-valid` gate lives in the gate registry, and the finalizer runs **every** registered gate regardless of which workflow ran. Without a `stories.md` carrying valid sentinel frontmatter (or real user-story blocks), `stories-valid` fails and finalize aborts. See [`gates.md`](./gates.md) for the gate's exact contract.
 
 Then:
 
@@ -136,17 +138,17 @@ metta finalize --json --change fix-typo-in-doctor-error-message
 The `Finalizer` (`src/finalize/finalizer.ts`) runs in this order:
 
 1. **Spec merge** — no delta specs (quick never writes `spec.md`), so this is a no-op
-2. **Quality gates** — runs *every* gate registered in the gate registry, not just the ones listed in the workflow's artifact stages. In practice the built-in gate registry contains:
+2. **Quality gates** — runs *every* gate registered in the gate registry, not just the ones listed in the workflow's artifact stages. `GateRegistry.loadFromDirectory` reads `src/templates/gates/*.yaml` via `readdir`, which returns filenames in alphabetical order, so the runtime execution order is alphabetical by gate id:
 
    | Order | Gate | Purpose |
    |---|---|---|
-   | 1 | `tests` | `npm test` |
-   | 2 | `typecheck` | `npx tsc --noEmit` |
-   | 3 | `lint` | `npm run lint` |
-   | 4 | `stories-valid` | `metta validate-stories` — reads `stories.md` (sentinel allowed) |
-   | 5 | `build` | `npm run build` |
+   | 1 | `build` | `npm run build` |
+   | 2 | `lint` | `npm run lint` |
+   | 3 | `stories-valid` | `metta validate-stories` — reads `stories.md` (sentinel allowed) |
+   | 4 | `tests` | `npm test` |
+   | 5 | `typecheck` | `npx tsc --noEmit` |
 
-   All gates pass → `gatesPassed: true`.
+   All gates pass → `gatesPassed: true`. See [`gates.md`](./gates.md) for per-gate failure modes.
 
 3. **Archive** — `spec/changes/fix-typo-in-doctor-error-message/` is moved to `spec/archive/<YYYY-MM-DD>-fix-typo-in-doctor-error-me/` and a `gates.yaml` summary is written alongside it.
 4. **Docs** — if `docs.generate_on: finalize` is configured, `DocGenerator` runs. Otherwise skipped.
@@ -319,7 +321,7 @@ metta complete verification --json --change add-json-mode-to-metta-doctor
 metta finalize --json --change add-json-mode-to-metta-doctor
 ```
 
-Unlike quick, this change *does* write a `spec.md` with delta specs, so `SpecMerger` runs: delta blocks in `spec/changes/<change>/spec.md` are merged into `spec/specs/doctor/spec.md` (creating the capability directory if it does not yet exist). Then gates (`tests`, `typecheck`, `lint`, `stories-valid`, `build`). Then archive. Then docs regen if configured.
+Unlike quick, this change *does* write a `spec.md` with delta specs, so `SpecMerger` runs: delta blocks in `spec/changes/<change>/spec.md` are merged into `spec/specs/doctor/spec.md` (creating the capability directory if it does not yet exist). Then gates run in alphabetical order (`build`, `lint`, `stories-valid`, `tests`, `typecheck`). Then archive. Then docs regen if configured.
 
 ### What `spec/specs/doctor/spec.md` looks like after merge
 
@@ -359,9 +361,11 @@ git merge metta/add-json-mode-to-metta-doctor --no-ff \
 
 ---
 
-## Walkthrough 3: Bug fix via `/metta-fix-issues`
+## Walkthrough 3: Bug fix via `/metta-fix-issues` (historical example)
 
 **Scenario.** An issue was logged earlier: `full-workflow-references-missing-template-files-domain-resea` — the `full` workflow YAML references artifact templates (`domain-research.md`, `architecture.md`, `ux-spec.md`) that don't exist in `src/templates/artifacts/`, so `metta instructions` fails the first time a `full`-workflow change reaches those stages.
+
+> **Note.** This issue has already been resolved — the narrative below reconstructs the fix as it would have been driven by `/metta-fix-issues`, using the actual change that shipped. The issue now lives under `spec/issues/resolved/full-workflow-references-missing-template-files-domain-resea.md`, the fix was committed as `bcc7c031f`, and the archived change is `spec/archive/2026-04-17-fix-issue-full-workflow-refere/`. Read this walkthrough as "here's exactly what `/metta-fix-issues` did for this real case", not "go run this command to reproduce it".
 
 ### Invocation
 
@@ -414,7 +418,7 @@ Same three-phase parallel pattern as walkthrough 2 — executors per task batch,
 metta finalize --json --change fix-issue-full-workflow-refere
 ```
 
-Gates run in order (tests → typecheck → lint → stories-valid → build). The `stories-valid` gate reads the stories-sentinel produced by the product agent and passes it as valid. Specs merge (any new/modified requirements land in `spec/specs/<capability>/spec.md`). Archive lands in `spec/archive/<date>-fix-issue-full-workflow-refere/`.
+Gates run in alphabetical order (`build → lint → stories-valid → tests → typecheck`). The `stories-valid` gate reads the stories-sentinel produced by the product agent and passes it as valid. Specs merge (any new/modified requirements land in `spec/specs/<capability>/spec.md`). Archive lands in `spec/archive/<date>-fix-issue-full-workflow-refere/`.
 
 ### Step 7 — Merge to main
 
@@ -527,7 +531,7 @@ Results in `summary.md`, commit, `metta complete verification`.
 metta finalize --json --change add-metta-observability-subsystem
 ```
 
-Same gate sequence as always (tests, typecheck, lint, stories-valid, build). Because this change introduces a brand-new capability `observability`, `SpecMerger` creates `spec/specs/observability/spec.md` from the delta spec in the change. Archive lands in `spec/archive/<date>-add-metta-observability-subsystem/` with every artifact file preserved:
+Same gate sequence as always — alphabetical by gate id: `build`, `lint`, `stories-valid`, `tests`, `typecheck`. Because this change introduces a brand-new capability `observability`, `SpecMerger` creates `spec/specs/observability/spec.md` from the delta spec in the change. Archive lands in `spec/archive/<date>-add-metta-observability-subsystem/` with every artifact file preserved:
 
 ```
 spec/archive/<date>-add-metta-observability-subsystem/
@@ -589,8 +593,9 @@ Related issue: `spec/issues/metta-discovery-agent-cannot-write-outside-an-active
 ## Cross-links
 
 - [`workflows.md`](./workflows.md) — workflow YAML reference (quick, standard, full) and engine semantics
-- `docs/workflows/skills.md` — the full skill catalog (when added)
-- `docs/workflows/gates.md` — gate definitions and failure modes (when added)
+- [`skills.md`](./skills.md) — the full skill catalog
+- [`gates.md`](./gates.md) — gate definitions and failure modes
+- [`agents.md`](./agents.md) — per-agent personas and responsibilities
 - `src/templates/skills/<skill-name>/SKILL.md` — authoritative skill orchestrator contracts
 - `src/templates/workflows/*.yaml` — authoritative workflow DAGs
 - `src/finalize/finalizer.ts` — finalize sequence (merge → gates → archive → docs)
