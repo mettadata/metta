@@ -3,6 +3,8 @@
 <!-- Run `metta docs generate` to regenerate -->
 # Architecture
 
+> **Looking for how the workflow system works?** See [`docs/workflows/`](./workflows/) — comprehensive internal reference for skills, YAML workflows, artifacts, agents, gates, state, and walkthroughs.
+
 ## Components
 
 ### Artifact Store

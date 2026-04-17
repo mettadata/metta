@@ -3,6 +3,8 @@
 <!-- Run `metta docs generate` to regenerate -->
 # Getting Started
 
+> **Looking for how the workflow system works?** See [`docs/workflows/`](./workflows/) — comprehensive internal reference for skills, YAML workflows, artifacts, agents, gates, state, and walkthroughs.
+
 ## Project
 
 A composable, spec-driven development framework for AI-native software engineering. CLI tool orchestrating the full change lifecycle: propose, plan, execute, verify, finalize, ship. Works with any AI coding tool via instruction mode — the framework manages state and specs while the AI tool executes.
