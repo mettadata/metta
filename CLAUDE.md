@@ -33,7 +33,20 @@ Stack: **Language:** TypeScript (strict mode, ES2022 target), **Runtime:** Node.
 ## Metta Workflow
 
 ### How to work
-For any code change — bug fix, feature, refactor — start with `metta quick <description>` (or `metta propose` for anything non-trivial) before editing files. The framework scaffolds a change branch, tracks intent, and runs review/verification. Doc-only fixes and this workflow itself are the exceptions.
+
+**AI orchestrators MUST invoke the matching metta skill — never call the CLI directly.** (Humans running the CLI in a terminal are unaffected — this rule scopes to AI-driven sessions.) The skills wrap artifact authoring, review, and verification with the correct subagent personas; calling the CLI directly bypasses those guarantees and has shipped broken artifacts (see `spec/issues/metta-complete-accepts-stub-placeholder-artifacts-on-intent-.md`).
+
+Primary entry points:
+- `/metta-quick <description>` — small, scoped fixes (bug fixes, one-file edits, tiny refactors)
+- `/metta-propose <description>` — anything non-trivial (new features, multi-file changes, API surface changes)
+- `/metta-fix-issues <slug>` — resolve a logged issue from `spec/issues/`
+
+Doc-only fixes and edits to this workflow section itself are the exceptions.
+
+### Forbidden
+
+- Invoking `metta quick`, `metta propose`, `metta finalize`, `metta complete`, `metta issue`, or any other `metta <cmd>` directly from an AI orchestrator session. Use the matching skill.
+- Writing placeholder content like `"intent stub"` or `"summary stub"` to any artifact file to satisfy `metta complete`. Artifacts must carry real content authored by the matching `metta-*` subagent.
 
 ### Lifecycle
 - `metta propose <description>` -- start a new change (standard workflow)
@@ -79,6 +92,7 @@ For any code change — bug fix, feature, refactor — start with `metta quick <
 | artifact-store | 19 |
 | config-loader | 59 |
 | context-engine | 72 |
+| custom-claude-statusline-conte | 86 |
 | execution-engine | 49 |
 | finalize-ship | 26 |
 | fix-issue-stories-parser-multi | 3 |
