@@ -937,5 +937,99 @@ describe('CLI', { timeout: 30000 }, () => {
       expect(data.completed).toBe('intent')
       expect(data.change).toBe('happy-complete')
     })
+
+    // Spec body long enough to pass the 200-byte content-sanity floor. Shared by
+    // all three spec-delta pre-complete tests below so we only author it once.
+    const specBodyPadding = [
+      'This requirement exists so the delta-target gate runs against real',
+      'content. The body is deliberately padded beyond the min-length floor so',
+      'that content-sanity never fires ahead of the capability-exists branch,',
+      'keeping these tests focused on the delta-target check.',
+    ].join(' ')
+
+    it('spec rejects MODIFIED for non-existent capability', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await runCli(['propose', 'bad modified'], tempDir)
+      const changeDir = join(tempDir, 'spec', 'changes', 'bad-modified')
+      const specBody = [
+        '# Capability Name (Delta)',
+        '',
+        '## MODIFIED: Requirement: Foo',
+        '',
+        'The system MUST foo.',
+        '',
+        specBodyPadding,
+        '',
+      ].join('\n')
+      await writeFile(join(changeDir, 'spec.md'), specBody, 'utf8')
+      const { stdout, code } = await runCli(
+        ['--json', 'complete', 'spec', '--change', 'bad-modified'],
+        tempDir,
+      )
+      expect(code).toBe(4)
+      const data = JSON.parse(stdout)
+      expect(data.error.code).toBe(4)
+      expect(data.error.message.toLowerCase()).toContain('unknown capability')
+      expect(data.error.message).toContain('capability-name')
+    })
+
+    it('spec accepts ADDED for new capability', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await runCli(['propose', 'good added'], tempDir)
+      const changeDir = join(tempDir, 'spec', 'changes', 'good-added')
+      const specBody = [
+        '# Capability Name (Delta)',
+        '',
+        '## ADDED: Requirement: Foo',
+        '',
+        'The system MUST foo.',
+        '',
+        specBodyPadding,
+        '',
+      ].join('\n')
+      await writeFile(join(changeDir, 'spec.md'), specBody, 'utf8')
+      const { stdout, code } = await runCli(
+        ['--json', 'complete', 'spec', '--change', 'good-added'],
+        tempDir,
+      )
+      expect(code).toBe(0)
+      const data = JSON.parse(stdout)
+      expect(data.completed).toBe('spec')
+      expect(data.change).toBe('good-added')
+    })
+
+    it('spec accepts MODIFIED for existing capability', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await runCli(['propose', 'good modified'], tempDir)
+      const changeDir = join(tempDir, 'spec', 'changes', 'good-modified')
+      // Seed the capability spec so the MODIFIED target resolves to an existing
+      // capability at complete-time.
+      const capDir = join(tempDir, 'spec', 'specs', 'capability-name')
+      await mkdir(capDir, { recursive: true })
+      await writeFile(
+        join(capDir, 'spec.md'),
+        '# Capability Name\n\n## Requirement: Foo\n\nThe system MUST foo.\n',
+        'utf8',
+      )
+      const specBody = [
+        '# Capability Name (Delta)',
+        '',
+        '## MODIFIED: Requirement: Foo',
+        '',
+        'The system MUST foo differently.',
+        '',
+        specBodyPadding,
+        '',
+      ].join('\n')
+      await writeFile(join(changeDir, 'spec.md'), specBody, 'utf8')
+      const { stdout, code } = await runCli(
+        ['--json', 'complete', 'spec', '--change', 'good-modified'],
+        tempDir,
+      )
+      expect(code).toBe(0)
+      const data = JSON.parse(stdout)
+      expect(data.completed).toBe('spec')
+      expect(data.change).toBe('good-modified')
+    })
   })
 })

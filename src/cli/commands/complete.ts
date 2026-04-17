@@ -6,7 +6,8 @@ import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { parseStories, StoriesParseError } from '../../specs/stories-parser.js'
 import { validateFulfillsRefs } from '../../stories/story-validator.js'
-import { parseSpec } from '../../specs/spec-parser.js'
+import { parseSpec, parseDeltaSpec } from '../../specs/spec-parser.js'
+import { readFile } from 'node:fs/promises'
 
 const execAsync = promisify(execFile)
 
@@ -104,6 +105,29 @@ export function registerCompleteCommand(program: Command): void {
                 throw new Error(`stories.md parse error: ${err.message}`)
               }
               throw err
+            }
+          }
+
+          // Pre-complete spec-delta target-capability gate
+          if (artifactId === 'spec') {
+            const specPath = join(ctx.projectRoot, 'spec', 'changes', changeName, generates)
+            const deltaContent = await readFile(specPath, 'utf8')
+            const deltaSpec = parseDeltaSpec(deltaContent)
+            const capabilityName = deltaSpec.title
+              .replace(/\s*\(Delta\)\s*$/, '')
+              .toLowerCase()
+              .replace(/\s+/g, '-')
+            const capSpecPath = join(ctx.projectRoot, 'spec', 'specs', capabilityName, 'spec.md')
+            const capExists = existsSync(capSpecPath)
+            for (const delta of deltaSpec.deltas) {
+              if ((delta.operation === 'MODIFIED' || delta.operation === 'REMOVED' || delta.operation === 'RENAMED') && !capExists) {
+                const suggestion = delta.operation === 'MODIFIED'
+                  ? `Did you mean 'ADDED: Requirement: ${delta.requirement.name}'?`
+                  : `Remove this delta since the capability doesn't exist yet.`
+                throw new Error(
+                  `Delta '${delta.operation}: Requirement: ${delta.requirement.name}' targets unknown capability '${capabilityName}'. ${suggestion}`,
+                )
+              }
             }
           }
         }
