@@ -11,7 +11,15 @@ You are the **orchestrator** for the full Metta lifecycle. Spawn subagents for e
 
 ## Steps
 
-1. `metta propose "$ARGUMENTS" --json` → creates change
+1. **Parse optional `--workflow <name>` from `$ARGUMENTS`:**
+   - If `$ARGUMENTS` contains the token `--workflow` followed by a name (e.g. `--workflow full`), extract the name and remove both tokens from `$ARGUMENTS`.
+   - The remaining text is the description.
+   - Valid names are owned by the CLI (`standard` default, also `quick`, `full`); do NOT validate the name here — pass through and let `metta propose` reject unknown values with a clear error.
+
+   Then run:
+   `metta propose "<description>" --workflow <name> --json` (when flag present)
+   `metta propose "<description>" --json` (when flag absent — standard workflow)
+   → creates change
 
 2. **DISCOVERY GATE (mandatory):**
    Before writing ANY artifacts, YOU (the orchestrator) MUST ask discovery questions using AskUserQuestion.
@@ -23,6 +31,9 @@ You are the **orchestrator** for the full Metta lifecycle. Spawn subagents for e
 
 3. For each **planning** artifact (intent, spec, design, tasks) — one subagent per artifact:
    `metta instructions <artifact> --json` → spawn agent → `metta complete <artifact>`
+
+   When `--workflow full` is used, the loop automatically handles the additional `domain-research`, `architecture`, and `ux-spec` stages — `metta instructions <artifact> --json` returns the correct agent persona per stage, so no per-stage special-casing is needed.
+
    For **research**: spawn 2-4 metta-researcher agents in parallel (one per approach)
 
 4. **IMPLEMENTATION — MANDATORY PARALLEL EXECUTION:**
