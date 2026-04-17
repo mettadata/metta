@@ -3,21 +3,23 @@
 <!-- Run `metta docs generate` to regenerate -->
 # Getting Started
 
+> **Looking for how the workflow system works?** See [`docs/workflows/`](./workflows/) — comprehensive internal reference for skills, YAML workflows, artifacts, agents, gates, state, and walkthroughs.
+
 ## Project
 
-A composable, spec-driven development framework for AI-native software engineering. CLI tool orchestrating the full change lifecycle: propose, plan, execute, verify, finalize, ship. Works with any AI coding tool via instruction mode — the framework manages state and specs while the AI tool executes.
+**metta** is a composable, spec-driven development framework for AI-native software engineering. It is a CLI / developer tool that orchestrates the full change lifecycle — propose → plan → execute → verify → finalize → ship — for internal developers adopting metta on their own projects. The framework works with any AI coding tool via instruction mode: metta manages state and specs while the AI tool executes the work.
 
 ## Stack
 
-- TypeScript (strict mode, ES2022 target)
+- **Language:** TypeScript (strict mode, ES2022 target)
 
 ## Conventions
 
-- Classes for stateful modules, interfaces for contracts
+- Classes for stateful modules; interfaces for contracts
 
 ## Architectural Constraints
 
-- ESM only — no CommonJS, no mixed module systems
+- **ESM only** — no CommonJS, no mixed module systems
 
 ## Quick Start
 
