@@ -145,7 +145,7 @@ export class ArtifactStore {
   async markArtifact(changeName: string, artifactId: string, status: ArtifactStatus): Promise<void> {
     const metadata = await this.getChange(changeName)
     metadata.artifacts[artifactId] = status
-    if (status === 'in_progress' || status === 'complete') {
+    if (status === 'ready' || status === 'in_progress' || status === 'complete') {
       metadata.current_artifact = artifactId
     }
     await this.state.write(

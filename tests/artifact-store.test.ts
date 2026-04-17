@@ -74,6 +74,14 @@ describe('ArtifactStore', () => {
       expect(metadata.artifacts.intent).toBe('complete')
       expect(metadata.current_artifact).toBe('intent')
     })
+
+    it('current_artifact advances when next artifact transitions to ready', async () => {
+      await store.createChange('advance test', 'quick', ['intent', 'implementation', 'verification'])
+      await store.markArtifact('advance-test', 'intent', 'complete')
+      await store.markArtifact('advance-test', 'implementation', 'ready')
+      const meta = await store.getChange('advance-test')
+      expect(meta.current_artifact).toBe('implementation')
+    })
   })
 
   describe('writeArtifact / readArtifact', () => {
