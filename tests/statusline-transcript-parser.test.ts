@@ -131,4 +131,23 @@ describe('findLatestAssistantUsage', () => {
   it('returns null for empty array', () => {
     expect(findLatestAssistantUsage([])).toBeNull()
   })
+
+  it('sums input_tokens + cache_read_input_tokens + cache_creation_input_tokens', () => {
+    const lines = [
+      JSON.stringify({
+        message: {
+          role: 'assistant',
+          usage: { input_tokens: 500, cache_read_input_tokens: 140_000, cache_creation_input_tokens: 2_000 },
+        },
+      }),
+    ]
+    expect(findLatestAssistantUsage(lines)).toBe(142_500)
+  })
+
+  it('treats missing cache fields as zero', () => {
+    const lines = [
+      JSON.stringify({ message: { role: 'assistant', usage: { input_tokens: 1234 } } }),
+    ]
+    expect(findLatestAssistantUsage(lines)).toBe(1234)
+  })
 })
