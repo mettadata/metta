@@ -812,4 +812,130 @@ describe('CLI', { timeout: 30000 }, () => {
       expect(stdout).toContain('validate-stories')
     })
   })
+
+  describe('metta complete pre-complete validation', () => {
+    // Real content bodies used across these tests.
+    // ~400 bytes of real prose — safely above the 200-byte floor and stub-marker free.
+    const realIntent = [
+      '# Real Change Intent',
+      '',
+      '## Problem',
+      '',
+      'We need to validate artifact content at completion time so that placeholder',
+      'or template text cannot slip through the workflow. This protects downstream',
+      'stages which get authored against malformed upstream artifacts.',
+      '',
+      '## Proposal',
+      '',
+      'Add a content sanity check inside metta complete that rejects stub markers,',
+      'short content, and unfilled template placeholders in the H1 heading.',
+      '',
+    ].join('\n')
+
+    it('rejects artifact with stub marker', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await runCli(['propose', 'validate stubs'], tempDir)
+      const changeDir = join(tempDir, 'spec', 'changes', 'validate-stubs')
+      // Big enough to pass min-length but contains "intent stub" marker
+      const body = '# Validate stubs\n\n' + 'intent stub\n\n' + 'x'.repeat(300)
+      await writeFile(join(changeDir, 'intent.md'), body, 'utf8')
+      const { stdout, code } = await runCli(
+        ['--json', 'complete', 'intent', '--change', 'validate-stubs'],
+        tempDir,
+      )
+      expect(code).toBe(4)
+      const data = JSON.parse(stdout)
+      expect(data.error.code).toBe(4)
+      expect(data.error.message.toLowerCase()).toContain('intent stub')
+    })
+
+    it('rejects too-short artifact', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await runCli(['propose', 'shortness'], tempDir)
+      const changeDir = join(tempDir, 'spec', 'changes', 'shortness')
+      // ~40 bytes, well under the 200-byte floor
+      await writeFile(join(changeDir, 'intent.md'), '# Shortness\n\nOnly a few bytes here.\n', 'utf8')
+      const { stdout, code } = await runCli(
+        ['--json', 'complete', 'intent', '--change', 'shortness'],
+        tempDir,
+      )
+      expect(code).toBe(4)
+      const data = JSON.parse(stdout)
+      expect(data.error.code).toBe(4)
+      expect(data.error.message).toContain('too short')
+    })
+
+    it('rejects artifact with {change_name} in H1', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await runCli(['propose', 'unfilled template'], tempDir)
+      const changeDir = join(tempDir, 'spec', 'changes', 'unfilled-template')
+      // H1 contains the literal template placeholder; body padded past min-length.
+      const body = '# {change_name}\n\n' + 'x'.repeat(400)
+      await writeFile(join(changeDir, 'intent.md'), body, 'utf8')
+      const { stdout, code } = await runCli(
+        ['--json', 'complete', 'intent', '--change', 'unfilled-template'],
+        tempDir,
+      )
+      expect(code).toBe(4)
+      const data = JSON.parse(stdout)
+      expect(data.error.code).toBe(4)
+      expect(data.error.message).toContain('{change_name}')
+    })
+
+    it('stories rejects bad stories.md (missing required fields)', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await runCli(['propose', 'bad stories'], tempDir)
+      const changeDir = join(tempDir, 'spec', 'changes', 'bad-stories')
+      // Write a plausible intent so earlier artifacts look normal, then
+      // complete intent to unblock stories.
+      await writeFile(join(changeDir, 'intent.md'), realIntent, 'utf8')
+      const intentResult = await runCli(
+        ['--json', 'complete', 'intent', '--change', 'bad-stories'],
+        tempDir,
+      )
+      expect(intentResult.code).toBe(0)
+      // stories.md that passes the content sanity check (no stub, >200 bytes,
+      // no {change_name}) but is missing required fields on US-1.
+      const badStories = [
+        '# Bad stories',
+        '',
+        '## US-1: missing fields',
+        '',
+        'This story intentionally omits the required As a / I want to / So that /',
+        'Priority / Independent Test Criteria fields so that the stories-valid',
+        'gate catches it at complete time rather than at finalize.',
+        '',
+        '**Acceptance Criteria:**',
+        '',
+        '- **Given** x **When** y **Then** z',
+        '',
+        'Extra padding so the content sanity check passes: ' + 'x'.repeat(100),
+        '',
+      ].join('\n')
+      await writeFile(join(changeDir, 'stories.md'), badStories, 'utf8')
+      const { stdout, code } = await runCli(
+        ['--json', 'complete', 'stories', '--change', 'bad-stories'],
+        tempDir,
+      )
+      expect(code).toBe(4)
+      const data = JSON.parse(stdout)
+      expect(data.error.code).toBe(4)
+      expect(data.error.message.toLowerCase()).toContain('stories.md')
+    })
+
+    it('happy path with real content passes', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await runCli(['propose', 'happy complete'], tempDir)
+      const changeDir = join(tempDir, 'spec', 'changes', 'happy-complete')
+      await writeFile(join(changeDir, 'intent.md'), realIntent, 'utf8')
+      const { stdout, code } = await runCli(
+        ['--json', 'complete', 'intent', '--change', 'happy-complete'],
+        tempDir,
+      )
+      expect(code).toBe(0)
+      const data = JSON.parse(stdout)
+      expect(data.completed).toBe('intent')
+      expect(data.change).toBe('happy-complete')
+    })
+  })
 })

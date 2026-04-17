@@ -1,10 +1,22 @@
 import { Command } from 'commander'
 import { createCliContext, outputJson, color, agentBanner } from '../helpers.js'
 import { join } from 'node:path'
+import { existsSync } from 'node:fs'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
+import { parseStories, StoriesParseError } from '../../specs/stories-parser.js'
+import { validateFulfillsRefs } from '../../stories/story-validator.js'
+import { parseSpec } from '../../specs/spec-parser.js'
 
 const execAsync = promisify(execFile)
+
+const MIN_CONTENT_BYTES = 200
+const SUMMARY_MIN_CONTENT_BYTES = 100
+const STUB_MARKERS = [
+  'intent stub', 'summary stub', 'spec stub', 'research stub',
+  'design stub', 'tasks stub', 'stories stub', 'architecture stub',
+  'verify stub', 'domain-research stub', 'ux-spec stub',
+]
 
 export function registerCompleteCommand(program: Command): void {
   program
@@ -40,6 +52,59 @@ export function registerCompleteCommand(program: Command): void {
           const fileExists = await ctx.artifactStore.artifactExists(changeName, generates)
           if (!fileExists) {
             throw new Error(`Artifact file '${generates}' not found in spec/changes/${changeName}/. Write the file before marking complete.`)
+          }
+
+          // Content sanity check — block stub/placeholder artifacts
+          const content = await ctx.artifactStore.readArtifact(changeName, generates)
+          const contentTrimmed = content.trim()
+          const contentLower = contentTrimmed.toLowerCase()
+          const foundStub = STUB_MARKERS.find(m => contentLower.includes(m))
+          if (foundStub) {
+            throw new Error(
+              `Artifact '${generates}' contains placeholder text '${foundStub}'. ` +
+              `Fill in real content before marking complete.`,
+            )
+          }
+          // summary.md may legitimately be short for trivial changes; use a lower floor.
+          const minBytes = generates === 'summary.md' ? SUMMARY_MIN_CONTENT_BYTES : MIN_CONTENT_BYTES
+          if (contentTrimmed.length < minBytes) {
+            throw new Error(
+              `Artifact '${generates}' is too short (${contentTrimmed.length} bytes, min ${minBytes}). ` +
+              `Fill in real content before marking complete.`,
+            )
+          }
+          // Unfilled {change_name} in H1 heading
+          const firstLine = contentTrimmed.split('\n')[0] ?? ''
+          if (firstLine.startsWith('#') && firstLine.includes('{change_name}')) {
+            throw new Error(
+              `Artifact '${generates}' H1 heading still contains template placeholder '{change_name}'. ` +
+              `Replace it with the real change name before marking complete.`,
+            )
+          }
+
+          // Pre-complete stories-valid gate
+          if (artifactId === 'stories') {
+            const storiesPath = join(ctx.projectRoot, 'spec', 'changes', changeName, generates)
+            try {
+              const stories = await parseStories(storiesPath)
+              const specPath = join(ctx.projectRoot, 'spec', 'changes', changeName, 'spec.md')
+              if (existsSync(specPath)) {
+                const spec = await parseSpec(specPath)
+                const allRefs = spec.requirements.flatMap(r => r.fulfills ?? [])
+                const errors = validateFulfillsRefs(allRefs, stories)
+                if (errors.length > 0) {
+                  throw new Error(
+                    `stories.md has ${errors.length} validation error(s): ` +
+                    errors.map(e => e.message).join('; '),
+                  )
+                }
+              }
+            } catch (err) {
+              if (err instanceof StoriesParseError) {
+                throw new Error(`stories.md parse error: ${err.message}`)
+              }
+              throw err
+            }
           }
         }
 
