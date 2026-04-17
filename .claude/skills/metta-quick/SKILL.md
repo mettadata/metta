@@ -11,7 +11,13 @@ You are the **orchestrator** for a quick change (intent → implementation → r
 
 ## Steps
 
-1. `metta quick "$ARGUMENTS" --json` → creates change on branch `metta/<change-name>`
+1. **Parse optional `--auto` / `--accept-recommended` from `$ARGUMENTS`:**
+
+   - If `$ARGUMENTS` contains the token `--auto` or `--accept-recommended`, remove it from `$ARGUMENTS`. Set a local boolean flag `AUTO_MODE = true`.
+   - Otherwise, `AUTO_MODE = false`.
+   - The remaining text is the description.
+
+   Then run: `metta quick "$ARGUMENTS" --json` → creates change on branch `metta/<change-name>`
 
 2. **LIGHT DISCOVERY (mandatory — do NOT skip):**
    Before writing the intent, YOU (the orchestrator, not a subagent) MUST evaluate whether the change carries meaningful ambiguity BEFORE asking any questions.
@@ -23,6 +29,8 @@ You are the **orchestrator** for a quick change (intent → implementation → r
 
    **DISCOVERY LOOP (entered only when non-trivial):**
    Self-contained since this skill invokes independently of `/metta:propose`.
+
+   **Auto mode short-circuit:** if `AUTO_MODE = true`, SKIP every `AskUserQuestion` call in this loop. For each question the loop would have asked, assume the user selected the first option (which by convention is the `(Recommended)` option). Record those implied answers in the cumulative context passed to the proposer subagent as if they had been collected normally. Then proceed directly to the proposer subagent.
 
    - **Exit-option declaration:** every `AskUserQuestion` call within the loop MUST include a final selectable option exactly spelled `I'm done — proceed with these answers`.
    - **Round 1 (scope + architecture):** always runs once the loop is engaged. Ask 2–4 questions covering scope boundaries and architectural approach.

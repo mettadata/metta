@@ -16,6 +16,12 @@ You are the **orchestrator** for a new spec-driven change. You manage the workfl
    - The remaining text is the description.
    - Valid names are owned by the CLI (`standard` default, also `quick`, `full`); do NOT validate the name here — pass through and let `metta propose` reject unknown values with a clear error.
 
+   **Parse optional `--auto` / `--accept-recommended` from `$ARGUMENTS`:**
+
+   - If `$ARGUMENTS` contains the token `--auto` or `--accept-recommended`, remove it from `$ARGUMENTS`. Set a local boolean flag `AUTO_MODE = true`.
+   - Otherwise, `AUTO_MODE = false`.
+   - The remaining text is the description.
+
    Then run:
    `metta propose "<description>" --workflow <name> --json` (when flag present)
    `metta propose "<description>" --json` (when flag absent — standard workflow)
@@ -23,6 +29,8 @@ You are the **orchestrator** for a new spec-driven change. You manage the workfl
 
 2. **DISCOVERY LOOP (mandatory — do NOT skip this step):**
    Before writing ANY artifacts, YOU (the orchestrator) MUST run iterative discovery to capture ALL requirements and resolve ALL implementation details. Do not guess.
+
+   **Auto mode short-circuit:** if `AUTO_MODE = true`, SKIP every `AskUserQuestion` call in this loop. For each question the loop would have asked, assume the user selected the first option (which by convention is the `(Recommended)` option). Record those implied answers in the cumulative context passed to the proposer subagent as if they had been collected normally. Then proceed directly to the proposer subagent.
 
    **Exit criterion:** Exit the loop when (a) you honestly find no further ambiguity, or (b) the user selects the early-exit option `I'm done — proceed with these answers`.
 
