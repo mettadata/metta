@@ -53,6 +53,27 @@ export function registerFinalizeCommand(program: Command): void {
               const icon = g.status === 'pass' ? color('✓', 32) : g.status === 'skip' ? color('–', 90) : color('✗', 31)
               console.error(`  ${icon} ${g.gate}: ${g.status} (${g.duration_ms}ms)`)
             }
+            const failed = result.gates.filter((g) => g.status === 'fail')
+            if (failed.length > 0) {
+              console.error('')
+              for (const g of failed) {
+                console.error(color(`✗ ${g.gate}`, 31))
+                if (g.failures && g.failures.length > 0) {
+                  for (const f of g.failures) {
+                    const loc = f.line ? `${f.file}:${f.line}` : f.file
+                    const prefix = loc ? `    ${loc} — ` : '    '
+                    console.error(`${prefix}${f.message}`)
+                  }
+                } else if (g.output) {
+                  const trimmed = g.output.trim()
+                  if (trimmed) {
+                    for (const line of trimmed.split('\n')) {
+                      console.error(`    ${line}`)
+                    }
+                  }
+                }
+              }
+            }
             console.error('\nFix failures and retry.')
           }
           process.exit(1)
