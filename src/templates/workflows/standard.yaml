@@ -25,7 +25,7 @@ artifacts:
     generates: spec.md
     requires: [stories]
     agents: [specifier]
-    gates: []
+    gates: [stories-valid]
 
   - id: research
     type: research
