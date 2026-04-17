@@ -14,7 +14,7 @@
 - **Verify:** `grep -n 'runWithPolicy\|runWithRetry' src/execution/execution-engine.ts` shows `runWithPolicy` at line ~355 and no lingering `runWithRetry` calls (imports aside).
 - **Done:** Call site updated; file compiles.
 
-### Task 1.3: Update verify.ts warn handling
+### Task 1.3: Update verify.ts warn handling [x]
 - **Files:** `src/cli/commands/verify.ts`
 - **Action:** Expand the `gatesPassed` predicate to include `g.status === 'warn'`. Add a `for` loop over `warn` results that emits `process.stderr.write(\`⚠ ${g.gate}: ${g.output ?? 'warning'}\n\`)` per warn. Place the loop immediately before the `gatesPassed` computation or as a side effect of building it.
 - **Verify:** `grep -c "'warn'" src/cli/commands/verify.ts` returns ≥ 2 (predicate + stderr loop).

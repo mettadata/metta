@@ -25,7 +25,11 @@ export function registerVerifyCommand(program: Command): void {
         const gateNames = ctx.gateRegistry.list().map(g => g.name)
         const results = await ctx.gateRegistry.runAll(gateNames, ctx.projectRoot)
 
-        const allPassed = results.every(r => r.status === 'pass' || r.status === 'skip')
+        for (const g of results.filter(r => r.status === 'warn')) {
+          process.stderr.write(`⚠ ${g.gate}: ${g.output ?? 'warning'}\n`)
+        }
+
+        const allPassed = results.every(r => r.status === 'pass' || r.status === 'skip' || r.status === 'warn')
 
         if (json) {
           outputJson({
