@@ -104,34 +104,30 @@ A composable framework.
   })
 
   describe('buildWorkflowSection', () => {
-    it('includes all command categories', () => {
+    it('includes all skill categories', () => {
       const result = buildWorkflowSection()
       expect(result).toContain('### How to work')
-      expect(result).toContain('metta quick <description>')
-      expect(result).toContain('### Lifecycle')
-      expect(result).toContain('### Status')
-      expect(result).toContain('### Specs & Docs')
-      expect(result).toContain('### Organization')
-      expect(result).toContain('### System')
+      expect(result).toContain('/metta-quick <description>')
+      expect(result).toContain('### Lifecycle skills')
+      expect(result).toContain('### Status skills')
+      expect(result).toContain('### Organization skills')
+      expect(result).toContain('### Spec management skills')
+      expect(result).toContain('### Setup skills')
     })
 
-    it('includes all commands', () => {
+    it('includes all skills', () => {
       const result = buildWorkflowSection()
-      const commands = [
-        'metta propose', 'metta quick', 'metta auto',
-        'metta plan', 'metta execute', 'metta verify',
-        'metta finalize', 'metta ship',
-        'metta status', 'metta progress', 'metta next',
-        'metta complete', 'metta specs list',
-        'metta docs generate', 'metta import',
-        'metta gaps list', 'metta fix-gap',
-        'metta issue',
-        'metta changes list', 'metta backlog list',
-        'metta doctor', 'metta config get',
-        'metta gate run', 'metta refresh', 'metta update',
+      const skills = [
+        '/metta-propose', '/metta-quick', '/metta-auto',
+        '/metta-plan', '/metta-execute', '/metta-verify',
+        '/metta-ship',
+        '/metta-status', '/metta-progress', '/metta-next',
+        '/metta-issue', '/metta-fix-issues', '/metta-backlog',
+        '/metta-import', '/metta-fix-gap', '/metta-check-constitution',
+        '/metta-init', '/metta-refresh',
       ]
-      for (const cmd of commands) {
-        expect(result).toContain(cmd)
+      for (const skill of skills) {
+        expect(result).toContain(skill)
       }
     })
   })
@@ -231,7 +227,7 @@ A test framework.
       expect(content).toContain('- Use classes')
       expect(content).toContain('- No CommonJS')
       expect(content).toContain('<!-- metta:workflow-start')
-      expect(content).toContain('metta propose')
+      expect(content).toContain('/metta-propose')
     })
 
     it('updates existing CLAUDE.md preserving non-marker content', async () => {
