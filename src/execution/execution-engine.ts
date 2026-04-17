@@ -352,7 +352,7 @@ export class ExecutionEngine {
     const results: GateResult[] = []
 
     for (const gate of gates) {
-      const result = await this.gateRegistry.runWithRetry(gate.name, cwd)
+      const result = await this.gateRegistry.runWithPolicy(gate.name, cwd)
       results.push(result)
       task.gates = task.gates ?? {}
       task.gates[gate.name] = result.status
