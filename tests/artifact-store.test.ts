@@ -38,6 +38,13 @@ describe('ArtifactStore', () => {
       expect(result.name).toBe('fix-payment-rounding')
     })
 
+    it('slugify caps at 60 characters instead of 30', async () => {
+      const longDesc = 'fix the drag card across lists feature with multi-select and keyboard shortcuts'
+      const result = await store.createChange(longDesc, 'quick', ['intent'])
+      expect(result.name.length).toBeLessThanOrEqual(60)
+      expect(result.name.length).toBeGreaterThan(30)
+    })
+
     it('rejects duplicate change names', async () => {
       await store.createChange('test change', 'quick', ['intent'])
       await expect(store.createChange('test change', 'quick', ['intent'])).rejects.toThrow()

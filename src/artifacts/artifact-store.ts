@@ -17,7 +17,7 @@ function slugify(text: string): string {
     .filter(w => w && !STOP_WORDS.has(w))
     .join('-')
     .replace(/^-|-$/g, '')
-    .slice(0, 30)
+    .slice(0, 60)
     .replace(/-$/, '')
 }
 
