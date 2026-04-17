@@ -20,7 +20,7 @@
 - **Verify:** `grep -c "'warn'" src/cli/commands/verify.ts` returns ≥ 2 (predicate + stderr loop).
 - **Done:** File compiles; `warn` is in `gatesPassed` predicate; stderr surface emitted.
 
-### Task 1.4: Strip unimpl gates from standard.yaml
+### Task 1.4: Strip unimpl gates from standard.yaml [x]
 - **Files:** `src/templates/workflows/standard.yaml`
 - **Action:** Find the three stages with `gates: [<name>]` where name ∈ `{spec-quality, design-review, task-quality}` and change each to `gates: []`. Preserve all other content verbatim.
 - **Verify:** `grep -E 'spec-quality|design-review|task-quality|uat' src/templates/workflows/standard.yaml` returns no matches.
