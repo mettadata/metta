@@ -70,7 +70,7 @@ Declared by each YAML gate; interpreted by [`GateRegistry.runWithRetry`](../../s
 | `stop` | `build`, `stories-valid` | Fail-fast — no retry. Documented intent is to halt the rest of the stage; current runtime returns a single `fail` result and does not short-circuit the outer `runAll` loop |
 | `continue_with_warning` | none currently | Not honoured by `runWithRetry`; parsed and stored for future use |
 
-`Finalizer.finalize` calls `runAll`, **not** `runWithRetry` ([`finalizer.ts`](../../src/finalize/finalizer.ts) line 53). This means the retry policy does not apply during finalize — it applies only when a caller explicitly invokes `runWithRetry(name, cwd)`. No current CLI command routes through `runWithRetry`, so `on_failure: retry_once` is effectively inert today; it is plumbed for future stage-time execution.
+`Finalizer.finalize` calls `runAll`, **not** `runWithRetry` ([`finalizer.ts`](../../src/finalize/finalizer.ts) line 53). This means the retry policy does not apply during `metta finalize` — a `fail` on the terminal gate pass is terminal, with no second attempt. `runWithRetry` **is** invoked during `/metta-execute`: [`ExecutionEngine.runTaskGatesInDir`](../../src/execution/execution-engine.ts) (line 355) iterates every required gate in the registry and calls `this.gateRegistry.runWithRetry(gate.name, cwd)` after each task batch. So `on_failure: retry_once` is honoured at implementation time (one automatic retry on `fail` during execution) but not at finalize time. `stop` and `continue_with_warning` remain parsed-but-not-honoured in either path.
 
 ### Project-level gate overrides
 
