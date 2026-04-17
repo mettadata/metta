@@ -96,21 +96,50 @@ export class GateRegistry {
 
   async runAll(names: string[], cwd: string): Promise<GateResult[]> {
     const results: GateResult[] = []
+    let stoppedBy: string | null = null
+
     for (const name of names) {
-      results.push(await this.run(name, cwd))
+      if (stoppedBy !== null) {
+        results.push({
+          gate: name,
+          status: 'skip',
+          duration_ms: 0,
+          output: `Skipped due to earlier fail of ${stoppedBy}`,
+        })
+        continue
+      }
+
+      const result = await this.runWithPolicy(name, cwd)
+      results.push(result)
+
+      if (result.status === 'fail') {
+        const gate = this.gates.get(name)
+        if (gate?.on_failure === 'stop') {
+          stoppedBy = name
+        }
+      }
     }
+
     return results
   }
 
-  async runWithRetry(name: string, cwd: string): Promise<GateResult> {
+  async runWithPolicy(name: string, cwd: string): Promise<GateResult> {
     const gate = this.gates.get(name)
     const result = await this.run(name, cwd)
+    if (result.status !== 'fail') return result
+    if (!gate) return result
 
-    if (result.status === 'fail' && gate?.on_failure === 'retry_once') {
-      const retry = await this.run(name, cwd)
-      return retry
+    switch (gate.on_failure) {
+      case 'retry_once':
+        return await this.run(name, cwd)
+      case 'continue_with_warning':
+        return { ...result, status: 'warn' }
+      case 'stop':
+        return result
     }
+  }
 
-    return result
+  async runWithRetry(name: string, cwd: string): Promise<GateResult> {
+    return this.runWithPolicy(name, cwd)
   }
 }
