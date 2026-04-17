@@ -42,7 +42,7 @@
 - **Verify:** `npx vitest run tests/gate-registry.test.ts` all tests pass; at least 1 test per `on_failure` value.
 - **Done:** Test file green; covers all three branches.
 
-### Task 2.2: Add verify warn-pass test
+### Task 2.2: Add verify warn-pass test [x]
 - **Files:** `tests/cli.test.ts` (existing — grep for `metta verify`) OR a new `tests/verify-warn.test.ts`
 - **Action:** Add a test that runs `metta verify` against a change whose gate run includes a `warn` status; assert exit code 0 and that stderr contains the warn gate's name. Add a companion test for a `fail` status → non-zero exit.
 - **Verify:** Tests pass; grep the test file for `'warn'` ≥ 1 occurrence.
