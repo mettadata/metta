@@ -13,3 +13,5 @@ Build a custom Claude Code statusline (via the `statusline-setup` mechanism) tha
 Should live in `src/templates/statusline/` and be copied to `.claude/statusline/` by `metta install`. Refresh cadence: every few seconds or on command completion.
 
 Bonus: per-change color coding when a change branch is active.
+
+**Shipped-in**: custom-claude-statusline-conte
