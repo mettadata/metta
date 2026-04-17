@@ -26,7 +26,7 @@
 - **Verify:** `grep -E 'spec-quality|design-review|task-quality|uat' src/templates/workflows/standard.yaml` returns no matches.
 - **Done:** File parses as valid YAML; the four gate names do not appear.
 
-### Task 1.5: Strip unimpl gates from full.yaml
+### Task 1.5: Strip unimpl gates from full.yaml [x]
 - **Files:** `src/templates/workflows/full.yaml`
 - **Action:** Find the four stages with `gates:` referencing `spec-quality`, `design-review`, `task-quality`, or `uat` and change each to `gates: []`. Preserve all other content verbatim.
 - **Verify:** `grep -E 'spec-quality|design-review|task-quality|uat' src/templates/workflows/full.yaml` returns no matches.
