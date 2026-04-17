@@ -33,11 +33,11 @@ export function findLatestAssistantUsage(lines) {
   for (let i = lines.length - 1; i >= 0; i--) {
     try {
       const record = JSON.parse(lines[i])
-      if (
-        record.message?.role === 'assistant' &&
-        typeof record.message?.usage?.input_tokens === 'number'
-      ) {
-        return record.message.usage.input_tokens
+      const usage = record.message?.usage
+      if (record.message?.role === 'assistant' && typeof usage?.input_tokens === 'number') {
+        const cacheRead = typeof usage.cache_read_input_tokens === 'number' ? usage.cache_read_input_tokens : 0
+        const cacheCreate = typeof usage.cache_creation_input_tokens === 'number' ? usage.cache_creation_input_tokens : 0
+        return usage.input_tokens + cacheRead + cacheCreate
       }
     } catch {
       // skip malformed lines
