@@ -2,9 +2,9 @@
 
 Complete reference for the 18 metta skills shipped with metta. Each skill is a slash command
 available to AI orchestrators once installed (see `/metta-init`). Skill source lives at
-`src/templates/skills/metta-*/SKILL.md`; installed mirrors live at
-`.claude/skills/metta-*/SKILL.md` and are byte-identical per REQ-3 (verified at the time of
-writing).
+`src/templates/skills/metta-*/SKILL.md`; installed mirrors at `.claude/skills/metta-*/SKILL.md`
+are kept byte-identical to the source templates — enforced by `tests/grounding.test.ts` and
+`tests/skill-discovery-loop.test.ts`.
 
 An orchestrator invokes a skill, the skill calls the underlying CLI (see the **Wraps CLI** line
 for each entry), parses the JSON response, and spawns the appropriate subagents. For the
@@ -179,11 +179,6 @@ including `metta instructions`, `metta complete`, `metta finalize`, and the fina
 **Output:**
 - Full change directory under `spec/changes/<change-name>/` with all artifacts.
 - Archive at `spec/archive/<change-name>/`, merged delta specs, and a merge commit on `main`.
-
-Caveat: the `full` workflow references stage templates (`domain-research`, `architecture`,
-`ux-spec`) that do not yet exist in `src/templates/artifacts/`; running `--workflow full`
-currently fails on the first missing template. Tracked as issue
-`full-workflow-references-missing-template-files-domain-resea`.
 
 ---
 
