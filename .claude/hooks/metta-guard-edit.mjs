@@ -45,6 +45,25 @@ if (hasActiveChange) {
   process.exit(0)
 }
 
+// Init-phase allow-list: permit writes to these specific paths even without an active change
+// so metta-discovery can bootstrap the project during /metta-init.
+const ALLOW_LIST = [
+  'spec/project.md',
+  '.metta/config.yaml',
+]
+const filePath =
+  input?.tool_input?.file_path ||
+  input?.tool_input?.notebook_path ||
+  ''
+if (filePath) {
+  const projectRoot = process.cwd()
+  const { relative, resolve } = await import('node:path')
+  const relPath = relative(projectRoot, resolve(projectRoot, filePath))
+  if (ALLOW_LIST.includes(relPath)) {
+    process.exit(0)
+  }
+}
+
 process.stderr.write(
   [
     `metta-guard: ${toolName} blocked — no active metta change.`,
