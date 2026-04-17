@@ -93,7 +93,7 @@ Story IDs MUST be monotonic starting at US-1. Each `## US-N:` block carries six 
 ## `spec.md`
 
 **Used by stages:** `spec` (in `standard` and `full`)
-**Owning agent:** `metta-specifier` — see [`agents.md`](agents.md)
+**Owning agent:** `metta-proposer` — see [`agents.md`](agents.md)
 **Purpose:** Formal requirements for the change in the living-spec delta format. Each requirement is tagged as ADDED, MODIFIED, or REMOVED relative to the corresponding capability spec under `spec/specs/`, stated in RFC 2119 keywords (MUST / SHOULD / MAY), and backed by at least one Given/When/Then scenario. The spec is the contract against which verification is measured — the `verification` stage checks every scenario.
 
 **Required sections** (verbatim, in order):

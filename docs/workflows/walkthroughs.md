@@ -258,7 +258,7 @@ For each planning artifact, the loop is the same: `metta instructions <artifact>
 |---|---|---|---|
 | intent | `metta-proposer` | `intent.md` | receives cumulative Q/A pairs from discovery |
 | stories | `metta-product` | `stories.md` | orchestrator passes intent wrapped in `<INTENT>...</INTENT>` to prevent prompt injection |
-| spec | `metta-specifier` | `spec.md` | gates: `spec-quality`, `stories-valid` |
+| spec | `metta-proposer` | `spec.md` | gates: `spec-quality`, `stories-valid` |
 | research | `metta-researcher` × 2–4 in parallel | `research.md` | one agent per candidate approach, then orchestrator merges |
 | design | `metta-architect` | `design.md` | gate: `design-review` |
 | tasks | `metta-planner` | `tasks.md` | gate: `task-quality` |
@@ -397,7 +397,7 @@ Identical to walkthrough 2, with one twist: every subagent's prompt contains the
 |---|---|---|
 | intent | `metta-proposer` | `intent.md` (Problem section quotes the issue) |
 | stories | `metta-product` | `stories.md` (often the sentinel form, since a bug fix usually has no new user stories) |
-| spec | `metta-specifier` | `spec.md` (adds or modifies requirements covering the regression) |
+| spec | `metta-proposer` | `spec.md` (adds or modifies requirements covering the regression) |
 | research | `metta-researcher` × 2–3 parallel | `research.md` |
 | design | `metta-architect` | `design.md` |
 | tasks | `metta-planner` | `tasks.md` |
@@ -476,7 +476,7 @@ The discovery loop runs here — same format as walkthrough 2 but grounded on th
 
 ### Step 3 — Spec
 
-One `metta-specifier` writes `spec.md`. Gate: `spec-quality` only (full workflow omits `stories-valid` at the spec stage because there is no separate stories artifact — user stories are folded into the spec itself).
+One `metta-proposer` writes `spec.md`. Gate: `spec-quality` only (full workflow omits `stories-valid` at the spec stage because there is no separate stories artifact — user stories are folded into the spec itself).
 
 ### Step 4 — Research
 

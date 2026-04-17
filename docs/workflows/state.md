@@ -186,7 +186,7 @@ The merged-and-versioned capability specifications.
 
 Free-form markdown. Each capability lives in its own directory so sibling files (`spec.lock`) can accompany it. Updated on `/metta-ship` when `SpecMerger` (`src/finalize/spec-merger.ts`) folds delta specs authored inside a change into the living spec.
 
-- **Authored by**: the spec author subagents during a change (`metta-spec-author`, etc.).
+- **Authored by**: the spec author subagents during a change (`metta-proposer`, etc.).
 - **Merged by**: `SpecMerger.merge(changeName, baseVersions, dryRun)`.
 - **Read by**: the context engine, `/metta-import`, `/metta-fix-gap`, and any skill that needs current behavior.
 - **Deleted by**: never automatically.
