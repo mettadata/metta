@@ -1,6 +1,7 @@
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { stat, readdir } from 'node:fs/promises'
+import { workflowPrimerShort } from '../../delivery/workflow-primer.js'
 
 export const BROWNFIELD_MARKERS = [
   'src', 'app', 'lib', 'pkg', 'cmd', 'internal',
@@ -139,11 +140,7 @@ Stack: {stack_summary}
 <!-- metta:workflow-start -->
 ## Metta Workflow
 
-Use these entry points:
-- \`metta propose <description>\` for new features
-- \`metta quick <description>\` for small fixes
-- \`metta auto <description>\` for full lifecycle
-- \`metta status --json\` for current state
+${workflowPrimerShort().join('\n')}
 <!-- metta:workflow-end -->
 `,
   }

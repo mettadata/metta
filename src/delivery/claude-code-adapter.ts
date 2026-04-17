@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import type { ToolAdapter, SkillContent, CommandContent, ProjectContext, QuestionCapability } from './tool-adapter.js'
+import { workflowPrimerShort } from './workflow-primer.js'
 
 export const claudeCodeAdapter: ToolAdapter = {
   id: 'claude-code',
@@ -76,11 +77,7 @@ export const claudeCodeAdapter: ToolAdapter = {
     sections.push('')
     sections.push(`<!-- metta:workflow-start -->`)
     sections.push(`## Metta Workflow\n`)
-    sections.push('Use these entry points:')
-    sections.push('- `metta propose <description>` for new features')
-    sections.push('- `metta quick <description>` for small fixes')
-    sections.push('- `metta auto <description>` for full lifecycle')
-    sections.push('- `metta status --json` for current state')
+    sections.push(...workflowPrimerShort())
     sections.push(`<!-- metta:workflow-end -->`)
 
     return sections.join('\n')

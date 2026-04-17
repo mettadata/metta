@@ -54,7 +54,8 @@ describe('Claude Code Adapter', () => {
     expect(formatted).toContain('<!-- metta:specs-start')
     expect(formatted).toContain('auth')
     expect(formatted).toContain('<!-- metta:workflow-start')
-    expect(formatted).toContain('metta propose')
+    expect(formatted).toContain('/metta-propose')
+    expect(formatted).toContain('AI orchestrators MUST invoke the matching metta skill')
   })
 
   it('reports question capability', () => {

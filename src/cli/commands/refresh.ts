@@ -3,6 +3,7 @@ import { readdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { outputJson } from '../helpers.js'
+import { workflowPrimerLong } from '../../delivery/workflow-primer.js'
 
 /** Marker pair definition */
 interface MarkerSection {
@@ -123,8 +124,7 @@ export function buildWorkflowSection(): string {
   const lines: string[] = []
   lines.push('## Metta Workflow\n')
 
-  lines.push('### How to work')
-  lines.push('For any code change — bug fix, feature, refactor — start with `metta quick <description>` (or `metta propose` for anything non-trivial) before editing files. The framework scaffolds a change branch, tracks intent, and runs review/verification. Doc-only fixes and this workflow itself are the exceptions.')
+  lines.push(...workflowPrimerLong())
   lines.push('')
 
   lines.push('### Lifecycle')
