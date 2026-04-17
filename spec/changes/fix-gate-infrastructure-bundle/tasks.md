@@ -36,7 +36,7 @@
 
 ## Batch 2: Tests (depends on Batch 1 — parallel within batch, different test files)
 
-### Task 2.1: Expand gate-registry.test.ts
+### Task 2.1: Expand gate-registry.test.ts [x]
 - **Files:** `tests/gate-registry.test.ts`
 - **Action:** Add tests for each `on_failure` branch per design.md test plan: `retry_once` (retry on fail, skip retry on pass, fail on retry-fail), `continue_with_warning` (fail → warn, pass unchanged), `stop` (signals batch skip, result array stays full-length, subsequent gates get `skip` with reference to failing gate). Also assert `runWithRetry` delegates to `runWithPolicy`. Use mocked gate commands via test-fixture YAML gates that return controlled exit codes.
 - **Verify:** `npx vitest run tests/gate-registry.test.ts` all tests pass; at least 1 test per `on_failure` value.
