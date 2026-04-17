@@ -48,40 +48,33 @@ Doc-only fixes and edits to this workflow section itself are the exceptions.
 - Invoking `metta quick`, `metta propose`, `metta finalize`, `metta complete`, `metta issue`, or any other `metta <cmd>` directly from an AI orchestrator session. Use the matching skill.
 - Writing placeholder content like `"intent stub"` or `"summary stub"` to any artifact file to satisfy `metta complete`. Artifacts must carry real content authored by the matching `metta-*` subagent.
 
-### Lifecycle
-- `metta propose <description>` -- start a new change (standard workflow)
-- `metta quick <description>` -- quick mode (skip planning)
-- `metta auto <description>` -- full lifecycle loop
-- `metta plan` -- build planning artifacts
-- `metta execute` -- run implementation
-- `metta verify` -- check against spec
-- `metta finalize` -- archive, merge specs, run gates
-- `metta ship` -- merge branch to main
+### Lifecycle skills
+- `/metta-propose <description>` — start a new change (standard workflow)
+- `/metta-quick <description>` — quick mode, skip planning
+- `/metta-auto <description>` — full lifecycle loop (discover → build → verify → ship)
+- `/metta-plan` — build planning artifacts for the active change
+- `/metta-execute` — run implementation for the active change
+- `/metta-verify` — verify implementation against spec
+- `/metta-ship` — finalize, merge specs, merge branch to main
 
-### Status
-- `metta status` -- current change status
-- `metta progress` -- project-level dashboard
-- `metta next` -- what to do next
-- `metta complete <artifact>` -- mark artifact done
+### Status skills
+- `/metta-status` — current change status
+- `/metta-progress` — project-level dashboard across all changes
+- `/metta-next` — route to the next logical step in the workflow
 
-### Specs & Docs
-- `metta specs list` -- list specifications
-- `metta docs generate` -- generate project documentation
-- `metta import .` -- import existing code into specs
-- `metta gaps list` -- show reconciliation gaps
-- `metta fix-gap --all` -- fix gaps automatically
+### Organization skills
+- `/metta-issue <description>` — log an issue
+- `/metta-fix-issues <slug>` — resolve one or more logged issues
+- `/metta-backlog` — manage backlog items
 
-### Organization
-- `metta issue <description>` -- log an issue
-- `metta changes list` -- list active changes
-- `metta backlog list` -- list backlog items
+### Spec management skills
+- `/metta-import` — analyze existing code and generate specs with gap reports
+- `/metta-fix-gap` — resolve reconciliation gaps through the change lifecycle
+- `/metta-check-constitution` — check a change against the project constitution
 
-### System
-- `metta doctor` -- diagnose environment
-- `metta config get <key>` -- read configuration
-- `metta gate run <name>` -- run a quality gate
-- `metta refresh` -- regenerate CLAUDE.md and derived files
-- `metta update` -- update framework
+### Setup skills
+- `/metta-init` — initialize Metta in a project (interactive discovery)
+- `/metta-refresh` — regenerate CLAUDE.md from constitution and specs
 <!-- metta:workflow-end -->
 
 <!-- metta:specs-start source:spec/specs/ -->
