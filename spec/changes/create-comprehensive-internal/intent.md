@@ -26,14 +26,15 @@ Create a `docs/workflows/` subdirectory containing 8 new reference files that to
 
 8. **`docs/workflows/walkthroughs.md`** — Four end-to-end narrative walkthroughs showing how the concepts above compose in practice: (a) a one-line typo fix via `/metta-quick`, (b) a medium feature via `/metta-propose` using the standard workflow, (c) a logged bug resolved via `/metta-fix-issues`, and (d) a complex system redesign via `/metta-propose --workflow full`. Each walkthrough traces skill invocation → workflow stage execution → artifact authoring → gate firing → state transitions → final commit.
 
-Additionally, a one-line pointer to `docs/workflows/README.md` is added to `docs/architecture.md` and `docs/getting-started.md` (below the generated-header note, as a human-maintained addendum section, so it survives `metta docs generate` reruns without conflicting with the generated body).
+Additionally, a one-line pointer to `docs/workflows/README.md` is added to `docs/architecture.md` and `docs/getting-started.md`. Because both files are auto-generated with a "do not edit directly" header, the pointer is emitted from `src/docs/doc-generator.ts` itself (rather than patched into the already-generated output), so it survives every subsequent `metta docs generate` run automatically.
 
 ## Impact
 
 - 8 new files created under `docs/workflows/` — purely additive, no existing files deleted or restructured.
-- `docs/architecture.md` receives one new human-maintained section ("Workflow Guide") with a single cross-link; the generated body is unchanged.
-- `docs/getting-started.md` receives one new human-maintained section ("Learn the Internals") with a single cross-link; the generated body is unchanged.
-- No source code changes. No new tooling or build steps. No changes to `.metta/` state, YAML templates, skills, agents, or specs.
+- `docs/architecture.md` gains a single pointer blockquote right after its H1, emitted by `doc-generator.ts`; the rest of the generated body is unchanged.
+- `docs/getting-started.md` gains the same pointer blockquote right after its H1, emitted by `doc-generator.ts`.
+- One small edit to `src/docs/doc-generator.ts` — adds two `lines.push(...)` calls (one in `generateArchitecture`, one in `generateGettingStarted`). No behavior change beyond the pointer insertion; existing generator output shape is preserved.
+- No changes to `.metta/` state, YAML templates, skills, agents, specs, or any build step.
 - All existing cross-references in `docs/api.md` and other existing docs remain intact.
 
 ## Out of Scope
