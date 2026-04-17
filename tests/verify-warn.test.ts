@@ -25,8 +25,6 @@ class ExitCalled extends Error {
 describe('verify command — warn handling', () => {
   let exitSpy: ReturnType<typeof vi.spyOn>
   let stderrSpy: ReturnType<typeof vi.spyOn>
-  let consoleLogSpy: ReturnType<typeof vi.spyOn>
-  let consoleErrorSpy: ReturnType<typeof vi.spyOn>
   let listChangesSpy: ReturnType<typeof vi.spyOn>
   let getChangeSpy: ReturnType<typeof vi.spyOn>
   let loadFromDirSpy: ReturnType<typeof vi.spyOn>
@@ -49,8 +47,6 @@ describe('verify command — warn handling', () => {
       throw new ExitCalled(code ?? 0)
     }) as never)
     stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
-    consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
-    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
 
     listChangesSpy = vi
       .spyOn(ArtifactStore.prototype, 'listChanges')
@@ -73,8 +69,6 @@ describe('verify command — warn handling', () => {
   afterEach(() => {
     exitSpy.mockRestore()
     stderrSpy.mockRestore()
-    consoleLogSpy.mockRestore()
-    consoleErrorSpy.mockRestore()
     listChangesSpy.mockRestore()
     getChangeSpy.mockRestore()
     loadFromDirSpy.mockRestore()
@@ -84,7 +78,6 @@ describe('verify command — warn handling', () => {
 
   async function runVerify(args: string[]): Promise<number> {
     const program = new Command()
-    program.exitOverride()
     // Match the global --json option declared on the real CLI so verify
     // can read program.opts().json safely.
     program.option('--json', 'Machine-readable JSON output')
@@ -115,6 +108,11 @@ describe('verify command — warn handling', () => {
 
     const code = await runVerify(['verify', 'test-change'])
     expect(code).toBe(0)
+
+    // Guard against a silent no-op: if createCliContext is ever refactored
+    // such that it stops instantiating GateRegistry on the prototype we spy
+    // on, we must still fail loudly instead of passing vacuously.
+    expect(runAllSpy).toHaveBeenCalled()
 
     // The warn gate's name must surface on stderr so operators notice it
     // even though verify treats it as a pass.
