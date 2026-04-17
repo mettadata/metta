@@ -68,18 +68,10 @@ describe('metta-quick SKILL.md — gated discovery loop', () => {
 })
 
 describe('byte-identity — REQ-3', () => {
-  // Intentional drift: workflow-name-argument-support updates the source template
-  // with `--workflow <name>` parsing ahead of the deployed copy. The deployed copy
-  // under .claude/skills/ is refreshed on the user's next `metta install` / `metta refresh`.
-  // Instead of byte identity, assert both copies retain the canonical discovery-loop
-  // phrases so drift stays bounded to the step-1 workflow-flag parsing block.
-  it('metta-propose template and deployed copy both carry the discovery-loop phrases', async () => {
+  it('metta-propose template matches deployed copy byte-for-byte', async () => {
     const template = await readFile(proposeTemplatePath, 'utf8')
     const deployed = await readFile(proposeDeployedPath, 'utf8')
-    expect(template).toContain('DISCOVERY LOOP')
-    expect(deployed).toContain('DISCOVERY LOOP')
-    expect(template).toContain(EXIT_PHRASE)
-    expect(deployed).toContain(EXIT_PHRASE)
+    expect(template).toBe(deployed)
   })
 
   it('metta-quick template matches deployed copy byte-for-byte', async () => {
