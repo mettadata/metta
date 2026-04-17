@@ -136,6 +136,8 @@ export class GateRegistry {
         return { ...result, status: 'warn' }
       case 'stop':
         return result
+      default:
+        return result
     }
   }
 

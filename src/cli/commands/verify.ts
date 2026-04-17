@@ -30,6 +30,7 @@ export function registerVerifyCommand(program: Command): void {
         }
 
         const allPassed = results.every(r => r.status === 'pass' || r.status === 'skip' || r.status === 'warn')
+        const hasWarns = results.some(r => r.status === 'warn')
 
         if (json) {
           outputJson({
@@ -40,11 +41,15 @@ export function registerVerifyCommand(program: Command): void {
         } else {
           console.log(`Verify: ${name}`)
           for (const r of results) {
-            const icon = r.status === 'pass' ? color('✓', 32) : r.status === 'skip' ? color('–', 90) : color('✗', 31)
+            const icon =
+              r.status === 'pass' ? color('✓', 32) :
+              r.status === 'skip' ? color('–', 90) :
+              r.status === 'warn' ? color('⚠', 33) :
+              color('✗', 31)
             console.log(`  ${icon} ${r.gate}: ${r.status} (${r.duration_ms}ms)`)
           }
           console.log('')
-          console.log(allPassed ? 'All gates passed.' : 'Some gates failed.')
+          console.log(allPassed ? (hasWarns ? 'All gates passed (with warnings).' : 'All gates passed.') : 'Some gates failed.')
         }
 
         if (!allPassed) process.exit(1)
