@@ -139,11 +139,16 @@ Stack: {stack_summary}
 <!-- metta:workflow-start -->
 ## Metta Workflow
 
-Use these entry points:
-- \`metta propose <description>\` for new features
-- \`metta quick <description>\` for small fixes
-- \`metta auto <description>\` for full lifecycle
-- \`metta status --json\` for current state
+### How to work
+
+**AI orchestrators MUST invoke the matching metta skill — never call the CLI directly.**
+
+Primary entry points:
+- \`/metta-quick <description>\` — small, scoped fixes
+- \`/metta-propose <description>\` — non-trivial changes
+- \`/metta-fix-issues <slug>\` — resolve a logged issue
+
+Run \`metta refresh\` for the full command reference.
 <!-- metta:workflow-end -->
 `,
   }
