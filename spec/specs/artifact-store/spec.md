@@ -61,13 +61,19 @@ The system MUST return an empty list when no changes directory exists or when no
 
 The system MUST update an individual artifact's status within a change's metadata when `markArtifact` is called.
 
-When the new status is `in_progress` or `complete`, the `current_artifact` field MUST be updated to the given artifact ID. For all other status values, `current_artifact` MUST NOT be changed.
+When the new status is `ready`, `in_progress`, or `complete`, the `current_artifact` field MUST be updated to the given artifact ID. For all other status values (`pending`, `failed`, `skipped`), `current_artifact` MUST NOT be changed.
 
 ### Scenario: Mark artifact complete
 - GIVEN a change "test" with artifacts ["intent", "spec"] and intent at "ready"
 - WHEN `markArtifact("test", "intent", "complete")` is called
 - THEN `artifacts.intent` equals "complete"
 - AND `current_artifact` equals "intent"
+
+### Scenario: Mark next artifact ready advances current_artifact
+- GIVEN a change "test" with artifacts ["intent", "implementation"], intent at "complete", current_artifact = "intent"
+- WHEN `markArtifact("test", "implementation", "ready")` is called
+- THEN `artifacts.implementation` equals "ready"
+- AND `current_artifact` equals "implementation"
 
 ## Requirement: Artifact File I/O
 
