@@ -8,6 +8,7 @@ import { parseStories, StoriesParseError } from '../../specs/stories-parser.js'
 import { validateFulfillsRefs } from '../../stories/story-validator.js'
 import { parseSpec, parseDeltaSpec } from '../../specs/spec-parser.js'
 import { readFile } from 'node:fs/promises'
+import { toSlug } from '../../util/slug.js'
 
 const execAsync = promisify(execFile)
 
@@ -113,10 +114,7 @@ export function registerCompleteCommand(program: Command): void {
             const specPath = join(ctx.projectRoot, 'spec', 'changes', changeName, generates)
             const deltaContent = await readFile(specPath, 'utf8')
             const deltaSpec = parseDeltaSpec(deltaContent)
-            const capabilityName = deltaSpec.title
-              .replace(/\s*\(Delta\)\s*$/, '')
-              .toLowerCase()
-              .replace(/\s+/g, '-')
+            const capabilityName = toSlug(deltaSpec.title.replace(/\s*\(Delta\)\s*$/, ''))
             const capSpecPath = join(ctx.projectRoot, 'spec', 'specs', capabilityName, 'spec.md')
             const capExists = existsSync(capSpecPath)
             for (const delta of deltaSpec.deltas) {

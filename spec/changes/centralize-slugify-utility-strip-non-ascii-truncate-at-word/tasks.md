@@ -35,7 +35,7 @@
 - **Verify:** `grep -n "toSlug" src/finalize/spec-merger.ts` returns ≥2 (import + call); `grep -n "replace(/\\\\s+/g" src/finalize/spec-merger.ts` returns 0; `npx vitest run tests/spec-merger.test.ts` passes.
 - **Done:** Capability slug derivation routes through toSlug; spec-merger tests green.
 
-### Task 2.3: Replace inline slugify in src/cli/commands/complete.ts
+### Task 2.3: Replace inline slugify in src/cli/commands/complete.ts [x]
 - **Files:** `src/cli/commands/complete.ts`
 - **Action:** Replace the inline `.toLowerCase().replace(/\s+/g, '-')` pattern at line ~119 with `toSlug(deltaSpec.title.replace(/\s*\(Delta\)\s*$/, ''))`. Import `toSlug` from `../../util/slug.js` (path adjusted from commands/ location).
 - **Verify:** `grep -n "toSlug" src/cli/commands/complete.ts` returns ≥2; `grep -n "replace(/\\\\s+/g" src/cli/commands/complete.ts` returns 0; `npx tsc --noEmit` exits 0.
