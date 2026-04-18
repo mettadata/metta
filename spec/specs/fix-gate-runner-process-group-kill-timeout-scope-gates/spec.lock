@@ -1,0 +1,29 @@
+version: 5
+hash: sha256:5771625fdb44
+updated: 2026-04-18T06:46:18.605Z
+status: draft
+source: change
+requirements:
+  - id: gate-runner-kills-process-group-on-timeout
+    hash: sha256:ccd2311d830f
+    scenarios:
+      - timeout-reaps-grandchild-processes
+      - clean-completion-does-not-fire-pgid-kill
+  - id: gate-runner-accepts-plain-string-command
+    hash: sha256:072c0bdf42ea
+    scenarios:
+      - existing-gate-yaml-files-run-unchanged
+  - id: retry-once-kills-prior-pgid-before-retry
+    hash: sha256:9ff1303b5aa9
+    scenarios:
+      - retry-once-produces-no-lingering-processes-from-either-run
+  - id: finalizer-runs-only-workflow-declared-gates
+    hash: sha256:a9ff0c1909e6
+    scenarios:
+      - quick-workflow-finalize-skips-stories-valid
+      - standard-workflow-finalize-includes-stories-valid
+  - id: quick-and-auto-archive-change-directory
+    hash: sha256:b2b23bf9b59a
+    scenarios:
+      - finalize-removes-the-changes-directory
+      - finalize-populates-the-archive-directory
