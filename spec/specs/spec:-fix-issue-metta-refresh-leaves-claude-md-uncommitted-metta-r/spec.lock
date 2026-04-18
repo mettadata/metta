@@ -1,0 +1,24 @@
+version: 4
+hash: sha256:5c5ee3cd624d
+updated: 2026-04-18T01:02:14.946Z
+status: draft
+source: change
+requirements:
+  - id: refresh-auto-commits-regenerated-claude-md
+    hash: sha256:bac062d2c222
+    scenarios:
+      - happy-path-claude-md-changed-and-committed
+      - no-empty-commit-when-claude-md-is-unchanged
+  - id: refresh-no-commit-flag
+    hash: sha256:6e4983f50063
+    scenarios:
+      - no-commit-skips-staging-and-commit
+  - id: refresh-respects-git-disabled
+    hash: sha256:65553fecb611
+    scenarios:
+      - not-a-git-repo-commit-step-silently-skipped
+      - other-tracked-files-are-dirty-commit-refused-but-refresh-succeeds
+  - id: refresh-skill-documents-commit-behavior
+    hash: sha256:7c4070e10857
+    scenarios:
+      - skill-file-contains-auto-commit-documentation
