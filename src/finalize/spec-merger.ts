@@ -1,6 +1,7 @@
 import { SpecLockManager } from '../specs/spec-lock-manager.js'
 import { parseSpec, parseDeltaSpec, type ParsedSpec, type ParsedDelta } from '../specs/spec-parser.js'
 import { StateStore } from '../state/state-store.js'
+import { toSlug } from '../util/slug.js'
 import { join } from 'node:path'
 
 export interface MergeConflict {
@@ -45,7 +46,7 @@ export class SpecMerger {
     // For each delta, check base version against current
     for (const delta of deltaSpec.deltas) {
       // Determine which capability this delta affects
-      const capabilityName = deltaSpec.title.replace(/\s*\(Delta\)\s*$/, '').toLowerCase().replace(/\s+/g, '-')
+      const capabilityName = toSlug(deltaSpec.title.replace(/\s*\(Delta\)\s*$/, ''))
 
       // Check if capability spec exists
       const capSpecPath = join('specs', capabilityName, 'spec.md')
