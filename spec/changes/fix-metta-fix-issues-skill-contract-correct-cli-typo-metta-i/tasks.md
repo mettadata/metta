@@ -32,7 +32,7 @@
 - **Verify:** `grep 'MUST git commit after each step' src/templates/skills/metta-quick/SKILL.md` returns 0; `grep 'Commit ownership' src/templates/skills/metta-quick/SKILL.md` returns 1; diff empty.
 - **Done:** Both files updated; mirror identical.
 
-### Task 1.6: Add Bash to metta-product agent tool list
+### Task 1.6: Add Bash to metta-product agent tool list [x]
 - **Files:** `src/templates/agents/metta-product.md`, `.claude/agents/metta-product.md`
 - **Action:** Change line 4 (frontmatter) from `tools: [Read, Write]` to `tools: [Read, Write, Bash]`. Mirror to `.claude/agents/metta-product.md`.
 - **Verify:** `grep 'tools: \[Read, Write, Bash\]' src/templates/agents/metta-product.md` returns 1; diff between source and mirror is empty; `npx vitest run tests/agents-byte-identity.test.ts` passes.

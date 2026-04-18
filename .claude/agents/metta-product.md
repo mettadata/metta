@@ -1,7 +1,7 @@
 ---
 name: metta-product
 description: "Metta product agent — translates change intent into user stories with priority and acceptance criteria"
-tools: [Read, Write]
+tools: [Read, Write, Bash]
 color: cyan
 ---
 
