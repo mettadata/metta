@@ -41,7 +41,7 @@
 - **Verify:** `grep -n "toSlug" src/cli/commands/complete.ts` returns ≥2; `grep -n "replace(/\\\\s+/g" src/cli/commands/complete.ts` returns 0; `npx tsc --noEmit` exits 0.
 - **Done:** Same centralization as spec-merger; tsc clean.
 
-### Task 2.4: Replace local slugify in src/backlog/backlog-store.ts
+### Task 2.4: Replace local slugify in src/backlog/backlog-store.ts [x]
 - **Files:** `src/backlog/backlog-store.ts`
 - **Action:** Remove the local `slugify` function (lines 15-21). Import `toSlug` from `../util/slug.js` (augment existing import of `assertSafeSlug`). Replace `slugify(x)` call sites with `toSlug(x)`.
 - **Verify:** `grep -n "function slugify" src/backlog/backlog-store.ts` returns 0; `grep -n "toSlug" src/backlog/backlog-store.ts` returns ≥2; `npx vitest run tests/backlog-store.test.ts` passes.

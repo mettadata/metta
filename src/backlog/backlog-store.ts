@@ -1,7 +1,7 @@
 import { readdir, mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { StateStore } from '../state/state-store.js'
-import { assertSafeSlug as assertSlug } from '../util/slug.js'
+import { assertSafeSlug as assertSlug, toSlug } from '../util/slug.js'
 
 export interface BacklogItem {
   title: string
@@ -10,14 +10,6 @@ export interface BacklogItem {
   status: 'backlog'
   priority?: 'high' | 'medium' | 'low'
   description: string
-}
-
-function slugify(text: string): string {
-  return text
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '')
-    .slice(0, 60)
 }
 
 function assertSafeSlug(slug: string): void {
@@ -65,7 +57,7 @@ export class BacklogStore {
   }
 
   async add(title: string, description: string, source?: string, priority?: BacklogItem['priority']): Promise<string> {
-    const slug = slugify(title)
+    const slug = toSlug(title)
     const item: BacklogItem = {
       title,
       added: new Date().toISOString().slice(0, 10),
