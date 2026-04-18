@@ -53,12 +53,14 @@ export function registerBacklogCommand(program: Command): void {
     .argument('<title>', 'Item title')
     .option('--priority <level>', 'Priority: high, medium, low')
     .option('--source <source>', 'Source (e.g. idea/dark-mode)')
+    .option('--description <text>', 'Full description body (defaults to title)')
     .description('Add item to backlog')
     .action(async (title, options) => {
       const json = program.opts().json
       const ctx = createCliContext()
       try {
-        const slug = await ctx.backlogStore.add(title, title, options.source, options.priority)
+        const description = options.description ?? title
+        const slug = await ctx.backlogStore.add(title, description, options.source, options.priority)
         const filePath = join(ctx.projectRoot, 'spec', 'backlog', `${slug}.md`)
         const commit = await autoCommitFile(ctx.projectRoot, filePath, `chore: add backlog item ${slug}`)
         if (json) {

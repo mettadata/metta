@@ -51,6 +51,14 @@ const ALLOW_LIST = [
   'spec/project.md',
   '.metta/config.yaml',
 ]
+// Directory-prefix allow-list (.md only) — lets users enrich
+// issue/backlog bodies after the CLI creates them without needing
+// an active metta change. These directories have dedicated CLI
+// commands (`metta issue`, `metta backlog add`) that own creation.
+const ALLOW_PREFIXES = [
+  'spec/issues/',
+  'spec/backlog/',
+]
 const filePath =
   input?.tool_input?.file_path ||
   input?.tool_input?.notebook_path ||
@@ -60,6 +68,9 @@ if (filePath) {
   const { relative, resolve } = await import('node:path')
   const relPath = relative(projectRoot, resolve(projectRoot, filePath))
   if (ALLOW_LIST.includes(relPath)) {
+    process.exit(0)
+  }
+  if (ALLOW_PREFIXES.some((p) => relPath.startsWith(p) && relPath.endsWith('.md'))) {
     process.exit(0)
   }
 }

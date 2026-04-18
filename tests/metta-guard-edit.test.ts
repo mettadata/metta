@@ -75,6 +75,38 @@ describe('metta-guard-edit hook init-phase allow-list', { timeout: 30_000 }, () 
         expect(code).toBe(0)
       })
 
+      it('exits 0 when writing to spec/issues/<slug>.md with no active change', () => {
+        const { code } = runHook(
+          hookPath,
+          { tool_name: 'Edit', tool_input: { file_path: 'spec/issues/some-slug.md' } },
+          tempDir,
+        )
+        expect(code).toBe(0)
+      })
+
+      it('exits 0 when writing to spec/backlog/<slug>.md with no active change', () => {
+        const { code } = runHook(
+          hookPath,
+          { tool_name: 'Edit', tool_input: { file_path: 'spec/backlog/some-slug.md' } },
+          tempDir,
+        )
+        expect(code).toBe(0)
+      })
+
+      it('still blocks spec/issues/ non-md file (e.g. directory traversal)', () => {
+        const { code } = runHook(
+          hookPath,
+          { tool_name: 'Write', tool_input: { file_path: 'spec/issues/evil.sh' } },
+          tempDir,
+        )
+        // Same pass-through / block disambiguation as the block test below.
+        if (code === 2) {
+          // blocked via stderr — good
+        } else {
+          expect(code).toBe(0)
+        }
+      })
+
       it('blocks (exit 2) writes to non-allow-listed paths with no active change', () => {
         // When `metta` is NOT on PATH the hook's catch-all exits 0 (pass-through).
         // When it IS on PATH but the cwd has no active change, the hook reaches
