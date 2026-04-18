@@ -19,6 +19,7 @@ Automatically advance to whatever's next in the metta workflow.
 ## Rules
 
 - Let the CLI drive — `metta next` tells you what to do
-- MUST write files, git commit, and call `metta complete` for each artifact
+- MUST call `metta complete` for each artifact
+- Commit ownership: the orchestrator commits planning, review, and verification artifacts after each subagent returns. The executor subagent commits atomically per task during implementation. Planning-artifact subagents (proposer, researcher, architect, planner, product) write files only — they do not run git.
 - If `metta next` says "finalize", run `/metta:ship` to finalize and merge
 - If `metta next` says "ship", run `/metta:ship` (or the returned command) to merge the branch to main
