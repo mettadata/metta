@@ -24,7 +24,7 @@ If `$ARGUMENTS` is empty (no issue-slug and no `--all`):
 
 For a given `<issue-slug>`:
 
-1. **Validate** — `metta issue show <issue-slug> --json` → confirm issue exists and is open. If not found, report error and stop.
+1. **Validate** — `metta issues show <issue-slug> --json` → confirm issue exists and is open. If not found, report error and stop.
 
 2. **Propose** — `metta propose "fix issue: <issue-slug> — <issue-title>" --json` → creates change on branch `metta/<change-name>`
 
@@ -104,7 +104,7 @@ When `$ARGUMENTS` is `--all` (optionally with `--severity <level>`):
 
 ## Rules
 
-- Every subagent MUST write files to disk and git commit — no exceptions
+- Commit ownership: the orchestrator commits planning, review, and verification artifacts after each subagent returns. The executor subagent commits atomically per task during implementation. Planning-artifact subagents (proposer, researcher, architect, planner, product) write files only — they do not run git.
 - Every artifact MUST be followed by `metta complete` to advance workflow
 - Discovery mode is always **batch** for fix-issues — the issue definition provides all context
 - Do NOT skip review or verification — all 3 reviewers and 3 verifiers MUST run

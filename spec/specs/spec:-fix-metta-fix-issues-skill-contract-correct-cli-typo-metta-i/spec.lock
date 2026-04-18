@@ -1,0 +1,27 @@
+version: 4
+hash: sha256:68e809bfbd64
+updated: 2026-04-18T02:06:01.921Z
+status: draft
+source: change
+requirements:
+  - id: fix-issues-skill-uses-plural-issues-show
+    hash: sha256:3d76c5df1d13
+    scenarios:
+      - validate-step-runs-without-error
+      - grep-for-singular-form-returns-zero-matches
+  - id: skills-describe-orchestrator-owned-commits
+    hash: sha256:ae9c43abea78
+    scenarios:
+      - grep-for-old-rule-returns-zero-matches
+      - all-five-files-contain-the-new-paragraph
+      - pairwise-diff-of-the-paragraph-across-files-is-empty
+  - id: metta-product-agent-has-bash-tool
+    hash: sha256:9a592070269d
+    scenarios:
+      - frontmatter-parse-shows-bash-in-tools-list
+      - deployed-mirror-byte-identity-check-passes
+  - id: deployed-skill-mirrors-stay-byte-identical
+    hash: sha256:b2f62b3fd8ed
+    scenarios:
+      - diff-between-source-templates-and-deployed-mirrors-returns-empty
+      - existing-byte-identity-tests-remain-green

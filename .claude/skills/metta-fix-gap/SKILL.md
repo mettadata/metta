@@ -104,8 +104,7 @@ When `$ARGUMENTS` is `--all` (optionally with `--severity <level>`):
 
 ## Rules
 
-- Every subagent MUST write files to disk and git commit — no exceptions
-- Every subagent MUST write files to disk and git commit
+- Commit ownership: the orchestrator commits planning, review, and verification artifacts after each subagent returns. The executor subagent commits atomically per task during implementation. Planning-artifact subagents (proposer, researcher, architect, planner, product) write files only — they do not run git.
 - Every artifact MUST be followed by `metta complete` to advance workflow
 - Discovery mode is always **batch** for fix-gap — the gap definition provides all context
 - Do NOT skip review or verification — all 3 reviewers and 3 verifiers MUST run
