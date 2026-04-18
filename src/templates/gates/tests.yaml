@@ -1,6 +1,6 @@
 name: tests
 description: Run project test suite
 command: npm test
-timeout: 300000
+timeout: 600000
 required: true
 on_failure: retry_once
