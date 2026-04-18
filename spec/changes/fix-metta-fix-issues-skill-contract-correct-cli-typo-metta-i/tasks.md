@@ -26,7 +26,7 @@
 - **Verify:** `grep 'MUST write files, git commit' src/templates/skills/metta-next/SKILL.md` returns 0; `grep 'MUST call \`metta complete\`' src/templates/skills/metta-next/SKILL.md` returns ≥1; `grep 'Commit ownership' src/templates/skills/metta-next/SKILL.md` returns 1; diff empty.
 - **Done:** Fused rule split cleanly; `metta complete` obligation preserved; new paragraph present; mirror identical.
 
-### Task 1.5: Replace shorthand commit rule in metta-quick
+### Task 1.5: Replace shorthand commit rule in metta-quick [x]
 - **Files:** `src/templates/skills/metta-quick/SKILL.md`, `.claude/skills/metta-quick/SKILL.md`
 - **Action:** Replace line 91 `- MUST git commit after each step` with the replacement paragraph verbatim from `design.md`. Mirror to `.claude/skills/metta-quick/SKILL.md`.
 - **Verify:** `grep 'MUST git commit after each step' src/templates/skills/metta-quick/SKILL.md` returns 0; `grep 'Commit ownership' src/templates/skills/metta-quick/SKILL.md` returns 1; diff empty.
