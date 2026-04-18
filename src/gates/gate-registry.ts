@@ -65,11 +65,17 @@ export class GateRegistry {
         }
       }
 
+      let sigkillTimer: ReturnType<typeof setTimeout> | undefined
       const timer = setTimeout(() => {
         killed = true
         killGroup('SIGTERM')
-        setTimeout(() => killGroup('SIGKILL'), 1000)
+        sigkillTimer = setTimeout(() => killGroup('SIGKILL'), 1000)
       }, timeoutMs)
+
+      const cleanup = () => {
+        clearTimeout(timer)
+        if (sigkillTimer) clearTimeout(sigkillTimer)
+      }
 
       child.stdout?.on('data', (data: Buffer) => {
         stdout += data.toString()
@@ -80,12 +86,12 @@ export class GateRegistry {
 
       child.on('close', (code) => {
         exited = true
-        clearTimeout(timer)
+        cleanup()
         resolve({ stdout, stderr, killed, exitCode: code })
       })
       child.on('error', (err) => {
         exited = true
-        clearTimeout(timer)
+        cleanup()
         reject(err)
       })
     })
