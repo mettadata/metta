@@ -26,7 +26,7 @@ For a given `<issue-slug>`:
 
 1. **Validate** — `metta issues show <issue-slug> --json` → confirm issue exists and is open. If not found, report error and stop.
 
-2. **Propose** — `metta propose "fix issue: <issue-slug> — <issue-title>" --json` → creates change on branch `metta/<change-name>`
+2. **Propose** — `metta propose "fix-<issue-slug>" --json` → creates change on branch `metta/<change-name>`
 
 3. **Per-Artifact Loop** — For each planning artifact (intent, spec, design, tasks), spawn one subagent per artifact:
    `metta instructions <artifact> --json --change <name>` → spawn agent → `metta complete <artifact>`

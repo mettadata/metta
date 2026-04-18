@@ -53,7 +53,7 @@
 - **Verify:** `grep -n "function slugify" src/issues/issues-store.ts` returns 0; `grep -n "toSlug" src/issues/issues-store.ts` returns ≥2; `npx vitest run tests/issues-store.test.ts` passes.
 - **Done:** Uses shared helper; issues-store tests green.
 
-### Task 2.6: Replace local slugify in src/gaps/gaps-store.ts
+### Task 2.6: Replace local slugify in src/gaps/gaps-store.ts [x]
 - **Files:** `src/gaps/gaps-store.ts`
 - **Action:** Same pattern as Task 2.4. Remove local `slugify`, import `toSlug`, replace call sites.
 - **Verify:** `grep -n "function slugify" src/gaps/gaps-store.ts` returns 0; `grep -n "toSlug" src/gaps/gaps-store.ts` returns ≥2; `npx tsc --noEmit` exits 0.
@@ -71,7 +71,7 @@
 - **Verify:** `grep -n "toSlug" src/specs/spec-lock-manager.ts` returns ≥2; the literal regex `[^a-z0-9]+/g` does not appear in this file anymore; `npx vitest run tests/spec-lock-manager.test.ts` passes.
 - **Done:** Uses shared helper with untruncated option; spec-lock-manager tests green.
 
-### Task 2.9: Update metta-fix-issues skill template and mirror
+### Task 2.9: Update metta-fix-issues skill template and mirror [x]
 - **Files:** `src/templates/skills/metta-fix-issues/SKILL.md`, `.claude/skills/metta-fix-issues/SKILL.md`
 - **Action:** Locate the step 2 propose invocation (currently around line 29) that reads `metta propose "fix issue: <issue-slug> — <issue-title>" --json`. Replace with `metta propose "fix-<issue-slug>" --json`. Update the surrounding prose so the change-name pattern is documented as `fix-<short-issue-slug>` (the slug is short, ASCII, and already meaningful). Mirror the same edit to the deployed `.claude/` copy.
 - **Verify:** `grep 'fix-<issue-slug>' src/templates/skills/metta-fix-issues/SKILL.md` returns ≥1; `grep 'fix issue: <issue-slug>' src/templates/skills/metta-fix-issues/SKILL.md` returns 0; `diff src/templates/skills/metta-fix-issues/SKILL.md .claude/skills/metta-fix-issues/SKILL.md` is empty.
