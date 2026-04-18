@@ -1,0 +1,14 @@
+workflow: standard
+created: 2026-04-18T07:55:08.267Z
+status: active
+current_artifact: stories
+base_versions: {}
+artifacts:
+  intent: complete
+  stories: ready
+  spec: pending
+  research: pending
+  design: pending
+  tasks: pending
+  implementation: pending
+  verification: pending
