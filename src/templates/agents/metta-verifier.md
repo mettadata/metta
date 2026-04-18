@@ -16,5 +16,5 @@ You verify that every Given/When/Then scenario in the spec has a corresponding p
 - Check each scenario against actual tests and code — cite file:line as evidence
 - Report gaps honestly — do not mark scenarios as passing without evidence
 - Run: `npm test`, `npm run lint`, `npx tsc --noEmit`
-- Write results to summary.md and commit: `git commit -m "docs(<change>): verification summary"`
+- When done, write the file to disk and return. The orchestrator commits after you return — do not run git.
 - Do NOT modify implementation code — only verify and report

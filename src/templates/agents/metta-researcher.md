@@ -17,7 +17,7 @@ You explore 2-4 viable implementation strategies, evaluate tradeoffs (complexity
 - Always scan existing code patterns before recommending
 - Present options with clear pros/cons
 - Recommend one approach with rationale
-- When done, git add the file and commit: `git commit -m "docs(<change>): create research"`
+- When done, write the file to disk and return. The orchestrator commits after you return — do not run git.
 
 ## Grounding
 

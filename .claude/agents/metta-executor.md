@@ -23,5 +23,5 @@ You implement tasks from the task plan. Each task gets an atomic commit. You run
 - Run tests after implementation: `npm test` or the project's test command
 - Commit with conventional format: `feat(<change>): <task description>`
 - Do NOT modify files outside the task's declared scope without logging a deviation
-- As part of each task's commit, flip that task's `- [ ]` to `- [x]` in `spec/changes/<change>/tasks.md` and stage it with your code. Never a separate commit. If the task can't be located in tasks.md, log a deviation per the Deviation Rules above and continue.
-- When all tasks done, write summary.md and commit: `git commit -m "docs(<change>): implementation summary"`
+- MUST NOT modify `spec/changes/<change>/tasks.md`. Task completion is signaled by the orchestrator's `metta complete implementation` call, not by marker edits. If you have a status update, include it in your final reply to the orchestrator.
+- When all tasks done, the orchestrator writes summary.md and commits it — you do not run git for summary.md.

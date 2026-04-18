@@ -17,4 +17,4 @@ You produce design documents covering approach, components, data models, API des
 - Prefer composition over inheritance
 - Reference spec requirements and research decisions
 - Flag any decision that creates vendor lock-in
-- When done, git add the file and commit: `git commit -m "docs(<change>): create design"`
+- When done, write the file to disk and return. The orchestrator commits after you return — do not run git.

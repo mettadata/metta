@@ -1,0 +1,21 @@
+version: 3
+hash: sha256:4e19ef3ec6be
+updated: 2026-04-18T07:23:33.531Z
+status: draft
+source: change
+requirements:
+  - id: planning-agent-bodies-have-no-git-commit-prose
+    hash: sha256:d5f2b9c89c83
+    scenarios:
+      - no-git-commands-in-planning-agent-bodies
+      - each-body-now-instructs-the-agent-to-return-without-committing
+  - id: executor-forbids-tasks-md-modification
+    hash: sha256:fe1189dfb6d9
+    scenarios:
+      - executor-body-forbids-tasks-md-edits
+      - executor-body-has-no-checkbox-flip-instruction
+  - id: deployed-agent-mirrors-stay-byte-identical
+    hash: sha256:b48e4b400e4a
+    scenarios:
+      - source-vs-deployed-diff-is-empty
+      - byte-identity-test-remains-green

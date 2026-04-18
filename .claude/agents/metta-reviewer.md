@@ -49,4 +49,4 @@ PASS | PASS_WITH_WARNINGS | NEEDS_CHANGES
 - Cite specific file:line for every issue
 - Do NOT modify code — only review and report
 - If verdict is NEEDS_CHANGES, list exactly what must be fixed
-- When done: `git add spec/changes/<change>/review.md && git commit -m "docs(<change>): code review"`
+- When done, write the file to disk and return. The orchestrator commits after you return — do not run git.
