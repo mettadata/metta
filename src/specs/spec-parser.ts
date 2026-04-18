@@ -2,6 +2,7 @@ import { unified } from 'unified'
 import remarkParse from 'remark-parse'
 import { createHash } from 'node:crypto'
 import type { Root, Content, Heading, Text, InlineCode } from 'mdast'
+import { toSlug } from '../util/slug.js'
 
 export interface ParsedScenario {
   name: string
@@ -72,13 +73,6 @@ function getHeadingText(node: Heading): string {
   return node.children.map(c => extractText(c as Content)).join('')
 }
 
-function slugifyId(text: string): string {
-  return text
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '')
-}
-
 function extractKeyword(text: string): 'MUST' | 'SHOULD' | 'MAY' {
   if (/\bMUST\b/.test(text)) return 'MUST'
   if (/\bSHOULD\b/.test(text)) return 'SHOULD'
@@ -121,7 +115,7 @@ export function parseSpec(markdown: string): ParsedSpec {
 
         const name = text.replace('Requirement:', '').trim()
         currentReq = {
-          id: slugifyId(name),
+          id: toSlug(name, { maxLen: Number.MAX_SAFE_INTEGER }),
           name,
           text: '',
           keyword: 'SHOULD',
@@ -227,7 +221,7 @@ export function parseDeltaSpec(markdown: string): ParsedDeltaSpec {
           currentDelta = {
             operation,
             req: {
-              id: slugifyId(name),
+              id: toSlug(name, { maxLen: Number.MAX_SAFE_INTEGER }),
               name,
               text: '',
               keyword: 'SHOULD',
