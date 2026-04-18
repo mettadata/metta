@@ -2,7 +2,7 @@ import { Command } from 'commander'
 import { readdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
-import { outputJson } from '../helpers.js'
+import { autoCommitFile, outputJson, type AutoCommitResult } from '../helpers.js'
 import { workflowPrimerLong } from '../../delivery/workflow-primer.js'
 
 /** Marker pair definition */
@@ -322,6 +322,7 @@ export function registerRefreshCommand(program: Command): void {
     .command('refresh')
     .description('Regenerate CLAUDE.md from constitution and specs')
     .option('--dry-run', 'Preview changes without writing')
+    .option('--no-commit', 'Skip auto-commit of regenerated CLAUDE.md')
     .action(async (options) => {
       const json = program.opts().json
       const projectRoot = process.cwd()
@@ -329,11 +330,23 @@ export function registerRefreshCommand(program: Command): void {
       try {
         const result = await runRefresh(projectRoot, options.dryRun ?? false)
 
+        let commitResult: AutoCommitResult | undefined
+        if (result.written && options.commit !== false) {
+          commitResult = await autoCommitFile(
+            projectRoot,
+            result.filePath,
+            'chore(refresh): regenerate CLAUDE.md',
+          )
+        }
+
         if (json) {
           outputJson({
             status: options.dryRun ? 'dry_run' : (result.written ? 'refreshed' : 'no_changes'),
             file: result.filePath,
             diff: result.diff,
+            committed: commitResult?.committed ?? false,
+            commit_sha: commitResult?.sha,
+            commit_reason: commitResult?.reason,
           })
         } else {
           if (options.dryRun) {
@@ -341,6 +354,11 @@ export function registerRefreshCommand(program: Command): void {
             console.log(result.diff)
           } else if (result.written) {
             console.log('Refresh complete. Updated CLAUDE.md')
+            if (commitResult?.committed) {
+              console.log(`  Committed: ${commitResult.sha?.slice(0, 7)}`)
+            } else if (commitResult?.reason) {
+              console.log(`  Not committed: ${commitResult.reason}`)
+            }
           } else {
             console.log('CLAUDE.md is already up to date.')
           }

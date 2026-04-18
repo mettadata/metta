@@ -2,7 +2,7 @@
 
 ## Batch 1: Independent edits (all different files — parallel)
 
-### Task 1.1: Add `--no-commit` flag and wire `autoCommitFile` in refresh.ts
+### Task 1.1: Add `--no-commit` flag and wire `autoCommitFile` in refresh.ts [x]
 - **Files:** `src/cli/commands/refresh.ts`
 - **Action:** Add `import { autoCommitFile } from '../helpers.js'` to the import line that already brings in `outputJson`. In `registerRefreshCommand`, chain `.option('--no-commit', 'Skip auto-commit of regenerated CLAUDE.md')` onto the Commander command (after the existing `--dry-run` option). In the `.action()` handler, after `runRefresh` returns, declare `let commitResult: import('../helpers.js').AutoCommitResult | undefined` and, gated on `result.written && !options.noCommit`, call `commitResult = await autoCommitFile(projectRoot, result.filePath, 'chore(refresh): regenerate CLAUDE.md')`. In the JSON output block, add `committed: commitResult?.committed ?? false`, `commit_sha: commitResult?.sha`, and `commit_reason: commitResult?.reason` alongside existing fields. In the non-JSON output block, after the `'Refresh complete. Updated CLAUDE.md'` line, add: if `commitResult?.committed` is true, print `  Committed: ${commitResult.sha?.slice(0, 7)}`; else if `commitResult?.reason` is set, print `  Not committed: ${commitResult.reason}`. Leave `runRefresh` signature unchanged.
 - **Verify:** `npx tsc --noEmit` exits 0 with no errors; `grep 'autoCommitFile' src/cli/commands/refresh.ts` matches; `grep 'no-commit' src/cli/commands/refresh.ts` matches.
