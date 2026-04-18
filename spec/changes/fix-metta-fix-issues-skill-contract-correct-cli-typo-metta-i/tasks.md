@@ -2,7 +2,7 @@
 
 ## Batch 1: Independent file edits (all different files — parallel)
 
-### Task 1.1: Fix CLI typo and replace commit rule in metta-fix-issues
+### Task 1.1: Fix CLI typo and replace commit rule in metta-fix-issues [x]
 - **Files:** `src/templates/skills/metta-fix-issues/SKILL.md`, `.claude/skills/metta-fix-issues/SKILL.md`
 - **Action:** (a) Change line 27 from `` `metta issue show <issue-slug> --json` `` to `` `metta issues show <issue-slug> --json` `` (singular → plural). (b) Replace line 107 `- Every subagent MUST write files to disk and git commit — no exceptions` with the replacement paragraph verbatim from `design.md` (a single bullet starting `- Commit ownership: ...`). Mirror both edits to `.claude/skills/metta-fix-issues/SKILL.md`. After editing, run `diff src/templates/skills/metta-fix-issues/SKILL.md .claude/skills/metta-fix-issues/SKILL.md` — must be empty.
 - **Verify:** `grep 'metta issue show' src/templates/skills/metta-fix-issues/SKILL.md` returns 0; `grep 'metta issues show' src/templates/skills/metta-fix-issues/SKILL.md` returns 1; `grep 'Every subagent MUST' src/templates/skills/metta-fix-issues/SKILL.md` returns 0; `grep 'Commit ownership' src/templates/skills/metta-fix-issues/SKILL.md` returns 1; diff is empty.
