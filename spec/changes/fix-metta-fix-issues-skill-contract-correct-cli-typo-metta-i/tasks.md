@@ -14,7 +14,7 @@
 - **Verify:** `grep -c 'Every subagent MUST' src/templates/skills/metta-fix-gap/SKILL.md` returns 0; `grep -c 'Commit ownership' src/templates/skills/metta-fix-gap/SKILL.md` returns 1; diff between source and mirror is empty.
 - **Done:** Both files updated; duplicate removed; mirror identical.
 
-### Task 1.3: Replace commit rule in metta-auto
+### Task 1.3: Replace commit rule in metta-auto [x]
 - **Files:** `src/templates/skills/metta-auto/SKILL.md`, `.claude/skills/metta-auto/SKILL.md`
 - **Action:** Replace line 83 `- Every subagent MUST write files to disk and git commit` with the replacement paragraph verbatim from `design.md`. Mirror to `.claude/skills/metta-auto/SKILL.md`.
 - **Verify:** `grep 'Every subagent MUST' src/templates/skills/metta-auto/SKILL.md` returns 0; `grep 'Commit ownership' src/templates/skills/metta-auto/SKILL.md` returns 1; diff empty.
