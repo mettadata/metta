@@ -2,13 +2,13 @@
 
 ## Batch 1: Independent groundwork (parallel — different files)
 
-### Task 1.1: Refactor gate runner to use spawn + PGID kill
+### Task 1.1: Refactor gate runner to use spawn + PGID kill [x]
 - **Files:** `src/gates/gate-registry.ts`
 - **Action:** Replace the `execAsync`-based `run()` method. Drop the `const execAsync = promisify(exec)` line. Add a private `runCommand(command, cwd, timeoutMs): Promise<{stdout, stderr, killed, exitCode}>` helper using `spawn(command, { cwd, shell: true, detached: true, env: { ...process.env } })`. Accumulate stdout/stderr from `child.stdout`/`child.stderr` data events. On `setTimeout(timeoutMs)`, set `killed=true`, then `process.kill(-child.pid, 'SIGTERM')` (guarded by `child.pid != null` and Windows fallback to `child.kill('SIGTERM')`). 1 second later, `process.kill(-child.pid, 'SIGKILL')` guarded by an `exited` flag set on the `'close'` event. Resolve on close with the captured stdout/stderr + killed flag. Wire `run()` to call this helper and return `GateResult` with `status: 'fail'`, `failures: [{ message: 'Timeout' }]` when `killed` is true. Preserve exit-code handling for non-timeout failure (stdout/stderr echoed).
 - **Verify:** `npx tsc --noEmit` exits 0; `npx vitest run tests/gate-registry.test.ts` exits 0 (existing tests still pass).
 - **Done:** `exec`/`execAsync` no longer imported; spawn-based helper in place; existing gate-registry tests green.
 
-### Task 1.2: Add `build` gate to quick + standard workflow YAMLs
+### Task 1.2: Add `build` gate to quick + standard workflow YAMLs [x]
 - **Files:** `src/templates/workflows/quick.yaml`, `src/templates/workflows/standard.yaml`
 - **Action:** In both files, find the `implementation` artifact's `gates:` line. Current is `[tests, lint, typecheck]`. Change to `[tests, lint, typecheck, build]`. No other edits.
 - **Verify:** `grep -A1 'id: implementation' src/templates/workflows/quick.yaml` shows `gates: [tests, lint, typecheck, build]` (or similar multi-line); same for standard.yaml. `npm run build` still succeeds (dist templates mirror the source).

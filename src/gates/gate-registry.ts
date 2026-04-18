@@ -1,12 +1,9 @@
 import { readFile, readdir } from 'node:fs/promises'
 import { join } from 'node:path'
-import { exec } from 'node:child_process'
-import { promisify } from 'node:util'
+import { spawn } from 'node:child_process'
 import YAML from 'yaml'
 import { GateDefinitionSchema, type GateDefinition } from '../schemas/gate-definition.js'
 import type { GateResult } from '../schemas/gate-result.js'
-
-const execAsync = promisify(exec)
 
 export class GateRegistry {
   private gates = new Map<string, GateDefinition>()
@@ -38,6 +35,62 @@ export class GateRegistry {
     }
   }
 
+  private async runCommand(
+    command: string,
+    cwd: string,
+    timeoutMs: number,
+  ): Promise<{ stdout: string; stderr: string; killed: boolean; exitCode: number | null }> {
+    return new Promise((resolve, reject) => {
+      const child = spawn(command, {
+        cwd,
+        shell: true,
+        detached: true,
+        env: { ...process.env },
+      })
+      let stdout = ''
+      let stderr = ''
+      let killed = false
+      let exited = false
+
+      const killGroup = (signal: 'SIGTERM' | 'SIGKILL') => {
+        if (exited || child.pid == null) return
+        try {
+          if (process.platform === 'win32') {
+            child.kill(signal)
+          } else {
+            process.kill(-child.pid, signal)
+          }
+        } catch {
+          // ESRCH: group already dead. Ignore.
+        }
+      }
+
+      const timer = setTimeout(() => {
+        killed = true
+        killGroup('SIGTERM')
+        setTimeout(() => killGroup('SIGKILL'), 1000)
+      }, timeoutMs)
+
+      child.stdout?.on('data', (data: Buffer) => {
+        stdout += data.toString()
+      })
+      child.stderr?.on('data', (data: Buffer) => {
+        stderr += data.toString()
+      })
+
+      child.on('close', (code) => {
+        exited = true
+        clearTimeout(timer)
+        resolve({ stdout, stderr, killed, exitCode: code })
+      })
+      child.on('error', (err) => {
+        exited = true
+        clearTimeout(timer)
+        reject(err)
+      })
+    })
+  }
+
   async run(name: string, cwd: string): Promise<GateResult> {
     const gate = this.gates.get(name)
     if (!gate) {
@@ -50,25 +103,15 @@ export class GateRegistry {
     }
 
     const start = Date.now()
-
     try {
-      const { stdout, stderr } = await execAsync(gate.command, {
+      const { stdout, stderr, killed, exitCode } = await this.runCommand(
+        gate.command,
         cwd,
-        timeout: gate.timeout,
-        env: { ...process.env },
-      })
-
-      return {
-        gate: name,
-        status: 'pass',
-        duration_ms: Date.now() - start,
-        output: stdout || stderr || undefined,
-      }
-    } catch (err: unknown) {
+        gate.timeout,
+      )
       const duration = Date.now() - start
-      const error = err as { stdout?: string; stderr?: string; message?: string; killed?: boolean }
 
-      if (error.killed) {
+      if (killed) {
         return {
           gate: name,
           status: 'fail',
@@ -78,18 +121,37 @@ export class GateRegistry {
         }
       }
 
+      if (exitCode === 0) {
+        return {
+          gate: name,
+          status: 'pass',
+          duration_ms: duration,
+          output: stdout || stderr || undefined,
+        }
+      }
+
       return {
         gate: name,
         status: 'fail',
         duration_ms: duration,
-        output: error.stdout || error.stderr || error.message,
+        output: stdout || stderr || undefined,
         failures: [
           {
             file: '',
-            message: error.stderr || error.message || 'Gate command failed',
+            message: stderr || `Gate command failed with exit code ${exitCode}`,
             severity: 'error',
           },
         ],
+      }
+    } catch (err: unknown) {
+      const duration = Date.now() - start
+      const message = err instanceof Error ? err.message : String(err)
+      return {
+        gate: name,
+        status: 'fail',
+        duration_ms: duration,
+        output: message,
+        failures: [{ file: '', message, severity: 'error' }],
       }
     }
   }

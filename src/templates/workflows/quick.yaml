@@ -17,7 +17,7 @@ artifacts:
     generates: "**/*"
     requires: [intent]
     agents: [executor]
-    gates: [tests, lint, typecheck]
+    gates: [tests, lint, typecheck, build]
 
   - id: verification
     type: verification
