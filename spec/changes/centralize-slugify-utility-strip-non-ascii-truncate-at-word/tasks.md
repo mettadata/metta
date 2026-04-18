@@ -59,7 +59,7 @@
 - **Verify:** `grep -n "function slugify" src/gaps/gaps-store.ts` returns 0; `grep -n "toSlug" src/gaps/gaps-store.ts` returns ≥2; `npx tsc --noEmit` exits 0.
 - **Done:** Uses shared helper; tsc clean.
 
-### Task 2.7: Replace slugifyId in src/specs/spec-parser.ts
+### Task 2.7: Replace slugifyId in src/specs/spec-parser.ts [x]
 - **Files:** `src/specs/spec-parser.ts`
 - **Action:** Remove the local `slugifyId` function (lines 75-80). Import `toSlug` from `../util/slug.js`. Replace calls with `toSlug(x, { maxLen: Number.MAX_SAFE_INTEGER })` to preserve current untruncated behavior (required for lock-file compatibility per research.md).
 - **Verify:** `grep -n "function slugifyId" src/specs/spec-parser.ts` returns 0; `grep -n "Number.MAX_SAFE_INTEGER" src/specs/spec-parser.ts` returns ≥2 (one per call site); `npx vitest run tests/spec-parser.test.ts` passes.
