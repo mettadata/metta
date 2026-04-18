@@ -65,7 +65,7 @@
 - **Verify:** `grep -n "function slugifyId" src/specs/spec-parser.ts` returns 0; `grep -n "Number.MAX_SAFE_INTEGER" src/specs/spec-parser.ts` returns ≥2 (one per call site); `npx vitest run tests/spec-parser.test.ts` passes.
 - **Done:** Uses shared helper with untruncated option; spec-parser tests green.
 
-### Task 2.8: Replace inline scenario slug in src/specs/spec-lock-manager.ts
+### Task 2.8: Replace inline scenario slug in src/specs/spec-lock-manager.ts [x]
 - **Files:** `src/specs/spec-lock-manager.ts`
 - **Action:** Replace the inline `.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')` chain at line 40 with `toSlug(s.name, { maxLen: Number.MAX_SAFE_INTEGER })`. Import `toSlug` from `../util/slug.js`.
 - **Verify:** `grep -n "toSlug" src/specs/spec-lock-manager.ts` returns ≥2; the literal regex `[^a-z0-9]+/g` does not appear in this file anymore; `npx vitest run tests/spec-lock-manager.test.ts` passes.
