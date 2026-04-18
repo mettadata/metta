@@ -1,0 +1,6 @@
+name: build
+description: Build the Rust project
+command: cargo build
+timeout: 600000
+required: true
+on_failure: retry_once

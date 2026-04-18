@@ -1,0 +1,6 @@
+name: lint
+description: Lint Go with vet
+command: go vet ./...
+timeout: 600000
+required: true
+on_failure: retry_once

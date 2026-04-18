@@ -549,6 +549,130 @@ describe('CLI', { timeout: 30000 }, () => {
     })
   })
 
+  describe('metta install stack detection', () => {
+    async function writeMarker(name: string): Promise<void> {
+      const { writeFile } = await import('node:fs/promises')
+      await writeFile(join(tempDir, name), '')
+    }
+
+    async function readConfig(): Promise<string> {
+      const { readFile } = await import('node:fs/promises')
+      return readFile(join(tempDir, '.metta', 'config.yaml'), 'utf8')
+    }
+
+    it('Rust project scaffolds cargo gate commands', async () => {
+      await writeMarker('Cargo.toml')
+      const { stdout, code } = await runCli(['--json', 'install', '--git-init'], tempDir)
+      expect(code).toBe(0)
+      const data = JSON.parse(stdout)
+      expect(data.stacks).toEqual(['rust'])
+      expect(data.scaffolded_gates.sort()).toEqual(['build.yaml', 'lint.yaml', 'tests.yaml', 'typecheck.yaml'])
+
+      const { readFile } = await import('node:fs/promises')
+      const tests = await readFile(join(tempDir, '.metta', 'gates', 'tests.yaml'), 'utf8')
+      expect(tests).toContain('command: cargo test')
+    })
+
+    it('Python project via pyproject.toml scaffolds pytest + pass-through build', async () => {
+      await writeMarker('pyproject.toml')
+      const { stdout } = await runCli(['--json', 'install', '--git-init'], tempDir)
+      const data = JSON.parse(stdout)
+      expect(data.stacks).toEqual(['python'])
+
+      const { readFile } = await import('node:fs/promises')
+      const tests = await readFile(join(tempDir, '.metta', 'gates', 'tests.yaml'), 'utf8')
+      expect(tests).toContain('command: pytest')
+      const build = await readFile(join(tempDir, '.metta', 'gates', 'build.yaml'), 'utf8')
+      expect(build).toContain("command: 'true'")
+    })
+
+    it('Python project via requirements.txt is detected', async () => {
+      await writeMarker('requirements.txt')
+      const { stdout } = await runCli(['--json', 'install', '--git-init'], tempDir)
+      const data = JSON.parse(stdout)
+      expect(data.stacks).toEqual(['python'])
+    })
+
+    it('Go project scaffolds go commands with pass-through typecheck', async () => {
+      await writeMarker('go.mod')
+      const { stdout } = await runCli(['--json', 'install', '--git-init'], tempDir)
+      const data = JSON.parse(stdout)
+      expect(data.stacks).toEqual(['go'])
+
+      const { readFile } = await import('node:fs/promises')
+      const tests = await readFile(join(tempDir, '.metta', 'gates', 'tests.yaml'), 'utf8')
+      expect(tests).toContain('command: go test ./...')
+      const tc = await readFile(join(tempDir, '.metta', 'gates', 'typecheck.yaml'), 'utf8')
+      expect(tc).toContain("command: 'true'")
+    })
+
+    it('JS project creates no .metta/gates/', async () => {
+      const { writeFile } = await import('node:fs/promises')
+      await writeFile(join(tempDir, 'package.json'), '{"name": "x", "version": "0.0.0"}')
+      const { stdout } = await runCli(['--json', 'install', '--git-init'], tempDir)
+      const data = JSON.parse(stdout)
+      expect(data.stacks).toEqual(['js'])
+      expect(data.scaffolded_gates).toEqual([])
+      const { existsSync } = await import('node:fs')
+      expect(existsSync(join(tempDir, '.metta', 'gates'))).toBe(false)
+    })
+
+    it('Multi-stack: Cargo.toml + pyproject.toml → rust primary with comment', async () => {
+      await writeMarker('Cargo.toml')
+      await writeMarker('pyproject.toml')
+      const { stdout } = await runCli(['--json', 'install', '--git-init'], tempDir)
+      const data = JSON.parse(stdout)
+      expect(data.stacks).toEqual(['rust', 'python'])
+
+      const { readFile } = await import('node:fs/promises')
+      const tests = await readFile(join(tempDir, '.metta', 'gates', 'tests.yaml'), 'utf8')
+      expect(tests).toContain('cargo test')
+      expect(tests).toContain('# Multi-stack project detected')
+      expect(tests).toContain('python')
+    })
+
+    it('--stack rust overrides auto-detection in empty dir', async () => {
+      const { stdout } = await runCli(['--json', 'install', '--git-init', '--stack', 'rust'], tempDir)
+      const data = JSON.parse(stdout)
+      expect(data.stacks).toEqual(['rust'])
+      expect(data.scaffolded_gates.length).toBe(4)
+    })
+
+    it('--stack skip suppresses scaffolding even when markers exist', async () => {
+      await writeMarker('Cargo.toml')
+      const { stdout } = await runCli(['--json', 'install', '--git-init', '--stack', 'skip'], tempDir)
+      const data = JSON.parse(stdout)
+      expect(data.stacks).toEqual([])
+      expect(data.scaffolded_gates).toEqual([])
+      const { existsSync } = await import('node:fs')
+      expect(existsSync(join(tempDir, '.metta', 'gates'))).toBe(false)
+    })
+
+    it('--stack with unsupported value exits non-zero', async () => {
+      const { code } = await runCli(['install', '--git-init', '--stack', 'ruby'], tempDir)
+      expect(code).not.toBe(0)
+    })
+
+    it('No markers → empty stacks and no gate files', async () => {
+      const { stdout } = await runCli(['--json', 'install', '--git-init'], tempDir)
+      const data = JSON.parse(stdout)
+      expect(data.stacks).toEqual([])
+      expect(data.scaffolded_gates).toEqual([])
+    })
+
+    it('Re-running install does not overwrite existing gate files', async () => {
+      await writeMarker('Cargo.toml')
+      await runCli(['install', '--git-init'], tempDir)
+      const { readFile, writeFile } = await import('node:fs/promises')
+      const gatePath = join(tempDir, '.metta', 'gates', 'tests.yaml')
+      await writeFile(gatePath, '# user-edited\nname: tests\ncommand: custom-cargo\n', 'utf8')
+      await runCli(['install'], tempDir)
+      const after = await readFile(gatePath, 'utf8')
+      expect(after).toContain('command: custom-cargo')
+      expect(after).toContain('# user-edited')
+    })
+  })
+
   describe('branch-safety guard', () => {
     async function initAndCheckoutFeature(): Promise<void> {
       await runCli(['install', '--git-init'], tempDir)

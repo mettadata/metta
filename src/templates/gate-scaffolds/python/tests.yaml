@@ -1,0 +1,6 @@
+name: tests
+description: Run Python tests with pytest
+command: pytest
+timeout: 600000
+required: true
+on_failure: retry_once

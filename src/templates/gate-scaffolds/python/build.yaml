@@ -1,0 +1,10 @@
+# Python has no distinct build step in most project layouts; this gate is a
+# pass-through so the finalize pipeline completes. Override this file (or
+# delete it and remove `build` from the workflow's artifact gates list) if
+# your project has a real build command such as `python -m build` or `poetry build`.
+name: build
+description: Pass-through build gate (Python projects have no default build step)
+command: 'true'
+timeout: 10000
+required: true
+on_failure: retry_once

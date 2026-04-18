@@ -1,0 +1,6 @@
+name: typecheck
+description: Type-check Python with mypy
+command: mypy .
+timeout: 600000
+required: true
+on_failure: retry_once

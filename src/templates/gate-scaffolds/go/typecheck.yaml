@@ -1,0 +1,9 @@
+# Go's compile step is its typecheck (no separate analyzer like tsc or mypy).
+# This gate is a pass-through because `go build` (the build gate) already
+# fails on type errors. Override to something stricter (e.g. staticcheck) if desired.
+name: typecheck
+description: Pass-through typecheck gate (Go's compile step covers typechecking)
+command: 'true'
+timeout: 10000
+required: true
+on_failure: retry_once

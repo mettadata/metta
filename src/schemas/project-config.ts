@@ -49,6 +49,7 @@ export const ProjectInfoSchema = z.object({
   name: z.string(),
   description: z.string().optional(),
   stack: z.string().optional(),
+  stacks: z.array(z.string()).optional(),
   conventions: z.string().optional(),
 }).strict()
 

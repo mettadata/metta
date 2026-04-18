@@ -3,7 +3,17 @@ import { join } from 'node:path'
 import { homedir } from 'node:os'
 import YAML from 'yaml'
 import { ZodError } from 'zod'
-import { ProjectConfigSchema, type ProjectConfig } from '../schemas/project-config.js'
+import { ProjectConfigSchema, type ProjectConfig, type ProjectInfo } from '../schemas/project-config.js'
+
+/**
+ * Resolve the list of detected/declared stacks for a project.
+ * Accepts the legacy single-string `project.stack` and promotes it to `[stack]`.
+ */
+export function resolveStacks(info?: ProjectInfo): string[] {
+  if (info?.stacks && info.stacks.length > 0) return info.stacks
+  if (info?.stack) return [info.stack]
+  return []
+}
 
 function deepMerge(target: Record<string, unknown>, source: Record<string, unknown>): Record<string, unknown> {
   const result = { ...target }
