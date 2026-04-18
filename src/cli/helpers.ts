@@ -205,3 +205,36 @@ export function agentBanner(agentName: string, message: string): string {
   const label = `metta-${agentName}`
   return `${agent.icon} ${color(`[${label.toUpperCase()}]`, agent.code)} ${message}`
 }
+
+/**
+ * Branch-safety guard for state-mutating CLI commands that should only write
+ * on the main branch (metta issue, metta backlog add/done). Silently passes
+ * when the project is not a git repository.
+ *
+ * @param projectRoot The git working directory
+ * @param mainBranchName The configured main branch name (usually `pr_base`)
+ * @param overrideBranch When set and equal to the current branch, bypass the guard
+ * @throws Error when the current branch is neither the main nor the override
+ */
+export async function assertOnMainBranch(
+  projectRoot: string,
+  mainBranchName: string,
+  overrideBranch?: string,
+): Promise<void> {
+  try {
+    await execAsync('git', ['rev-parse', '--is-inside-work-tree'], { cwd: projectRoot })
+  } catch {
+    return
+  }
+
+  const { stdout } = await execAsync('git', ['branch', '--show-current'], { cwd: projectRoot })
+  const current = stdout.trim()
+
+  if (current === mainBranchName) return
+  if (overrideBranch && overrideBranch === current) return
+
+  throw new Error(
+    `Refusing to write: current branch '${current}' is not the main branch '${mainBranchName}'. ` +
+      `Switch branches, or use --on-branch ${current} to override.`,
+  )
+}

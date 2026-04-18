@@ -2,7 +2,7 @@ import { Command } from 'commander'
 import { execFile } from 'node:child_process'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
-import { autoCommitFile, createCliContext, outputJson } from '../helpers.js'
+import { assertOnMainBranch, autoCommitFile, createCliContext, outputJson } from '../helpers.js'
 import { SLUG_RE } from '../../util/slug.js'
 
 const execAsync = promisify(execFile)
@@ -54,11 +54,15 @@ export function registerBacklogCommand(program: Command): void {
     .option('--priority <level>', 'Priority: high, medium, low')
     .option('--source <source>', 'Source (e.g. idea/dark-mode)')
     .option('--description <text>', 'Full description body (defaults to title)')
+    .option('--on-branch <name>', 'Acknowledge non-main branch and proceed')
     .description('Add item to backlog')
     .action(async (title, options) => {
       const json = program.opts().json
       const ctx = createCliContext()
       try {
+        const config = await ctx.configLoader.load()
+        const mainBranch = config.git?.pr_base ?? 'main'
+        await assertOnMainBranch(ctx.projectRoot, mainBranch, options.onBranch)
         const description = options.description ?? title
         const slug = await ctx.backlogStore.add(title, description, options.source, options.priority)
         const filePath = join(ctx.projectRoot, 'spec', 'backlog', `${slug}.md`)
@@ -72,7 +76,8 @@ export function registerBacklogCommand(program: Command): void {
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
-        if (json) { outputJson({ error: { code: 4, type: 'backlog_error', message } }) } else { console.error(message) }
+        const type = message.startsWith('Refusing to write') ? 'branch_guard' : 'backlog_error'
+        if (json) { outputJson({ error: { code: 4, type, message } }) } else { console.error(message) }
         process.exit(4)
       }
     })
@@ -102,6 +107,7 @@ export function registerBacklogCommand(program: Command): void {
     .command('done')
     .argument('<slug>', 'Item slug')
     .option('--change <name>', 'Change name to stamp as Shipped-in metadata')
+    .option('--on-branch <name>', 'Acknowledge non-main branch and proceed')
     .description('Archive a shipped backlog item')
     .action(async (slug, options) => {
       const json = program.opts().json
@@ -115,6 +121,9 @@ export function registerBacklogCommand(program: Command): void {
       }
 
       try {
+        const config = await ctx.configLoader.load()
+        const mainBranch = config.git?.pr_base ?? 'main'
+        await assertOnMainBranch(ctx.projectRoot, mainBranch, options.onBranch)
         const found = await ctx.backlogStore.exists(slug)
         if (!found) {
           const message = `Backlog item '${slug}' not found`

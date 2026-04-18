@@ -1,6 +1,6 @@
 import { Command } from 'commander'
 import { join } from 'node:path'
-import { autoCommitFile, createCliContext, outputJson } from '../helpers.js'
+import { assertOnMainBranch, autoCommitFile, createCliContext, outputJson } from '../helpers.js'
 import type { Severity } from '../../issues/issues-store.js'
 
 export function registerIssueCommand(program: Command): void {
@@ -9,6 +9,7 @@ export function registerIssueCommand(program: Command): void {
     .description('Log an issue')
     .argument('[description]', 'Issue description')
     .option('--severity <level>', 'Severity: critical, major, minor', 'minor')
+    .option('--on-branch <name>', 'Acknowledge non-main branch and proceed')
     .action(async (description, options) => {
       const json = program.opts().json
       const ctx = createCliContext()
@@ -18,6 +19,9 @@ export function registerIssueCommand(program: Command): void {
           if (json) { outputJson({ error: { code: 4, type: 'missing_arg', message: 'Description required' } }) } else { console.error('Usage: metta issue <description>') }
           process.exit(4)
         }
+        const config = await ctx.configLoader.load()
+        const mainBranch = config.git?.pr_base ?? 'main'
+        await assertOnMainBranch(ctx.projectRoot, mainBranch, options.onBranch)
         const slug = await ctx.issuesStore.create(description, description, options.severity as Severity)
         const filePath = join(ctx.projectRoot, 'spec', 'issues', `${slug}.md`)
         const commit = await autoCommitFile(ctx.projectRoot, filePath, `chore: log issue ${slug}`)
@@ -30,7 +34,8 @@ export function registerIssueCommand(program: Command): void {
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
-        if (json) { outputJson({ error: { code: 4, type: 'issue_error', message } }) } else { console.error(message) }
+        const type = message.startsWith('Refusing to write') ? 'branch_guard' : 'issue_error'
+        if (json) { outputJson({ error: { code: 4, type, message } }) } else { console.error(message) }
         process.exit(4)
       }
     })
