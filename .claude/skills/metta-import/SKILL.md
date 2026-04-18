@@ -28,6 +28,7 @@ You are the **orchestrator** for importing existing code into metta specs.
      - Spec says X, code does Y → gap: diverged
      - Partially implemented → gap: partial
    - Write gap files to `spec/gaps/<slug>.md` for each mismatch
+   - MUST NOT call `metta propose`, `metta quick`, or otherwise create a directory under `spec/changes/`. Import scans produce only `spec/specs/` and `spec/gaps/` outputs. If the researcher accidentally creates a `spec/changes/<name>/` directory, the subsequent `metta finalize` will fail with `Multiple active changes` and block the import.
 5. After all researchers complete, merge results and commit:
    `git add spec/ && git commit -m "docs: import specs from <path>"`
 6. Report summary: specs generated, gaps found, test coverage
