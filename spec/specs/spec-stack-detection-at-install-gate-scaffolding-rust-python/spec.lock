@@ -1,0 +1,35 @@
+version: 4
+hash: sha256:d949021f7dcc
+updated: 2026-04-18T08:45:35.815Z
+status: draft
+source: change
+requirements:
+  - id: config-stacks-array-field
+    hash: sha256:016db3ef56a5
+    scenarios:
+      - new-config-uses-stacks-array
+      - legacy-string-config-is-upgraded-on-load
+  - id: install-detects-stack-markers
+    hash: sha256:52c18136ac12
+    scenarios:
+      - rust-only-project-detected
+      - python-only-via-pyproject-toml
+      - python-only-via-requirements-txt
+      - multi-stack-monorepo-ordered-by-priority
+      - no-markers
+  - id: install-scaffolds-gate-yamls
+    hash: sha256:da4219aba8ad
+    scenarios:
+      - rust-primary-four-rust-gate-files-written
+      - python-primary-pass-through-build
+      - go-primary-pass-through-typecheck
+      - js-only-project-creates-no-gate-overrides
+      - multi-stack-adds-comment-block
+      - scaffolding-never-overwrites
+  - id: install-stack-flag-override
+    hash: sha256:1a4108cd658d
+    scenarios:
+      - stack-forces-rust
+      - stack-multi-value
+      - stack-skip-suppresses-scaffolding
+      - invalid-stack-value-exits-with-error
