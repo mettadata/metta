@@ -8,7 +8,7 @@
 - **Verify:** `grep 'metta issue show' src/templates/skills/metta-fix-issues/SKILL.md` returns 0; `grep 'metta issues show' src/templates/skills/metta-fix-issues/SKILL.md` returns 1; `grep 'Every subagent MUST' src/templates/skills/metta-fix-issues/SKILL.md` returns 0; `grep 'Commit ownership' src/templates/skills/metta-fix-issues/SKILL.md` returns 1; diff is empty.
 - **Done:** Both files updated; all grep assertions pass; source and mirror byte-identical.
 
-### Task 1.2: Dedup and replace commit rule in metta-fix-gap
+### Task 1.2: Dedup and replace commit rule in metta-fix-gap [x]
 - **Files:** `src/templates/skills/metta-fix-gap/SKILL.md`, `.claude/skills/metta-fix-gap/SKILL.md`
 - **Action:** Replace the two duplicate lines (lines 107-108) — both currently say `Every subagent MUST write files to disk and git commit` — with a single replacement paragraph verbatim from `design.md`. Mirror to `.claude/skills/metta-fix-gap/SKILL.md`. Confirm no other occurrences of the old rule remain.
 - **Verify:** `grep -c 'Every subagent MUST' src/templates/skills/metta-fix-gap/SKILL.md` returns 0; `grep -c 'Commit ownership' src/templates/skills/metta-fix-gap/SKILL.md` returns 1; diff between source and mirror is empty.
@@ -20,7 +20,7 @@
 - **Verify:** `grep 'Every subagent MUST' src/templates/skills/metta-auto/SKILL.md` returns 0; `grep 'Commit ownership' src/templates/skills/metta-auto/SKILL.md` returns 1; diff empty.
 - **Done:** Both files updated; mirror identical.
 
-### Task 1.4: Split fused rule and insert replacement paragraph in metta-next
+### Task 1.4: Split fused rule and insert replacement paragraph in metta-next [x]
 - **Files:** `src/templates/skills/metta-next/SKILL.md`, `.claude/skills/metta-next/SKILL.md`
 - **Action:** Line 22 currently reads `- MUST write files, git commit, and call \`metta complete\` for each artifact`. Split into two bullets: keep `- MUST call \`metta complete\` for each artifact` and ADD the replacement paragraph verbatim from `design.md` as a separate bullet immediately above or below it. Mirror to `.claude/skills/metta-next/SKILL.md`.
 - **Verify:** `grep 'MUST write files, git commit' src/templates/skills/metta-next/SKILL.md` returns 0; `grep 'MUST call \`metta complete\`' src/templates/skills/metta-next/SKILL.md` returns ≥1; `grep 'Commit ownership' src/templates/skills/metta-next/SKILL.md` returns 1; diff empty.
