@@ -22,7 +22,7 @@ export class GateRegistry {
 
   async loadFromDirectory(dir: string): Promise<void> {
     try {
-      const entries = await readdir(dir)
+      const entries = (await readdir(dir)).sort()
       for (const entry of entries) {
         if (!entry.endsWith('.yaml') && !entry.endsWith('.yml')) continue
         const content = await readFile(join(dir, entry), 'utf-8')

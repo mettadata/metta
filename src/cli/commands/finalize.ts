@@ -25,9 +25,13 @@ export function registerFinalizeCommand(program: Command): void {
         const name = changeName ?? (changes.length === 1 ? changes[0] : null)
         if (!name) throw new Error(changes.length === 0 ? 'No active changes.' : `Multiple changes: ${changes.join(', ')}`)
 
-        // Load gates
+        // Load gates — built-ins first, then project-local overrides.
+        // Gates registered in the second pass replace any built-in of the same
+        // name, so projects can drop `.metta/gates/tests.yaml` with
+        // `command: cargo test` (etc.) to make finalize language-agnostic.
         const builtinGates = new URL('../../templates/gates', import.meta.url).pathname
         await ctx.gateRegistry.loadFromDirectory(builtinGates)
+        await ctx.gateRegistry.loadFromDirectory(join(ctx.projectRoot, '.metta', 'gates'))
 
         // Resolve workflow templates using the same relative-depth pattern as gates.
         const workflowEngine = new WorkflowEngine()

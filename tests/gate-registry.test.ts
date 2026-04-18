@@ -296,4 +296,76 @@ describe('GateRegistry', () => {
       // shell alive and duration would blow past the budget.
     })
   })
+
+  describe('project-local override precedence', () => {
+    let tempDir: string
+
+    beforeEach(async () => {
+      tempDir = await mkdtemp(join(tmpdir(), 'gate-override-'))
+    })
+
+    afterEach(async () => {
+      await rm(tempDir, { recursive: true, force: true })
+    })
+
+    it('project-local gate overrides built-in gate with same name', async () => {
+      const { mkdir, writeFile } = await import('node:fs/promises')
+      const builtinDir = join(tempDir, 'builtin')
+      const projectDir = join(tempDir, 'project')
+      await mkdir(builtinDir)
+      await mkdir(projectDir)
+
+      await writeFile(join(builtinDir, 'tests.yaml'), [
+        'name: tests',
+        'description: Run tests',
+        'command: npm test',
+        'timeout: 120000',
+        'required: true',
+        'on_failure: stop',
+      ].join('\n'))
+      await writeFile(join(projectDir, 'tests.yaml'), [
+        'name: tests',
+        'description: Run Rust tests',
+        'command: cargo test',
+        'timeout: 120000',
+        'required: true',
+        'on_failure: stop',
+      ].join('\n'))
+
+      const r = new GateRegistry()
+      await r.loadFromDirectory(builtinDir)
+      await r.loadFromDirectory(projectDir)
+
+      const gate = r.get('tests')
+      expect(gate?.command).toBe('cargo test')
+    })
+
+    it('built-in gates without project override remain intact', async () => {
+      const { mkdir, writeFile } = await import('node:fs/promises')
+      const builtinDir = join(tempDir, 'builtin')
+      const projectDir = join(tempDir, 'project')
+      await mkdir(builtinDir)
+      await mkdir(projectDir)
+
+      await writeFile(join(builtinDir, 'lint.yaml'), [
+        'name: lint',
+        'description: Run linter',
+        'command: npm run lint',
+        'timeout: 60000',
+        'required: true',
+        'on_failure: stop',
+      ].join('\n'))
+      // project dir is empty — only a different gate overridden elsewhere would not touch `lint`
+      const r = new GateRegistry()
+      await r.loadFromDirectory(builtinDir)
+      await r.loadFromDirectory(projectDir)
+
+      expect(r.get('lint')?.command).toBe('npm run lint')
+    })
+
+    it('loadFromDirectory on non-existent path is silent', async () => {
+      const r = new GateRegistry()
+      await expect(r.loadFromDirectory(join(tempDir, 'does-not-exist'))).resolves.toBeUndefined()
+    })
+  })
 })

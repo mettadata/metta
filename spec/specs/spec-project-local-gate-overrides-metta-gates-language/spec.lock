@@ -1,0 +1,20 @@
+version: 3
+hash: sha256:c0f15b530894
+updated: 2026-04-18T08:12:16.468Z
+status: draft
+source: change
+requirements:
+  - id: finalize-loads-project-local-gate-overrides
+    hash: sha256:2a9bc26fa623
+    scenarios:
+      - project-override-replaces-built-in
+      - missing-override-dir-is-silent-pass-through
+      - partial-override-leaves-other-gates-intact
+  - id: gate-registry-load-order-is-deterministic
+    hash: sha256:b55f55e3910a
+    scenarios:
+      - identical-state-across-repeated-loads
+  - id: docs-mention-override-path
+    hash: sha256:8af426ff2dae
+    scenarios:
+      - docs-grep-hit
