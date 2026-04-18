@@ -5,6 +5,7 @@ import { SpecLockManager } from '../specs/spec-lock-manager.js'
 import { GateRegistry } from '../gates/gate-registry.js'
 import type { GateResult } from '../schemas/gate-result.js'
 import { DocGenerator } from '../docs/doc-generator.js'
+import { WorkflowEngine } from '../workflow/workflow-engine.js'
 
 export interface FinalizeResult {
   changeName: string
@@ -23,10 +24,26 @@ export class Finalizer {
     private specLockManager: SpecLockManager,
     private gateRegistry?: GateRegistry,
     private projectRoot?: string,
+    private workflowEngine?: WorkflowEngine,
+    private workflowSearchPaths?: string[],
   ) {}
 
   async finalize(changeName: string, dryRun: boolean = false): Promise<FinalizeResult> {
     const metadata = await this.artifactStore.getChange(changeName)
+
+    // Derive workflow-scoped gate names (when the workflow engine is available).
+    // Unions the `gates` arrays across every artifact declared in the workflow YAML
+    // so gates like stories-valid don't fire on workflows that don't produce them.
+    let scopedGateNames: string[] | undefined
+    if (this.workflowEngine && this.workflowSearchPaths) {
+      try {
+        const workflow = await this.workflowEngine.loadWorkflow(metadata.workflow, this.workflowSearchPaths)
+        scopedGateNames = [...new Set(workflow.artifacts.flatMap(a => a.gates ?? []))]
+      } catch {
+        // If workflow loading fails, fall back to registry.list() behavior below.
+        scopedGateNames = undefined
+      }
+    }
 
     // Step 1-2: Merge delta specs
     const merger = new SpecMerger(this.specDir, this.specLockManager)
@@ -48,7 +65,7 @@ export class Finalizer {
     let gates: GateResult[] = []
     let gatesPassed = true
     if (this.gateRegistry && this.projectRoot) {
-      const gateNames = this.gateRegistry.list().map(g => g.name)
+      const gateNames = scopedGateNames ?? this.gateRegistry.list().map(g => g.name)
       if (gateNames.length > 0) {
         gates = await this.gateRegistry.runAll(gateNames, this.projectRoot)
         gatesPassed = gates.every(g => g.status === 'pass' || g.status === 'skip' || g.status === 'warn')

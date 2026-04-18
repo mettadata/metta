@@ -5,6 +5,8 @@ import { tmpdir } from 'node:os'
 import { Finalizer } from '../src/finalize/finalizer.js'
 import { ArtifactStore } from '../src/artifacts/artifact-store.js'
 import { SpecLockManager } from '../src/specs/spec-lock-manager.js'
+import { GateRegistry } from '../src/gates/gate-registry.js'
+import { WorkflowEngine } from '../src/workflow/workflow-engine.js'
 
 describe('Finalizer', () => {
   let specDir: string
@@ -49,5 +51,62 @@ describe('Finalizer', () => {
     // Change should still be active
     const changes = await artifactStore.listChanges()
     expect(changes).toContain('dry-run-test')
+  })
+
+  it('runs only gates declared in the workflow artifacts', async () => {
+    // Register three gates; only `tests` is declared in the stub workflow.
+    const gateRegistry = new GateRegistry()
+    for (const name of ['tests', 'lint', 'build']) {
+      gateRegistry.register({
+        name,
+        description: `${name} gate`,
+        command: 'true',
+        timeout: 5000,
+        required: true,
+        on_failure: 'stop',
+      })
+    }
+
+    // Pre-populate the workflow engine's cache so loadWorkflow('quick', ...) hits
+    // the cache instead of reading from disk. This is the stub.
+    const workflowEngine = new WorkflowEngine()
+    workflowEngine.loadWorkflowFromDefinition({
+      name: 'quick',
+      version: 1,
+      artifacts: [
+        {
+          id: 'implementation',
+          type: 'execution',
+          template: 'execute.md',
+          generates: '**/*',
+          requires: [],
+          agents: ['executor'],
+          gates: ['tests'],
+        },
+      ],
+    })
+
+    const scopedFinalizer = new Finalizer(
+      specDir,
+      artifactStore,
+      lockManager,
+      gateRegistry,
+      specDir,
+      workflowEngine,
+      ['/unused/path'],
+    )
+
+    await artifactStore.createChange('scoped gates test', 'quick', [
+      'intent',
+      'implementation',
+      'verification',
+    ])
+
+    const result = await scopedFinalizer.finalize('scoped-gates-test')
+
+    expect(result.gates.map(g => g.gate)).toEqual(['tests'])
+    expect(result.gates.map(g => g.gate)).not.toContain('lint')
+    expect(result.gates.map(g => g.gate)).not.toContain('build')
+    expect(result.gatesPassed).toBe(true)
   })
 })
