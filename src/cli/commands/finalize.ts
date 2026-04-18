@@ -4,6 +4,7 @@ import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { createCliContext, outputJson, color } from '../helpers.js'
 import { Finalizer } from '../../finalize/finalizer.js'
+import { WorkflowEngine } from '../../workflow/workflow-engine.js'
 
 const execAsync = promisify(execFile)
 
@@ -28,12 +29,18 @@ export function registerFinalizeCommand(program: Command): void {
         const builtinGates = new URL('../../templates/gates', import.meta.url).pathname
         await ctx.gateRegistry.loadFromDirectory(builtinGates)
 
+        // Resolve workflow templates using the same relative-depth pattern as gates.
+        const workflowEngine = new WorkflowEngine()
+        const workflowPaths = [new URL('../../templates/workflows', import.meta.url).pathname]
+
         const finalizer = new Finalizer(
           join(ctx.projectRoot, 'spec'),
           ctx.artifactStore,
           ctx.specLockManager,
           ctx.gateRegistry,
           ctx.projectRoot,
+          workflowEngine,
+          workflowPaths,
         )
 
         const result = await finalizer.finalize(name, options.dryRun)

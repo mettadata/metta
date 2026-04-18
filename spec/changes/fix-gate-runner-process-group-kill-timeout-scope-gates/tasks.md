@@ -24,7 +24,7 @@
 
 ## Batch 2: Finalizer wiring (sequential — depends on Batch 1.2 workflow shape being stable)
 
-### Task 2.1: Scope finalizer gates to workflow artifacts
+### Task 2.1: Scope finalizer gates to workflow artifacts [x]
 - **Files:** `src/finalize/finalizer.ts`, `src/cli/commands/finalize.ts`
 - **Action:** In `Finalizer` constructor, add two optional params `workflowEngine?: WorkflowEngine` and `workflowSearchPaths?: string[]`. In `finalize()`, between the `getChange` call (line 29) and the gate block (line 47), when both `workflowEngine` and `workflowSearchPaths` are present, call `const workflow = await this.workflowEngine.loadWorkflow(metadata.workflow, this.workflowSearchPaths)` and derive `const scopedGateNames = [...new Set(workflow.artifacts.flatMap(a => a.gates ?? []))]`. Replace `const gateNames = this.gateRegistry.list().map(g => g.name)` with `const gateNames = (scopedGateNames ?? null) ?? this.gateRegistry.list().map(g => g.name)`. When workflowEngine is absent, behavior is unchanged. In `src/cli/commands/finalize.ts`, import `WorkflowEngine` from `../../workflow/workflow-engine.js`, construct `const workflowEngine = new WorkflowEngine()` plus `const workflowPaths = [new URL('../../../templates/workflows', import.meta.url).pathname]` (mirror the gate path resolution), and pass both to `new Finalizer(...)`.
 - **Verify:** `npx tsc --noEmit` exits 0; `npx vitest run tests/finalizer.test.ts` passes (2 existing tests still green — they don't pass workflowEngine so the fallback path runs).
