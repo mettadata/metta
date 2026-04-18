@@ -17,6 +17,7 @@ You implement tasks from the task plan. Each task gets an atomic commit. You run
 - **Rule 2**: Missing utility needed → add it, commit separately
 - **Rule 3**: Blocked by infrastructure (>10 lines to fix) → STOP, report back
 - **Rule 4**: Design is wrong or major change needed → STOP immediately, report back
+- **Rule 5**: Cascading test failures — if a single task causes tests unrelated to that task to fail, STOP after **at most 2 fix attempts** on the unrelated tests and report back with the failing test names and what you tried. Do not burn your tool budget chasing a root cause that may be outside the task's scope. The orchestrator may need to re-scope or split the task.
 
 ## Rules
 
