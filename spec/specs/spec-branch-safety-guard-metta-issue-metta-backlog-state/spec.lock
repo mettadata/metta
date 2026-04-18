@@ -1,0 +1,22 @@
+version: 2
+hash: sha256:60636ba0b3ae
+updated: 2026-04-18T08:00:42.961Z
+status: draft
+source: change
+requirements:
+  - id: assert-on-main-branch-helper
+    hash: sha256:6df24f862373
+    scenarios:
+      - guard-passes-on-main
+      - guard-throws-on-feature-branch-without-override
+      - override-matching-current-branch-passes
+      - override-not-matching-current-branch-still-throws
+      - non-git-project-passes-silently
+  - id: issue-and-backlog-commands-use-branch-guard
+    hash: sha256:e939f0a6b6d6
+    scenarios:
+      - metta-issue-blocks-on-feature-branch
+      - metta-backlog-add-blocks-on-feature-branch
+      - metta-backlog-done-blocks-on-feature-branch
+      - on-branch-override-allows-write
+      - main-branch-path-unchanged
