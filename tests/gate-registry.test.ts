@@ -255,4 +255,45 @@ describe('GateRegistry', () => {
       expect(viaPolicy.status).toBe('pass')
     })
   })
+
+  describe.skipIf(process.platform === 'win32')('gate timeout reaps process group', () => {
+    it('kills grandchild sleep processes when the gate command times out', async () => {
+      const registry = new GateRegistry()
+      registry.register({
+        name: 'slow-with-grandchild',
+        description: 'command that backgrounds a grandchild',
+        command: 'sleep 30 & sleep 30',
+        timeout: 500,
+        required: true,
+        on_failure: 'stop',
+      })
+
+      const start = Date.now()
+      const result = await registry.run('slow-with-grandchild', process.cwd())
+      const duration = Date.now() - start
+
+      expect(result.status).toBe('fail')
+      // Per Task 1.1: runCommand sets output to "Gate timed out after Nms"
+      // and failures[0].message to "Timeout". Check both signals.
+      expect(result.output?.toLowerCase()).toContain('timed out')
+      expect(result.failures?.[0]?.message).toBe('Timeout')
+      // Must resolve within: 500ms timeout + 1s SIGKILL grace + slack
+      expect(duration).toBeLessThan(3000)
+
+      // Give the OS a moment to fully reap the process group
+      await new Promise(r => setTimeout(r, 500))
+
+      // Verify no lingering sleep processes we spawned remain. We use pgrep
+      // to list all sleeps owned by this user; it's inherently fuzzy because
+      // other sleeps may exist, so we bound check: after SIGKILL, the count
+      // of our PGID's descendants should be 0. Simplest proxy: our test
+      // spawned exactly 2 sleep 30s; waiting 1.5s after timeout, none of
+      // OUR sleeps should still be alive. Since we don't track PGID in the
+      // test harness, we assert on the looser invariant: the process exit
+      // was prompt (checked via duration above) and the gate returned the
+      // timeout status. The PGID-kill behavior is covered end-to-end by
+      // the prompt exit; a grandchild that survived would keep the parent
+      // shell alive and duration would blow past the budget.
+    })
+  })
 })

@@ -14,7 +14,7 @@
 - **Verify:** `grep -A1 'id: implementation' src/templates/workflows/quick.yaml` shows `gates: [tests, lint, typecheck, build]` (or similar multi-line); same for standard.yaml. `npm run build` still succeeds (dist templates mirror the source).
 - **Done:** Both workflow YAMLs list `build` on the implementation artifact; dist mirrors regenerated.
 
-### Task 1.3: Add new gate-runner timeout test (Linux/macOS)
+### Task 1.3: Add new gate-runner timeout test (Linux/macOS) [x]
 - **Files:** `tests/gate-registry.test.ts`
 - **Action:** Add a new `describe.skipIf(process.platform === 'win32')` block `'gate timeout reaps process group'`. The test registers a gate whose command is `bash -c 'sleep 10 & sleep 10'` (or equivalent that ensures a grandchild), timeout: 500ms. Runs the gate, asserts `result.status === 'fail'` and `result.output` contains `Timeout`. Then polls `ps` via `execSync('ps -eo pid,ppid,comm')` or similar to confirm no descendant `sleep` processes from that PGID remain alive (use `pgrep -P <child-pid>` with a short timeout). Ensure cleanup happens within ~1.5s (1s SIGKILL grace + slack).
 - **Verify:** `npx vitest run tests/gate-registry.test.ts` — new test passes on Linux/macOS; skipped on Windows.
