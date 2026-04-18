@@ -2,7 +2,7 @@ import { unified } from 'unified'
 import remarkParse from 'remark-parse'
 import { createHash } from 'node:crypto'
 import type { Root, Content, Heading, Text, InlineCode } from 'mdast'
-import { toSlug } from '../util/slug.js'
+import { toSlugUntruncated } from '../util/slug.js'
 
 export interface ParsedScenario {
   name: string
@@ -115,7 +115,7 @@ export function parseSpec(markdown: string): ParsedSpec {
 
         const name = text.replace('Requirement:', '').trim()
         currentReq = {
-          id: toSlug(name, { maxLen: Number.MAX_SAFE_INTEGER }),
+          id: toSlugUntruncated(name),
           name,
           text: '',
           keyword: 'SHOULD',
@@ -221,7 +221,7 @@ export function parseDeltaSpec(markdown: string): ParsedDeltaSpec {
           currentDelta = {
             operation,
             req: {
-              id: toSlug(name, { maxLen: Number.MAX_SAFE_INTEGER }),
+              id: toSlugUntruncated(name),
               name,
               text: '',
               keyword: 'SHOULD',

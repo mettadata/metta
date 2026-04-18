@@ -49,3 +49,12 @@ export function toSlug(input: string, opts: ToSlugOptions = {}): string {
   }
   return hard
 }
+
+// toSlugUntruncated is for callers that must preserve the full slug because
+// the output lands in lock files where truncation would break compatibility
+// (e.g. requirement and scenario IDs in spec.lock.yaml). The result may
+// exceed 60 chars and will therefore not match SLUG_RE — callers MUST NOT
+// pass these through assertSafeSlug.
+export function toSlugUntruncated(input: string, opts: Omit<ToSlugOptions, 'maxLen'> = {}): string {
+  return toSlug(input, { ...opts, maxLen: Number.MAX_SAFE_INTEGER })
+}

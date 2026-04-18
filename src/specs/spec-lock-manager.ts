@@ -1,7 +1,7 @@
 import { StateStore } from '../state/state-store.js'
 import { SpecLockSchema, type SpecLock, type SpecLockRequirement } from '../schemas/spec-lock.js'
 import { type ParsedSpec, hashSpec } from './spec-parser.js'
-import { toSlug } from '../util/slug.js'
+import { toSlugUntruncated } from '../util/slug.js'
 import { join } from 'node:path'
 
 export class SpecLockManager {
@@ -38,7 +38,7 @@ export class SpecLockManager {
     const requirements: SpecLockRequirement[] = spec.requirements.map(req => ({
       id: req.id,
       hash: req.hash,
-      scenarios: req.scenarios.map(s => toSlug(s.name, { maxLen: Number.MAX_SAFE_INTEGER })),
+      scenarios: req.scenarios.map(s => toSlugUntruncated(s.name)),
     }))
 
     return {

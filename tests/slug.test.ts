@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { SLUG_RE, toSlug } from '../src/util/slug.js'
+import { SLUG_RE, toSlug, toSlugUntruncated } from '../src/util/slug.js'
 
 describe('toSlug', () => {
   it('lowercases and hyphenates basic input', () => {
@@ -48,5 +48,19 @@ describe('toSlug', () => {
 
   it('produces output that matches SLUG_RE at default maxLen', () => {
     expect(SLUG_RE.test(toSlug('Some Long Descriptive Title'))).toBe(true)
+  })
+
+  it('blocks path-traversal inputs by stripping non-alphanumeric', () => {
+    expect(() => toSlug('..')).toThrow(/empty slug/)
+    expect(toSlug('../../etc/passwd')).toBe('etc-passwd')
+  })
+})
+
+describe('toSlugUntruncated', () => {
+  it('returns the full slug beyond the default 60-char limit', () => {
+    const longInput = 'this is a very long requirement name that exceeds the default sixty character maxLen for slug generation and must not be truncated because it lands in spec lock files'
+    const result = toSlugUntruncated(longInput)
+    expect(result.length).toBeGreaterThan(60)
+    expect(result).toBe('this-is-a-very-long-requirement-name-that-exceeds-the-default-sixty-character-maxlen-for-slug-generation-and-must-not-be-truncated-because-it-lands-in-spec-lock-files')
   })
 })
