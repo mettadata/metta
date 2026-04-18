@@ -1,0 +1,40 @@
+version: 5
+hash: sha256:f3e330a8ebb5
+updated: 2026-04-18T05:22:33.515Z
+status: draft
+source: change
+requirements:
+  - id: shared-to-slug-utility
+    hash: sha256:129e990b8cda
+    scenarios:
+      - basic-lowercase-and-non-alphanumeric-collapse
+      - em-dash-and-non-ascii-stripping-us-1
+      - word-boundary-truncation-us-3
+      - single-long-token-hard-truncation
+      - stop-words-filtered-when-opts-stopwords-is-provided
+      - empty-input-throws
+      - all-non-ascii-input-throws
+  - id: spec-merger-uses-shared-to-slug
+    hash: sha256:bb07b34bb154
+    scenarios:
+      - spec-title-with-em-dash-produces-clean-folder-name
+      - spec-merger-imports-toslug-not-a-local-helper
+  - id: all-store-sites-use-shared-to-slug
+    hash: sha256:0e01e777a50c
+    scenarios:
+      - no-legacy-slugify-pattern-remains-in-src
+      - artifact-store-passes-stop-words-via-opts
+      - each-site-imports-toslug-from-util-slug-js
+  - id: fix-issues-skill-uses-short-change-name
+    hash: sha256:cb0c9094c5a4
+    scenarios:
+      - skill-step-2-uses-short-slug-form
+      - deployed-mirror-is-byte-identical-to-template
+      - resulting-change-name-avoids-mid-word-truncation
+  - id: word-boundary-truncation
+    hash: sha256:85b5b537ba17
+    scenarios:
+      - truncation-lands-on-word-boundary
+      - result-never-exceeds-maxlen
+      - no-trailing-hyphen-after-truncation
+      - single-long-token-falls-back-to-hard-truncation

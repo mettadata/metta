@@ -1,6 +1,7 @@
 import { readdir, mkdir, rename as move } from 'node:fs/promises'
 import { join } from 'node:path'
 import { StateStore } from '../state/state-store.js'
+import { toSlug } from '../util/slug.js'
 import {
   ChangeMetadataSchema,
   type ChangeMetadata,
@@ -8,18 +9,6 @@ import {
 } from '../schemas/change-metadata.js'
 
 const STOP_WORDS = new Set(['a', 'an', 'the', 'add', 'and', 'or', 'for', 'to', 'of', 'with', 'in', 'on', 'by', 'is', 'it', 'that', 'this', 'from', 'into', 'each', 'its', 'own', 'showing', 'using', 'without'])
-
-function slugify(text: string): string {
-  return text
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .split('-')
-    .filter(w => w && !STOP_WORDS.has(w))
-    .join('-')
-    .replace(/^-|-$/g, '')
-    .slice(0, 60)
-    .replace(/-$/, '')
-}
 
 export class ArtifactStore {
   private state: StateStore
@@ -34,7 +23,7 @@ export class ArtifactStore {
     artifactIds: string[],
     baseVersions: Record<string, string> = {},
   ): Promise<{ name: string; path: string }> {
-    const name = slugify(description)
+    const name = toSlug(description, { stopWords: STOP_WORDS })
     const changePath = join('changes', name)
 
     if (await this.state.exists(changePath)) {

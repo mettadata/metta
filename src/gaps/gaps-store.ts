@@ -1,6 +1,7 @@
 import { readdir, mkdir, unlink } from 'node:fs/promises'
 import { join } from 'node:path'
 import { StateStore } from '../state/state-store.js'
+import { toSlug } from '../util/slug.js'
 
 export type GapStatus = 'claimed-not-built' | 'partial' | 'built-not-documented' | 'diverged'
 
@@ -13,14 +14,6 @@ export interface Gap {
   impact?: string
   relatedSpec?: string
   action?: string
-}
-
-function slugify(text: string): string {
-  return text
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '')
-    .slice(0, 60)
 }
 
 function formatGap(gap: Gap): string {
@@ -46,7 +39,7 @@ function formatGap(gap: Gap): string {
     gap.relatedSpec ?? '',
     '',
     '## Action',
-    gap.action ?? `Promote to spec: \`metta propose --from-gap ${slugify(gap.title)}\``,
+    gap.action ?? `Promote to spec: \`metta propose --from-gap ${toSlug(gap.title)}\``,
     '',
   ]
   return lines.join('\n')
@@ -88,7 +81,7 @@ export class GapsStore {
   }
 
   async create(title: string, status: GapStatus, details?: Partial<Gap>): Promise<string> {
-    const slug = slugify(title)
+    const slug = toSlug(title)
     const gap: Gap = {
       title,
       status,
