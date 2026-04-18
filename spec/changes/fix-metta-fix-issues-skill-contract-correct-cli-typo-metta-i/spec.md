@@ -24,7 +24,7 @@
 
 **Fulfills:** US-2, US-4
 
-All six skill files — `metta-fix-issues`, `metta-fix-gap`, `metta-auto`, `metta-next`, `metta-quick`, and `metta-propose` — MUST contain the following commit-ownership paragraph verbatim: "The orchestrator commits planning, review, and verification artifacts after each subagent returns. The executor subagent commits atomically per task during implementation." The old blanket rule "Every subagent MUST write files to disk and git commit — no exceptions" and the variant "Every subagent MUST write files to disk and git commit" MUST be removed from every skill template and their deployed mirrors under `.claude/skills/`. The commit-ownership paragraph MUST be byte-identical across all six source files and their six deployed mirrors.
+The five skill files that today carry a `MUST ... git commit` rule for subagents — `metta-fix-issues`, `metta-fix-gap`, `metta-auto`, `metta-next`, `metta-quick` — MUST contain the following commit-ownership paragraph verbatim: "The orchestrator commits planning, review, and verification artifacts after each subagent returns. The executor subagent commits atomically per task during implementation." The old blanket rule "Every subagent MUST write files to disk and git commit — no exceptions" and the variant "Every subagent MUST write files to disk and git commit" and the fused rule "MUST write files, git commit, and call `metta complete` for each artifact" and the shorthand "MUST git commit after each step" MUST all be removed from every skill template and their deployed mirrors under `.claude/skills/`. The commit-ownership paragraph MUST be byte-identical across all five source files and their five deployed mirrors. `metta-propose` is exempt — it has no existing subagent-commit rule and therefore does not need the paragraph added.
 
 ### Scenario: grep for old rule returns zero matches
 
@@ -32,17 +32,17 @@ All six skill files — `metta-fix-issues`, `metta-fix-gap`, `metta-auto`, `mett
 - WHEN a maintainer greps for `Every subagent MUST write files to disk and git commit` across `src/templates/skills/` and `.claude/skills/`
 - THEN zero matches are returned
 
-### Scenario: all six files contain the new paragraph
+### Scenario: all five files contain the new paragraph
 
-- GIVEN the six updated skill files are read
+- GIVEN the five updated skill files are read
 - WHEN the commit-ownership section is inspected in each file
-- THEN all six contain exactly the sentence "The orchestrator commits planning, review, and verification artifacts after each subagent returns. The executor subagent commits atomically per task during implementation."
+- THEN all five contain exactly the sentence "The orchestrator commits planning, review, and verification artifacts after each subagent returns. The executor subagent commits atomically per task during implementation."
 
 ### Scenario: pairwise diff of the paragraph across files is empty
 
-- GIVEN the commit-ownership paragraph is extracted from each of the six source skill files
+- GIVEN the commit-ownership paragraph is extracted from each of the five source skill files
 - WHEN the paragraphs are diffed pairwise
-- THEN all diffs are empty, confirming byte-identical prose across all six files
+- THEN all diffs are empty, confirming byte-identical prose across all five files
 
 ---
 
@@ -70,7 +70,7 @@ All six skill files — `metta-fix-issues`, `metta-fix-gap`, `metta-auto`, `mett
 
 **Fulfills:** US-4
 
-After editing the six source skill templates, all `.claude/skills/<name>/SKILL.md` deployed copies MUST remain byte-identical to their `src/templates/skills/<name>/SKILL.md` sources. Existing byte-identity tests in `tests/` that verify this invariant MUST pass unmodified — no test logic changes are permitted as part of this change.
+After editing the five source skill templates, all `.claude/skills/<name>/SKILL.md` deployed copies MUST remain byte-identical to their `src/templates/skills/<name>/SKILL.md` sources. Existing byte-identity tests in `tests/` that verify this invariant MUST pass unmodified — no test logic changes are permitted as part of this change.
 
 ### Scenario: diff between source templates and deployed mirrors returns empty
 
