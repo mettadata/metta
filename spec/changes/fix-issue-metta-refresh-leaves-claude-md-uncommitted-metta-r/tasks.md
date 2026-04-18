@@ -24,7 +24,7 @@
 
 ## Batch 2: Integration tests (depends on Batch 1)
 
-### Task 2.1: Add integration test for auto-commit wiring
+### Task 2.1: Add integration test for auto-commit wiring [x]
 - **Files:** `tests/refresh-commit.test.ts` (new file)
 - **Action:** Follow the style of `tests/auto-commit.test.ts` (real git binary, `mkdtemp` temp dirs, `git init --initial-branch=main`, `git config user.email/name`). Seed a minimal `spec/project.md` and at least one `spec/specs/<cap>/spec.md` so `runRefresh` produces meaningful output. Write the five scenarios below, each in its own `it()` block:
   1. **Happy path** — after `runRefresh` + `autoCommitFile`, `git log -1 --pretty=%s` equals exactly `chore(refresh): regenerate CLAUDE.md` and `git status --porcelain` shows `CLAUDE.md` is clean.
