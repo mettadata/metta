@@ -49,14 +49,21 @@ describe('autoCommitFile', () => {
     expect(result.reason).toMatch(/not a git repository/i)
   })
 
-  it('skips commit when tracked files have other uncommitted changes', async () => {
+  it('skips commit when tracked files have other uncommitted changes and lists them', async () => {
     await initRepo()
     await writeFile(join(tempDir, 'seed.txt'), 'modified\n')
+    await writeFile(join(tempDir, 'other.txt'), 'tracked\n')
+    await git(['add', 'other.txt'])
+    await git(['commit', '-m', 'add other'])
+    await writeFile(join(tempDir, 'other.txt'), 'modified-other\n')
     const filePath = join(tempDir, 'issue.md')
     await writeFile(filePath, '# issue\n')
     const result = await autoCommitFile(tempDir, filePath, 'chore: log issue x')
     expect(result.committed).toBe(false)
-    expect(result.reason).toMatch(/other uncommitted/i)
+    expect(result.reason).toMatch(/uncommitted tracked change/i)
+    expect(result.reason).toContain('seed.txt')
+    expect(result.reason).toContain('other.txt')
+    expect(result.reason).toMatch(/^working tree has 2 /)
   })
 
   it('commits even when unrelated untracked files exist', async () => {
