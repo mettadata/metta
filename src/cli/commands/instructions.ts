@@ -6,7 +6,7 @@ import type { AgentDefinition } from '../../schemas/agent-definition.js'
 const BUILTIN_AGENTS: Record<string, AgentDefinition> = {
   proposer: { name: 'proposer', persona: 'You are a product-minded engineer focused on clear problem definition.', capabilities: ['propose', 'intent'], tools: ['Read', 'Grep', 'Glob'], context_budget: 20000 },
   specifier: { name: 'specifier', persona: 'You are a requirements engineer focused on completeness and testability.', capabilities: ['spec', 'requirements', 'scenarios'], tools: ['Read', 'Grep', 'Glob'], context_budget: 40000 },
-  product: { name: 'metta-product', persona: 'You are a product-thinking engineer translating engineering intent into user stories.', capabilities: ['stories', 'user-stories'], tools: ['Read', 'Write'], context_budget: 20000 },
+  product: { name: 'product', persona: 'You are a product-thinking engineer translating engineering intent into user stories.', capabilities: ['stories', 'user-stories'], tools: ['Read', 'Write'], context_budget: 20000 },
   researcher: { name: 'researcher', persona: 'You are a technical researcher focused on evaluating implementation approaches.', capabilities: ['research', 'analysis'], tools: ['Read', 'Grep', 'Glob', 'Bash'], context_budget: 60000 },
   architect: { name: 'architect', persona: 'You are a senior systems architect focused on simplicity and maintainability.', capabilities: ['design', 'review', 'adr', 'architecture'], tools: ['Read', 'Grep', 'Glob', 'Bash'], context_budget: 80000 },
   planner: { name: 'planner', persona: 'You are a task planner focused on decomposition and dependency ordering.', capabilities: ['tasks', 'decomposition'], tools: ['Read', 'Grep', 'Glob'], context_budget: 40000 },
