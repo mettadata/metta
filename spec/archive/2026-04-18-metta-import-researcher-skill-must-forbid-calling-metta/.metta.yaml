@@ -1,0 +1,9 @@
+workflow: quick
+created: 2026-04-18T07:30:21.169Z
+status: active
+current_artifact: verification
+base_versions: {}
+artifacts:
+  intent: complete
+  implementation: complete
+  verification: complete
