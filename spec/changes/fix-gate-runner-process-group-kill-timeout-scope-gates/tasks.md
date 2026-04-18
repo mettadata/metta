@@ -30,7 +30,7 @@
 - **Verify:** `npx tsc --noEmit` exits 0; `npx vitest run tests/finalizer.test.ts` passes (2 existing tests still green — they don't pass workflowEngine so the fallback path runs).
 - **Done:** Finalizer constructor signature extended; CLI wires in WorkflowEngine; fallback behavior preserved.
 
-### Task 2.2: Add finalizer workflow-scoping test
+### Task 2.2: Add finalizer workflow-scoping test [x]
 - **Files:** `tests/finalizer.test.ts`
 - **Action:** Add a new `it('runs only gates declared in the workflow artifacts')` test. Create a stub `WorkflowEngine` whose `loadWorkflow` returns `{ artifacts: [{ id: 'implementation', gates: ['tests'] }] }`. Register three gates on `GateRegistry`: `tests`, `lint`, `build`, each with a `command: 'true'` (always pass) and `timeout: 5000`. Call `finalizer.finalize(changeName)` and assert the returned `gates` list contains only `tests` (not lint or build). Use `ChangeMetadata` with `workflow: 'quick'`.
 - **Verify:** Test passes; tsc clean.
