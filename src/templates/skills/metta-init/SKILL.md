@@ -154,7 +154,7 @@ You are the **orchestrator** for Metta project initialization.
 
 5. After the discovery agent returns, run `metta refresh` via Bash to regenerate CLAUDE.md from the written spec/project.md, then stage and commit separately:
    ```
-   metta refresh
+   metta refresh --no-commit
    git add CLAUDE.md && git commit -m "chore: generate CLAUDE.md from discovery"
    ```
    If refresh or commit fails, warn the user but continue.
