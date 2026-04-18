@@ -1,7 +1,7 @@
 import { readdir, mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { StateStore } from '../state/state-store.js'
-import { assertSafeSlug as assertSlug } from '../util/slug.js'
+import { assertSafeSlug as assertSlug, toSlug } from '../util/slug.js'
 
 export type Severity = 'critical' | 'major' | 'minor'
 
@@ -12,14 +12,6 @@ export interface Issue {
   status: 'logged'
   severity: Severity
   description: string
-}
-
-function slugify(text: string): string {
-  return text
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '')
-    .slice(0, 60)
 }
 
 function formatIssue(issue: Issue): string {
@@ -65,7 +57,7 @@ export class IssuesStore {
   }
 
   async create(title: string, description: string, severity: Severity = 'minor', context?: string): Promise<string> {
-    const slug = slugify(title)
+    const slug = toSlug(title)
     const issue: Issue = {
       title,
       captured: new Date().toISOString().slice(0, 10),

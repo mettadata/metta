@@ -47,7 +47,7 @@
 - **Verify:** `grep -n "function slugify" src/backlog/backlog-store.ts` returns 0; `grep -n "toSlug" src/backlog/backlog-store.ts` returns ≥2; `npx vitest run tests/backlog-store.test.ts` passes.
 - **Done:** Uses shared helper; backlog-store tests green.
 
-### Task 2.5: Replace local slugify in src/issues/issues-store.ts
+### Task 2.5: Replace local slugify in src/issues/issues-store.ts [x]
 - **Files:** `src/issues/issues-store.ts`
 - **Action:** Same pattern as Task 2.4. Remove local `slugify`, import `toSlug`, replace call sites.
 - **Verify:** `grep -n "function slugify" src/issues/issues-store.ts` returns 0; `grep -n "toSlug" src/issues/issues-store.ts` returns ≥2; `npx vitest run tests/issues-store.test.ts` passes.
