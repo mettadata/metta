@@ -31,3 +31,19 @@ metta execute
 metta verify
 metta ship
 ```
+
+## Custom gate commands (non-JS projects)
+
+The default `metta finalize` gates run `npm` commands (tests, lint, typecheck, build). To adapt to other toolchains, drop YAML files in `.metta/gates/` — they override built-ins by gate name.
+
+```yaml
+# .metta/gates/tests.yaml — Rust project override
+name: tests
+description: Run Rust tests
+command: cargo test
+timeout: 600000
+required: true
+on_failure: retry_once
+```
+
+Python projects use `command: pytest`, Go projects `command: go test ./...`, etc. Only the gates you override need to be listed; everything else keeps its built-in behavior.
