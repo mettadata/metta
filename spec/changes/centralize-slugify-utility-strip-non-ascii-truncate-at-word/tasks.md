@@ -23,13 +23,13 @@
 
 ## Batch 2: Replace call sites + skill template (parallel — all different files)
 
-### Task 2.1: Replace slugify in src/artifacts/artifact-store.ts
+### Task 2.1: Replace slugify in src/artifacts/artifact-store.ts [x]
 - **Files:** `src/artifacts/artifact-store.ts`
 - **Action:** Remove the local `slugify` function (lines 12-22). Import `toSlug` from `../util/slug.js`. Keep `STOP_WORDS` as a local const. Replace all callers of `slugify(x)` with `toSlug(x, { stopWords: STOP_WORDS })`.
 - **Verify:** `grep -n "function slugify" src/artifacts/artifact-store.ts` returns 0; `grep -n "toSlug" src/artifacts/artifact-store.ts` returns ≥2 (import + call site); `npx vitest run tests/artifact-store.test.ts` passes (existing snapshot tests still green).
 - **Done:** Local slugify removed; uses shared helper with STOP_WORDS; artifact-store tests pass.
 
-### Task 2.2: Replace inline slugify in src/finalize/spec-merger.ts
+### Task 2.2: Replace inline slugify in src/finalize/spec-merger.ts [x]
 - **Files:** `src/finalize/spec-merger.ts`
 - **Action:** Replace the inline `.toLowerCase().replace(/\s+/g, '-')` at line 48 with `toSlug(deltaSpec.title.replace(/\s*\(Delta\)\s*$/, ''))`. Import `toSlug` from `../util/slug.js` (note: check existing import style).
 - **Verify:** `grep -n "toSlug" src/finalize/spec-merger.ts` returns ≥2 (import + call); `grep -n "replace(/\\\\s+/g" src/finalize/spec-merger.ts` returns 0; `npx vitest run tests/spec-merger.test.ts` passes.
