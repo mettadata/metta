@@ -4,15 +4,13 @@
 
 **Fulfills:** US-1, US-4
 
-When `runRefresh` writes `CLAUDE.md` to disk, `metta refresh` MUST subsequently stage only `CLAUDE.md` via `git add -- CLAUDE.md` and attempt to commit it with the exact message `chore(refresh): regenerate CLAUDE.md`. The commit MUST be skipped when `git diff --cached --quiet` reports no staged changes (i.e., the file was already up to date or unchanged). The commit logic MUST be wrapped in a try/catch so that a git failure does not cause the command to exit non-zero; git unavailability MUST be handled silently. This behavior applies whenever `git.enabled` is true and the `--no-commit` flag is absent. Only `CLAUDE.md` MUST be staged; no other working-tree files MAY be swept into this commit.
-
-The `runRefresh` function signature MUST gain a `noCommit: boolean` parameter. The `registerRefreshCommand` action MUST pass `options.noCommit ?? false` to `runRefresh`. The returned `{ diff, written, filePath }` object is unchanged.
+When `metta refresh` writes `CLAUDE.md` to disk, it MUST subsequently commit the file with the exact message `chore(refresh): regenerate CLAUDE.md`, using the project's existing single-file auto-commit primitive (`autoCommitFile` in `src/cli/helpers.ts`). Only `CLAUDE.md` MUST be staged; no other tracked or untracked files MAY be swept into this commit. The command MUST skip the commit step when `CLAUDE.md` was not written (content unchanged, or `--dry-run` was set), and MUST NOT produce empty commits. Git subprocess failures (git binary missing, not a git repo, other tracked files dirty) MUST NOT cause the command to exit non-zero; the write result MUST still be reported as successful.
 
 ### Scenario: happy path — CLAUDE.md changed and committed
 
 - GIVEN a git-enabled repository where the regenerated `CLAUDE.md` differs from the version on disk
 - WHEN `metta refresh` is invoked without `--no-commit`
-- THEN `CLAUDE.md` is written to disk, `git add -- CLAUDE.md` is executed, `git diff --cached --quiet` detects staged changes, and `git commit -m "chore(refresh): regenerate CLAUDE.md"` is executed
+- THEN `CLAUDE.md` is written to disk and auto-committed with message `chore(refresh): regenerate CLAUDE.md`
 - AND `git status` subsequently shows `CLAUDE.md` is not modified or untracked
 - AND `git log -1 --pretty=%s` outputs exactly `chore(refresh): regenerate CLAUDE.md`
 
@@ -20,7 +18,7 @@ The `runRefresh` function signature MUST gain a `noCommit: boolean` parameter. T
 
 - GIVEN a git-enabled repository where the regenerated `CLAUDE.md` is identical to the current on-disk content
 - WHEN `metta refresh` is invoked without `--no-commit`
-- THEN `CLAUDE.md` is not written (written === false), `git add -- CLAUDE.md` is executed, `git diff --cached --quiet` exits 0 (no staged changes), and no `git commit` command is issued
+- THEN `CLAUDE.md` is not written (written === false) and no auto-commit is produced
 - AND running `metta refresh` a second time immediately after a successful auto-commit produces no additional `chore(refresh): regenerate CLAUDE.md` entry in `git log`
 
 ---
@@ -29,7 +27,7 @@ The `runRefresh` function signature MUST gain a `noCommit: boolean` parameter. T
 
 **Fulfills:** US-2
 
-`registerRefreshCommand` MUST register a `--no-commit` boolean option on the `refresh` Commander command. When `--no-commit` is supplied, `runRefresh` MUST write `CLAUDE.md` to disk (if content changed) but MUST NOT invoke any `git` commands. The working-tree modification MUST be left for the user to stage and commit manually. The `--no-commit` flag MUST be independent of `--dry-run`; combining them MUST result in no write and no commit.
+`metta refresh` MUST accept a `--no-commit` boolean flag. When `--no-commit` is supplied, `CLAUDE.md` MUST be written to disk (if content changed) but the auto-commit step MUST be skipped, leaving the working-tree modification for the user to stage and commit manually. The `--no-commit` flag MUST be independent of `--dry-run`; combining them MUST result in no write and no commit.
 
 ### Scenario: --no-commit skips staging and commit
 
@@ -45,26 +43,19 @@ The `runRefresh` function signature MUST gain a `noCommit: boolean` parameter. T
 
 **Fulfills:** US-3
 
-When `git.enabled` is false in the metta config, or when the current working directory is not inside a git working tree, `metta refresh` MUST write `CLAUDE.md` normally and MUST NOT attempt any `git` subprocess calls. The command MUST exit with code 0. A git error thrown during the commit step (e.g., `git` binary not on PATH, repository corruption) MUST be caught by the try/catch block and suppressed; the write result MUST still be reported as successful.
-
-### Scenario: git.enabled false — no git calls, clean exit
-
-- GIVEN a metta project where `git.enabled` is false in config
-- WHEN `metta refresh` is invoked
-- THEN `CLAUDE.md` is written to disk and the command exits with code 0
-- AND no `git` subprocess is spawned
+When the current working directory is not inside a git working tree, or when `git` is unavailable, `metta refresh` MUST write `CLAUDE.md` normally and MUST exit with code 0. Any git error during the commit step MUST be suppressed; the write result MUST still be reported as successful.
 
 ### Scenario: not a git repo — commit step silently skipped
 
 - GIVEN the current working directory is not inside a git working tree (no `.git` ancestry)
 - WHEN `metta refresh` is invoked
-- THEN `CLAUDE.md` is written to disk, the git commit block throws, the error is caught and discarded, and the command exits with code 0
+- THEN `CLAUDE.md` is written to disk, the commit step is skipped without error, and the command exits with code 0
 
-### Scenario: git subprocess fails mid-commit — write still succeeds
+### Scenario: other tracked files are dirty — commit refused but refresh succeeds
 
-- GIVEN `git.enabled` is true but `git commit` throws an unexpected error after `git add` succeeds
+- GIVEN a git-enabled repository where unrelated tracked files are modified in the working tree
 - WHEN `metta refresh` is invoked
-- THEN the write is reported as successful (written === true) and the process exits with code 0 without surfacing the git error to the user
+- THEN `CLAUDE.md` is written to disk, the auto-commit step is refused (to avoid sweeping unrelated changes into the commit), and the command exits with code 0
 
 ---
 
