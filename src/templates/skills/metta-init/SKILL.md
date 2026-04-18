@@ -152,7 +152,7 @@ You are the **orchestrator** for Metta project initialization.
    ```
    Do NOT write flat keys like `name:`, `description:`, `stack:` at the root level.
 
-5. After the discovery agent returns, run `metta refresh` via Bash to regenerate CLAUDE.md from the written spec/project.md, then stage and commit separately:
+5. After the discovery agent returns, run `metta refresh --no-commit` via Bash to regenerate CLAUDE.md from the written spec/project.md without triggering the command's auto-commit, then stage and commit separately with the init-specific message:
    ```
    metta refresh --no-commit
    git add CLAUDE.md && git commit -m "chore: generate CLAUDE.md from discovery"

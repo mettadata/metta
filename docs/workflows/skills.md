@@ -670,7 +670,8 @@ changes. They are run at the edges of the lifecycle rather than during a change.
 **Purpose:** Regenerate CLAUDE.md from project constitution and specs.
 **Arguments:** none.
 **Wraps CLI:** `metta refresh` (see `src/cli/commands/refresh.ts`). Supports
-`metta refresh --dry-run` for preview and `metta refresh --json` for structured output.
+`metta refresh --dry-run` for preview, `metta refresh --json` for structured output,
+and `metta refresh --no-commit` to skip the automatic commit of the regenerated file.
 **When to use:**
 - After editing `spec/project.md` (constitution) — conventions, off-limits, project stack.
 - After adding or shipping a capability (to refresh the active specs table with current
@@ -681,9 +682,14 @@ changes. They are run at the edges of the lifecycle rather than during a change.
 **Flow summary:**
 - Run `metta refresh`. The CLI rewrites the managed marker sections of CLAUDE.md:
   project description + stack, conventions and off-limits, active specs table with
-  requirement counts, full command reference, and reference links.
+  requirement counts, full command reference, and reference links. On success the
+  regenerated file is auto-committed with message `chore(refresh): regenerate CLAUDE.md`,
+  skipping the commit if content is unchanged, unrelated tracked files are dirty, or the
+  working directory is not a git repository.
 - Dry-run support is available via `metta refresh --dry-run`.
 - Structured output via `metta refresh --json`.
+- Opt out of the automatic commit with `metta refresh --no-commit` to inspect the diff or
+  stage the file manually.
 
 **Subagents spawned:** none.
 
