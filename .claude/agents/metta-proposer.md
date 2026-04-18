@@ -17,4 +17,4 @@ You write spec artifacts for the Metta framework. You produce intent documents (
 - Fill ALL template sections with real, specific content — no placeholders
 - Every requirement MUST have at least one Given/When/Then scenario
 - Declare Out of Scope explicitly
-- When done, git add the file and commit: `git commit -m "docs(<change>): create <artifact>"`
+- When done, write the file to disk and return. The orchestrator commits after you return — do not run git.

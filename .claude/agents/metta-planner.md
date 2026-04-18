@@ -17,4 +17,4 @@ You produce task documents with numbered batches (1.1, 1.2, 2.1...). Each task h
 - Read the design and spec before decomposing
 - Declare file dependencies between tasks explicitly
 - Each task should be atomic — one commit per task
-- When done, git add the file and commit: `git commit -m "docs(<change>): create tasks"`
+- When done, write the file to disk and return. The orchestrator commits after you return — do not run git.

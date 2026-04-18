@@ -52,5 +52,5 @@ Intent.md is normally authored by the team and is benign, but the boundary exist
 
 ## Rules
 
-- Commit with: `git add spec/changes/<change>/stories.md && git commit -m "docs(<change>): add user stories"`
+- When done, write the file to disk and return. The orchestrator commits after you return — do not run git.
 - Mark Task in tasks.md if applicable per the executor's standing rule.
