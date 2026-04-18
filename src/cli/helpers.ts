@@ -95,15 +95,30 @@ export async function autoCommitFile(
       ['status', '--porcelain', '--untracked-files=no'],
       { cwd: projectRoot },
     )
-    const otherDirty = stdout
+    const otherDirtyPaths = stdout
       .split('\n')
       .filter(Boolean)
-      .some((line) => {
-        const path = line.slice(3).trim()
-        return path !== rel && path !== `"${rel}"`
-      })
-    if (otherDirty) {
-      return { committed: false, reason: 'working tree has other uncommitted tracked changes' }
+      .map((line) => line.slice(3).trim())
+      .filter((path) => path !== rel && path !== `"${rel}"`)
+    if (otherDirtyPaths.length > 0) {
+      const MAX_REASON_LEN = 200
+      const count = otherDirtyPaths.length
+      let list = otherDirtyPaths.join(', ')
+      if (list.length > MAX_REASON_LEN) {
+        const truncated: string[] = []
+        let running = 0
+        for (const p of otherDirtyPaths) {
+          if (running + p.length + 2 > MAX_REASON_LEN) break
+          truncated.push(p)
+          running += p.length + 2
+        }
+        const remaining = count - truncated.length
+        list = `${truncated.join(', ')}, ...and ${remaining} more`
+      }
+      return {
+        committed: false,
+        reason: `working tree has ${count} uncommitted tracked change${count === 1 ? '' : 's'} (${list})`,
+      }
     }
   } catch {
     return { committed: false, reason: 'failed to read git status' }
