@@ -549,6 +549,56 @@ describe('CLI', { timeout: 30000 }, () => {
     })
   })
 
+  describe('branch-safety guard', () => {
+    async function initAndCheckoutFeature(): Promise<void> {
+      await runCli(['install', '--git-init'], tempDir)
+      const { execFile: ef } = await import('node:child_process')
+      const { promisify: p } = await import('node:util')
+      const exec = p(ef)
+      await exec('git', ['checkout', '-b', 'metta/fix-foo'], { cwd: tempDir })
+    }
+
+    it('metta issue blocks on feature branch with code 4', async () => {
+      await initAndCheckoutFeature()
+      const { code, stderr } = await runCli(['issue', 'test issue'], tempDir)
+      expect(code).toBe(4)
+      expect(stderr).toContain('Refusing to write')
+      expect(stderr).toContain('metta/fix-foo')
+      expect(stderr).toContain('main')
+    })
+
+    it('metta issue allows with --on-branch override', async () => {
+      await initAndCheckoutFeature()
+      const { code } = await runCli(
+        ['issue', 'override ok', '--on-branch', 'metta/fix-foo'],
+        tempDir,
+      )
+      expect(code).toBe(0)
+    })
+
+    it('metta backlog add blocks on feature branch', async () => {
+      await initAndCheckoutFeature()
+      const { code, stderr } = await runCli(['backlog', 'add', 'test item'], tempDir)
+      expect(code).toBe(4)
+      expect(stderr).toContain('Refusing to write')
+    })
+
+    it('metta backlog done blocks on feature branch', async () => {
+      // Create a backlog item on main first
+      await runCli(['install', '--git-init'], tempDir)
+      await runCli(['backlog', 'add', 'shippable'], tempDir)
+      // Switch to feature branch
+      const { execFile: ef } = await import('node:child_process')
+      const { promisify: p } = await import('node:util')
+      const exec = p(ef)
+      await exec('git', ['checkout', '-b', 'metta/fix-foo'], { cwd: tempDir })
+      // Try done — should be blocked
+      const { code, stderr } = await runCli(['backlog', 'done', 'shippable'], tempDir)
+      expect(code).toBe(4)
+      expect(stderr).toContain('Refusing to write')
+    })
+  })
+
   describe('metta backlog add --description', () => {
     it('populates the body with the provided description instead of the title', async () => {
       await runCli(['install', '--git-init'], tempDir)
