@@ -1,0 +1,7 @@
+# metta-guard-edit.mjs hook blocks enriching spec/issues/ after 'metta issue' creates the file. Reproduced: after running 'metta issue "..."' which created the issue file via CLI, attempted to add more body via Write/Edit tools. Hook blocked both with 'no active metta change'. This is inconsistent: the CLI was allowed to create the file, but the Agent can't edit it. The user has to start a no-op metta change just to flesh out an issue body. Expected: spec/issues/ writes should be allowed when no change is active (issues are the off-ramp for observations the user wants captured outside the change workflow). Fix: metta-guard-edit should whitelist spec/issues/ and spec/backlog/ (they have their own dedicated CLI commands).
+
+**Captured**: 2026-04-18
+**Status**: logged
+**Severity**: minor
+
+metta-guard-edit.mjs hook blocks enriching spec/issues/ after 'metta issue' creates the file. Reproduced: after running 'metta issue "..."' which created the issue file via CLI, attempted to add more body via Write/Edit tools. Hook blocked both with 'no active metta change'. This is inconsistent: the CLI was allowed to create the file, but the Agent can't edit it. The user has to start a no-op metta change just to flesh out an issue body. Expected: spec/issues/ writes should be allowed when no change is active (issues are the off-ramp for observations the user wants captured outside the change workflow). Fix: metta-guard-edit should whitelist spec/issues/ and spec/backlog/ (they have their own dedicated CLI commands).
