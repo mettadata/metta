@@ -2,7 +2,7 @@
 
 ## Batch 1: Add toSlug + tests (sequential — foundation for Batch 2)
 
-### Task 1.1: Add toSlug to src/util/slug.ts and write tests
+### Task 1.1: Add toSlug to src/util/slug.ts and write tests [x]
 - **Files:** `src/util/slug.ts`, `tests/slug.test.ts` (new)
 - **Action:**
   - Append `toSlug(input, opts?)` to `src/util/slug.ts` following the API in `design.md` (API Design section). Export the function. Do not modify existing `SLUG_RE` or `assertSafeSlug`.
