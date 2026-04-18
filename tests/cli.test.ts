@@ -549,6 +549,32 @@ describe('CLI', { timeout: 30000 }, () => {
     })
   })
 
+  describe('metta backlog add --description', () => {
+    it('populates the body with the provided description instead of the title', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      const { code } = await runCli(
+        ['backlog', 'add', 'Dark mode', '--description', 'Toggle in settings panel'],
+        tempDir,
+      )
+      expect(code).toBe(0)
+
+      const { readFile } = await import('node:fs/promises')
+      const body = await readFile(join(tempDir, 'spec', 'backlog', 'dark-mode.md'), 'utf8')
+      expect(body).toContain('# Dark mode')
+      expect(body).toContain('Toggle in settings panel')
+    })
+
+    it('defaults description to title when flag is omitted', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      const { code } = await runCli(['backlog', 'add', 'Dark mode'], tempDir)
+      expect(code).toBe(0)
+
+      const { readFile } = await import('node:fs/promises')
+      const body = await readFile(join(tempDir, 'spec', 'backlog', 'dark-mode.md'), 'utf8')
+      expect(body).toContain('# Dark mode')
+    })
+  })
+
   describe('metta backlog done', () => {
     it('happy path — archives item, --json reports archived slug', async () => {
       await runCli(['install', '--git-init'], tempDir)

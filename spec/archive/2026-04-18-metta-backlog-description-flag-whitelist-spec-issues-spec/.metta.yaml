@@ -1,0 +1,14 @@
+workflow: standard
+created: 2026-04-18T07:37:49.489Z
+status: active
+current_artifact: verification
+base_versions: {}
+artifacts:
+  intent: complete
+  stories: complete
+  spec: complete
+  research: complete
+  design: complete
+  tasks: complete
+  implementation: complete
+  verification: complete

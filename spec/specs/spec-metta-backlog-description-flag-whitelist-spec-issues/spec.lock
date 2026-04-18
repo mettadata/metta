@@ -1,0 +1,23 @@
+version: 3
+hash: sha256:ee72797a4986
+updated: 2026-04-18T07:48:34.809Z
+status: draft
+source: change
+requirements:
+  - id: backlog-add-accepts-description-flag
+    hash: sha256:2f61dda15f5e
+    scenarios:
+      - description-populates-the-body
+      - flag-absent-backward-compatible-behavior
+  - id: guard-hook-whitelists-issue-and-backlog-dirs
+    hash: sha256:676c836523f9
+    scenarios:
+      - issue-file-edit-allowed-without-active-change
+      - backlog-file-edit-allowed-without-active-change
+      - non-whitelisted-path-still-blocked
+  - id: metta-backlog-skill-uses-description-flag
+    hash: sha256:c38ff7319702
+    scenarios:
+      - skill-template-references-description
+      - post-add-edit-workaround-removed
+      - deployed-mirror-byte-identical
