@@ -143,7 +143,7 @@ export function registerCompleteCommand(program: Command): void {
 
         // Map artifact to agent name for banner
         const artifactAgentMap: Record<string, string> = {
-          intent: 'proposer', spec: 'specifier', research: 'researcher',
+          intent: 'proposer', stories: 'product', spec: 'specifier', research: 'researcher',
           design: 'architect', tasks: 'planner', implementation: 'executor', verification: 'verifier',
         }
 

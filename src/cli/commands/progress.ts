@@ -78,7 +78,7 @@ export function registerProgressCommand(program: Command): void {
             const pct = Math.round((a.completed / a.total) * 100)
             const bar = progressBar(a.completed, a.total, 20)
             const artifactAgentMap: Record<string, string> = {
-              intent: 'proposer', spec: 'specifier', research: 'researcher',
+              intent: 'proposer', stories: 'product', spec: 'specifier', research: 'researcher',
               design: 'architect', tasks: 'planner', implementation: 'executor', verification: 'verifier',
             }
 
