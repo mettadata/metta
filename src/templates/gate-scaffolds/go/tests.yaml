@@ -1,0 +1,6 @@
+name: tests
+description: Run Go tests
+command: go test ./...
+timeout: 600000
+required: true
+on_failure: retry_once

@@ -99,11 +99,114 @@ function askYesNo(question: string): Promise<boolean> {
   })
 }
 
+type StackName = 'rust' | 'go' | 'python' | 'js'
+const SCAFFOLD_STACKS = new Set<StackName>(['rust', 'go', 'python'])
+const STACK_PRIORITY: StackName[] = ['rust', 'go', 'python', 'js']
+const VALID_STACKS = new Set<string>(['rust', 'go', 'python', 'js'])
+
+/**
+ * Resolve the list of stacks for the install run.
+ * - '--stack skip' → the literal 'skip' (sentinel)
+ * - '--stack <csv>' → the parsed list; 'invalid' if any entry is unknown
+ * - no flag → auto-detect from marker files in projectRoot
+ */
+function resolveStacksFromFlagOrMarkers(stackFlag: string | undefined, root: string): StackName[] | 'skip' | 'invalid' {
+  if (stackFlag !== undefined) {
+    if (stackFlag.trim() === 'skip') return 'skip'
+    const parts = stackFlag.split(',').map((s) => s.trim()).filter(Boolean)
+    if (parts.length === 0) return 'invalid'
+    for (const p of parts) {
+      if (!VALID_STACKS.has(p)) return 'invalid'
+    }
+    // Reorder per STACK_PRIORITY so multi-stack commentary is stable
+    const ordered = STACK_PRIORITY.filter((s) => parts.includes(s)) as StackName[]
+    return ordered
+  }
+  const detected: StackName[] = []
+  if (existsSync(join(root, 'Cargo.toml'))) detected.push('rust')
+  if (existsSync(join(root, 'go.mod'))) detected.push('go')
+  if (existsSync(join(root, 'pyproject.toml')) || existsSync(join(root, 'requirements.txt'))) detected.push('python')
+  if (existsSync(join(root, 'package.json'))) detected.push('js')
+  return STACK_PRIORITY.filter((s) => detected.includes(s)) as StackName[]
+}
+
+/**
+ * Write or upgrade `.metta/config.yaml` to include the detected stacks.
+ */
+async function writeStacksToConfig(root: string, stacks: StackName[]): Promise<void> {
+  const configPath = join(root, '.metta', 'config.yaml')
+  let raw: string
+  try {
+    raw = await readFile(configPath, 'utf8')
+  } catch {
+    // Config doesn't exist yet (should have been created earlier in install)
+    return
+  }
+  // Replace `stack: ""` line if present, else inject a `stacks:` line under `project:`.
+  const stacksLine = `  stacks: [${stacks.map((s) => `"${s}"`).join(', ')}]`
+  const lines = raw.split('\n')
+  const stackIdx = lines.findIndex((l) => /^\s*stack:\s*"/.test(l))
+  if (stackIdx !== -1) {
+    // Replace the legacy single-string `stack:` line with the new array form.
+    lines.splice(stackIdx, 1, stacksLine)
+  } else {
+    // Append under `project:` block — find the project: line and insert after
+    // the last indented child of it.
+    const projIdx = lines.findIndex((l) => l.startsWith('project:'))
+    if (projIdx !== -1) {
+      let insertAt = projIdx + 1
+      while (insertAt < lines.length && lines[insertAt].startsWith('  ')) {
+        insertAt++
+      }
+      lines.splice(insertAt, 0, stacksLine)
+    } else {
+      // Fallback: append a new project block
+      lines.push('project:', stacksLine)
+    }
+  }
+  await writeFile(configPath, lines.join('\n'), 'utf8')
+}
+
+/**
+ * Copy the 4 gate YAMLs from dist/templates/gate-scaffolds/<primary>/
+ * into <root>/.metta/gates/. Never overwrite existing files.
+ * For multi-stack projects, prepend a comment block naming the other stacks.
+ */
+async function scaffoldGateYamls(root: string, primary: StackName, allStacks: StackName[]): Promise<string[]> {
+  const scaffoldDir = new URL(`../../templates/gate-scaffolds/${primary}`, import.meta.url).pathname
+  const gatesDir = join(root, '.metta', 'gates')
+  await mkdir(gatesDir, { recursive: true })
+
+  const others = allStacks.filter((s) => s !== primary)
+  const commentHeader = others.length > 0
+    ? [
+        `# Multi-stack project detected: ${primary} (primary), ${others.join(', ')}`,
+        `# To run all toolchains, edit 'command:' to chain them, e.g. 'cargo test && pytest'`,
+        `# or remove this gate and add a per-stack file.`,
+        '',
+      ].join('\n')
+    : ''
+
+  const names = ['tests', 'lint', 'typecheck', 'build']
+  const written: string[] = []
+  for (const name of names) {
+    const src = join(scaffoldDir, `${name}.yaml`)
+    const dest = join(gatesDir, `${name}.yaml`)
+    if (existsSync(dest)) continue // never overwrite
+    let content = await readFile(src, 'utf8')
+    if (commentHeader) content = commentHeader + content
+    await writeFile(dest, content, 'utf8')
+    written.push(`${name}.yaml`)
+  }
+  return written
+}
+
 export function registerInstallCommand(program: Command): void {
   program
     .command('install')
     .description('Install Metta into a project')
     .option('--git-init', 'Initialize a git repo if one is not detected')
+    .option('--stack <spec>', 'Override stack detection: rust|python|go|js|skip (comma-separated for multi-stack)')
     .action(async (options) => {
       const json = program.opts().json
       const ctx = createCliContext()
@@ -184,6 +287,26 @@ Banned patterns and forbidden operations.
 `
         await writeFile(join(root, '.metta', '.gitignore'), gitignoreContent, { flag: 'wx' }).catch(() => {})
 
+        // Detect project stack and scaffold .metta/gates/ for non-JS projects.
+        const stacks = resolveStacksFromFlagOrMarkers(options.stack, root)
+        if (stacks === 'invalid') {
+          throw new Error(`Invalid --stack value. Supported: rust, python, go, js, skip (or comma-separated like 'rust,python').`)
+        }
+
+        let scaffoldedGates: string[] = []
+        if (stacks !== 'skip' && stacks.length > 0) {
+          await writeStacksToConfig(root, stacks)
+          const primary = stacks[0]
+          if (primary !== 'js' && SCAFFOLD_STACKS.has(primary)) {
+            scaffoldedGates = await scaffoldGateYamls(root, primary, stacks)
+          }
+        } else if (stacks !== 'skip' && stacks.length === 0) {
+          // No markers detected — print a hint for manual override.
+          if (!json) {
+            console.log('  No stack markers detected. To customize gate commands, drop YAML files in .metta/gates/ (see docs/getting-started.md).')
+          }
+        }
+
         // Detect AI tools and install slash commands
         const detectedTools: string[] = []
         const installedCommands: string[] = []
@@ -246,6 +369,8 @@ Banned patterns and forbidden operations.
             installed_commands: installedCommands,
             guard_hook_installed: guardInstalled,
             statusline_installed: statuslineInstalled,
+            stacks: stacks === 'skip' ? [] : stacks,
+            scaffolded_gates: scaffoldedGates,
           })
         } else {
           console.log('Metta initialized')
@@ -255,6 +380,12 @@ Banned patterns and forbidden operations.
           console.log('  Created: .metta/')
           console.log('  Created: spec/')
           console.log('  Created: spec/project.md (constitution)')
+          if (stacks !== 'skip' && stacks.length > 0) {
+            console.log(`  Detected stack${stacks.length > 1 ? 's' : ''}: ${stacks.join(', ')}`)
+            if (scaffoldedGates.length > 0) {
+              console.log(`  Scaffolded: ${scaffoldedGates.length} gate YAML${scaffoldedGates.length > 1 ? 's' : ''} in .metta/gates/`)
+            }
+          }
           if (detectedTools.length > 0) {
             console.log(`  Detected: ${detectedTools.join(', ')}`)
             console.log(`  Installed: ${installedCommands.length} slash commands`)

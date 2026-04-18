@@ -1,0 +1,6 @@
+name: lint
+description: Lint Python with ruff
+command: ruff check .
+timeout: 600000
+required: true
+on_failure: retry_once

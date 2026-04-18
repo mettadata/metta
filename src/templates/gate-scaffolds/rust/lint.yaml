@@ -1,0 +1,6 @@
+name: lint
+description: Run clippy lints
+command: cargo clippy
+timeout: 600000
+required: true
+on_failure: retry_once

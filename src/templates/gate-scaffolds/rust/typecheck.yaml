@@ -1,0 +1,6 @@
+name: typecheck
+description: Type-check without codegen
+command: cargo check
+timeout: 600000
+required: true
+on_failure: retry_once

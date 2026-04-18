@@ -34,7 +34,11 @@ metta ship
 
 ## Custom gate commands (non-JS projects)
 
-The default `metta finalize` gates run `npm` commands (tests, lint, typecheck, build). To adapt to other toolchains, drop YAML files in `.metta/gates/` — they override built-ins by gate name.
+`metta install` detects your stack from marker files (`Cargo.toml`, `pyproject.toml`/`requirements.txt`, `go.mod`, `package.json`) and auto-scaffolds `.metta/gates/*.yaml` for Rust, Python, and Go projects. JavaScript projects use the built-in npm commands (no scaffolding needed).
+
+To force a stack: `metta install --stack rust` (or `rust,python` for multi-stack, or `skip` to opt out).
+
+If your stack isn't detected, drop YAML files in `.metta/gates/` manually — they override built-ins by gate name.
 
 ```yaml
 # .metta/gates/tests.yaml — Rust project override
