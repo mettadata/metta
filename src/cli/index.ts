@@ -9,6 +9,7 @@ import { registerPlanCommand } from './commands/plan.js'
 import { registerExecuteCommand } from './commands/execute.js'
 import { registerVerifyCommand } from './commands/verify.js'
 import { registerStatusCommand } from './commands/status.js'
+import { registerTasksCommand } from './commands/tasks.js'
 import { registerInstructionsCommand } from './commands/instructions.js'
 import { registerAnswerCommand } from './commands/answer.js'
 import { registerSpecsCommand } from './commands/specs.js'
@@ -57,6 +58,7 @@ registerPlanCommand(program)
 registerExecuteCommand(program)
 registerVerifyCommand(program)
 registerStatusCommand(program)
+registerTasksCommand(program)
 registerInstructionsCommand(program)
 registerAnswerCommand(program)
 registerSpecsCommand(program)
