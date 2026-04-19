@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   ChangeMetadataSchema,
+  ComplexityScoreSchema,
   SpecLockSchema,
   SpecLockRequirementSchema,
   ReconciliationRequirementSchema,
@@ -21,6 +22,7 @@ import {
   ViolationListSchema,
   SeveritySchema,
 } from '../src/schemas/index.js'
+import type { ComplexityScore } from '../src/schemas/index.js'
 
 describe('ChangeMetadataSchema', () => {
   it('validates a valid change metadata object', () => {
@@ -90,6 +92,151 @@ describe('ChangeMetadataSchema', () => {
       artifacts: {},
     }
     const result = ChangeMetadataSchema.safeParse(data)
+    expect(result.success).toBe(false)
+  })
+
+  it('accepts metadata with a full complexity_score block', () => {
+    const data = {
+      workflow: 'standard',
+      created: '2026-04-04T12:00:00Z',
+      status: 'active',
+      current_artifact: 'spec',
+      base_versions: {},
+      artifacts: {},
+      complexity_score: {
+        score: 2,
+        signals: { file_count: 5 },
+        recommended_workflow: 'standard',
+      },
+      auto_accept_recommendation: true,
+      workflow_locked: true,
+    }
+    const result = ChangeMetadataSchema.safeParse(data)
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.complexity_score?.recommended_workflow).toBe('standard')
+      expect(result.data.auto_accept_recommendation).toBe(true)
+      expect(result.data.workflow_locked).toBe(true)
+    }
+  })
+
+  it('accepts legacy metadata with no complexity fields', () => {
+    const data = {
+      workflow: 'standard',
+      created: '2026-04-04T12:00:00Z',
+      status: 'active',
+      current_artifact: 'spec',
+      base_versions: {},
+      artifacts: {},
+    }
+    const result = ChangeMetadataSchema.safeParse(data)
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.complexity_score).toBeUndefined()
+      expect(result.data.actual_complexity_score).toBeUndefined()
+      expect(result.data.workflow_locked).toBeUndefined()
+      expect(result.data.auto_accept_recommendation).toBeUndefined()
+    }
+  })
+
+  it('allows complexity_score and actual_complexity_score to coexist independently', () => {
+    const intentScore: ComplexityScore = {
+      score: 1,
+      signals: { file_count: 2 },
+      recommended_workflow: 'quick',
+    }
+    const actualScore: ComplexityScore = {
+      score: 2,
+      signals: { file_count: 5 },
+      recommended_workflow: 'standard',
+    }
+    const data = {
+      workflow: 'quick',
+      created: '2026-04-04T12:00:00Z',
+      status: 'active',
+      current_artifact: 'implementation',
+      base_versions: {},
+      artifacts: {},
+      complexity_score: intentScore,
+      actual_complexity_score: actualScore,
+    }
+    const result = ChangeMetadataSchema.safeParse(data)
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.complexity_score).toEqual(intentScore)
+      expect(result.data.actual_complexity_score).toEqual(actualScore)
+      // ensure the two fields are independent references
+      expect(result.data.complexity_score?.recommended_workflow).toBe('quick')
+      expect(result.data.actual_complexity_score?.recommended_workflow).toBe('standard')
+    }
+  })
+})
+
+describe('ComplexityScoreSchema', () => {
+  it('validates a complete complexity score', () => {
+    const result = ComplexityScoreSchema.safeParse({
+      score: 0,
+      signals: { file_count: 1 },
+      recommended_workflow: 'trivial',
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('accepts all recommended_workflow enum values', () => {
+    const workflows = ['trivial', 'quick', 'standard', 'full'] as const
+    for (const rw of workflows) {
+      const result = ComplexityScoreSchema.safeParse({
+        score: 1,
+        signals: { file_count: 3 },
+        recommended_workflow: rw,
+      })
+      expect(result.success).toBe(true)
+    }
+  })
+
+  it('rejects score below 0', () => {
+    const result = ComplexityScoreSchema.safeParse({
+      score: -1,
+      signals: { file_count: 0 },
+      recommended_workflow: 'trivial',
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects score above 3', () => {
+    const result = ComplexityScoreSchema.safeParse({
+      score: 4,
+      signals: { file_count: 10 },
+      recommended_workflow: 'full',
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects invalid recommended_workflow enum', () => {
+    const result = ComplexityScoreSchema.safeParse({
+      score: 1,
+      signals: { file_count: 2 },
+      recommended_workflow: 'mega',
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects unknown fields (.strict())', () => {
+    const result = ComplexityScoreSchema.safeParse({
+      score: 1,
+      signals: { file_count: 2 },
+      recommended_workflow: 'quick',
+      extra: true,
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects unknown fields on signals (.strict())', () => {
+    const result = ComplexityScoreSchema.safeParse({
+      score: 1,
+      signals: { file_count: 2, extra_signal: 99 },
+      recommended_workflow: 'quick',
+    })
     expect(result.success).toBe(false)
   })
 })
