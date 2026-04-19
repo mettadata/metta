@@ -22,6 +22,8 @@ export class ArtifactStore {
     workflow: string,
     artifactIds: string[],
     baseVersions: Record<string, string> = {},
+    autoAccept?: boolean,
+    workflowLocked?: boolean,
   ): Promise<{ name: string; path: string }> {
     const name = toSlug(description, { stopWords: STOP_WORDS })
     const changePath = join('changes', name)
@@ -46,6 +48,13 @@ export class ArtifactStore {
       current_artifact: artifactIds[0] ?? '',
       base_versions: baseVersions,
       artifacts,
+    }
+
+    if (autoAccept === true) {
+      metadata.auto_accept_recommendation = true
+    }
+    if (workflowLocked === true) {
+      metadata.workflow_locked = true
     }
 
     await this.state.write(
