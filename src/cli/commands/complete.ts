@@ -10,6 +10,7 @@ import { parseSpec, parseDeltaSpec } from '../../specs/spec-parser.js'
 import { readFile } from 'node:fs/promises'
 import { toSlug } from '../../util/slug.js'
 import { scoreFromIntentImpact, scoreFromSummaryFiles, isScorePresent, renderBanner } from '../../complexity/index.js'
+import { parseTasks, markTaskComplete } from '../../execution/batch-planner.js'
 import type { ArtifactStatus } from '../../schemas/change-metadata.js'
 
 const TIER_RANK: Record<string, number> = {
@@ -433,6 +434,29 @@ export function registerCompleteCommand(program: Command): void {
             }
           } catch {
             // Post-implementation scoring is advisory-only and must not block the complete command.
+          }
+
+          // Tick every `- [ ] **Task N.M:` checkbox in tasks.md so the archived
+          // tasks file reflects the executor's completion. The executor agent
+          // is forbidden from touching tasks.md (see the metta-executor template),
+          // so this marking is done here by the orchestrator's complete call.
+          // Advisory-only: any failure here is swallowed so `metta complete`
+          // never fails because of a malformed or missing tasks.md.
+          try {
+            const tasksExists = await ctx.artifactStore.artifactExists(changeName, 'tasks.md')
+            if (tasksExists) {
+              const tasksMd = await ctx.artifactStore.readArtifact(changeName, 'tasks.md')
+              const parsed = parseTasks(tasksMd)
+              let updated = tasksMd
+              for (const task of parsed) {
+                updated = markTaskComplete(updated, task.id)
+              }
+              if (updated !== tasksMd) {
+                await ctx.artifactStore.writeArtifact(changeName, 'tasks.md', updated)
+              }
+            }
+          } catch {
+            // Tasks-marking is advisory-only and must not block the complete command.
           }
         }
 
