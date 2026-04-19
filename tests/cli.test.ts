@@ -1319,4 +1319,77 @@ describe('CLI', { timeout: 30000 }, () => {
       expect(yaml).not.toContain('auto_accept_recommendation')
     })
   })
+
+  describe('metta status --change with complexity', () => {
+    async function writeComplexityField(changeName: string): Promise<void> {
+      const { readFile, writeFile } = await import('node:fs/promises')
+      const YAML = (await import('yaml')).default
+      const path = join(tempDir, 'spec', 'changes', changeName, '.metta.yaml')
+      const raw = await readFile(path, 'utf8')
+      const doc = YAML.parse(raw) as Record<string, unknown>
+      doc.complexity_score = {
+        score: 2,
+        signals: { file_count: 5 },
+        recommended_workflow: 'standard',
+      }
+      await writeFile(path, YAML.stringify(doc, { lineWidth: 0 }), 'utf8')
+    }
+
+    it('JSON mode with no complexity_score emits null fields and exit 0', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await runCli(['propose', 'score absent'], tempDir)
+      const { stdout, code } = await runCli(
+        ['--json', 'status', '--change', 'score-absent'],
+        tempDir,
+      )
+      expect(code).toBe(0)
+      const data = JSON.parse(stdout)
+      expect(data.change).toBe('score-absent')
+      expect(data.complexity_score).toBeNull()
+      expect(data.actual_complexity_score).toBeNull()
+    })
+
+    it('JSON mode with complexity_score includes object and exit 0', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await runCli(['propose', 'score present'], tempDir)
+      await writeComplexityField('score-present')
+      const { stdout, code } = await runCli(
+        ['--json', 'status', '--change', 'score-present'],
+        tempDir,
+      )
+      expect(code).toBe(0)
+      const data = JSON.parse(stdout)
+      expect(data.complexity_score).toEqual({
+        score: 2,
+        signals: { file_count: 5 },
+        recommended_workflow: 'standard',
+      })
+      expect(data.actual_complexity_score).toBeNull()
+    })
+
+    it('human mode with no complexity_score shows "not yet scored" and exit 0', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await runCli(['propose', 'human absent'], tempDir)
+      const { stdout, code } = await runCli(
+        ['status', '--change', 'human-absent'],
+        tempDir,
+      )
+      expect(code).toBe(0)
+      expect(stdout).toContain('Complexity: not yet scored')
+    })
+
+    it('human mode with complexity_score shows Complexity line and recommended text', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await runCli(['propose', 'human present'], tempDir)
+      await writeComplexityField('human-present')
+      const { stdout, code } = await runCli(
+        ['status', '--change', 'human-present'],
+        tempDir,
+      )
+      expect(code).toBe(0)
+      expect(stdout).toContain('Complexity:')
+      expect(stdout).toContain('standard')
+      expect(stdout).toContain('recommended:')
+    })
+  })
 })

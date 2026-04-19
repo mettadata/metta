@@ -1,5 +1,13 @@
 import { Command } from 'commander'
 import { createCliContext, outputJson, color } from '../helpers.js'
+import { renderStatusLine } from '../../complexity/index.js'
+import type { ChangeMetadata, ComplexityScore } from '../../schemas/change-metadata.js'
+
+type ChangeStatusJson = Omit<ChangeMetadata, 'complexity_score' | 'actual_complexity_score'> & {
+  change: string
+  complexity_score: ComplexityScore | null
+  actual_complexity_score: ComplexityScore | null
+}
 
 export function registerStatusCommand(program: Command): void {
   program
@@ -27,7 +35,7 @@ export function registerStatusCommand(program: Command): void {
         if (changeName) {
           const metadata = await ctx.artifactStore.getChange(changeName)
           if (json) {
-            outputJson({ change: changeName, ...metadata })
+            outputJson(toChangeJson(changeName, metadata))
           } else {
             printChangeStatus(changeName, metadata)
           }
@@ -37,7 +45,7 @@ export function registerStatusCommand(program: Command): void {
         if (changes.length === 1) {
           const metadata = await ctx.artifactStore.getChange(changes[0])
           if (json) {
-            outputJson({ change: changes[0], ...metadata })
+            outputJson(toChangeJson(changes[0], metadata))
           } else {
             printChangeStatus(changes[0], metadata)
           }
@@ -45,17 +53,19 @@ export function registerStatusCommand(program: Command): void {
         }
 
         // Multiple changes
-        const allStatuses = []
+        const allMetadata: Array<{ name: string; metadata: ChangeMetadata }> = []
         for (const name of changes) {
           const metadata = await ctx.artifactStore.getChange(name)
-          allStatuses.push({ change: name, ...metadata })
+          allMetadata.push({ name, metadata })
         }
 
         if (json) {
-          outputJson({ changes: allStatuses })
+          outputJson({
+            changes: allMetadata.map(({ name, metadata }) => toChangeJson(name, metadata)),
+          })
         } else {
-          for (const s of allStatuses) {
-            printChangeStatus(s.change, s)
+          for (const { name, metadata } of allMetadata) {
+            printChangeStatus(name, metadata)
             console.log('')
           }
         }
@@ -71,7 +81,16 @@ export function registerStatusCommand(program: Command): void {
     })
 }
 
-function printChangeStatus(name: string, metadata: { workflow: string; status: string; current_artifact: string; artifacts: Record<string, string> }): void {
+function toChangeJson(name: string, metadata: ChangeMetadata): ChangeStatusJson {
+  return {
+    change: name,
+    ...metadata,
+    complexity_score: metadata.complexity_score ?? null,
+    actual_complexity_score: metadata.actual_complexity_score ?? null,
+  }
+}
+
+function printChangeStatus(name: string, metadata: ChangeMetadata): void {
   console.log(`Change: ${color(name, 36)} (${color(metadata.workflow + ' workflow', 90)})`)
   console.log(`Status: ${metadata.status}`)
   console.log('')
@@ -84,5 +103,11 @@ function printChangeStatus(name: string, metadata: { workflow: string; status: s
       status === 'failed' ? color('✗', 31) :
       color('·', 90)
     console.log(`  ${marker} ${id.padEnd(20)} ${status}`)
+  }
+  const statusLine = renderStatusLine(metadata.complexity_score)
+  if (statusLine.length > 0) {
+    console.log(statusLine)
+  } else {
+    console.log(color('Complexity: not yet scored', 90))
   }
 }
