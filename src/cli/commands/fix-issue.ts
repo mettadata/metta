@@ -25,7 +25,8 @@ export function registerFixIssueCommand(program: Command): void {
     .option('--all', 'Fix all issues, sorted by severity')
     .option('--severity <level>', 'Filter by severity: critical, major, minor')
     .option('--remove-issue <slug>', 'Remove a resolved issue')
-    .action(async (issueSlug: string | undefined, options: { all?: boolean; severity?: string; removeIssue?: string }) => {
+    .option('--auto, --accept-recommended', 'auto-accept adaptive routing recommendations')
+    .action(async (issueSlug: string | undefined, options: { all?: boolean; severity?: string; removeIssue?: string; acceptRecommended?: boolean }) => {
       const json = program.opts().json
       const ctx = createCliContext()
 

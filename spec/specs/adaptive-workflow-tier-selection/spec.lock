@@ -1,0 +1,358 @@
+version: 52
+hash: sha256:6b0ee1d7b047
+updated: 2026-04-19T08:27:46.673Z
+status: draft
+source: change
+requirements:
+  - id: complexityscorecomputation
+    hash: sha256:5c9408b3593e
+    scenarios:
+      - score-computed-from-impact-section
+      - score-absent-before-intent-written
+      - score-not-recomputed-on-intent-edit
+      - score-uses-actual-files-from-summary-for-post-impl-recompute
+  - id: complexityscorestorage
+    hash: sha256:07f7418dffde
+    scenarios:
+      - schema-accepts-full-complexity-block
+      - schema-accepts-legacy-file-without-fields
+      - actual-score-does-not-overwrite-original
+  - id: tierthresholds
+    hash: sha256:1fc7d31d4c7d
+    scenarios:
+      - single-file-maps-to-trivial
+      - two-files-maps-to-quick
+      - four-files-maps-to-standard
+      - eight-files-maps-to-full
+  - id: statuscommandsurface
+    hash: sha256:5eba86899f84
+    scenarios:
+      - human-output-shows-complexity-line
+      - json-output-includes-complexity-object
+      - json-output-includes-both-scores-when-present
+      - absent-score-renders-without-error
+  - id: instructionsadvisorybanner
+    hash: sha256:846cf79d7a51
+    scenarios:
+      - banner-agreement-state
+      - banner-downscale-state
+      - banner-upscale-state
+      - banner-suppressed-when-score-absent
+  - id: autodownscalepromptatintent
+    hash: sha256:d1038cc790b5
+    scenarios:
+      - downscale-prompt-appears-on-oversized-propose
+      - downscale-yes-mutates-workflow-and-drops-artifacts
+      - downscale-prompt-suppressed-when-workflow-matches
+      - downscale-prompt-skipped-non-tty
+  - id: autoupscalepromptatintent
+    hash: sha256:9232a85fe4b8
+    scenarios:
+      - upscale-prompt-appears-on-undersized-quick
+      - upscale-yes-mutates-workflow-and-inserts-artifacts
+      - upscale-prompt-suppressed-when-workflow-exceeds-recommendation
+      - upscale-auto-accept-skips-prompt
+  - id: postimplementationupscalepromptaccept
+    hash: sha256:62477b9223d7
+    scenarios:
+      - post-impl-prompt-appears-when-recomputed-tier-exceeds-workflow
+      - post-impl-yes-spawns-agents-and-updates-metadata
+      - post-impl-yes-uses-promoted-fan-out
+      - post-impl-no-research-design-tasks-authored
+  - id: postimplementationupscalepromptdecline
+    hash: sha256:77622d264cbe
+    scenarios:
+      - decline-persists-actual-score-and-prints-warning
+      - decline-does-not-create-stories-or-spec
+      - decline-exits-zero-and-verification-proceeds
+      - non-tty-defaults-to-decline
+  - id: autoacceptrecommendationflag
+    hash: sha256:f9767c310023
+    scenarios:
+      - auto-flag-persists-field
+      - auto-flag-skips-all-three-prompts
+      - accept-recommended-alias-behaves-identically
+      - auto-with-workflow-honours-initial-choice
+  - id: overrideremainsauthoritative
+    hash: sha256:057896bd900c
+    scenarios:
+      - workflow-flag-alone-preserves-initial-choice-with-prompt
+      - workflow-without-auto-shows-intent-prompts-normally
+      - workflow-with-auto-combination-is-predictable
+  - id: intraquickdownsizerule
+    hash: sha256:e2038d0ee981
+    scenarios:
+      - trivial-quick-run-uses-reduced-fan-out
+      - trivial-fan-out-excludes-correctness-security-goalcheck
+      - non-trivial-quick-run-keeps-standard-fan-out
+      - tests-and-tsc-run-regardless-of-tier
+  - id: scoringrubricspec
+    hash: sha256:5410b291821f
+    scenarios:
+      - rubric-document-exists-with-required-sections
+      - rubric-names-deferred-signals-as-extension-points
+      - claude-md-active-specs-table-updated
+  - id: complexityscorecomputation
+    hash: sha256:5c9408b3593e
+    scenarios:
+      - score-computed-from-impact-section
+      - score-absent-before-intent-written
+      - score-not-recomputed-on-intent-edit
+      - score-uses-actual-files-from-summary-for-post-impl-recompute
+  - id: complexityscorestorage
+    hash: sha256:07f7418dffde
+    scenarios:
+      - schema-accepts-full-complexity-block
+      - schema-accepts-legacy-file-without-fields
+      - actual-score-does-not-overwrite-original
+  - id: tierthresholds
+    hash: sha256:1fc7d31d4c7d
+    scenarios:
+      - single-file-maps-to-trivial
+      - two-files-maps-to-quick
+      - four-files-maps-to-standard
+      - eight-files-maps-to-full
+  - id: statuscommandsurface
+    hash: sha256:5eba86899f84
+    scenarios:
+      - human-output-shows-complexity-line
+      - json-output-includes-complexity-object
+      - json-output-includes-both-scores-when-present
+      - absent-score-renders-without-error
+  - id: instructionsadvisorybanner
+    hash: sha256:846cf79d7a51
+    scenarios:
+      - banner-agreement-state
+      - banner-downscale-state
+      - banner-upscale-state
+      - banner-suppressed-when-score-absent
+  - id: autodownscalepromptatintent
+    hash: sha256:d1038cc790b5
+    scenarios:
+      - downscale-prompt-appears-on-oversized-propose
+      - downscale-yes-mutates-workflow-and-drops-artifacts
+      - downscale-prompt-suppressed-when-workflow-matches
+      - downscale-prompt-skipped-non-tty
+  - id: autoupscalepromptatintent
+    hash: sha256:9232a85fe4b8
+    scenarios:
+      - upscale-prompt-appears-on-undersized-quick
+      - upscale-yes-mutates-workflow-and-inserts-artifacts
+      - upscale-prompt-suppressed-when-workflow-exceeds-recommendation
+      - upscale-auto-accept-skips-prompt
+  - id: postimplementationupscalepromptaccept
+    hash: sha256:62477b9223d7
+    scenarios:
+      - post-impl-prompt-appears-when-recomputed-tier-exceeds-workflow
+      - post-impl-yes-spawns-agents-and-updates-metadata
+      - post-impl-yes-uses-promoted-fan-out
+      - post-impl-no-research-design-tasks-authored
+  - id: postimplementationupscalepromptdecline
+    hash: sha256:77622d264cbe
+    scenarios:
+      - decline-persists-actual-score-and-prints-warning
+      - decline-does-not-create-stories-or-spec
+      - decline-exits-zero-and-verification-proceeds
+      - non-tty-defaults-to-decline
+  - id: autoacceptrecommendationflag
+    hash: sha256:f9767c310023
+    scenarios:
+      - auto-flag-persists-field
+      - auto-flag-skips-all-three-prompts
+      - accept-recommended-alias-behaves-identically
+      - auto-with-workflow-honours-initial-choice
+  - id: overrideremainsauthoritative
+    hash: sha256:057896bd900c
+    scenarios:
+      - workflow-flag-alone-preserves-initial-choice-with-prompt
+      - workflow-without-auto-shows-intent-prompts-normally
+      - workflow-with-auto-combination-is-predictable
+  - id: intraquickdownsizerule
+    hash: sha256:e2038d0ee981
+    scenarios:
+      - trivial-quick-run-uses-reduced-fan-out
+      - trivial-fan-out-excludes-correctness-security-goalcheck
+      - non-trivial-quick-run-keeps-standard-fan-out
+      - tests-and-tsc-run-regardless-of-tier
+  - id: scoringrubricspec
+    hash: sha256:5410b291821f
+    scenarios:
+      - rubric-document-exists-with-required-sections
+      - rubric-names-deferred-signals-as-extension-points
+      - claude-md-active-specs-table-updated
+  - id: complexityscorecomputation
+    hash: sha256:5c9408b3593e
+    scenarios:
+      - score-computed-from-impact-section
+      - score-absent-before-intent-written
+      - score-not-recomputed-on-intent-edit
+      - score-uses-actual-files-from-summary-for-post-impl-recompute
+  - id: complexityscorestorage
+    hash: sha256:07f7418dffde
+    scenarios:
+      - schema-accepts-full-complexity-block
+      - schema-accepts-legacy-file-without-fields
+      - actual-score-does-not-overwrite-original
+  - id: tierthresholds
+    hash: sha256:1fc7d31d4c7d
+    scenarios:
+      - single-file-maps-to-trivial
+      - two-files-maps-to-quick
+      - four-files-maps-to-standard
+      - eight-files-maps-to-full
+  - id: statuscommandsurface
+    hash: sha256:5eba86899f84
+    scenarios:
+      - human-output-shows-complexity-line
+      - json-output-includes-complexity-object
+      - json-output-includes-both-scores-when-present
+      - absent-score-renders-without-error
+  - id: instructionsadvisorybanner
+    hash: sha256:846cf79d7a51
+    scenarios:
+      - banner-agreement-state
+      - banner-downscale-state
+      - banner-upscale-state
+      - banner-suppressed-when-score-absent
+  - id: autodownscalepromptatintent
+    hash: sha256:d1038cc790b5
+    scenarios:
+      - downscale-prompt-appears-on-oversized-propose
+      - downscale-yes-mutates-workflow-and-drops-artifacts
+      - downscale-prompt-suppressed-when-workflow-matches
+      - downscale-prompt-skipped-non-tty
+  - id: autoupscalepromptatintent
+    hash: sha256:9232a85fe4b8
+    scenarios:
+      - upscale-prompt-appears-on-undersized-quick
+      - upscale-yes-mutates-workflow-and-inserts-artifacts
+      - upscale-prompt-suppressed-when-workflow-exceeds-recommendation
+      - upscale-auto-accept-skips-prompt
+  - id: postimplementationupscalepromptaccept
+    hash: sha256:62477b9223d7
+    scenarios:
+      - post-impl-prompt-appears-when-recomputed-tier-exceeds-workflow
+      - post-impl-yes-spawns-agents-and-updates-metadata
+      - post-impl-yes-uses-promoted-fan-out
+      - post-impl-no-research-design-tasks-authored
+  - id: postimplementationupscalepromptdecline
+    hash: sha256:77622d264cbe
+    scenarios:
+      - decline-persists-actual-score-and-prints-warning
+      - decline-does-not-create-stories-or-spec
+      - decline-exits-zero-and-verification-proceeds
+      - non-tty-defaults-to-decline
+  - id: autoacceptrecommendationflag
+    hash: sha256:f9767c310023
+    scenarios:
+      - auto-flag-persists-field
+      - auto-flag-skips-all-three-prompts
+      - accept-recommended-alias-behaves-identically
+      - auto-with-workflow-honours-initial-choice
+  - id: overrideremainsauthoritative
+    hash: sha256:057896bd900c
+    scenarios:
+      - workflow-flag-alone-preserves-initial-choice-with-prompt
+      - workflow-without-auto-shows-intent-prompts-normally
+      - workflow-with-auto-combination-is-predictable
+  - id: intraquickdownsizerule
+    hash: sha256:e2038d0ee981
+    scenarios:
+      - trivial-quick-run-uses-reduced-fan-out
+      - trivial-fan-out-excludes-correctness-security-goalcheck
+      - non-trivial-quick-run-keeps-standard-fan-out
+      - tests-and-tsc-run-regardless-of-tier
+  - id: scoringrubricspec
+    hash: sha256:5410b291821f
+    scenarios:
+      - rubric-document-exists-with-required-sections
+      - rubric-names-deferred-signals-as-extension-points
+      - claude-md-active-specs-table-updated
+  - id: complexityscorecomputation
+    hash: sha256:5c9408b3593e
+    scenarios:
+      - score-computed-from-impact-section
+      - score-absent-before-intent-written
+      - score-not-recomputed-on-intent-edit
+      - score-uses-actual-files-from-summary-for-post-impl-recompute
+  - id: complexityscorestorage
+    hash: sha256:07f7418dffde
+    scenarios:
+      - schema-accepts-full-complexity-block
+      - schema-accepts-legacy-file-without-fields
+      - actual-score-does-not-overwrite-original
+  - id: tierthresholds
+    hash: sha256:1fc7d31d4c7d
+    scenarios:
+      - single-file-maps-to-trivial
+      - two-files-maps-to-quick
+      - four-files-maps-to-standard
+      - eight-files-maps-to-full
+  - id: statuscommandsurface
+    hash: sha256:5eba86899f84
+    scenarios:
+      - human-output-shows-complexity-line
+      - json-output-includes-complexity-object
+      - json-output-includes-both-scores-when-present
+      - absent-score-renders-without-error
+  - id: instructionsadvisorybanner
+    hash: sha256:846cf79d7a51
+    scenarios:
+      - banner-agreement-state
+      - banner-downscale-state
+      - banner-upscale-state
+      - banner-suppressed-when-score-absent
+  - id: autodownscalepromptatintent
+    hash: sha256:d1038cc790b5
+    scenarios:
+      - downscale-prompt-appears-on-oversized-propose
+      - downscale-yes-mutates-workflow-and-drops-artifacts
+      - downscale-prompt-suppressed-when-workflow-matches
+      - downscale-prompt-skipped-non-tty
+  - id: autoupscalepromptatintent
+    hash: sha256:9232a85fe4b8
+    scenarios:
+      - upscale-prompt-appears-on-undersized-quick
+      - upscale-yes-mutates-workflow-and-inserts-artifacts
+      - upscale-prompt-suppressed-when-workflow-exceeds-recommendation
+      - upscale-auto-accept-skips-prompt
+  - id: postimplementationupscalepromptaccept
+    hash: sha256:62477b9223d7
+    scenarios:
+      - post-impl-prompt-appears-when-recomputed-tier-exceeds-workflow
+      - post-impl-yes-spawns-agents-and-updates-metadata
+      - post-impl-yes-uses-promoted-fan-out
+      - post-impl-no-research-design-tasks-authored
+  - id: postimplementationupscalepromptdecline
+    hash: sha256:77622d264cbe
+    scenarios:
+      - decline-persists-actual-score-and-prints-warning
+      - decline-does-not-create-stories-or-spec
+      - decline-exits-zero-and-verification-proceeds
+      - non-tty-defaults-to-decline
+  - id: autoacceptrecommendationflag
+    hash: sha256:f9767c310023
+    scenarios:
+      - auto-flag-persists-field
+      - auto-flag-skips-all-three-prompts
+      - accept-recommended-alias-behaves-identically
+      - auto-with-workflow-honours-initial-choice
+  - id: overrideremainsauthoritative
+    hash: sha256:057896bd900c
+    scenarios:
+      - workflow-flag-alone-preserves-initial-choice-with-prompt
+      - workflow-without-auto-shows-intent-prompts-normally
+      - workflow-with-auto-combination-is-predictable
+  - id: intraquickdownsizerule
+    hash: sha256:e2038d0ee981
+    scenarios:
+      - trivial-quick-run-uses-reduced-fan-out
+      - trivial-fan-out-excludes-correctness-security-goalcheck
+      - non-trivial-quick-run-keeps-standard-fan-out
+      - tests-and-tsc-run-regardless-of-tier
+  - id: scoringrubricspec
+    hash: sha256:5410b291821f
+    scenarios:
+      - rubric-document-exists-with-required-sections
+      - rubric-names-deferred-signals-as-extension-points
+      - claude-md-active-specs-table-updated

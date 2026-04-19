@@ -57,6 +57,46 @@ describe('ArtifactStore', () => {
       const metadata = await store.getChange('test')
       expect(metadata.base_versions['auth/spec.md']).toBe('sha256:abc123')
     })
+
+    it('persists auto_accept_recommendation: true when autoAccept is true', async () => {
+      await store.createChange('auto accept change', 'quick', ['intent'], {}, true)
+      const metadata = await store.getChange('auto-accept-change')
+      expect(metadata.auto_accept_recommendation).toBe(true)
+    })
+
+    it('omits auto_accept_recommendation when autoAccept is undefined', async () => {
+      await store.createChange('undefined auto change', 'quick', ['intent'])
+      const metadata = await store.getChange('undefined-auto-change')
+      expect(metadata.auto_accept_recommendation).toBeUndefined()
+      expect(Object.prototype.hasOwnProperty.call(metadata, 'auto_accept_recommendation')).toBe(false)
+    })
+
+    it('omits auto_accept_recommendation when autoAccept is false', async () => {
+      await store.createChange('false auto change', 'quick', ['intent'], {}, false)
+      const metadata = await store.getChange('false-auto-change')
+      expect(metadata.auto_accept_recommendation).toBeUndefined()
+      expect(Object.prototype.hasOwnProperty.call(metadata, 'auto_accept_recommendation')).toBe(false)
+    })
+
+    it('persists workflow_locked: true when workflowLocked is true', async () => {
+      await store.createChange('locked change', 'standard', ['intent'], {}, undefined, true)
+      const metadata = await store.getChange('locked-change')
+      expect(metadata.workflow_locked).toBe(true)
+    })
+
+    it('omits workflow_locked when workflowLocked is undefined', async () => {
+      await store.createChange('unlocked change', 'quick', ['intent'])
+      const metadata = await store.getChange('unlocked-change')
+      expect(metadata.workflow_locked).toBeUndefined()
+      expect(Object.prototype.hasOwnProperty.call(metadata, 'workflow_locked')).toBe(false)
+    })
+
+    it('persists both auto_accept_recommendation and workflow_locked when both set', async () => {
+      await store.createChange('both flags change', 'standard', ['intent'], {}, true, true)
+      const metadata = await store.getChange('both-flags-change')
+      expect(metadata.auto_accept_recommendation).toBe(true)
+      expect(metadata.workflow_locked).toBe(true)
+    })
   })
 
   describe('listChanges', () => {

@@ -82,18 +82,30 @@ Doc-only fixes and edits to this workflow section itself are the exceptions.
 
 | Capability | Requirements |
 |------------|-------------|
+| adaptive-workflow-tier-selection | 13 |
 | artifact-store | 19 |
 | config-loader | 59 |
 | context-engine | 72 |
 | custom-claude-statusline-conte | 86 |
 | execution-engine | 49 |
 | finalize-ship | 26 |
+| fix-gate-infrastructure-bundle | 10 |
+| fix-gate-runner-process-group-kill-timeout-scope-gates | 10 |
+| fix-issue-full-workflow-refere | 1 |
 | fix-issue-stories-parser-multi | 3 |
 | fix-metta-next-gap-detect-unme | 8 |
 | metta-issue-metta-backlog-slas | 11 |
 | schemas | 126 |
+| spec-branch-safety-guard-metta-issue-metta-backlog-state | 5 |
+| spec-metta-backlog-description-flag-whitelist-spec-issues | 9 |
 | spec-model | 26 |
+| spec-project-local-gate-overrides-metta-gates-language | 5 |
+| spec-remove-git-commit-prose-planning-agent-bodies-forbid | 6 |
+| spec-stack-detection-at-install-gate-scaffolding-rust-python | 7 |
+| spec:-centralize-slugify-utility-strip-non-ascii-truncate-at-word | 18 |
+| spec:-fix-issue-metta-refresh-leaves-claude-md-uncommitted-metta-r | 18 |
 | spec:-fix-issue-metta-ship-merged-fi | 10 |
+| spec:-fix-metta-fix-issues-skill-contract-correct-cli-typo-metta-i | 16 |
 | spec:-metta-fix-issues-cli-command-m | 78 |
 | split-metta-install-metta-init | 20 |
 | state-store | 73 |
