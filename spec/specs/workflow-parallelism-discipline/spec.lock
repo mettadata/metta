@@ -1,0 +1,49 @@
+version: 7
+hash: sha256:4c4db6a3c415
+updated: 2026-04-19T13:36:18.228Z
+status: draft
+source: change
+requirements:
+  - id: skillparallelismselfcheck
+    hash: sha256:98b8a40a6dce
+    scenarios:
+      - self-check-block-present-in-propose-skill
+      - self-check-uses-imperative-language
+      - self-check-requires-file-listing
+  - id: skillantiexamples
+    hash: sha256:c4558ed31edd
+    scenarios:
+      - anti-example-block-present-and-labeled
+      - anti-example-uses-stable-markers
+      - quick-skill-mirrors-propose-anti-example
+  - id: tasksplancommand
+    hash: sha256:091625dad545
+    scenarios:
+      - plan-command-exits-zero-on-valid-tasks-file
+      - plan-output-groups-disjoint-tasks-together
+      - plan-output-separates-conflicting-tasks
+      - plan-output-is-tty-safe
+  - id: tasksplanjsonoutput
+    hash: sha256:41b1a1f068d5
+    scenarios:
+      - json-flag-produces-parseable-output
+      - json-wave-groupings-match-human-output
+      - json-each-wave-contains-required-fields
+  - id: parallelwavealgorithm
+    hash: sha256:08ea68cac5d1
+    scenarios:
+      - all-independent-tasks-produce-one-wave
+      - all-conflicting-tasks-produce-sequential-waves
+      - mixed-batch-produces-correct-wave-grouping
+      - depends-on-directive-respected
+  - id: tasksplanabsenttasksfile
+    hash: sha256:4d32b5109741
+    scenarios:
+      - missing-tasks-file-exits-with-code-4
+      - missing-tasks-file-message-is-actionable
+  - id: byteidenticalskillmirrors
+    hash: sha256:97d09e14919a
+    scenarios:
+      - propose-skill-pairs-are-byte-identical
+      - quick-skill-pairs-are-byte-identical
+      - existing-sync-test-still-passes
