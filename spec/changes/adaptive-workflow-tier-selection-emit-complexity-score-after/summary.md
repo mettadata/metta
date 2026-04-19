@@ -1,5 +1,19 @@
 # Summary: adaptive-workflow-tier-selection-emit-complexity-score-after
 
+## Spec Scenarios
+
+All 13 requirements / 42 scenarios in `spec.md` have at least one covering passing test. Scenario-level gaps (2): `IntraQuickDownsizeRule` fan-out counts are enforced by the `/metta-quick` SKILL.md template, not by vitest (skill orchestration runs in Claude Code, not in the test process); `ScoringRubricSpec.claude_md_active_specs_table_updated` — resolved by `metta refresh` (commit `dc8520a`).
+
+## Gate Results
+
+| Gate | Status |
+|------|--------|
+| `npm test -- --run` | PASS — 712/712 across 51 files |
+| `npx tsc --noEmit` | PASS — exit 0 |
+| `npm run lint` | PASS — exit 0 (aliased to tsc) |
+| 3-reviewer fan-out | correctness FAIL → fixed (`c88f6ed06`) and re-verified; security PASS; quality PASS_WITH_WARNINGS |
+| 3-verifier fan-out | tests PASS; tsc+lint PASS; scenario coverage PARTIAL → 1 scenario gap closed via metta refresh, remaining gap documented above |
+
 ## What changed
 
 Added a complexity scoring layer that fires once after intent is authored (and recomputes once after implementation), surfaces as an advisory banner in `metta status` and `metta instructions`, and drives interactive `[y/N]` prompts at three points in the lifecycle: intent-time downscale, intent-time upscale, and post-implementation upscale. The `--auto` / `--accept-recommended` flag on `metta propose` / `metta quick` / `metta fix-issue` persists as `auto_accept_recommendation` in `.metta.yaml` and auto-confirms all three prompts. The `/metta-quick` skill's trivial-detection gate now also shrinks the review+verify fan-out to 1+1 when the scorer classifies a change as trivial.
