@@ -1,5 +1,5 @@
 import { Command } from 'commander'
-import { createCliContext, outputJson, color, agentBanner } from '../helpers.js'
+import { createCliContext, outputJson, color, agentBanner, askYesNo } from '../helpers.js'
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { execFile } from 'node:child_process'
@@ -9,6 +9,27 @@ import { validateFulfillsRefs } from '../../stories/story-validator.js'
 import { parseSpec, parseDeltaSpec } from '../../specs/spec-parser.js'
 import { readFile } from 'node:fs/promises'
 import { toSlug } from '../../util/slug.js'
+import { scoreFromIntentImpact, isScorePresent, renderBanner } from '../../complexity/index.js'
+import type { ArtifactStatus } from '../../schemas/change-metadata.js'
+
+const TIER_RANK: Record<string, number> = {
+  trivial: 0,
+  quick: 1,
+  standard: 2,
+  full: 3,
+}
+
+function tierRank(name: string): number {
+  return TIER_RANK[name] ?? -1
+}
+
+// Planning artifacts that should be dropped from the artifact map when
+// collapsing to a smaller workflow. Only dropped when status is 'pending'
+// or 'ready' (never 'in_progress', 'complete', 'failed', 'skipped').
+const DROPPABLE_PLANNING_ARTIFACTS = new Set([
+  'stories', 'spec', 'research', 'design', 'tasks', 'domain-research',
+  'architecture', 'ux-spec',
+])
 
 const execAsync = promisify(execFile)
 
@@ -133,6 +154,98 @@ export function registerCompleteCommand(program: Command): void {
         // Mark complete
         await ctx.artifactStore.markArtifact(changeName, artifactId, 'complete')
 
+        // The workflow graph used by the downstream "next artifact" logic.
+        // Defaults to the graph loaded for the current workflow above; after a
+        // downscale/upscale this is replaced with the target graph so getNext
+        // operates on the post-mutation workflow shape.
+        let activeGraph = graph
+
+        // Intent-time complexity scoring and downscale prompt
+        if (artifactId === 'intent') {
+          try {
+            const intentMd = await ctx.artifactStore.readArtifact(changeName, 'intent.md')
+            const score = scoreFromIntentImpact(intentMd)
+            const currentMetadata = await ctx.artifactStore.getChange(changeName)
+
+            // Persist complexity_score only when not already present -- never overwrite.
+            if (score !== null && !isScorePresent(currentMetadata)) {
+              await ctx.artifactStore.updateChange(changeName, { complexity_score: score })
+            }
+
+            if (score !== null) {
+              const recommendedTier = score.recommended_workflow
+              const currentWorkflow = currentMetadata.workflow
+              const recRank = tierRank(recommendedTier)
+              const chosenRank = tierRank(currentWorkflow)
+
+              // Downscale branch: recommendation is a strictly lower tier.
+              if (recRank >= 0 && chosenRank >= 0 && recRank < chosenRank) {
+                const autoAccept = currentMetadata.auto_accept_recommendation === true
+                let takeYes = false
+
+                if (autoAccept) {
+                  process.stderr.write(
+                    color(
+                      `Auto-accepting recommendation: downscale to /metta-${recommendedTier} (was ${currentWorkflow}, scored ${recommendedTier})`,
+                      33,
+                    ) + '\n',
+                  )
+                  takeYes = true
+                } else {
+                  const fileCount = score.signals.file_count
+                  takeYes = await askYesNo(
+                    color(
+                      `Scored as ${recommendedTier} (${fileCount} files) -- collapse workflow to /metta-${recommendedTier}?`,
+                      33,
+                    ),
+                    { defaultYes: false, jsonMode: json },
+                  )
+                }
+
+                if (takeYes) {
+                  // Load the target workflow graph and rebuild the artifact map.
+                  const targetGraph = await ctx.workflowEngine.loadWorkflow(
+                    recommendedTier,
+                    [projectWorkflows, builtinWorkflows],
+                  )
+                  const existingArtifacts = currentMetadata.artifacts
+                  const targetIds = new Set(targetGraph.artifacts.map(a => a.id))
+                  const rebuilt: Record<string, ArtifactStatus> = {}
+
+                  // Carry forward existing status for stages that remain in the target graph.
+                  for (const artifact of targetGraph.artifacts) {
+                    const prev = existingArtifacts[artifact.id]
+                    rebuilt[artifact.id] = prev ?? 'pending'
+                  }
+
+                  // Carry forward non-target stages only when they are past the
+                  // 'pending'/'ready' state (in_progress, complete, failed, skipped),
+                  // i.e. preserve user work. Drop unstarted planning artifacts.
+                  for (const [id, status] of Object.entries(existingArtifacts)) {
+                    if (targetIds.has(id)) continue
+                    if (status === 'pending' || status === 'ready') {
+                      if (DROPPABLE_PLANNING_ARTIFACTS.has(id)) continue
+                    }
+                    rebuilt[id] = status
+                  }
+
+                  await ctx.artifactStore.updateChange(changeName, {
+                    workflow: recommendedTier,
+                    artifacts: rebuilt,
+                  })
+                  activeGraph = targetGraph
+                } else {
+                  // No path / non-TTY: informational banner only.
+                  const banner = renderBanner(score, currentWorkflow)
+                  if (banner) process.stderr.write(banner + '\n')
+                }
+              }
+            }
+          } catch {
+            // Scoring / downscale is advisory-only and must not block the complete command.
+          }
+        }
+
         // Determine next artifact
         const updatedMetadata = await ctx.artifactStore.getChange(changeName)
         const pendingArtifacts = Object.entries(updatedMetadata.artifacts)
@@ -147,7 +260,7 @@ export function registerCompleteCommand(program: Command): void {
 
         // Mark next artifact as ready
         if (pendingArtifacts.length > 0) {
-          const next = ctx.workflowEngine.getNext(graph, updatedMetadata.artifacts)
+          const next = ctx.workflowEngine.getNext(activeGraph, updatedMetadata.artifacts)
 
           for (const artifact of next) {
             await ctx.artifactStore.markArtifact(changeName, artifact.id, 'ready')

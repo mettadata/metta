@@ -1483,4 +1483,226 @@ describe('CLI', { timeout: 30000 }, () => {
       expect(data).toHaveProperty('metta_agent')
     })
   })
+
+  describe('metta complete intent-time downscale prompt', () => {
+    async function readChangeMetaYaml(changeName: string): Promise<Record<string, unknown>> {
+      const { readFile } = await import('node:fs/promises')
+      const YAML = (await import('yaml')).default
+      const raw = await readFile(
+        join(tempDir, 'spec', 'changes', changeName, '.metta.yaml'),
+        'utf8',
+      )
+      return YAML.parse(raw) as Record<string, unknown>
+    }
+
+    async function setAutoAccept(changeName: string): Promise<void> {
+      const { readFile, writeFile } = await import('node:fs/promises')
+      const YAML = (await import('yaml')).default
+      const path = join(tempDir, 'spec', 'changes', changeName, '.metta.yaml')
+      const raw = await readFile(path, 'utf8')
+      const doc = YAML.parse(raw) as Record<string, unknown>
+      doc.auto_accept_recommendation = true
+      await writeFile(path, YAML.stringify(doc, { lineWidth: 0 }), 'utf8')
+    }
+
+    // Intent body long enough to pass the 200-byte content sanity floor,
+    // with a `## Impact` section listing exactly one file (-> trivial).
+    function oneFileIntent(title: string): string {
+      return [
+        `# ${title}`,
+        '',
+        '## Problem',
+        '',
+        'A single-file touch-up to verify that adaptive-tier downscale fires when',
+        'the Impact section lists exactly one file. The body is padded to clear',
+        'the content-sanity floor of 200 bytes so the complete command does not',
+        'reject the artifact before the scorer ever sees it.',
+        '',
+        '## Impact',
+        '',
+        '- `src/cli/commands/complete.ts`',
+        '',
+      ].join('\n')
+    }
+
+    function threeFileIntent(title: string): string {
+      return [
+        `# ${title}`,
+        '',
+        '## Problem',
+        '',
+        'A three-file change listing three source files so the scorer recommends',
+        'the quick tier. The body is padded to clear the content-sanity floor of',
+        '200 bytes so complete does not reject the artifact before scoring.',
+        '',
+        '## Impact',
+        '',
+        '- `src/a.ts`',
+        '- `src/b.ts`',
+        '- `src/c.ts`',
+        '',
+      ].join('\n')
+    }
+
+    it('auto_accept: downscale fires and mutates workflow without prompting', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await runCli(['propose', 'downscale auto', '--auto'], tempDir)
+      const changeDir = join(tempDir, 'spec', 'changes', 'downscale-auto')
+      await writeFile(join(changeDir, 'intent.md'), oneFileIntent('Downscale Auto'), 'utf8')
+
+      const { stderr, code } = await runCli(
+        ['complete', 'intent', '--change', 'downscale-auto'],
+        tempDir,
+      )
+      expect(code).toBe(0)
+
+      // Auto-accept banner printed to stderr (no prompt)
+      expect(stderr).toContain('Auto-accepting recommendation')
+      expect(stderr).toContain('downscale to /metta-trivial')
+
+      const meta = await readChangeMetaYaml('downscale-auto')
+      expect(meta.workflow).toBe('trivial')
+      // complexity_score persisted
+      expect(meta.complexity_score).toBeDefined()
+      const cs = meta.complexity_score as { recommended_workflow: string; signals: { file_count: number } }
+      expect(cs.recommended_workflow).toBe('trivial')
+      expect(cs.signals.file_count).toBe(1)
+
+      // Planning artifacts dropped from the artifact map.
+      const artifacts = meta.artifacts as Record<string, string>
+      expect(artifacts).not.toHaveProperty('stories')
+      expect(artifacts).not.toHaveProperty('spec')
+      expect(artifacts).not.toHaveProperty('research')
+      expect(artifacts).not.toHaveProperty('design')
+      expect(artifacts).not.toHaveProperty('tasks')
+      // Trivial workflow contains intent/implementation/verification.
+      expect(artifacts).toHaveProperty('intent')
+      expect(artifacts).toHaveProperty('implementation')
+      expect(artifacts).toHaveProperty('verification')
+      // intent status was 'complete' before the rebuild and must be preserved.
+      expect(artifacts.intent).toBe('complete')
+    })
+
+    it('non-TTY (no path): workflow unchanged, advisory banner emitted to stderr', async () => {
+      // execFile gives a non-TTY stdin, so askYesNo returns its default (false).
+      await runCli(['install', '--git-init'], tempDir)
+      await runCli(['propose', 'downscale no'], tempDir)
+      const changeDir = join(tempDir, 'spec', 'changes', 'downscale-no')
+      await writeFile(join(changeDir, 'intent.md'), oneFileIntent('Downscale No'), 'utf8')
+
+      const { stderr, code } = await runCli(
+        ['complete', 'intent', '--change', 'downscale-no'],
+        tempDir,
+      )
+      expect(code).toBe(0)
+
+      // Advisory banner emitted on the no path.
+      expect(stderr).toContain('Advisory:')
+      expect(stderr).toContain('downscale recommended')
+      // No auto-accept banner (the flag was not set).
+      expect(stderr).not.toContain('Auto-accepting recommendation')
+
+      const meta = await readChangeMetaYaml('downscale-no')
+      // Workflow unchanged — still standard.
+      expect(meta.workflow).toBe('standard')
+      // complexity_score persisted.
+      const cs = meta.complexity_score as { recommended_workflow: string }
+      expect(cs.recommended_workflow).toBe('trivial')
+      // Planning artifacts still present.
+      const artifacts = meta.artifacts as Record<string, string>
+      expect(artifacts).toHaveProperty('stories')
+      expect(artifacts).toHaveProperty('spec')
+    })
+
+    it('json mode with downscale condition: no prompt, advisory banner on stderr, no workflow change', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await runCli(['propose', 'downscale json'], tempDir)
+      const changeDir = join(tempDir, 'spec', 'changes', 'downscale-json')
+      await writeFile(join(changeDir, 'intent.md'), oneFileIntent('Downscale Json'), 'utf8')
+
+      const { stdout, stderr, code } = await runCli(
+        ['--json', 'complete', 'intent', '--change', 'downscale-json'],
+        tempDir,
+      )
+      expect(code).toBe(0)
+      // Stdout still parses as JSON (complete's existing payload).
+      expect(() => JSON.parse(stdout)).not.toThrow()
+      // Advisory banner emitted on stderr (no path in json mode).
+      expect(stderr).toContain('Advisory:')
+
+      const meta = await readChangeMetaYaml('downscale-json')
+      expect(meta.workflow).toBe('standard')
+    })
+
+    it('three-file impact under standard: no downscale fires (same tier or higher)', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await runCli(['propose', 'three file impact'], tempDir)
+      const changeDir = join(tempDir, 'spec', 'changes', 'three-file-impact')
+      await writeFile(join(changeDir, 'intent.md'), threeFileIntent('Three File Impact'), 'utf8')
+
+      const { stderr, code } = await runCli(
+        ['complete', 'intent', '--change', 'three-file-impact'],
+        tempDir,
+      )
+      expect(code).toBe(0)
+      // 3 files -> quick, workflow was standard. quick < standard so downscale recommended.
+      // But no auto-accept, non-TTY -> no path: advisory banner yes, no workflow change.
+      expect(stderr).toContain('Advisory:')
+      expect(stderr).not.toContain('Auto-accepting recommendation')
+
+      const meta = await readChangeMetaYaml('three-file-impact')
+      expect(meta.workflow).toBe('standard')
+      const cs = meta.complexity_score as { recommended_workflow: string; signals: { file_count: number } }
+      expect(cs.recommended_workflow).toBe('quick')
+      expect(cs.signals.file_count).toBe(3)
+      const artifacts = meta.artifacts as Record<string, string>
+      // Planning artifacts preserved (no downscale).
+      expect(artifacts).toHaveProperty('stories')
+      expect(artifacts).toHaveProperty('spec')
+    })
+
+    it('recommendation matches current workflow: no prompt, no banner, no change', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      // Quick workflow + 1 file -> trivial. That is lower than quick, so downscale would fire.
+      // Use quick + 3 files -> quick. Same tier, no prompt, no banner.
+      await runCli(['quick', 'same tier'], tempDir)
+      const changeDir = join(tempDir, 'spec', 'changes', 'same-tier')
+      await writeFile(join(changeDir, 'intent.md'), threeFileIntent('Same Tier'), 'utf8')
+
+      const { stderr, code } = await runCli(
+        ['complete', 'intent', '--change', 'same-tier'],
+        tempDir,
+      )
+      expect(code).toBe(0)
+      // No downscale-related output.
+      expect(stderr).not.toContain('Auto-accepting recommendation')
+      expect(stderr).not.toContain('downscale recommended')
+
+      const meta = await readChangeMetaYaml('same-tier')
+      expect(meta.workflow).toBe('quick')
+      const cs = meta.complexity_score as { recommended_workflow: string }
+      expect(cs.recommended_workflow).toBe('quick')
+    })
+
+    it('auto_accept set via fixture after propose: downscale fires on intent-complete', async () => {
+      // Regression: exercise the code path where auto_accept_recommendation was
+      // enabled via a separate metadata write rather than the propose flag, to
+      // verify the complete command reads the field fresh from disk.
+      await runCli(['install', '--git-init'], tempDir)
+      await runCli(['propose', 'fixture auto'], tempDir)
+      await setAutoAccept('fixture-auto')
+      const changeDir = join(tempDir, 'spec', 'changes', 'fixture-auto')
+      await writeFile(join(changeDir, 'intent.md'), oneFileIntent('Fixture Auto'), 'utf8')
+
+      const { stderr, code } = await runCli(
+        ['complete', 'intent', '--change', 'fixture-auto'],
+        tempDir,
+      )
+      expect(code).toBe(0)
+      expect(stderr).toContain('Auto-accepting recommendation')
+
+      const meta = await readChangeMetaYaml('fixture-auto')
+      expect(meta.workflow).toBe('trivial')
+    })
+  })
 })
