@@ -29,3 +29,15 @@ Make workflow selection adaptive. After the proposer authors `intent.md` (or ear
 - Auto-downscale/upscale gated behind config flag
 - Score rubric documented in `spec/specs/`
 - Existing workflows still work if signal missing / override used
+
+## Candidate solutions (added 2026-04-19)
+
+Observed during a 40-feature trello-clone driver session: `/metta-quick` fires 8 subagents (1 proposer + 1 executor + 3 reviewers + 3 verifiers) for every change, including one-attribute tooltip tweaks — ~5 minutes and ~200KB tokens per trivial feature. Two subset fixes that land inside the broader adaptive-routing scope:
+
+**A. Intra-quick downsizing via the skill's existing trivial-detection gate.** The `/metta-quick` skill already has a trivial-detection gate that decides whether to skip the discovery loop. Extend it to also decide review+verify fan-out width: `≤1 file, ≤10 lines → 1 quality reviewer + tests/tsc verifier only`; non-trivial → current 3+3 fan-out. Keeps safety for non-trivial; cuts trivial-change cost roughly in half.
+
+**B. New `metta fast` or `metta instructions trivial` path.** For callers who know up-front the change is a one-liner: intent → implementation → tests + tsc → merge, no review subagents at all. Lower ceiling on safety, lower floor on cost — appropriate when the human has verified scope manually.
+
+**Tradeoff vs doing only the advisory score:** downsizing review risks an edge-case correctness/security bug slipping on changes the heuristic mis-sized as trivial. Mitigation: tests + tsc still run on every change regardless of tier. A single-attribute tooltip getting 3 reviewers is well past the point of diminishing returns on catch rate.
+
+Implementer should pick between A and B (or neither, if the advisory score alone makes this moot) based on whether trivial-mode usage is expected to be common enough to justify a dedicated skill surface.
