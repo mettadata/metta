@@ -21,6 +21,7 @@ You are the **orchestrator** for a new spec-driven change. You manage the workfl
    - If `$ARGUMENTS` contains the token `--auto` or `--accept-recommended`, remove it from `$ARGUMENTS`. Set a local boolean flag `AUTO_MODE = true`.
    - Otherwise, `AUTO_MODE = false`.
    - The remaining text is the description.
+   - **Scope of `AUTO_MODE`:** in addition to short-circuiting the discovery loop (see step 2), `AUTO_MODE = true` also auto-accepts adaptive routing recommendations at intent-time — both downscale prompts (e.g. "this looks like quick scope, switch workflow?") and upscale prompts (e.g. "this looks larger than quick, switch workflow?") — as well as the post-implementation upscale prompt (e.g. "implementation exceeded quick budget, promote to standard?"). When `AUTO_MODE = true`, take the recommended option on every such prompt without calling `AskUserQuestion`.
 
    Then run:
    `metta propose "<description>" --workflow <name> --json` (when flag present)
