@@ -59,7 +59,7 @@ Story IDs MUST be monotonic starting at US-1.
 
 ## US-4: Advisory banner at top of `metta instructions`
 
-**As an** AI orchestrator calling `metta instructions` during planning
+**As a** AI orchestrator calling `metta instructions` during planning
 **I want to** see a one-line advisory banner at the top of the output when a complexity score is present
 **So that** I can factor the recommendation into tier and routing decisions without opening additional artifacts
 **Priority:** P2
