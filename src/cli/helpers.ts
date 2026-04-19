@@ -1,6 +1,7 @@
 import { join, relative } from 'node:path'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
+import { createInterface } from 'node:readline'
 import { ConfigLoader } from '../config/config-loader.js'
 import { ArtifactStore } from '../artifacts/artifact-store.js'
 import { WorkflowEngine } from '../workflow/workflow-engine.js'
@@ -237,4 +238,45 @@ export async function assertOnMainBranch(
     `Refusing to write: current branch '${current}' is not the main branch '${mainBranchName}'. ` +
       `Switch branches, or use --on-branch ${current} to override.`,
   )
+}
+
+/**
+ * Interactive yes/no prompt helper. Returns the configured default
+ * (false when unspecified) without prompting when stdin is not a TTY
+ * or when `jsonMode` is set, making it safe to call from CLI commands
+ * that may be invoked non-interactively or with --json.
+ *
+ * When interactive: prints the question, reads one line, and resolves
+ * based on the first character (y/Y → true, n/N → false, anything
+ * else or empty → defaultYes ?? false).
+ */
+export async function askYesNo(
+  question: string,
+  opts?: { defaultYes?: boolean; jsonMode?: boolean },
+): Promise<boolean> {
+  const defaultYes = opts?.defaultYes ?? false
+  if (!process.stdin.isTTY || opts?.jsonMode === true) {
+    return defaultYes
+  }
+  const rl = createInterface({ input: process.stdin, output: process.stdout })
+  return new Promise<boolean>((resolve) => {
+    rl.question(question + ' ', (answer) => {
+      rl.close()
+      const trimmed = answer.trim()
+      if (trimmed.length === 0) {
+        resolve(defaultYes)
+        return
+      }
+      const first = trimmed[0]
+      if (first === 'y' || first === 'Y') {
+        resolve(true)
+        return
+      }
+      if (first === 'n' || first === 'N') {
+        resolve(false)
+        return
+      }
+      resolve(defaultYes)
+    })
+  })
 }
