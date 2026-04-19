@@ -32,9 +32,11 @@ For a given `<issue-slug>`:
    `metta instructions <artifact> --json --change <name>` → spawn agent → `metta complete <artifact>`
    - Include the full issue details (from step 1) as context for every subagent
    - Discovery mode is always **batch** for fix-issues — the issue definition IS the discovery; do NOT run a separate discovery gate
-   - For **research**: spawn 2-4 metta-researcher agents in parallel (one per approach)
+   - For **research**: spawn 2-4 metta-researcher agents in parallel (one per approach). Each researcher MUST write to `spec/changes/<change>/research-<approach-slug>.md` (a short kebab-case slug per approach, e.g. `research-websockets.md`, `research-sse.md`, `research-polling.md`). Forbid `/tmp/` paths — per-approach output MUST be in-tree so the synthesis step can read it.
 
-4. **Implementation — MANDATORY PARALLEL EXECUTION:**
+4. **Synthesize research** — read all `spec/changes/<change>/research-*.md` files you just created, write a single consolidated `spec/changes/<change>/research.md` that summarizes each approach and ends with a recommendation, and git-commit it. Do NOT call `metta complete research` until `spec/changes/<change>/research.md` exists on disk with real content.
+
+5. **Implementation — MANDATORY PARALLEL EXECUTION:**
    **Do NOT spawn a single metta-executor for all tasks. You MUST parse batches and spawn per-task.**
    a. Read `spec/changes/<change>/tasks.md` — YOU the orchestrator, not a subagent
    b. Parse the batches (## Batch 1, ## Batch 2, etc.) and list tasks per batch
@@ -47,13 +49,13 @@ For a given `<issue-slug>`:
    d. After all batches: write summary.md and commit
    e. `metta complete implementation --json --change <name>`
 
-5. **Review — spawn 3 metta-reviewer agents in parallel** (fan-out — single message):
+6. **Review — spawn 3 metta-reviewer agents in parallel** (fan-out — single message):
    - Agent 1 (subagent_type: "metta-reviewer"): "**Correctness reviewer**"
    - Agent 2 (subagent_type: "metta-reviewer"): "**Security reviewer**"
    - Agent 3 (subagent_type: "metta-reviewer"): "**Quality reviewer**"
    - Merge results into `spec/changes/<change>/review.md` and commit
 
-6. **Review-Fix Loop (repeat until clean):**
+7. **Review-Fix Loop (repeat until clean):**
    a. If any critical issues found:
       - Parse each issue's file path from review.md
       - Batch issues by file — independent files = parallel
@@ -63,18 +65,18 @@ For a given `<issue-slug>`:
    d. If all 3 reviewers report PASS or PASS_WITH_WARNINGS: exit loop
    e. Max 3 iterations — if still failing after 3 rounds, stop and report to user
 
-7. **Verify — spawn 3 metta-verifier agents in parallel** (fan-out — single message):
+8. **Verify — spawn 3 metta-verifier agents in parallel** (fan-out — single message):
    - Agent 1 (subagent_type: "metta-verifier"): "Run `npm test` — report pass/fail count and failures"
    - Agent 2 (subagent_type: "metta-verifier"): "Run `npx tsc --noEmit` and `npm run lint` — report errors"
    - Agent 3 (subagent_type: "metta-verifier"): "Read spec.md, check each scenario has a passing test — cite evidence"
    - Merge results into summary.md and commit
    - If any gate fails: spawn parallel metta-executors to fix, then re-verify
 
-8. **Finalize** — `metta finalize --json --change <name>` → runs gates, archives, merges specs
+9. **Finalize** — `metta finalize --json --change <name>` → runs gates, archives, merges specs
 
-9. **Merge** — `git checkout main && git merge metta/<change-name> --no-ff -m "chore: merge <change-name>"`
+10. **Merge** — `git checkout main && git merge metta/<change-name> --no-ff -m "chore: merge <change-name>"`
 
-10. **Remove Issue** — `metta fix-issue --remove-issue <issue-slug> --json` → archives issue to `spec/issues/resolved/` then removes from `spec/issues/`
+11. **Remove Issue** — `metta fix-issue --remove-issue <issue-slug> --json` → archives issue to `spec/issues/resolved/` then removes from `spec/issues/`
 
 ## --all Mode (batch processing)
 
