@@ -2,4 +2,3 @@ project:
   name: "metta"
   description: "A composable, spec-driven development framework for AI-native software engineering."
   stacks: ["js"]
-  stacks: ["js"]
