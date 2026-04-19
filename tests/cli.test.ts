@@ -1392,4 +1392,95 @@ describe('CLI', { timeout: 30000 }, () => {
       expect(stdout).toContain('recommended:')
     })
   })
+
+  describe('metta instructions advisory banner', () => {
+    async function writeComplexityField(
+      changeName: string,
+      recommended: 'trivial' | 'quick' | 'standard' | 'full',
+      score: number,
+      fileCount: number,
+    ): Promise<void> {
+      const { readFile, writeFile } = await import('node:fs/promises')
+      const YAML = (await import('yaml')).default
+      const path = join(tempDir, 'spec', 'changes', changeName, '.metta.yaml')
+      const raw = await readFile(path, 'utf8')
+      const doc = YAML.parse(raw) as Record<string, unknown>
+      doc.complexity_score = {
+        score,
+        signals: { file_count: fileCount },
+        recommended_workflow: recommended,
+      }
+      await writeFile(path, YAML.stringify(doc, { lineWidth: 0 }), 'utf8')
+    }
+
+    it('agreement banner: scored workflow matches chosen workflow', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await runCli(['propose', 'agreement banner'], tempDir)
+      // standard propose → workflow=standard; score recommendation=standard
+      await writeComplexityField('agreement-banner', 'standard', 2, 5)
+      const { stderr, code } = await runCli(
+        ['instructions', 'intent', '--change', 'agreement-banner'],
+        tempDir,
+      )
+      expect(code).toBe(0)
+      expect(stderr).toContain('Advisory:')
+      expect(stderr).toContain('current workflow standard matches recommendation standard')
+    })
+
+    it('downscale banner: scored tier lower than chosen tier', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await runCli(['propose', 'downscale banner'], tempDir)
+      // propose → standard; recommended=trivial (lower)
+      await writeComplexityField('downscale-banner', 'trivial', 0, 1)
+      const { stderr, code } = await runCli(
+        ['instructions', 'intent', '--change', 'downscale-banner'],
+        tempDir,
+      )
+      expect(code).toBe(0)
+      expect(stderr).toContain('Advisory:')
+      expect(stderr).toContain('downscale recommended')
+    })
+
+    it('upscale banner: scored tier higher than chosen tier', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await runCli(['quick', 'upscale banner'], tempDir)
+      // quick workflow → quick; recommended=standard (higher)
+      await writeComplexityField('upscale-banner', 'standard', 2, 5)
+      const { stderr, code } = await runCli(
+        ['instructions', 'intent', '--change', 'upscale-banner'],
+        tempDir,
+      )
+      expect(code).toBe(0)
+      expect(stderr).toContain('Advisory:')
+      expect(stderr).toContain('upscale recommended')
+    })
+
+    it('suppressed: no complexity_score produces no Advisory prefix', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await runCli(['propose', 'suppressed banner'], tempDir)
+      const { stderr, code } = await runCli(
+        ['instructions', 'intent', '--change', 'suppressed-banner'],
+        tempDir,
+      )
+      expect(code).toBe(0)
+      expect(stderr).not.toContain('Advisory:')
+    })
+
+    it('--json mode: stdout remains valid JSON when banner is printed', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await runCli(['propose', 'json banner'], tempDir)
+      await writeComplexityField('json-banner', 'trivial', 0, 1)
+      const { stdout, stderr, code } = await runCli(
+        ['--json', 'instructions', 'intent', '--change', 'json-banner'],
+        tempDir,
+      )
+      expect(code).toBe(0)
+      // Banner on stderr
+      expect(stderr).toContain('Advisory:')
+      // Stdout must parse as valid JSON (no banner contamination)
+      expect(() => JSON.parse(stdout)).not.toThrow()
+      const data = JSON.parse(stdout)
+      expect(data).toHaveProperty('metta_agent')
+    })
+  })
 })

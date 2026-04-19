@@ -1,6 +1,7 @@
 import { Command } from 'commander'
 import { join } from 'node:path'
 import { createCliContext, outputJson, agentBanner } from '../helpers.js'
+import { renderBanner } from '../../complexity/index.js'
 import type { AgentDefinition } from '../../schemas/agent-definition.js'
 
 const BUILTIN_AGENTS: Record<string, AgentDefinition> = {
@@ -31,6 +32,14 @@ export function registerInstructionsCommand(program: Command): void {
         if (!changeName) throw new Error(changes.length === 0 ? 'No active changes.' : `Multiple changes: ${changes.join(', ')}`)
 
         const metadata = await ctx.artifactStore.getChange(changeName)
+
+        // Advisory banner (informational only) — goes to stderr so --json stdout
+        // remains machine-readable. Emitted before any other output.
+        const advisory = renderBanner(metadata.complexity_score, metadata.workflow)
+        if (advisory.length > 0) {
+          process.stderr.write(advisory + '\n')
+        }
+
         const builtinWorkflows = new URL('../../templates/workflows', import.meta.url).pathname
         const projectWorkflows = join(ctx.projectRoot, '.metta', 'workflows')
         const graph = await ctx.workflowEngine.loadWorkflow(metadata.workflow, [projectWorkflows, builtinWorkflows])
