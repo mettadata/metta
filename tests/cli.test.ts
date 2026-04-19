@@ -1684,6 +1684,43 @@ describe('CLI', { timeout: 30000 }, () => {
       expect(cs.recommended_workflow).toBe('quick')
     })
 
+    it('quick workflow + 1-file impact: no downscale fires (quick is the smallest interactive tier)', async () => {
+      // Per spec.md AutoDownscalePromptAtIntent, the downscale prompt MUST
+      // NOT fire for `/metta-quick` runs because quick is already the
+      // smallest named interactive workflow. A quick run scoring trivial
+      // is handled by the intra-quick fan-out gate in the skill template,
+      // not by re-prompting at intent-complete time.
+      await runCli(['install', '--git-init'], tempDir)
+      await runCli(['quick', 'quick trivial noop'], tempDir)
+      const changeDir = join(tempDir, 'spec', 'changes', 'quick-trivial-noop')
+      await writeFile(
+        join(changeDir, 'intent.md'),
+        oneFileIntent('Quick Trivial Noop'),
+        'utf8',
+      )
+
+      const { stderr, code } = await runCli(
+        ['complete', 'intent', '--change', 'quick-trivial-noop'],
+        tempDir,
+      )
+      expect(code).toBe(0)
+
+      // No downscale prompt or banner should appear. The advisory banner
+      // is emitted only on the no/non-TTY path of an active downscale
+      // branch, which must be skipped entirely for quick runs.
+      expect(stderr).not.toContain('downscale recommended')
+      expect(stderr).not.toContain('Auto-accepting recommendation')
+      expect(stderr).not.toContain('collapse workflow')
+
+      const meta = await readChangeMetaYaml('quick-trivial-noop')
+      // Workflow field MUST remain `quick`.
+      expect(meta.workflow).toBe('quick')
+      // complexity_score still persisted as advisory.
+      const cs = meta.complexity_score as { recommended_workflow: string; signals: { file_count: number } }
+      expect(cs.recommended_workflow).toBe('trivial')
+      expect(cs.signals.file_count).toBe(1)
+    })
+
     it('auto_accept set via fixture after propose: downscale fires on intent-complete', async () => {
       // Regression: exercise the code path where auto_accept_recommendation was
       // enabled via a separate metadata write rather than the propose flag, to

@@ -182,7 +182,19 @@ export function registerCompleteCommand(program: Command): void {
               let bannerEmitted = false
 
               // Downscale branch: recommendation is a strictly lower tier.
-              if (recRank >= 0 && chosenRank >= 0 && recRank < chosenRank) {
+              // Guard: only fire when the chosen workflow is `standard` or `full`.
+              // Per spec.md AutoDownscalePromptAtIntent, the downscale prompt
+              // MUST NOT fire for `/metta-quick` runs (quick is the smallest
+              // named interactive workflow); a quick run scoring trivial is
+              // handled by the intra-quick fan-out gate in the skill template.
+              const downscaleEligibleChosen =
+                currentWorkflow === 'standard' || currentWorkflow === 'full'
+              if (
+                recRank >= 0 &&
+                chosenRank >= 0 &&
+                recRank < chosenRank &&
+                downscaleEligibleChosen
+              ) {
                 const autoAccept = currentMetadata.auto_accept_recommendation === true
                 let takeYes = false
 
@@ -254,7 +266,7 @@ export function registerCompleteCommand(program: Command): void {
                 if (recommendedTier === 'full') {
                   process.stderr.write(
                     color(
-                      'Advisory: scored full — upscale to full is not yet supported; consider /metta-propose --workflow standard',
+                      'Advisory: scored full -- upscale to full is not yet supported; consider /metta-propose --workflow standard',
                       33,
                     ) + '\n',
                   )
@@ -353,7 +365,7 @@ export function registerCompleteCommand(program: Command): void {
                   if (recommendedTier === 'full') {
                     process.stderr.write(
                       color(
-                        'Advisory: implementation scored full — promotion to full is not yet supported; consider manually restarting as /metta-propose --workflow standard',
+                        'Advisory: implementation scored full -- promotion to full is not yet supported; consider manually restarting as /metta-propose --workflow standard',
                         33,
                       ) + '\n',
                     )
@@ -372,7 +384,7 @@ export function registerCompleteCommand(program: Command): void {
                     } else {
                       takeYes = await askYesNo(
                         color(
-                          `Implementation touched ${fileCount} files — promote to /metta-${recommendedTier} and retroactively author stories + spec?`,
+                          `Implementation touched ${fileCount} files -- promote to /metta-${recommendedTier} and retroactively author stories + spec?`,
                           33,
                         ),
                         { defaultYes: false, jsonMode: json },
@@ -410,7 +422,7 @@ export function registerCompleteCommand(program: Command): void {
                       // No path / non-TTY: emit warning, leave workflow alone.
                       process.stderr.write(
                         color(
-                          `Warning: this change touched ${fileCount} files — ${recommendedTier} workflow was recommended; finalize will proceed on ${currentWorkflow}`,
+                          `Warning: this change touched ${fileCount} files -- ${recommendedTier} workflow was recommended; finalize will proceed on ${currentWorkflow}`,
                           33,
                         ) + '\n',
                       )
