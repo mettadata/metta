@@ -57,13 +57,15 @@ export function pickColorForSlug(slug) {
   return palette[hash % palette.length]
 }
 
-export function formatStatusLine({ artifact, slug, ctxPct }) {
+export function formatStatusLine({ artifact, slug, ctxPct, workflow }) {
   let label = artifact
-  if (slug && artifact !== 'idle' && artifact !== 'unknown') {
+  const isActive = artifact !== 'idle' && artifact !== 'unknown'
+  if (slug && isActive) {
     const code = pickColorForSlug(slug)
     label = `\x1b[${code}m${artifact}\x1b[0m`
   }
-  const base = `[metta: ${label}]`
+  const hasWorkflow = isActive && typeof workflow === 'string' && workflow.length > 0
+  const base = hasWorkflow ? `[metta:${workflow}:${label}]` : `[metta: ${label}]`
   if (ctxPct !== null && ctxPct !== undefined) return `${base} ${ctxPct}%`
   return base
 }
@@ -89,6 +91,7 @@ async function main() {
 
   let artifact = 'idle'
   let slug = null
+  let workflow = null
   try {
     const { stdout } = await execFileAsync('metta', ['status', '--json'], { timeout: 5000 })
     const parsed = JSON.parse(stdout)
@@ -98,11 +101,14 @@ async function main() {
     if (typeof parsed.change === 'string' && parsed.change.length > 0) {
       slug = parsed.change
     }
+    if (typeof parsed.workflow === 'string' && parsed.workflow.length > 0) {
+      workflow = parsed.workflow
+    }
   } catch {
     artifact = 'idle'
   }
 
-  process.stdout.write(formatStatusLine({ artifact, slug, ctxPct }) + '\n')
+  process.stdout.write(formatStatusLine({ artifact, slug, ctxPct, workflow }) + '\n')
   process.exit(0)
 }
 
