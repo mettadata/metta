@@ -9,7 +9,7 @@ import { validateFulfillsRefs } from '../../stories/story-validator.js'
 import { parseSpec, parseDeltaSpec } from '../../specs/spec-parser.js'
 import { readFile } from 'node:fs/promises'
 import { toSlug } from '../../util/slug.js'
-import { scoreFromIntentImpact, isScorePresent, renderBanner } from '../../complexity/index.js'
+import { scoreFromIntentImpact, scoreFromSummaryFiles, isScorePresent, renderBanner } from '../../complexity/index.js'
 import type { ArtifactStatus } from '../../schemas/change-metadata.js'
 
 const TIER_RANK: Record<string, number> = {
@@ -318,6 +318,109 @@ export function registerCompleteCommand(program: Command): void {
             }
           } catch {
             // Scoring / downscale is advisory-only and must not block the complete command.
+          }
+        }
+
+        // Post-implementation scoring and upscale prompt.
+        // Reads summary.md (if present) and re-scores the change against its
+        // actual realized file count. Persists `actual_complexity_score`
+        // unconditionally (this field is always authoritative, unlike the
+        // intent-time `complexity_score` which is write-once).
+        if (artifactId === 'implementation') {
+          try {
+            const summaryExists = await ctx.artifactStore.artifactExists(changeName, 'summary.md')
+            if (summaryExists) {
+              const summaryMd = await ctx.artifactStore.readArtifact(changeName, 'summary.md')
+              const score = scoreFromSummaryFiles(summaryMd)
+
+              if (score !== null) {
+                // Always persist -- unlike `complexity_score`, this field is
+                // authoritative and may be rewritten.
+                await ctx.artifactStore.updateChange(changeName, { actual_complexity_score: score })
+
+                const currentMetadata = await ctx.artifactStore.getChange(changeName)
+                const recommendedTier = score.recommended_workflow
+                const currentWorkflow = currentMetadata.workflow
+                const recRank = tierRank(recommendedTier)
+                const chosenRank = tierRank(currentWorkflow)
+
+                // Only act when the recomputed tier strictly exceeds the current
+                // workflow tier. Downscale and same-tier cases are no-ops here.
+                if (recRank >= 0 && chosenRank >= 0 && recRank > chosenRank) {
+                  const fileCount = score.signals.file_count
+
+                  // Hard cap: full-tier post-impl upscale is not yet supported.
+                  if (recommendedTier === 'full') {
+                    process.stderr.write(
+                      color(
+                        'Advisory: implementation scored full — promotion to full is not yet supported; consider manually restarting as /metta-propose --workflow standard',
+                        33,
+                      ) + '\n',
+                    )
+                  } else {
+                    const autoAccept = currentMetadata.auto_accept_recommendation === true
+                    let takeYes = false
+
+                    if (autoAccept) {
+                      process.stderr.write(
+                        color(
+                          `Auto-accepting recommendation: post-impl upscale to /metta-${recommendedTier}`,
+                          33,
+                        ) + '\n',
+                      )
+                      takeYes = true
+                    } else {
+                      takeYes = await askYesNo(
+                        color(
+                          `Implementation touched ${fileCount} files — promote to /metta-${recommendedTier} and retroactively author stories + spec?`,
+                          33,
+                        ),
+                        { defaultYes: false, jsonMode: json },
+                      )
+                    }
+
+                    if (takeYes) {
+                      // Yes path: update workflow + mark stories/spec pending
+                      // unless they already exist and are complete.
+                      const existingArtifacts = currentMetadata.artifacts
+                      const rebuilt: Record<string, ArtifactStatus> = { ...existingArtifacts }
+                      for (const retroId of ['stories', 'spec'] as const) {
+                        const prev = existingArtifacts[retroId]
+                        if (prev === 'complete') continue
+                        rebuilt[retroId] = 'pending'
+                      }
+
+                      await ctx.artifactStore.updateChange(changeName, {
+                        workflow: recommendedTier,
+                        artifacts: rebuilt,
+                      })
+
+                      // Swap the active graph so the downstream getNext step
+                      // operates on the upscaled workflow shape.
+                      activeGraph = await ctx.workflowEngine.loadWorkflow(
+                        recommendedTier,
+                        [projectWorkflows, builtinWorkflows],
+                      )
+
+                      // Directive goes to stdout so automation can observe it.
+                      console.log(
+                        `Post-impl upscale accepted. Run: metta instructions stories --change ${changeName}  then  metta instructions spec --change ${changeName}. Verification resumes after both are complete.`,
+                      )
+                    } else {
+                      // No path / non-TTY: emit warning, leave workflow alone.
+                      process.stderr.write(
+                        color(
+                          `Warning: this change touched ${fileCount} files — ${recommendedTier} workflow was recommended; finalize will proceed on ${currentWorkflow}`,
+                          33,
+                        ) + '\n',
+                      )
+                    }
+                  }
+                }
+              }
+            }
+          } catch {
+            // Post-implementation scoring is advisory-only and must not block the complete command.
           }
         }
 

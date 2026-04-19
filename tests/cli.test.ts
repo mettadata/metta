@@ -1959,4 +1959,253 @@ describe('CLI', { timeout: 30000 }, () => {
       expect(cs.recommended_workflow).toBe('quick')
     })
   })
+
+  describe('metta complete post-implementation upscale prompt', () => {
+    async function readChangeMetaYaml(changeName: string): Promise<Record<string, unknown>> {
+      const { readFile } = await import('node:fs/promises')
+      const YAML = (await import('yaml')).default
+      const raw = await readFile(
+        join(tempDir, 'spec', 'changes', changeName, '.metta.yaml'),
+        'utf8',
+      )
+      return YAML.parse(raw) as Record<string, unknown>
+    }
+
+    async function writeArtifactStatus(
+      changeName: string,
+      artifactId: string,
+      status: string,
+    ): Promise<void> {
+      const { readFile, writeFile } = await import('node:fs/promises')
+      const YAML = (await import('yaml')).default
+      const path = join(tempDir, 'spec', 'changes', changeName, '.metta.yaml')
+      const raw = await readFile(path, 'utf8')
+      const doc = YAML.parse(raw) as Record<string, unknown>
+      const artifacts = (doc.artifacts ?? {}) as Record<string, string>
+      artifacts[artifactId] = status
+      doc.artifacts = artifacts
+      await writeFile(path, YAML.stringify(doc, { lineWidth: 0 }), 'utf8')
+    }
+
+    function buildSummary(title: string, files: string[]): string {
+      // A summary body padded above the 100-byte summary floor, with a
+      // `## Files` section listing the caller-provided file entries.
+      const intro = [
+        `# ${title}`,
+        '',
+        '## Overview',
+        '',
+        'Post-implementation summary used by the complete-implementation scorer',
+        'to rerun the adaptive workflow tier selection. Padding ensures the body',
+        'clears the 100-byte sanity floor for summary.md.',
+        '',
+        '## Files',
+        '',
+      ].join('\n')
+      const body = files.map((f) => `- \`${f}\``).join('\n')
+      return `${intro}${body}\n`
+    }
+
+    function fiveFileSummary(title: string): string {
+      return buildSummary(title, [
+        'src/a.ts',
+        'src/b.ts',
+        'src/c.ts',
+        'src/d.ts',
+        'src/e.ts',
+      ])
+    }
+
+    function twoFileSummary(title: string): string {
+      return buildSummary(title, ['src/a.ts', 'src/b.ts'])
+    }
+
+    function fifteenFileSummary(title: string): string {
+      return buildSummary(title, [
+        'src/a.ts', 'src/b.ts', 'src/c.ts', 'src/d.ts', 'src/e.ts',
+        'src/f.ts', 'src/g.ts', 'src/h.ts', 'src/i.ts', 'src/j.ts',
+        'src/k.ts', 'src/l.ts', 'src/m.ts', 'src/n.ts', 'src/o.ts',
+      ])
+    }
+
+    it('auto_accept + 5-file summary: upscale fires, stories+spec marked pending, directive on stdout', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await runCli(['quick', 'post impl auto', '--auto'], tempDir)
+      const changeDir = join(tempDir, 'spec', 'changes', 'post-impl-auto')
+      await writeFile(join(changeDir, 'summary.md'), fiveFileSummary('Post Impl Auto'), 'utf8')
+
+      const { stdout, stderr, code } = await runCli(
+        ['complete', 'implementation', '--change', 'post-impl-auto'],
+        tempDir,
+      )
+      expect(code).toBe(0)
+
+      // Auto-accept banner (no prompt) and directive string in stdout.
+      expect(stderr).toContain('Auto-accepting recommendation: post-impl upscale to /metta-standard')
+      expect(stdout).toContain('Post-impl upscale accepted.')
+      expect(stdout).toContain('metta instructions stories --change post-impl-auto')
+      expect(stdout).toContain('metta instructions spec --change post-impl-auto')
+
+      const meta = await readChangeMetaYaml('post-impl-auto')
+      expect(meta.workflow).toBe('standard')
+      // actual_complexity_score persisted with standard recommendation.
+      const acs = meta.actual_complexity_score as { recommended_workflow: string; signals: { file_count: number } }
+      expect(acs).toBeDefined()
+      expect(acs.recommended_workflow).toBe('standard')
+      expect(acs.signals.file_count).toBe(5)
+
+      // stories and spec marked pending by the upscale.
+      const artifacts = meta.artifacts as Record<string, string>
+      expect(artifacts.stories).toBe('pending')
+      expect(artifacts.spec).toBe('pending')
+      // implementation preserved as complete.
+      expect(artifacts.implementation).toBe('complete')
+    })
+
+    it('non-TTY (no path): 5-file summary persists score, leaves workflow unchanged, emits warning', async () => {
+      // execFile gives a non-TTY stdin -> askYesNo returns default (false).
+      await runCli(['install', '--git-init'], tempDir)
+      await runCli(['quick', 'post impl no'], tempDir)
+      const changeDir = join(tempDir, 'spec', 'changes', 'post-impl-no')
+      await writeFile(join(changeDir, 'summary.md'), fiveFileSummary('Post Impl No'), 'utf8')
+
+      const { stdout, stderr, code } = await runCli(
+        ['complete', 'implementation', '--change', 'post-impl-no'],
+        tempDir,
+      )
+      expect(code).toBe(0)
+
+      // Warning emitted on the no path.
+      expect(stderr).toContain('Warning: this change touched 5 files')
+      expect(stderr).toContain('standard workflow was recommended')
+      expect(stderr).toContain('finalize will proceed on quick')
+      // No auto-accept banner.
+      expect(stderr).not.toContain('Auto-accepting recommendation')
+      // No directive on stdout (no path).
+      expect(stdout).not.toContain('Post-impl upscale accepted')
+
+      const meta = await readChangeMetaYaml('post-impl-no')
+      // Workflow unchanged — still quick.
+      expect(meta.workflow).toBe('quick')
+      // actual_complexity_score persisted regardless of prompt answer.
+      const acs = meta.actual_complexity_score as { recommended_workflow: string; signals: { file_count: number } }
+      expect(acs).toBeDefined()
+      expect(acs.recommended_workflow).toBe('standard')
+      expect(acs.signals.file_count).toBe(5)
+      // stories/spec not inserted on no path.
+      const artifacts = meta.artifacts as Record<string, string>
+      expect(artifacts).not.toHaveProperty('stories')
+      expect(artifacts).not.toHaveProperty('spec')
+    })
+
+    it('same tier: quick + 2-file summary persists score, no prompt, no warning', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await runCli(['quick', 'post impl same'], tempDir)
+      const changeDir = join(tempDir, 'spec', 'changes', 'post-impl-same')
+      await writeFile(join(changeDir, 'summary.md'), twoFileSummary('Post Impl Same'), 'utf8')
+
+      const { stdout, stderr, code } = await runCli(
+        ['complete', 'implementation', '--change', 'post-impl-same'],
+        tempDir,
+      )
+      expect(code).toBe(0)
+
+      // No upscale banner, no warning, no directive.
+      expect(stderr).not.toContain('Auto-accepting recommendation')
+      expect(stderr).not.toContain('Warning: this change touched')
+      expect(stdout).not.toContain('Post-impl upscale accepted')
+
+      const meta = await readChangeMetaYaml('post-impl-same')
+      expect(meta.workflow).toBe('quick')
+      const acs = meta.actual_complexity_score as { recommended_workflow: string; signals: { file_count: number } }
+      expect(acs).toBeDefined()
+      expect(acs.recommended_workflow).toBe('quick')
+      expect(acs.signals.file_count).toBe(2)
+    })
+
+    it('full-tier hard cap: quick + 15-file summary persists score, emits advisory, no prompt, no workflow change', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      // --auto to confirm that auto-accept does NOT bypass the full-tier cap.
+      await runCli(['quick', 'post impl full', '--auto'], tempDir)
+      const changeDir = join(tempDir, 'spec', 'changes', 'post-impl-full')
+      await writeFile(join(changeDir, 'summary.md'), fifteenFileSummary('Post Impl Full'), 'utf8')
+
+      const { stderr, code } = await runCli(
+        ['complete', 'implementation', '--change', 'post-impl-full'],
+        tempDir,
+      )
+      expect(code).toBe(0)
+
+      // Hard-cap advisory present; no auto-accept banner.
+      expect(stderr).toContain('implementation scored full')
+      expect(stderr).toContain('promotion to full is not yet supported')
+      expect(stderr).not.toContain('Auto-accepting recommendation')
+
+      const meta = await readChangeMetaYaml('post-impl-full')
+      // Workflow unchanged.
+      expect(meta.workflow).toBe('quick')
+      // actual_complexity_score persisted with full recommendation.
+      const acs = meta.actual_complexity_score as { recommended_workflow: string; signals: { file_count: number } }
+      expect(acs).toBeDefined()
+      expect(acs.recommended_workflow).toBe('full')
+      expect(acs.signals.file_count).toBe(15)
+      // No retro artifacts inserted.
+      const artifacts = meta.artifacts as Record<string, string>
+      expect(artifacts).not.toHaveProperty('stories')
+      expect(artifacts).not.toHaveProperty('spec')
+    })
+
+    it('yes path + stories already complete: skip re-marking stories pending, directive still printed', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      // Start on quick + --auto so the yes path is taken without a prompt.
+      await runCli(['quick', 'post impl stories', '--auto'], tempDir)
+      // Pre-seed the artifact map so stories is already complete (simulating
+      // the user having authored stories retroactively in a prior session).
+      await writeArtifactStatus('post-impl-stories', 'stories', 'complete')
+
+      const changeDir = join(tempDir, 'spec', 'changes', 'post-impl-stories')
+      await writeFile(join(changeDir, 'summary.md'), fiveFileSummary('Post Impl Stories'), 'utf8')
+
+      const { stdout, code } = await runCli(
+        ['complete', 'implementation', '--change', 'post-impl-stories'],
+        tempDir,
+      )
+      expect(code).toBe(0)
+
+      // Directive still printed on yes path.
+      expect(stdout).toContain('Post-impl upscale accepted.')
+
+      const meta = await readChangeMetaYaml('post-impl-stories')
+      expect(meta.workflow).toBe('standard')
+      const artifacts = meta.artifacts as Record<string, string>
+      // stories preserved as complete (NOT re-marked pending).
+      expect(artifacts.stories).toBe('complete')
+      // spec was marked pending by the upscale; the downstream getNext may
+      // promote the immediate next artifact to 'ready', so accept either.
+      expect(['pending', 'ready']).toContain(artifacts.spec)
+    })
+
+    it('missing summary.md: post-impl block is skipped, no error, exit 0', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await runCli(['quick', 'post impl none', '--auto'], tempDir)
+      // No summary.md written.
+
+      const { stdout, stderr, code } = await runCli(
+        ['complete', 'implementation', '--change', 'post-impl-none'],
+        tempDir,
+      )
+      expect(code).toBe(0)
+
+      // No scoring side-effects.
+      expect(stderr).not.toContain('Auto-accepting recommendation')
+      expect(stderr).not.toContain('Warning: this change touched')
+      expect(stderr).not.toContain('implementation scored full')
+      expect(stdout).not.toContain('Post-impl upscale accepted')
+
+      const meta = await readChangeMetaYaml('post-impl-none')
+      expect(meta.workflow).toBe('quick')
+      // actual_complexity_score never written.
+      expect(meta.actual_complexity_score).toBeUndefined()
+    })
+  })
 })
