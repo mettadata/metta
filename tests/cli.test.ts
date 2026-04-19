@@ -1705,4 +1705,258 @@ describe('CLI', { timeout: 30000 }, () => {
       expect(meta.workflow).toBe('trivial')
     })
   })
+
+  describe('metta complete intent-time upscale prompt', () => {
+    async function readChangeMetaYaml(changeName: string): Promise<Record<string, unknown>> {
+      const { readFile } = await import('node:fs/promises')
+      const YAML = (await import('yaml')).default
+      const raw = await readFile(
+        join(tempDir, 'spec', 'changes', changeName, '.metta.yaml'),
+        'utf8',
+      )
+      return YAML.parse(raw) as Record<string, unknown>
+    }
+
+    // Intent body with `## Impact` listing exactly five files (-> standard).
+    function fiveFileIntent(title: string): string {
+      return [
+        `# ${title}`,
+        '',
+        '## Problem',
+        '',
+        'A five-file change listing five distinct source files so the scorer',
+        'recommends the standard tier. Body padded to clear the 200-byte content',
+        'sanity floor so the complete command does not reject the artifact.',
+        '',
+        '## Impact',
+        '',
+        '- `src/a.ts`',
+        '- `src/b.ts`',
+        '- `src/c.ts`',
+        '- `src/d.ts`',
+        '- `src/e.ts`',
+        '',
+      ].join('\n')
+    }
+
+    // Intent body with `## Impact` listing fifteen files (-> full).
+    function fifteenFileIntent(title: string): string {
+      return [
+        `# ${title}`,
+        '',
+        '## Problem',
+        '',
+        'A fifteen-file change listing many distinct source files so the scorer',
+        'recommends the full tier, which triggers the hard-cap advisory rather',
+        'than a prompt. Body padded to clear the 200-byte content sanity floor.',
+        '',
+        '## Impact',
+        '',
+        '- `src/a.ts`',
+        '- `src/b.ts`',
+        '- `src/c.ts`',
+        '- `src/d.ts`',
+        '- `src/e.ts`',
+        '- `src/f.ts`',
+        '- `src/g.ts`',
+        '- `src/h.ts`',
+        '- `src/i.ts`',
+        '- `src/j.ts`',
+        '- `src/k.ts`',
+        '- `src/l.ts`',
+        '- `src/m.ts`',
+        '- `src/n.ts`',
+        '- `src/o.ts`',
+        '',
+      ].join('\n')
+    }
+
+    function twoFileIntent(title: string): string {
+      return [
+        `# ${title}`,
+        '',
+        '## Problem',
+        '',
+        'A two-file change listing exactly two source files so the scorer',
+        'recommends the quick tier. Body padded to clear the 200-byte content',
+        'sanity floor so complete does not reject the artifact before scoring.',
+        '',
+        '## Impact',
+        '',
+        '- `src/a.ts`',
+        '- `src/b.ts`',
+        '',
+      ].join('\n')
+    }
+
+    function threeFileIntent(title: string): string {
+      return [
+        `# ${title}`,
+        '',
+        '## Problem',
+        '',
+        'A three-file change listing three source files so the scorer recommends',
+        'the quick tier. The body is padded to clear the content-sanity floor of',
+        '200 bytes so complete does not reject the artifact before scoring.',
+        '',
+        '## Impact',
+        '',
+        '- `src/a.ts`',
+        '- `src/b.ts`',
+        '- `src/c.ts`',
+        '',
+      ].join('\n')
+    }
+
+    it('auto_accept: upscale from quick to standard fires and inserts planning artifacts', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await runCli(['quick', 'upscale auto', '--auto'], tempDir)
+      const changeDir = join(tempDir, 'spec', 'changes', 'upscale-auto')
+      await writeFile(join(changeDir, 'intent.md'), fiveFileIntent('Upscale Auto'), 'utf8')
+
+      const { stderr, code } = await runCli(
+        ['complete', 'intent', '--change', 'upscale-auto'],
+        tempDir,
+      )
+      expect(code).toBe(0)
+
+      // Auto-accept banner printed to stderr (no prompt).
+      expect(stderr).toContain('Auto-accepting recommendation')
+      expect(stderr).toContain('upscale to /metta-standard')
+
+      const meta = await readChangeMetaYaml('upscale-auto')
+      expect(meta.workflow).toBe('standard')
+      // complexity_score persisted.
+      const cs = meta.complexity_score as { recommended_workflow: string; signals: { file_count: number } }
+      expect(cs.recommended_workflow).toBe('standard')
+      expect(cs.signals.file_count).toBe(5)
+
+      // Planning artifacts inserted by the upscale (pending), though the
+      // immediate "next artifact" (stories) is promoted to 'ready' by the
+      // downstream getNext step that runs after the upscale mutation.
+      const artifacts = meta.artifacts as Record<string, string>
+      expect(artifacts).toHaveProperty('stories')
+      expect(['pending', 'ready']).toContain(artifacts.stories)
+      expect(artifacts.spec).toBe('pending')
+      expect(artifacts.research).toBe('pending')
+      expect(artifacts.design).toBe('pending')
+      expect(artifacts.tasks).toBe('pending')
+      // intent status preserved (was complete before rebuild).
+      expect(artifacts.intent).toBe('complete')
+      // Existing artifacts preserved.
+      expect(artifacts).toHaveProperty('implementation')
+      expect(artifacts).toHaveProperty('verification')
+    })
+
+    it('non-TTY (no path): quick + 5-file impact leaves workflow unchanged and emits advisory', async () => {
+      // execFile gives a non-TTY stdin, so askYesNo returns its default (false).
+      await runCli(['install', '--git-init'], tempDir)
+      await runCli(['quick', 'upscale no'], tempDir)
+      const changeDir = join(tempDir, 'spec', 'changes', 'upscale-no')
+      await writeFile(join(changeDir, 'intent.md'), fiveFileIntent('Upscale No'), 'utf8')
+
+      const { stderr, code } = await runCli(
+        ['complete', 'intent', '--change', 'upscale-no'],
+        tempDir,
+      )
+      expect(code).toBe(0)
+
+      // Advisory banner emitted on the no path.
+      expect(stderr).toContain('Advisory:')
+      expect(stderr).toContain('upscale recommended')
+      // No auto-accept banner (the flag was not set).
+      expect(stderr).not.toContain('Auto-accepting recommendation')
+
+      const meta = await readChangeMetaYaml('upscale-no')
+      // Workflow unchanged — still quick.
+      expect(meta.workflow).toBe('quick')
+      // complexity_score persisted.
+      const cs = meta.complexity_score as { recommended_workflow: string }
+      expect(cs.recommended_workflow).toBe('standard')
+      // Planning artifacts not inserted (no path).
+      const artifacts = meta.artifacts as Record<string, string>
+      expect(artifacts).not.toHaveProperty('stories')
+      expect(artifacts).not.toHaveProperty('spec')
+    })
+
+    it('full-tier hard cap: quick + 15-file impact emits advisory, no prompt, no workflow change', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      // Use --auto to prove that auto-accept does NOT bypass the full-tier cap.
+      await runCli(['quick', 'upscale full', '--auto'], tempDir)
+      const changeDir = join(tempDir, 'spec', 'changes', 'upscale-full')
+      await writeFile(join(changeDir, 'intent.md'), fifteenFileIntent('Upscale Full'), 'utf8')
+
+      const { stderr, code } = await runCli(
+        ['complete', 'intent', '--change', 'upscale-full'],
+        tempDir,
+      )
+      expect(code).toBe(0)
+
+      // Hard-cap advisory message present.
+      expect(stderr).toContain('upscale to full is not yet supported')
+      // No auto-accept banner (cap blocks the prompt/yes-path entirely).
+      expect(stderr).not.toContain('Auto-accepting recommendation')
+
+      const meta = await readChangeMetaYaml('upscale-full')
+      // Workflow unchanged — still quick.
+      expect(meta.workflow).toBe('quick')
+      // complexity_score persisted with full recommendation.
+      const cs = meta.complexity_score as { recommended_workflow: string; signals: { file_count: number } }
+      expect(cs.recommended_workflow).toBe('full')
+      expect(cs.signals.file_count).toBe(15)
+      // No planning artifacts inserted.
+      const artifacts = meta.artifacts as Record<string, string>
+      expect(artifacts).not.toHaveProperty('stories')
+      expect(artifacts).not.toHaveProperty('spec')
+    })
+
+    it('same tier: quick + 2-file impact does not fire upscale', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await runCli(['quick', 'upscale same', '--auto'], tempDir)
+      const changeDir = join(tempDir, 'spec', 'changes', 'upscale-same')
+      await writeFile(join(changeDir, 'intent.md'), twoFileIntent('Upscale Same'), 'utf8')
+
+      const { stderr, code } = await runCli(
+        ['complete', 'intent', '--change', 'upscale-same'],
+        tempDir,
+      )
+      expect(code).toBe(0)
+
+      // No upscale banner or prompt — recommendation matches chosen tier.
+      expect(stderr).not.toContain('Auto-accepting recommendation')
+      expect(stderr).not.toContain('upscale recommended')
+      expect(stderr).not.toContain('upscale to full is not yet supported')
+
+      const meta = await readChangeMetaYaml('upscale-same')
+      expect(meta.workflow).toBe('quick')
+      const cs = meta.complexity_score as { recommended_workflow: string }
+      expect(cs.recommended_workflow).toBe('quick')
+    })
+
+    it('standard workflow + 3-file impact: downscale fires, upscale does NOT fire', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await runCli(['propose', 'downscale not upscale'], tempDir)
+      const changeDir = join(tempDir, 'spec', 'changes', 'downscale-not-upscale')
+      await writeFile(join(changeDir, 'intent.md'), threeFileIntent('Downscale Not Upscale'), 'utf8')
+
+      const { stderr, code } = await runCli(
+        ['complete', 'intent', '--change', 'downscale-not-upscale'],
+        tempDir,
+      )
+      expect(code).toBe(0)
+
+      // Downscale advisory (no TTY, no auto-accept -> no path).
+      expect(stderr).toContain('Advisory:')
+      expect(stderr).toContain('downscale recommended')
+      // Upscale advisory must NOT appear.
+      expect(stderr).not.toContain('upscale recommended')
+      expect(stderr).not.toContain('upscale to full is not yet supported')
+
+      const meta = await readChangeMetaYaml('downscale-not-upscale')
+      // Workflow unchanged (no path).
+      expect(meta.workflow).toBe('standard')
+      const cs = meta.complexity_score as { recommended_workflow: string }
+      expect(cs.recommended_workflow).toBe('quick')
+    })
+  })
 })

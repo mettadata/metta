@@ -177,6 +177,9 @@ export function registerCompleteCommand(program: Command): void {
               const currentWorkflow = currentMetadata.workflow
               const recRank = tierRank(recommendedTier)
               const chosenRank = tierRank(currentWorkflow)
+              // Track whether an advisory banner has already been emitted so
+              // downscale/upscale paths do not double-print.
+              let bannerEmitted = false
 
               // Downscale branch: recommendation is a strictly lower tier.
               if (recRank >= 0 && chosenRank >= 0 && recRank < chosenRank) {
@@ -237,7 +240,79 @@ export function registerCompleteCommand(program: Command): void {
                 } else {
                   // No path / non-TTY: informational banner only.
                   const banner = renderBanner(score, currentWorkflow)
-                  if (banner) process.stderr.write(banner + '\n')
+                  if (banner) {
+                    process.stderr.write(banner + '\n')
+                    bannerEmitted = true
+                  }
+                }
+              }
+
+              // Upscale branch: recommendation is a strictly higher tier.
+              if (recRank >= 0 && chosenRank >= 0 && recRank > chosenRank) {
+                // Hard cap: full-tier upscale is not yet supported. Emit an
+                // advisory to stderr and skip the prompt entirely.
+                if (recommendedTier === 'full') {
+                  process.stderr.write(
+                    color(
+                      'Advisory: scored full — upscale to full is not yet supported; consider /metta-propose --workflow standard',
+                      33,
+                    ) + '\n',
+                  )
+                } else {
+                  const autoAccept = currentMetadata.auto_accept_recommendation === true
+                  let takeYes = false
+
+                  if (autoAccept) {
+                    process.stderr.write(
+                      color(
+                        `Auto-accepting recommendation: upscale to /metta-${recommendedTier} (was ${currentWorkflow}, scored ${recommendedTier})`,
+                        33,
+                      ) + '\n',
+                    )
+                    takeYes = true
+                  } else {
+                    const fileCount = score.signals.file_count
+                    takeYes = await askYesNo(
+                      color(
+                        `Scored as ${recommendedTier} (${fileCount} files) -- promote workflow to /metta-${recommendedTier}?`,
+                        33,
+                      ),
+                      { defaultYes: false, jsonMode: json },
+                    )
+                  }
+
+                  if (takeYes) {
+                    // Load the target workflow graph and diff against the
+                    // current artifact map: insert any missing stages as
+                    // 'pending'; preserve all existing statuses.
+                    const targetGraph = await ctx.workflowEngine.loadWorkflow(
+                      recommendedTier,
+                      [projectWorkflows, builtinWorkflows],
+                    )
+                    const existingArtifacts = currentMetadata.artifacts
+                    const rebuilt: Record<string, ArtifactStatus> = { ...existingArtifacts }
+                    for (const artifact of targetGraph.artifacts) {
+                      if (!(artifact.id in rebuilt)) {
+                        rebuilt[artifact.id] = 'pending'
+                      }
+                    }
+
+                    await ctx.artifactStore.updateChange(changeName, {
+                      workflow: recommendedTier,
+                      artifacts: rebuilt,
+                    })
+                    activeGraph = targetGraph
+                  } else if (!bannerEmitted) {
+                    // No path / non-TTY: informational banner only (unless the
+                    // downscale branch already emitted one, which cannot happen
+                    // here since the branches are mutually exclusive, but the
+                    // guard keeps the invariant explicit).
+                    const banner = renderBanner(score, currentWorkflow)
+                    if (banner) {
+                      process.stderr.write(banner + '\n')
+                      bannerEmitted = true
+                    }
+                  }
                 }
               }
             }
