@@ -41,3 +41,5 @@ Observed during a 40-feature trello-clone driver session: `/metta-quick` fires 8
 **Tradeoff vs doing only the advisory score:** downsizing review risks an edge-case correctness/security bug slipping on changes the heuristic mis-sized as trivial. Mitigation: tests + tsc still run on every change regardless of tier. A single-attribute tooltip getting 3 reviewers is well past the point of diminishing returns on catch rate.
 
 Implementer should pick between A and B (or neither, if the advisory score alone makes this moot) based on whether trivial-mode usage is expected to be common enough to justify a dedicated skill surface.
+
+**Shipped-in**: adaptive-workflow-tier-selection-emit-complexity-score-after
