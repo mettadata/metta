@@ -223,7 +223,7 @@ For each artifact, you act as the **orchestrator** — lean context, no implemen
    a. Identify 2-4 viable approaches from the spec (e.g. "WebSockets vs SSE vs polling")
    b. **Spawn one metta-researcher per approach in a single message.** Each researcher MUST write its findings to `spec/changes/<change>/research-<approach-slug>.md` (a short kebab-case slug per approach, e.g. `research-websockets.md`, `research-sse.md`, `research-polling.md`). Forbid `/tmp/` paths — per-approach output MUST be in-tree.
    c. Each researcher evaluates their approach's pros, cons, complexity, fit with existing code
-   d. **Synthesize research** — read all `spec/changes/<change>/research-*.md` files the researchers created, write a single consolidated `spec/changes/<change>/research.md` that summarizes each approach and ends with a recommendation, and git-commit it. Do NOT call `metta complete research` until `spec/changes/<change>/research.md` exists on disk with real content.
+   d. **Synthesize research** — read all `spec/changes/<change>/research-*.md` files you just created, write a single consolidated `spec/changes/<change>/research.md` that summarizes each approach and ends with a recommendation, and git-commit it. Do NOT call `metta complete research` until `spec/changes/<change>/research.md` exists on disk with real content.
 
    **For implementation: DO NOT spawn one big executor.** Instead:
    a. Read `spec/changes/<change>/tasks.md` yourself

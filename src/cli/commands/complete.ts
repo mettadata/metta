@@ -436,12 +436,7 @@ export function registerCompleteCommand(program: Command): void {
             // Post-implementation scoring is advisory-only and must not block the complete command.
           }
 
-          // Tick every `- [ ] **Task N.M:` checkbox in tasks.md so the archived
-          // tasks file reflects the executor's completion. The executor agent
-          // is forbidden from touching tasks.md (see the metta-executor template),
-          // so this marking is done here by the orchestrator's complete call.
-          // Advisory-only: any failure here is swallowed so `metta complete`
-          // never fails because of a malformed or missing tasks.md.
+          // Tick tasks.md checkboxes; advisory-only — never block complete.
           try {
             const tasksExists = await ctx.artifactStore.artifactExists(changeName, 'tasks.md')
             if (tasksExists) {
@@ -456,7 +451,7 @@ export function registerCompleteCommand(program: Command): void {
               }
             }
           } catch {
-            // Tasks-marking is advisory-only and must not block the complete command.
+            // swallow
           }
         }
 
