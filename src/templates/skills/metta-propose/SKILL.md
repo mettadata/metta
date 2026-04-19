@@ -73,16 +73,74 @@ You are the **orchestrator** for a new spec-driven change. You manage the workfl
    **⚠️ DO NOT spawn a single metta-executor for all tasks. You MUST parse batches and spawn per-task.**
    a. Read `spec/changes/<change>/tasks.md` — YOU the orchestrator, not a subagent
    b. Parse the batches (## Batch 1, ## Batch 2, etc.) and list tasks per batch
-   c. For each batch:
-      - List the **Files** field of each task in the batch
-      - If tasks touch DIFFERENT files → **spawn one metta-executor per task in a SINGLE message** (parallel)
-      - If tasks share files → spawn tasks ONE AT A TIME (sequential)
-      - Each executor prompt: include the specific task details (Files, Action, Verify, Done) — NOT the entire tasks.md
-      - Wait for ALL executors in the batch to complete before starting the next batch
+   c. For each batch, execute the pre-batch self-check below before spawning any agents:
+
+      **Pre-batch self-check — you MUST complete every bullet before emitting any `Agent(...)` call for this batch. SHALL NOT skip. No hedge words — no "consider", "try to", "you may want to":**
+
+      1. You MUST list, verbatim, the `Files` field of every task in this batch.
+      2. You MUST compare the file sets pairwise across all tasks in the batch and classify the batch as **shared** (at least one path appears in two tasks) or **disjoint** (no path is shared).
+      3. You MUST declare, in writing, a parallel-vs-sequential decision for each task: **Parallel** (spawn in the same message as the other Parallel tasks) or **Sequential** (spawn alone, after its predecessors).
+      4. If you declare any task **Sequential**, you MUST name the specific conflicting file path (e.g. `src/foo.ts shared with Task 1.2`) as the written justification. Sequential without a named file-path conflict is forbidden.
+
+      **Rule inversion — parallel is the default.** Every task in a batch is Parallel unless step 4 above names a concrete conflicting file path. A batch of N tasks with disjoint files SHALL be spawned in one message with N `Agent(...)` tool calls.
+
+      **Fan-out anti-example — implementation batch of 3 disjoint tasks:**
+
+      ```wrong
+      // Three separate orchestrator messages. Each Agent call is sent alone and
+      // the orchestrator waits for it to return before sending the next.
+      // This serializes what should run concurrently and burns wall-clock time.
+      msg 1: Agent(subagent_type: "metta-executor", ...Task 1.1...)
+      // (wait for msg 1 to return)
+      msg 2: Agent(subagent_type: "metta-executor", ...Task 1.2...)
+      // (wait for msg 2 to return)
+      msg 3: Agent(subagent_type: "metta-executor", ...Task 1.3...)
+      ```
+
+      ```right
+      // One orchestrator message with three Agent tool calls in the same response.
+      // The framework runs all three concurrently; the orchestrator resumes when
+      // the last one returns.
+      msg 1:
+        Agent(subagent_type: "metta-executor", ...Task 1.1...)
+        Agent(subagent_type: "metta-executor", ...Task 1.2...)
+        Agent(subagent_type: "metta-executor", ...Task 1.3...)
+      ```
+
+      - Each executor prompt MUST include only the specific task details (Files, Action, Verify, Done) — NOT the entire tasks.md.
+      - You MUST wait for ALL executors in the batch to complete before starting the next batch.
    d. After all batches: write summary.md and commit
    e. `metta complete implementation --json --change <name>`
 
-5. **REVIEW** — **spawn 3 metta-reviewer agents in parallel** (fan-out — single message):
+5. **REVIEW** — **you MUST spawn all 3 metta-reviewer agents in a SINGLE orchestrator message** (fan-out — parallel, one message, three `Agent(...)` calls):
+
+   **Pre-batch self-check — you MUST complete every bullet before emitting any reviewer `Agent(...)` call. SHALL NOT skip. No hedge words:**
+
+   1. You MUST list the conceptual `Files` scope of each reviewer: all three read the same source tree but write **distinct** output sections (correctness notes, security notes, quality notes) that you merge afterward. No reviewer writes to disk during its own turn.
+   2. You MUST classify the reviewer fan-out as **disjoint** — the three reviewers do not share a write target.
+   3. You MUST declare all 3 reviewers **Parallel**.
+   4. Sequential is forbidden here because no reviewer writes a file that another reviewer also writes. If you believe a conflict exists, you MUST name the specific conflicting file path in writing; absent a named path, spawn in parallel.
+
+   **Rule inversion — parallel is the default.** The three reviewers SHALL be emitted in one orchestrator message as three `Agent(...)` tool calls.
+
+   **Fan-out anti-example — 3 reviewer agents:**
+
+   ```wrong
+   // Three separate messages. Correctness review finishes before security even
+   // starts. Review latency triples for no reason.
+   msg 1: Agent(subagent_type: "metta-reviewer", ...correctness...)
+   msg 2: Agent(subagent_type: "metta-reviewer", ...security...)
+   msg 3: Agent(subagent_type: "metta-reviewer", ...quality...)
+   ```
+
+   ```right
+   // One message, three Agent calls. All three reviewers run concurrently.
+   msg 1:
+     Agent(subagent_type: "metta-reviewer", ...correctness...)
+     Agent(subagent_type: "metta-reviewer", ...security...)
+     Agent(subagent_type: "metta-reviewer", ...quality...)
+   ```
+
    - Agent 1 (subagent_type: "metta-reviewer"): "You are a **correctness reviewer**. Check logic errors, off-by-one, edge cases, spec compliance."
    - Agent 2 (subagent_type: "metta-reviewer"): "You are a **security reviewer**. Check OWASP top 10, XSS, injection, secrets."
    - Agent 3 (subagent_type: "metta-reviewer"): "You are a **quality reviewer**. Check dead code, naming, duplication, test gaps."
@@ -90,18 +148,46 @@ You are the **orchestrator** for a new spec-driven change. You manage the workfl
    - **REVIEW-FIX LOOP (repeat until clean):**
      a. If any critical issues found:
         - Parse each issue's file path from review.md
-        - Group issues by file — independent files = parallel
-        - Spawn one metta-executor per file group (parallel fixes)
-     b. After fixes: re-run the 3 reviewers again
+        - Group issues by file — independent files MUST be fixed in parallel (one metta-executor per file group, all spawned in the SAME orchestrator message)
+        - Sequential fix-spawning is forbidden unless two issues share the same file path; in that case you MUST name the shared file in writing before serializing
+     b. After fixes: re-run the 3 reviewers again (still one message, three `Agent(...)` calls)
      c. If new issues found: repeat from (a)
      d. If all 3 reviewers report PASS or PASS_WITH_WARNINGS: exit loop
      e. Max 3 iterations — if still failing after 3 rounds, stop and report to user
-6. **VERIFICATION** — **spawn 3 metta-verifier agents in parallel** (fan-out — single message):
+6. **VERIFICATION** — **you MUST spawn all 3 metta-verifier agents in a SINGLE orchestrator message** (fan-out — parallel, one message, three `Agent(...)` calls):
+
+   **Pre-batch self-check — you MUST complete every bullet before emitting any verifier `Agent(...)` call. SHALL NOT skip. No hedge words:**
+
+   1. You MUST list each verifier's command/scope: Agent 1 runs `npm test`; Agent 2 runs `npx tsc --noEmit` and `npm run lint`; Agent 3 reads `spec.md` and cross-references tests. None of them writes a file that another writes.
+   2. You MUST classify the verifier fan-out as **disjoint** — all three read the repo; only the orchestrator writes summary.md afterward.
+   3. You MUST declare all 3 verifiers **Parallel**.
+   4. Sequential is forbidden here unless you can name a specific conflicting file path that two verifiers both write to. No such path exists in the default configuration; sequential verification in the default configuration is therefore forbidden.
+
+   **Rule inversion — parallel is the default.** The three verifiers SHALL be emitted in one orchestrator message as three `Agent(...)` tool calls.
+
+   **Fan-out anti-example — 3 verifier agents:**
+
+   ```wrong
+   // Three separate messages. The type-check sits idle while npm test runs;
+   // wall-clock gate time is the sum instead of the max.
+   msg 1: Agent(subagent_type: "metta-verifier", ...npm test...)
+   msg 2: Agent(subagent_type: "metta-verifier", ...tsc + lint...)
+   msg 3: Agent(subagent_type: "metta-verifier", ...spec traceability...)
+   ```
+
+   ```right
+   // One message, three Agent calls. All three verifiers run concurrently.
+   msg 1:
+     Agent(subagent_type: "metta-verifier", ...npm test...)
+     Agent(subagent_type: "metta-verifier", ...tsc + lint...)
+     Agent(subagent_type: "metta-verifier", ...spec traceability...)
+   ```
+
    - Agent 1 (subagent_type: "metta-verifier"): "Run `npm test` — report pass/fail count and failures"
    - Agent 2 (subagent_type: "metta-verifier"): "Run `npx tsc --noEmit` and `npm run lint` — report errors"
    - Agent 3 (subagent_type: "metta-verifier"): "Read spec.md, check each Given/When/Then scenario has a passing test — cite evidence"
    - Merge results into summary.md and commit
-   - If any gate fails: spawn parallel metta-executors to fix, then re-verify
+   - If any gate fails: spawn parallel metta-executors to fix (all fixes in ONE orchestrator message unless two fixes share a file path you have named in writing), then re-verify
 7. When `all_complete: true`:
    a. `metta finalize --json --change <name>` → runs gates, archives, merges specs
    b. `git checkout main && git merge metta/<change-name> --no-ff -m "chore: merge <change-name>"`
