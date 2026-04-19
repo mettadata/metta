@@ -1232,4 +1232,91 @@ describe('CLI', { timeout: 30000 }, () => {
       expect(data.change).toBe('good-modified')
     })
   })
+
+  describe('metta propose --auto / --accept-recommended', () => {
+    async function readChangeMeta(changeName: string): Promise<string> {
+      const { readFile } = await import('node:fs/promises')
+      return readFile(
+        join(tempDir, 'spec', 'changes', changeName, '.metta.yaml'),
+        'utf8',
+      )
+    }
+
+    it('--auto persists auto_accept_recommendation: true', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      const { code } = await runCli(['propose', 'auto flag probe', '--auto'], tempDir)
+      expect(code).toBe(0)
+      const yaml = await readChangeMeta('auto-flag-probe')
+      expect(yaml).toContain('auto_accept_recommendation: true')
+    })
+
+    it('--accept-recommended alias behaves identically', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      const { code } = await runCli(
+        ['propose', 'alias flag probe', '--accept-recommended'],
+        tempDir,
+      )
+      expect(code).toBe(0)
+      const yaml = await readChangeMeta('alias-flag-probe')
+      expect(yaml).toContain('auto_accept_recommendation: true')
+    })
+
+    it('--workflow standard --auto persists both workflow_locked and auto_accept_recommendation', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      const { code } = await runCli(
+        ['propose', 'combo flag probe', '--workflow', 'standard', '--auto'],
+        tempDir,
+      )
+      expect(code).toBe(0)
+      const yaml = await readChangeMeta('combo-flag-probe')
+      expect(yaml).toContain('auto_accept_recommendation: true')
+      expect(yaml).toContain('workflow_locked: true')
+    })
+
+    it('no flags does NOT persist auto_accept_recommendation or workflow_locked', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      const { code } = await runCli(['propose', 'bare flag probe'], tempDir)
+      expect(code).toBe(0)
+      const yaml = await readChangeMeta('bare-flag-probe')
+      expect(yaml).not.toContain('auto_accept_recommendation')
+      expect(yaml).not.toContain('workflow_locked')
+    })
+  })
+
+  describe('metta quick --auto / --accept-recommended', () => {
+    async function readChangeMeta(changeName: string): Promise<string> {
+      const { readFile } = await import('node:fs/promises')
+      return readFile(
+        join(tempDir, 'spec', 'changes', changeName, '.metta.yaml'),
+        'utf8',
+      )
+    }
+
+    it('--auto persists auto_accept_recommendation: true', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      const { code } = await runCli(['quick', 'quick auto probe', '--auto'], tempDir)
+      expect(code).toBe(0)
+      const yaml = await readChangeMeta('quick-auto-probe')
+      expect(yaml).toContain('auto_accept_recommendation: true')
+    })
+
+    it('--accept-recommended alias behaves identically', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      const { code } = await runCli(
+        ['quick', 'quick alias probe', '--accept-recommended'],
+        tempDir,
+      )
+      expect(code).toBe(0)
+      const yaml = await readChangeMeta('quick-alias-probe')
+      expect(yaml).toContain('auto_accept_recommendation: true')
+    })
+
+    it('no flags does NOT persist auto_accept_recommendation', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      const { code } = await runCli(['quick', 'quick bare probe'], tempDir)
+      expect(code).toBe(0)
+      const yaml = await readChangeMeta('quick-bare-probe')
+      expect(yaml).not.toContain('auto_accept_recommendation')
+    })
+  })
 })

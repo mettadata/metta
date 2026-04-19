@@ -16,13 +16,16 @@ export function registerProposeCommand(program: Command): void {
     .option('--from-idea <idea>', 'Create from an idea')
     .option('--from-issue <issue>', 'Create from an issue')
     .option('--discovery <mode>', 'Discovery mode: interactive, batch, review', 'interactive')
-    .action(async (description, options) => {
+    .option('--auto, --accept-recommended', 'auto-accept adaptive routing recommendations')
+    .action(async (description, options, command) => {
       const json = program.opts().json
       const ctx = createCliContext()
 
       try {
         const config = await ctx.configLoader.load()
         const workflowName = options.workflow ?? config.defaults?.workflow ?? 'standard'
+        const autoAccept = options.acceptRecommended === true
+        const workflowLocked = command.getOptionValueSource('workflow') === 'cli'
 
         // Load workflow
         const builtinWorkflows = new URL('../../templates/workflows', import.meta.url).pathname
@@ -31,7 +34,14 @@ export function registerProposeCommand(program: Command): void {
 
         // Create the change
         const artifactIds = graph.buildOrder
-        const result = await ctx.artifactStore.createChange(description, workflowName, artifactIds)
+        const result = await ctx.artifactStore.createChange(
+          description,
+          workflowName,
+          artifactIds,
+          {},
+          autoAccept,
+          workflowLocked,
+        )
 
         // Create worktree branch (all work happens off main)
         const branchName = `metta/${result.name}`
