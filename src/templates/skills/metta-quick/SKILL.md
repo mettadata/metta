@@ -17,6 +17,8 @@ You are the **orchestrator** for a quick change (intent → implementation → r
    - Otherwise, `AUTO_MODE = false`.
    - The remaining text is the description.
 
+   > **Note on `--auto` scope:** The `--auto` flag now also auto-accepts adaptive routing recommendations (intent-time downscale/upscale and post-implementation upscale prompts) in addition to its existing discovery-loop short-circuit behavior.
+
    Then run: `metta quick "$ARGUMENTS" --json` → creates change on branch `metta/<change-name>`
 
 2. **LIGHT DISCOVERY (mandatory — do NOT skip):**
@@ -56,21 +58,43 @@ You are the **orchestrator** for a quick change (intent → implementation → r
    - Each executor: implement its piece, run tests, commit with `feat(<change>): <description>`
    - After all executors complete, write `spec/changes/<change>/summary.md` and commit
 6. `metta complete implementation --json --change <name>` → advances to verification
-7. **Spawn 3 metta-reviewer agents in parallel** (fan-out — single message):
+7. **REVIEW — trivial-detection gate, then fan-out:**
+
+   **Trivial-detection gate (first action):** Run `metta status --json --change <name>` and read `complexity_score.recommended_workflow` from the returned state. If it equals `'trivial'`, take the trivial path below; otherwise (including when `complexity_score` is absent) take the standard 3-reviewer path.
+
+   Tests (`npm test -- --run`) and type-check (`npx tsc --noEmit`) run on every change regardless of tier.
+
+   **Trivial path (1 reviewer):**
+   - Spawn 1 metta-reviewer agent (subagent_type: "metta-reviewer") with persona: "You are a quality reviewer. Check dead code, naming, duplication, test gaps."
+   - Write findings to `spec/changes/<change>/review.md` and commit.
+
+   **Standard path (3 reviewers in parallel — single message):**
    - Agent 1 (subagent_type: "metta-reviewer"): "You are a **correctness reviewer**."
    - Agent 2 (subagent_type: "metta-reviewer"): "You are a **security reviewer**."
    - Agent 3 (subagent_type: "metta-reviewer"): "You are a **quality reviewer**."
    - Each writes their findings. Merge results into `spec/changes/<change>/review.md` and commit.
-   - **REVIEW-FIX LOOP (repeat until clean):**
-     a. If critical issues found: group by file, spawn parallel metta-executors to fix
-     b. After fixes: re-run the 3 reviewers
-     c. Repeat until all reviewers report PASS/PASS_WITH_WARNINGS (max 3 iterations)
-8. **Spawn 3 metta-verifier agents in parallel** (fan-out verification — single message):
+
+   **REVIEW-FIX LOOP (applies to both paths, repeat until clean):**
+   a. If critical issues found: group by file, spawn parallel metta-executors to fix
+   b. After fixes: re-run the reviewer(s) for the active path
+   c. Repeat until all reviewers report PASS/PASS_WITH_WARNINGS (max 3 iterations)
+8. **VERIFICATION — trivial-detection gate, then fan-out:**
+
+   **Trivial-detection gate (first action):** Run `metta status --json --change <name>` and read `complexity_score.recommended_workflow` from the returned state. If it equals `'trivial'`, take the trivial path below; otherwise (including when `complexity_score` is absent) take the standard 3-verifier path.
+
+   Tests (`npm test -- --run`) and type-check (`npx tsc --noEmit`) run on every change regardless of tier.
+
+   **Trivial path (1 verifier):**
+   - Spawn 1 metta-verifier agent (subagent_type: "metta-verifier") with prompt: "Run `npm test -- --run` and `npx tsc --noEmit && npm run lint` — report pass/fail count and any type/lint errors."
+   - Merge results into `spec/changes/<change>/summary.md` and commit.
+
+   **Standard path (3 verifiers in parallel — single message):**
    - Agent 1 (subagent_type: "metta-verifier"): "Run `npm test` — report pass/fail count and any failures"
    - Agent 2 (subagent_type: "metta-verifier"): "Run `npx tsc --noEmit` and `npm run lint` — report any type or lint errors"
    - Agent 3 (subagent_type: "metta-verifier"): "Read intent.md and check each stated goal is implemented in the code — cite file:line evidence"
-   - Merge results into `spec/changes/<change>/summary.md` and commit
-   - If any gate fails: spawn parallel metta-executors to fix, then re-verify
+   - Merge results into `spec/changes/<change>/summary.md` and commit.
+
+   If any gate fails (either path): spawn parallel metta-executors to fix, then re-verify.
 9. `metta complete verification --json --change <name>`
 10. `metta finalize --json --change <name>` → runs gates, archives, merges specs
 11. `git checkout main && git merge metta/<change-name> --no-ff -m "chore: merge <change-name>"`
