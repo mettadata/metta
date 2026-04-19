@@ -1,0 +1,15 @@
+workflow: quick
+created: 2026-04-19T14:23:20.640Z
+status: active
+current_artifact: verification
+base_versions: {}
+artifacts:
+  intent: complete
+  implementation: complete
+  verification: complete
+complexity_score:
+  score: 3
+  signals:
+    file_count: 8
+  recommended_workflow: full
+workflow_locked: true
