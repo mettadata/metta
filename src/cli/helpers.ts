@@ -301,8 +301,9 @@ export async function readPipedStdin(): Promise<string> {
   return new Promise<string>((resolve) => {
     let data = ''
     let settled = false
-    const onData = (chunk: string | Buffer): void => {
-      data += typeof chunk === 'string' ? chunk : chunk.toString('utf8')
+    // After setEncoding('utf8'), chunks are guaranteed strings — no Buffer branch needed.
+    const onData = (chunk: string): void => {
+      data += chunk
     }
     const onEnd = (): void => {
       clearTimeout(timer)
@@ -312,6 +313,12 @@ export async function readPipedStdin(): Promise<string> {
       clearTimeout(timer)
       settle('')
     }
+    // When this helper is invoked from a child process spawned via execFile's
+    // default stdio (pipe with no writer attached), stdin never emits 'end'
+    // and the promise would hang forever. The timer bounds the wait, and
+    // pause() + unref() in cleanup ensure the stdin handle stops pulling
+    // bytes and no longer keeps the event loop alive after we've settled.
+    // timer.unref() lets the timer itself not block process exit.
     const cleanup = (): void => {
       process.stdin.removeListener('data', onData)
       process.stdin.removeListener('end', onEnd)
@@ -329,7 +336,11 @@ export async function readPipedStdin(): Promise<string> {
       cleanup()
       resolve(v)
     }
-    const timer = setTimeout(() => settle(''), 100)
+    // Preserve whatever was buffered so far on timeout — partial bytes from
+    // a slow multi-chunk producer should not be silently dropped. For the
+    // pipe-with-no-data hang case, `data` is still '' so behavior matches.
+    const timer = setTimeout(() => settle(data), 100)
+    timer.unref()
     process.stdin.setEncoding('utf8')
     process.stdin.on('data', onData)
     process.stdin.on('end', onEnd)
