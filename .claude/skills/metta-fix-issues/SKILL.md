@@ -26,6 +26,8 @@ For a given `<issue-slug>`:
 
 1. **Validate** — `metta issues show <issue-slug> --json` → confirm issue exists and is open. If not found, report error and stop.
 
+   From the returned JSON, display the `## Symptom`, `## Root Cause Analysis` (including any `### Evidence` subsection), and `## Candidate Solutions` sections of the `description` field to the orchestrator. If one or more sections are absent (legacy shallow issue), display whatever body content is present and continue — do not error.
+
 2. **Propose** — `METTA_SKILL=1 metta propose "fix-<issue-slug>" --json` → creates change on branch `metta/<change-name>`
 
 3. **Per-Artifact Loop** — For each planning artifact (intent, spec, design, tasks), spawn one subagent per artifact:
