@@ -72,7 +72,7 @@ The `metta issue` CLI command MUST detect at process startup whether `process.st
 
 ---
 
-## MODIFIED: Requirement: Issues-store parseIssue tolerates both freeform and structured bodies
+## ADDED: Requirement: Issues-store parseIssue tolerates both freeform and structured bodies
 
 The `parseIssue` function in `src/issues/issues-store.ts` MUST correctly extract the `description` field from both legacy freeform bodies and new structured bodies containing H2 sections. The function MUST split on the `**Severity**:` metadata line and return everything after it (trimmed) as `description`, regardless of whether that content begins with a plain paragraph or with `## Symptom`. The function MUST NOT throw, return an empty description, or misattribute any H2 heading line as a metadata field when structured sections are present. The `formatIssue` function MUST continue to write the `description` field verbatim after the `**Severity**:` line with no transformation; H2 headings inside the body MUST NOT be stripped or escaped. Existing `spec/issues/*.md` files with freeform bodies MUST parse without error and without requiring any file modification.
 
@@ -85,7 +85,7 @@ The `parseIssue` function in `src/issues/issues-store.ts` MUST correctly extract
 
 ---
 
-## MODIFIED: Requirement: Metta-fix-issues skill surfaces structured issue sections at step 1
+## ADDED: Requirement: Metta-fix-issues skill surfaces structured issue sections at step 1
 
 At step 1 (Validate) of the Single Issue Pipeline in `.claude/skills/metta-fix-issues/SKILL.md`, after `metta issues show <issue-slug> --json` confirms the issue exists and is open, the skill MUST display the content of the `## Symptom`, `## Root Cause Analysis` (including any `### Evidence` subsection), and `## Candidate Solutions` sections to the orchestrator before advancing to step 2 (Propose). When one or more of these sections are absent (e.g., for a legacy shallow issue), the skill MUST display whatever body content is present and MUST NOT error or refuse to continue. The subsequent fix flow — steps 2 through 11 (Propose, Per-Artifact Loop, Synthesize research, Implementation, Review, Review-Fix Loop, Verify, Finalize, Merge, Remove Issue) — MUST remain unchanged from the pre-upgrade skill definition. No new CLI invocation, no new flag, and no new subagent is introduced to implement this display; the orchestrator reads the sections directly from the JSON returned by `metta issues show --json`.
 
