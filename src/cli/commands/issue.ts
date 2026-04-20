@@ -1,6 +1,6 @@
 import { Command } from 'commander'
 import { join } from 'node:path'
-import { assertOnMainBranch, autoCommitFile, createCliContext, outputJson } from '../helpers.js'
+import { assertOnMainBranch, autoCommitFile, createCliContext, outputJson, readPipedStdin } from '../helpers.js'
 import type { Severity } from '../../issues/issues-store.js'
 
 export function registerIssueCommand(program: Command): void {
@@ -15,6 +15,8 @@ export function registerIssueCommand(program: Command): void {
       const ctx = createCliContext()
 
       try {
+        const stdinPayload = await readPipedStdin()
+        const body = stdinPayload.trim() !== '' ? stdinPayload : description
         if (!description) {
           if (json) { outputJson({ error: { code: 4, type: 'missing_arg', message: 'Description required' } }) } else { console.error('Usage: metta issue <description>') }
           process.exit(4)
@@ -22,7 +24,7 @@ export function registerIssueCommand(program: Command): void {
         const config = await ctx.configLoader.load()
         const mainBranch = config.git?.pr_base ?? 'main'
         await assertOnMainBranch(ctx.projectRoot, mainBranch, options.onBranch)
-        const slug = await ctx.issuesStore.create(description, description, options.severity as Severity)
+        const slug = await ctx.issuesStore.create(description, body, options.severity as Severity)
         const filePath = join(ctx.projectRoot, 'spec', 'issues', `${slug}.md`)
         const commit = await autoCommitFile(ctx.projectRoot, filePath, `chore: log issue ${slug}`)
         if (json) {
