@@ -1,0 +1,66 @@
+version: 10
+hash: sha256:261d7818575a
+updated: 2026-04-20T03:56:35.092Z
+status: draft
+source: change
+requirements:
+  - id: bashhookblocksmutatingcommands
+    hash: sha256:dae947b9d234
+    scenarios:
+      - issue-command-blocked-without-bypass
+      - propose-command-blocked-without-bypass
+      - backlog-subcommand-blocked
+      - changes-abandon-blocked
+  - id: bashhookpassesreadonlycommands
+    hash: sha256:3a4fde3c05ed
+    scenarios:
+      - status-passes-unconditionally
+      - all-listed-read-only-commands-pass
+      - unknown-metta-subcommand-is-not-silently-allowed
+  - id: bashhookbypasseswithmettaskillenv
+    hash: sha256:ec4531aef78b
+    scenarios:
+      - skill-bypass-allows-blocked-command
+      - bypass-applies-to-all-mutating-commands
+      - bypass-does-not-require-the-command-to-be-on-the-read-only-list
+  - id: bashhookskipsnonbashevents
+    hash: sha256:ac3c68ab133b
+    scenarios:
+      - edit-tool-event-passes-through
+      - write-tool-event-passes-through
+  - id: bashhookemergencybypass
+    hash: sha256:9b0b736ee37a
+    scenarios:
+      - settings-local-json-disable-suppresses-the-hook
+      - local-bypass-does-not-affect-settings-json
+      - removing-the-local-bypass-re-enables-the-hook
+  - id: humanterminalusageunaffected
+    hash: sha256:43d2b95ffc7f
+    scenarios:
+      - terminal-propose-completes-normally
+      - all-blocklisted-commands-run-normally-at-the-terminal
+  - id: installregistershook
+    hash: sha256:02504d8948e1
+    scenarios:
+      - fresh-install-writes-both-hook-entries
+      - idempotent-re-install-does-not-duplicate-entries
+      - hook-file-is-present-after-install
+  - id: reviewfanoutpathsintree
+    hash: sha256:75b292411d9e
+    scenarios:
+      - review-files-land-in-the-change-directory
+      - no-review-artifacts-written-to-tmp
+      - skill-md-prose-forbids-tmp-for-review
+  - id: verifyfanoutpathsintree
+    hash: sha256:8e57b640e1de
+    scenarios:
+      - verify-files-land-in-the-change-directory
+      - no-verify-artifacts-written-to-tmp
+      - skill-md-prose-forbids-tmp-for-verify
+  - id: byteidenticalskillmirrors
+    hash: sha256:b0a53b1c134d
+    scenarios:
+      - skill-md-mirror-matches-template-after-update
+      - hook-mirror-matches-template
+      - skill-discovery-loop-test-passes
+      - drift-between-mirrors-fails-ci
