@@ -1,0 +1,36 @@
+version: 7
+hash: sha256:882098edfef0
+updated: 2026-04-20T13:57:43.912Z
+status: draft
+source: change
+requirements:
+  - id: metta-issue-skill-performs-root-cause-analysis-before-writing-the-ticket
+    hash: sha256:885c75eb6ba4
+    scenarios:
+      - happy-path-structured-ticket-written-after-rca
+      - interactive-path-description-not-provided-as-argument
+  - id: metta-issue-skill-supports-quick-escape-hatch
+    hash: sha256:2aad8439785c
+    scenarios:
+      - quick-skips-rca-and-writes-a-shallow-ticket
+  - id: metta-issue-skill-falls-back-to-shallow-log-when-rca-fails
+    hash: sha256:c7e270f6b9dd
+    scenarios:
+      - rca-fails-mid-session-and-fallback-body-is-written
+  - id: metta-issue-skill-writes-a-structured-body-with-fixed-section-order
+    hash: sha256:dbdcfa1fd252
+    scenarios:
+      - full-structured-body-validates-section-order-and-evidence-citation
+  - id: metta-issue-cli-auto-detects-piped-stdin-as-body
+    hash: sha256:5eb8069ad75b
+    scenarios:
+      - structured-body-piped-via-stdin-becomes-the-issue-body
+      - interactive-tty-stdin-leaves-behavior-unchanged
+  - id: issues-store-parseissue-tolerates-both-freeform-and-structured-bodies
+    hash: sha256:1baa4c6fc629
+    scenarios:
+      - both-freeform-and-structured-bodies-round-trip-through-metta-issues-show
+  - id: metta-fix-issues-skill-surfaces-structured-issue-sections-at-step-1
+    hash: sha256:097f40d14a74
+    scenarios:
+      - structured-sections-displayed-before-fix-planning-begins
