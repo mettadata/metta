@@ -2,7 +2,6 @@ import { join, relative } from 'node:path'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { createInterface } from 'node:readline'
-import { text } from 'node:stream/consumers'
 import { ConfigLoader } from '../config/config-loader.js'
 import { ArtifactStore } from '../artifacts/artifact-store.js'
 import { WorkflowEngine } from '../workflow/workflow-engine.js'
@@ -299,9 +298,41 @@ export async function askYesNo(
  */
 export async function readPipedStdin(): Promise<string> {
   if (process.stdin.isTTY) return ''
-  try {
-    return await text(process.stdin)
-  } catch {
-    return ''
-  }
+  return new Promise<string>((resolve) => {
+    let data = ''
+    let settled = false
+    const onData = (chunk: string | Buffer): void => {
+      data += typeof chunk === 'string' ? chunk : chunk.toString('utf8')
+    }
+    const onEnd = (): void => {
+      clearTimeout(timer)
+      settle(data)
+    }
+    const onError = (): void => {
+      clearTimeout(timer)
+      settle('')
+    }
+    const cleanup = (): void => {
+      process.stdin.removeListener('data', onData)
+      process.stdin.removeListener('end', onEnd)
+      process.stdin.removeListener('error', onError)
+      try {
+        process.stdin.pause()
+        process.stdin.unref()
+      } catch {
+        // best-effort cleanup; stdin may already be detached
+      }
+    }
+    const settle = (v: string): void => {
+      if (settled) return
+      settled = true
+      cleanup()
+      resolve(v)
+    }
+    const timer = setTimeout(() => settle(''), 100)
+    process.stdin.setEncoding('utf8')
+    process.stdin.on('data', onData)
+    process.stdin.on('end', onEnd)
+    process.stdin.on('error', onError)
+  })
 }
