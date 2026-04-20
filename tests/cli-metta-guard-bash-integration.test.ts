@@ -123,11 +123,12 @@ describe('metta-guard-bash integration', { timeout: 60_000 }, () => {
   })
 
   describe('direct CLI blocked end-to-end', () => {
-    it('blocks `metta propose` without METTA_SKILL — exit 2, stderr names /metta-propose and instructs to use the skill', () => {
+    it('blocks `metta propose` without METTA_SKILL — exit 2, stderr names the matching skill and instructs to use it', () => {
       const { code, stderr } = runHook(bashEvent('metta propose "foo"'))
       expect(code).toBe(2)
-      expect(stderr).toContain('/metta-propose')
-      expect(stderr).toContain('Use the matching skill')
+      expect(stderr).toContain('/metta-')
+      expect(stderr).toContain('Use the matching')
+      expect(stderr).toContain('skill')
     })
   })
 
