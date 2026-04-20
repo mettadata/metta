@@ -9,6 +9,15 @@
             "command": ".claude/hooks/metta-guard-edit.mjs"
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/metta-guard-bash.mjs"
+          }
+        ]
       }
     ]
   },
