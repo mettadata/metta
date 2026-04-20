@@ -11,7 +11,7 @@ Story IDs MUST be monotonic starting at US-1.
 
 ## US-1: Log an issue with captured root cause and candidate solutions
 
-**As an** AI orchestrator that has just hit a failure in the middle of a session
+**As a** AI orchestrator that has just hit a failure in the middle of a session
 **I want to** log an issue that captures the symptom, root cause evidence, and candidate fixes while the failure is still in context
 **So that** a future fixer does not have to redo the debugging session from cold, and the signal I gathered is not lost between sessions
 
@@ -28,7 +28,7 @@ Story IDs MUST be monotonic starting at US-1.
 
 ## US-2: Skip RCA for trivial symptoms with --quick
 
-**As an** orchestrator logging a trivial or obvious symptom (typo, cosmetic bug, known-duplicate observation)
+**As a** orchestrator logging a trivial or obvious symptom (typo, cosmetic bug, known-duplicate observation)
 **I want to** bypass the RCA session and record a shallow one-liner ticket
 **So that** I am not forced to spend tokens on investigation when the cost of RCA exceeds its value
 
@@ -44,7 +44,7 @@ Story IDs MUST be monotonic starting at US-1.
 
 ## US-3: Fall back to shallow log when RCA fails
 
-**As an** orchestrator whose RCA session hits an error (missing files, unreadable git history, time pressure, tool failure)
+**As a** orchestrator whose RCA session hits an error (missing files, unreadable git history, time pressure, tool failure)
 **I want to** the ticket to still be logged with a clear note that RCA was skipped and why
 **So that** capture is never blocked and the next fixer can see the RCA was attempted but did not complete
 
@@ -76,7 +76,7 @@ Story IDs MUST be monotonic starting at US-1.
 
 ## US-5: Pipe a pre-built issue body into the CLI
 
-**As an** orchestrator or shell user who already has a fully-authored issue body in a variable, file, or heredoc
+**As a** orchestrator or shell user who already has a fully-authored issue body in a variable, file, or heredoc
 **I want to** pipe it into `metta issue` on stdin and have the CLI use it as the ticket body
 **So that** I can compose the RCA body however I like (in-agent, from a template, from a log transcript) without inventing a new flag
 
