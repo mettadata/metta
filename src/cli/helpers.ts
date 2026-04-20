@@ -2,6 +2,7 @@ import { join, relative } from 'node:path'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { createInterface } from 'node:readline'
+import { text } from 'node:stream/consumers'
 import { ConfigLoader } from '../config/config-loader.js'
 import { ArtifactStore } from '../artifacts/artifact-store.js'
 import { WorkflowEngine } from '../workflow/workflow-engine.js'
@@ -288,4 +289,19 @@ export async function askYesNo(
       resolve(defaultYes)
     })
   })
+}
+
+/**
+ * Read all data piped to stdin. Returns `''` immediately when stdin is a
+ * TTY (no pipe attached) or when reading fails (SIGPIPE, early-close,
+ * empty stream). Does NOT trim — callers must handle whitespace-only
+ * payloads themselves.
+ */
+export async function readPipedStdin(): Promise<string> {
+  if (process.stdin.isTTY) return ''
+  try {
+    return await text(process.stdin)
+  } catch {
+    return ''
+  }
 }
