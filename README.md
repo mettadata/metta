@@ -3,7 +3,7 @@
 
 A composable, spec-driven development framework for AI-native software engineering.
 
-Metta orchestrates the full change lifecycle — propose, plan, execute, verify, ship — with structured specs as the source of truth and quality gates as the control mechanism. It works with any AI coding tool (Claude Code, Cursor, Copilot, Codex, etc.) and scales from a one-line bug fix to a complex feature with full design ceremony.
+Metta orchestrates the full change lifecycle — propose, plan, execute, verify, ship — with structured specs as the source of truth and quality gates as the control mechanism. It planned to works with any AI coding tool (Claude Code(currently supported), Cursor, Copilot, Codex, etc.) and scales from a one-line bug fix to a complex feature with full design ceremony.
 
 ## Why Metta Exists
 
