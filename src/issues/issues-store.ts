@@ -40,6 +40,8 @@ function parseIssue(content: string, filename: string): Issue {
   const severity = (['critical', 'major', 'minor'].includes(severityLine ?? '') ? severityLine : 'minor') as Severity
 
   const descStart = lines.findIndex((l, i) => i > 0 && l.startsWith('**Severity**:'))
+  // Body is returned verbatim — may be a freeform paragraph or structured H2 sections.
+  // H2 headings (##) in the body are safe: no metadata startsWith predicate matches '##'.
   const description = lines.slice(descStart + 1).join('\n').trim()
 
   return { title: title || filename.replace('.md', ''), captured, context, status: 'logged', severity, description }
