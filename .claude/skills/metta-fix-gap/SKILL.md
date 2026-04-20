@@ -26,15 +26,15 @@ For a given `<gap-slug>`:
 
 1. **Validate** — `metta gaps show <gap-slug> --json` → confirm gap exists and is open. If not found, report error and stop.
 
-2. **Propose** — `metta propose "fix gap: <gap-slug> — <gap-summary>" --json` → creates change on branch `metta/<change-name>`
+2. **Propose** — `METTA_SKILL=1 metta propose "fix gap: <gap-slug> — <gap-summary>" --json` → creates change on branch `metta/<change-name>`
 
 3. **Per-Artifact Loop** — For each planning artifact (intent, spec, design, tasks), spawn one subagent per artifact:
-   `metta instructions <artifact> --json --change <name>` → spawn agent → `metta complete <artifact>`
+   `metta instructions <artifact> --json --change <name>` → spawn agent → `METTA_SKILL=1 metta complete <artifact>`
    - Include the full gap details (from step 1) as context for every subagent
    - Discovery mode is always **batch** for fix-gap — the gap definition IS the discovery; do NOT run a separate discovery gate
    - For **research**: spawn 2-4 metta-researcher agents in parallel (one per approach). Each researcher MUST write to `spec/changes/<change>/research-<approach-slug>.md` (a short kebab-case slug per approach, e.g. `research-websockets.md`, `research-sse.md`, `research-polling.md`). Forbid `/tmp/` paths — per-approach output MUST be in-tree so the synthesis step can read it.
 
-4. **Synthesize research** — read all `spec/changes/<change>/research-*.md` files you just created, write a single consolidated `spec/changes/<change>/research.md` that summarizes each approach and ends with a recommendation, and git-commit it. Do NOT call `metta complete research` until `spec/changes/<change>/research.md` exists on disk with real content.
+4. **Synthesize research** — read all `spec/changes/<change>/research-*.md` files you just created, write a single consolidated `spec/changes/<change>/research.md` that summarizes each approach and ends with a recommendation, and git-commit it. Do NOT call `METTA_SKILL=1 metta complete research` until `spec/changes/<change>/research.md` exists on disk with real content.
 
 5. **Implementation — MANDATORY PARALLEL EXECUTION:**
    **Do NOT spawn a single metta-executor for all tasks. You MUST parse batches and spawn per-task.**
@@ -47,7 +47,7 @@ For a given `<gap-slug>`:
       - Each executor prompt: include ONLY that task's details (Files, Action, Verify, Done)
       - Wait for ALL executors in batch to complete before next batch
    d. After all batches: write summary.md and commit
-   e. `metta complete implementation --json --change <name>`
+   e. `METTA_SKILL=1 metta complete implementation --json --change <name>`
 
 6. **Review — spawn 3 metta-reviewer agents in parallel** (fan-out — single message):
    - Agent 1 (subagent_type: "metta-reviewer"): "**Correctness reviewer**"
@@ -72,7 +72,7 @@ For a given `<gap-slug>`:
    - Merge results into summary.md and commit
    - If any gate fails: spawn parallel metta-executors to fix, then re-verify
 
-9. **Finalize** — `metta finalize --json --change <name>` → runs gates, archives, merges specs
+9. **Finalize** — `METTA_SKILL=1 metta finalize --json --change <name>` → runs gates, archives, merges specs
 
 10. **Merge** — `git checkout main && git merge metta/<change-name> --no-ff -m "chore: merge <change-name>"`
 
@@ -84,7 +84,7 @@ For a given `<gap-slug>`:
 
 When `$ARGUMENTS` is `--all` (optionally with `--severity <level>`):
 
-1. Run `metta fix-gap --all --json` (or `metta fix-gap --all --severity critical --json` if user specified a severity filter) to get gaps sorted by severity
+1. Run `METTA_SKILL=1 metta fix-gap --all --json` (or `METTA_SKILL=1 metta fix-gap --all --severity critical --json` if user specified a severity filter) to get gaps sorted by severity
 2. **Batch gaps by file overlap** — read each gap file to identify which source files it touches:
    a. For each gap, extract the file paths mentioned (Location, Files fields)
    b. Batch gaps that touch the SAME files together (they must run sequentially)
@@ -94,7 +94,7 @@ When `$ARGUMENTS` is `--all` (optionally with `--severity <level>`):
    - Independent batches run simultaneously
    - Example: gaps touching execution-engine.ts = Batch A, gaps touching context-engine.ts = Batch B → spawn 2 executors in parallel
 4. After each batch completes:
-   - Run `metta fix-gap --remove-gap <slug>` for each resolved gap in the batch
+   - Run `METTA_SKILL=1 metta fix-gap --remove-gap <slug>` for each resolved gap in the batch
    - Log `[N/M] <slug>: resolved` or `[N/M] <slug>: failed at <phase>`
 5. **Continue until ALL gaps are processed** — critical, medium, AND low. Never stop early.
    - If a gap fails: log it, skip it, continue to the next
@@ -107,7 +107,7 @@ When `$ARGUMENTS` is `--all` (optionally with `--severity <level>`):
 ## Rules
 
 - Commit ownership: the orchestrator commits planning, review, and verification artifacts after each subagent returns. The executor subagent commits atomically per task during implementation. Planning-artifact subagents (proposer, researcher, architect, planner, product) write files only — they do not run git.
-- Every artifact MUST be followed by `metta complete` to advance workflow
+- Every artifact MUST be followed by `METTA_SKILL=1 metta complete` to advance workflow
 - Discovery mode is always **batch** for fix-gap — the gap definition provides all context
 - Do NOT skip review or verification — all 3 reviewers and 3 verifiers MUST run
 - Do NOT stop after verification — finalize + merge + remove-gap must happen

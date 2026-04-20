@@ -15,7 +15,7 @@ You are the **orchestrator** for building planning artifacts. Spawn subagents fo
    a. `metta instructions <artifact> --json --change <name>` → get template + persona
    b. **Spawn a subagent** with the right metta agent type based on the artifact (research→metta-researcher, design→metta-architect, tasks→metta-planner), the agent persona, template, and output_path
    c. Subagent writes the artifact file with real content, then git commits
-   d. `metta complete <artifact> --json --change <name>` → returns next artifact
+   d. `METTA_SKILL=1 metta complete <artifact> --json --change <name>` → returns next artifact
 3. Continue until all planning artifacts are complete
 4. **Run constitution check:**
    After all planning artifacts are committed, run `metta check-constitution --change <name> --json` via Bash.
