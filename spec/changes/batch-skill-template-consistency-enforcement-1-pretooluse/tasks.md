@@ -2,7 +2,7 @@
 
 ## Batch 1 (no dependencies)
 
-- [ ] **Task 1.1: Implement metta-guard-bash hook + unit tests**
+- [x] **Task 1.1: Implement metta-guard-bash hook + unit tests**
   - **Files**:
     - `src/templates/hooks/metta-guard-bash.mjs` (NEW)
     - `.claude/hooks/metta-guard-bash.mjs` (NEW, byte-identical to above)
@@ -13,7 +13,7 @@
 
 ## Batch 2 (depends on Batch 1)
 
-- [ ] **Task 2.1: Wire metta-guard-bash into install.ts + update install tests**
+- [x] **Task 2.1: Wire metta-guard-bash into install.ts + update install tests**
   - **Files**:
     - `src/cli/commands/install.ts` (MODIFIED)
     - `tests/install.test.ts` (MODIFIED)
@@ -23,7 +23,7 @@
 
 ## Batch 3 (depends on Batch 1; tasks 3.1, 3.2, 3.3 are parallel)
 
-- [ ] **Task 3.1: Update metta-propose SKILL.md — fan-out paths + METTA_SKILL=1 prefixes**
+- [x] **Task 3.1: Update metta-propose SKILL.md — fan-out paths + METTA_SKILL=1 prefixes**
   - **Files**:
     - `src/templates/skills/metta-propose/SKILL.md` (MODIFIED)
     - `.claude/skills/metta-propose/SKILL.md` (MODIFIED, byte-identical to above)
@@ -31,7 +31,7 @@
   - **Verify**: `diff src/templates/skills/metta-propose/SKILL.md .claude/skills/metta-propose/SKILL.md && grep -n 'METTA_SKILL=1' src/templates/skills/metta-propose/SKILL.md && grep -n 'MUST NOT write to /tmp' src/templates/skills/metta-propose/SKILL.md && npx vitest run tests/skill-discovery-loop.test.ts && npx tsc --noEmit`
   - **Done**: `diff` exits 0 (byte-identical); `grep METTA_SKILL=1` finds entries at step 1, step 3, and step 8 call sites; `/tmp` prohibition appears in step 5 and step 6 prose; `skill-discovery-loop` tests pass; `tsc --noEmit` is clean.
 
-- [ ] **Task 3.2: Update metta-issue SKILL.md — METTA_SKILL=1 prefix**
+- [x] **Task 3.2: Update metta-issue SKILL.md — METTA_SKILL=1 prefix**
   - **Files**:
     - `src/templates/skills/metta-issue/SKILL.md` (MODIFIED)
     - `.claude/skills/metta-issue/SKILL.md` (MODIFIED, byte-identical to above)
@@ -39,7 +39,7 @@
   - **Verify**: `diff src/templates/skills/metta-issue/SKILL.md .claude/skills/metta-issue/SKILL.md && grep -n 'METTA_SKILL=1' src/templates/skills/metta-issue/SKILL.md && npx vitest run tests/skill-discovery-loop.test.ts && npx tsc --noEmit`
   - **Done**: `diff` exits 0 (byte-identical); `grep METTA_SKILL=1` finds the step 3 call site; `skill-discovery-loop` tests pass; `tsc --noEmit` is clean.
 
-- [ ] **Task 3.3: Update metta-quick SKILL.md — METTA_SKILL=1 prefixes**
+- [x] **Task 3.3: Update metta-quick SKILL.md — METTA_SKILL=1 prefixes**
   - **Files**:
     - `src/templates/skills/metta-quick/SKILL.md` (MODIFIED)
     - `.claude/skills/metta-quick/SKILL.md` (MODIFIED, byte-identical to above)
@@ -49,7 +49,7 @@
 
 ## Batch 4 (depends on Batch 2 + Batch 3)
 
-- [ ] **Task 4.1: Integration tests for hook + install wiring end-to-end**
+- [x] **Task 4.1: Integration tests for hook + install wiring end-to-end**
   - **Files**:
     - `tests/cli-metta-guard-bash-integration.test.ts` (NEW)
   - **Action**: Create integration tests that: (a) for each skill's canonical state-mutating CLI call pattern (prefixed with `METTA_SKILL=1`), spawn a real hook invocation (pipe a synthetic hook event JSON to `node src/templates/hooks/metta-guard-bash.mjs`) with `METTA_SKILL=1` in the child process env and assert exit code 0 (bypass works end-to-end for metta-propose step 1/3/8, metta-issue step 3, metta-quick step 1 patterns); (b) spawn a direct `metta propose` hook event without `METTA_SKILL=1` in env and assert exit code 2 and stderr contains `/metta-propose`; (c) simulate running `metta install` twice against a temp project directory and assert the resulting `.claude/settings.json` PreToolUse block contains exactly one `metta-guard-bash.mjs` entry (idempotency end-to-end).
