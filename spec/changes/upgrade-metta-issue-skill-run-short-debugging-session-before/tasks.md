@@ -2,13 +2,13 @@
 
 ## Batch 1 (no dependencies — parallel, 3 tasks)
 
-- [ ] **Task 1.1: Add `readPipedStdin` helper to `src/cli/helpers.ts`**
+- [x] **Task 1.1: Add `readPipedStdin` helper to `src/cli/helpers.ts`**
   - **Files**: `src/cli/helpers.ts`
   - **Action**: Append after the existing `askYesNo` function (near line 255) a new exported async function `readPipedStdin(): Promise<string>`. The function must: (1) return `''` immediately when `process.stdin.isTTY` is truthy; (2) otherwise `import { text } from 'node:stream/consumers'` and return `await text(process.stdin)`, wrapped in a try/catch that returns `''` on any error (SIGPIPE, early-close, empty stream). The function does NOT trim — callers are responsible for the `payload.trim() === ''` check. Add the name to the barrel if `src/cli/helpers.ts` re-exports via index, but do not alter `src/index.ts` unless `helpers.ts` is already barrel-exported there.
   - **Verify**: `npx tsc --noEmit` exits 0; `grep -n 'readPipedStdin' src/cli/helpers.ts` shows the export; no new entries in `package.json`.
   - **Done**: `readPipedStdin` is exported from `src/cli/helpers.ts` and importable by other CLI modules via `../helpers.js` ESM path.
 
-- [ ] **Task 1.2: Add clarifying comment to `parseIssue` in `src/issues/issues-store.ts`**
+- [x] **Task 1.2: Add clarifying comment to `parseIssue` in `src/issues/issues-store.ts`**
   - **Files**: `src/issues/issues-store.ts`
   - **Action**: Locate the `parseIssue` function (lines ~34–46). Immediately before the line `const description = lines.slice(descStart + 1).join('\n').trim()` (or its equivalent), insert a two-line `//` comment block:
     ```
@@ -19,7 +19,7 @@
   - **Verify**: `npx tsc --noEmit` exits 0; `git diff src/issues/issues-store.ts` shows exactly two added comment lines and zero deleted or changed functional lines.
   - **Done**: Comment present immediately above the `description` extraction line; no runtime behavior change; existing tests (if any) still pass.
 
-- [ ] **Task 1.3: Create `src/issues/issues-store.test.ts` covering body tolerance**
+- [x] **Task 1.3: Create `src/issues/issues-store.test.ts` covering body tolerance**
   - **Files**: `src/issues/issues-store.test.ts`
   - **Action**: Create the file using Vitest `describe/it/expect`. Each test must use an isolated temp directory (`import { mkdtempSync, rmSync } from 'node:fs'` + `import { tmpdir } from 'node:os'`) — never the real `spec/` tree. Construct an `IssuesStore` instance pointing at the temp directory. Write three test cases:
     1. **Freeform body round-trip**: `create` an issue with title `"freeform title"` and description `"A plain paragraph with no headings."`. Call `show(slug)` and assert the returned `description` equals `"A plain paragraph with no headings."`.
@@ -33,7 +33,7 @@
 
 ## Batch 2 (depends on Batch 1 — specifically Task 1.1; 1 task)
 
-- [ ] **Task 2.1: Wire `readPipedStdin` into the `metta issue` action handler**
+- [x] **Task 2.1: Wire `readPipedStdin` into the `metta issue` action handler**
   - **Depends on**: Task 1.1
   - **Files**: `src/cli/commands/issue.ts`
   - **Action**: Import `readPipedStdin` at the top of the file: `import { readPipedStdin } from '../helpers.js'`. Inside the `.action(async (description, options) => { ... })` callback, immediately after any JSON/context setup lines and BEFORE the `if (!description)` guard, add:
@@ -52,7 +52,7 @@
 
 ## Batch 3 (depends on Batch 2; parallel, 2 tasks)
 
-- [ ] **Task 3.1: Rewrite `.claude/skills/metta-issue/SKILL.md` with the 7-step RCA flow**
+- [x] **Task 3.1: Rewrite `.claude/skills/metta-issue/SKILL.md` with the 7-step RCA flow**
   - **Depends on**: Task 2.1
   - **Files**: `.claude/skills/metta-issue/SKILL.md`
   - **Action**: Fully rewrite the skill file. The YAML frontmatter must set `allowed-tools: [Bash, AskUserQuestion, Read, Grep, Glob]`. The body must contain exactly 7 numbered steps:
@@ -87,7 +87,7 @@
   - **Verify**: File parses as valid YAML frontmatter + markdown. `grep 'allowed-tools' .claude/skills/metta-issue/SKILL.md` shows all 5 tools. Manual count confirms 7 numbered steps present. Rules section contains the `--quick` prohibition.
   - **Done**: SKILL.md contains all 7 steps, the exact three-H2 body schema with `### Evidence` and `Tradeoff:` requirements, the `--quick` fallback path, the RCA-failure fallback path, and the prohibition on forwarding `--quick` to the CLI.
 
-- [ ] **Task 3.2: Add structured-section display to step 1 of `.claude/skills/metta-fix-issues/SKILL.md`**
+- [x] **Task 3.2: Add structured-section display to step 1 of `.claude/skills/metta-fix-issues/SKILL.md`**
   - **Depends on**: Task 2.1
   - **Files**: `.claude/skills/metta-fix-issues/SKILL.md`
   - **Action**: Locate step 1 (Validate) in the Single Issue Pipeline section. Find the line that instructs `metta issues show <issue-slug> --json`. Immediately after it, insert the following instruction (as a new paragraph or bullet within that step block):
@@ -100,7 +100,7 @@
 
 ## Batch 4 (depends on all prior batches; 1 task)
 
-- [ ] **Task 4.1: Write `summary.md` and mark implementation complete**
+- [x] **Task 4.1: Write `summary.md` and mark implementation complete**
   - **Depends on**: Task 3.1, Task 3.2 (and transitively all prior tasks)
   - **Files**: `spec/changes/upgrade-metta-issue-skill-run-short-debugging-session-before/summary.md`
   - **Action**: Create the file summarizing all 6 concrete deliverables shipped by this change. List each changed file with a one-line rationale:
