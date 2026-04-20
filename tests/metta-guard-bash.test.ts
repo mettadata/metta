@@ -41,11 +41,12 @@ describe('metta-guard-bash hook', { timeout: 30_000 }, () => {
     const label = hookPath.includes('.claude') ? 'deployed' : 'source'
 
     describe(`${label} hook (${hookPath})`, () => {
-      // ----- Blocked cases -----
-      it('blocks `metta propose "foo"` without env (exit 2, stderr mentions /metta-propose)', () => {
+      // ----- Blocked cases (explicit BLOCK list) -----
+      it('blocks `metta propose "foo"` without env (exit 2, stderr mentions /metta-)', () => {
         const { code, stderr } = runHook(hookPath, bashEvent('metta propose "foo"'))
         expect(code).toBe(2)
-        expect(stderr).toContain('/metta-propose')
+        expect(stderr).toContain('/metta-')
+        expect(stderr).toContain('metta propose')
       })
 
       it('blocks `metta quick "foo"` without env (exit 2)', () => {
@@ -73,7 +74,21 @@ describe('metta-guard-bash hook', { timeout: 30_000 }, () => {
         expect(code).toBe(2)
       })
 
-      // ----- Allowed cases -----
+      // ----- Unknown subcommands (conservative-block) -----
+      it('blocks unknown single-word `metta unknowncmd` conservatively (exit 2)', () => {
+        const { code, stderr } = runHook(hookPath, bashEvent('metta unknowncmd'))
+        expect(code).toBe(2)
+        expect(stderr).toContain('unknown metta subcommand')
+        expect(stderr).toContain('unknowncmd')
+      })
+
+      it('blocks unknown two-word `metta unknown foo` conservatively (exit 2)', () => {
+        const { code, stderr } = runHook(hookPath, bashEvent('metta unknown foo'))
+        expect(code).toBe(2)
+        expect(stderr).toContain('unknown metta subcommand')
+      })
+
+      // ----- Allowed cases (explicit ALLOW list) -----
       it('allows `metta status` (exit 0)', () => {
         const { code } = runHook(hookPath, bashEvent('metta status'))
         expect(code).toBe(0)
@@ -84,7 +99,7 @@ describe('metta-guard-bash hook', { timeout: 30_000 }, () => {
         expect(code).toBe(0)
       })
 
-      it('allows `metta issues list` two-word not in blocked map (exit 0)', () => {
+      it('allows `metta issues list` two-word (exit 0)', () => {
         const { code } = runHook(hookPath, bashEvent('metta issues list'))
         expect(code).toBe(0)
       })
@@ -109,15 +124,53 @@ describe('metta-guard-bash hook', { timeout: 30_000 }, () => {
         expect(code).toBe(0)
       })
 
+      it('allows `metta install` (explicit pass-through, no matching skill) (exit 0)', () => {
+        const { code } = runHook(hookPath, bashEvent('metta install'))
+        expect(code).toBe(0)
+      })
+
+      it('allows `metta backlog list` two-word (exit 0)', () => {
+        const { code } = runHook(hookPath, bashEvent('metta backlog list'))
+        expect(code).toBe(0)
+      })
+
+      it('allows `metta backlog show foo` two-word (exit 0)', () => {
+        const { code } = runHook(hookPath, bashEvent('metta backlog show foo'))
+        expect(code).toBe(0)
+      })
+
       // ----- Bypass / env / chains -----
-      it('bypasses with METTA_SKILL=1 env for `metta propose "foo"` (exit 0)', () => {
+      it('bypasses with METTA_SKILL=1 env on hook process for `metta propose "foo"` (exit 0)', () => {
         const { code } = runHook(hookPath, bashEvent('metta propose "foo"'), {
           env: { METTA_SKILL: '1' },
         })
         expect(code).toBe(0)
       })
 
-      it('detects metta after env prefix `FOO=bar metta propose "foo"` (exit 2)', () => {
+      it('bypasses with inline env-var prefix `METTA_SKILL=1 metta propose "foo"` (exit 0)', () => {
+        const { code } = runHook(hookPath, bashEvent('METTA_SKILL=1 metta propose "foo"'))
+        expect(code).toBe(0)
+      })
+
+      it('bypasses with multiple env prefixes `FOO=bar METTA_SKILL=1 metta propose` (exit 0)', () => {
+        const { code } = runHook(hookPath, bashEvent('FOO=bar METTA_SKILL=1 metta propose'))
+        expect(code).toBe(0)
+      })
+
+      it('bypasses inline for two-word `METTA_SKILL=1 metta backlog add "foo"` (exit 0)', () => {
+        const { code } = runHook(hookPath, bashEvent('METTA_SKILL=1 metta backlog add "foo"'))
+        expect(code).toBe(0)
+      })
+
+      it('inline bypass applies per-invocation: chain with unprefixed metta still blocks (exit 2)', () => {
+        const { code } = runHook(
+          hookPath,
+          bashEvent('METTA_SKILL=1 metta status && metta propose "foo"'),
+        )
+        expect(code).toBe(2)
+      })
+
+      it('detects metta after non-bypass env prefix `FOO=bar metta propose "foo"` (exit 2)', () => {
         const { code } = runHook(hookPath, bashEvent('FOO=bar metta propose "foo"'))
         expect(code).toBe(2)
       })
