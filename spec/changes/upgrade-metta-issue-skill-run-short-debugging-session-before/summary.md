@@ -19,9 +19,17 @@ Ships a root-cause-analysis-first `/metta-issue` skill so that logged tickets ca
 ## Verification state
 
 - `npx tsc --noEmit` clean
+- `npm run lint` clean (aliased to `tsc --noEmit`)
+- `npm run build` clean
 - `npx vitest run` — 818/818 tests green across 58 files
 - 3 new tests in `src/issues/issues-store.test.ts` pass
 - 9 previously-timing-out CLI tests now pass after the `readPipedStdin` hardening
+- All 3 reviewers (correctness / security / quality) PASS in round 2
+- All 9 spec scenarios trace to either test evidence or skill instructions (see `verify/scenarios.md`)
+
+## Additional fix during review
+
+- `src/templates/skills/metta-issue/SKILL.md` and `src/templates/skills/metta-fix-issues/SKILL.md` resynced with their deployed copies under `.claude/skills/` after quality reviewer caught template drift in round 1 (commits `07aff46ad`, `8bf2cf307`). Secrets-exclusion rule added to the metta-issue skill Rules section (blocks RCA from reading `.env*`, `*.pem`, `*.key`, `id_rsa*`, `credentials*`, `secrets/`).
 
 ## Non-goals honored
 
