@@ -184,6 +184,44 @@ describe('CLI', { timeout: 30000 }, () => {
       )
       expect(guardEntries.length).toBe(1)
     })
+
+    it('registers metta-guard-bash PreToolUse entry alongside the Edit guard entry', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      const { readFile } = await import('node:fs/promises')
+      const settingsPath = join(tempDir, '.claude', 'settings.json')
+      const settings = JSON.parse(await readFile(settingsPath, 'utf8'))
+      const preToolUse = settings.hooks?.PreToolUse ?? []
+      const hasEditGuard = preToolUse.some((e: { matcher?: string; hooks?: Array<{ command?: string }> }) =>
+        (e.hooks ?? []).some((h) => h.command?.includes('metta-guard-edit.mjs')),
+      )
+      const hasBashGuard = preToolUse.some((e: { matcher?: string; hooks?: Array<{ command?: string }> }) =>
+        e.matcher === 'Bash' && (e.hooks ?? []).some((h) => h.command?.includes('metta-guard-bash.mjs')),
+      )
+      expect(hasEditGuard).toBe(true)
+      expect(hasBashGuard).toBe(true)
+    })
+
+    it('is idempotent for metta-guard-bash — second install does not duplicate the Bash PreToolUse entry', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await runCli(['install'], tempDir)
+      const { readFile } = await import('node:fs/promises')
+      const settings = JSON.parse(await readFile(join(tempDir, '.claude', 'settings.json'), 'utf8'))
+      const preToolUse = settings.hooks?.PreToolUse ?? []
+      const bashGuardEntries = preToolUse.filter((e: { hooks?: Array<{ command?: string }> }) =>
+        (e.hooks ?? []).some((h) => h.command?.includes('metta-guard-bash.mjs')),
+      )
+      expect(bashGuardEntries.length).toBe(1)
+    })
+
+    it('copies metta-guard-bash.mjs byte-identical to the template', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      const { readFile } = await import('node:fs/promises')
+      const installedPath = join(tempDir, '.claude', 'hooks', 'metta-guard-bash.mjs')
+      const templatePath = join(import.meta.dirname, '..', 'src', 'templates', 'hooks', 'metta-guard-bash.mjs')
+      const installed = await readFile(installedPath)
+      const template = await readFile(templatePath)
+      expect(installed.equals(template)).toBe(true)
+    })
   })
 
   describe('metta-init skill template', () => {

@@ -52,6 +52,47 @@ async function installMettaGuardHook(root: string): Promise<void> {
   }
 }
 
+async function installMettaBashGuardHook(root: string): Promise<void> {
+  const hookDir = join(root, '.claude', 'hooks')
+  const hookPath = join(hookDir, 'metta-guard-bash.mjs')
+  const settingsPath = join(root, '.claude', 'settings.json')
+
+  const templateHook = new URL('../../templates/hooks/metta-guard-bash.mjs', import.meta.url).pathname
+  await mkdir(hookDir, { recursive: true })
+  await copyFile(templateHook, hookPath)
+  await chmod(hookPath, 0o755)
+
+  let settings: Record<string, unknown> = {}
+  if (existsSync(settingsPath)) {
+    const raw = await readFile(settingsPath, 'utf8')
+    try {
+      settings = JSON.parse(raw)
+    } catch (err) {
+      throw new Error(`.claude/settings.json exists but is not valid JSON — refusing to overwrite. Fix it and re-run metta install. Cause: ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }
+
+  const rawHooks = settings.hooks
+  const hooks: Record<string, unknown> = rawHooks && typeof rawHooks === 'object' && !Array.isArray(rawHooks)
+    ? (rawHooks as Record<string, unknown>)
+    : {}
+  const rawPre = hooks.PreToolUse
+  const preToolUse: Array<Record<string, unknown>> = Array.isArray(rawPre) ? rawPre : []
+  const alreadyRegistered = preToolUse.some((entry) => {
+    const hooksArr = Array.isArray(entry?.hooks) ? (entry.hooks as Array<Record<string, unknown>>) : []
+    return hooksArr.some((h) => typeof h?.command === 'string' && h.command.includes('metta-guard-bash.mjs'))
+  })
+  if (!alreadyRegistered) {
+    preToolUse.push({
+      matcher: 'Bash',
+      hooks: [{ type: 'command', command: '.claude/hooks/metta-guard-bash.mjs' }],
+    })
+    hooks.PreToolUse = preToolUse
+    settings.hooks = hooks
+    await writeFile(settingsPath, JSON.stringify(settings, null, 2) + '\n')
+  }
+}
+
 async function installMettaStatusline(root: string): Promise<void> {
   const statuslineDir = join(root, '.claude', 'statusline')
   const statuslinePath = join(statuslineDir, 'statusline.mjs')
@@ -334,6 +375,16 @@ Banned patterns and forbidden operations.
           console.error(`Warning: failed to install metta-guard hook — ${message}`)
         }
 
+        // Install Claude Code PreToolUse Bash guard hook + settings.json entry
+        let bashGuardInstalled = false
+        try {
+          await installMettaBashGuardHook(root)
+          bashGuardInstalled = true
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err)
+          console.error(`Warning: failed to install metta-guard-bash hook — ${message}`)
+        }
+
         // Install Claude Code statusline
         let statuslineInstalled = false
         try {
@@ -368,6 +419,7 @@ Banned patterns and forbidden operations.
             detected_tools: detectedTools,
             installed_commands: installedCommands,
             guard_hook_installed: guardInstalled,
+            bash_guard_hook_installed: bashGuardInstalled,
             statusline_installed: statuslineInstalled,
             stacks: stacks === 'skip' ? [] : stacks,
             scaffolded_gates: scaffoldedGates,
@@ -392,6 +444,9 @@ Banned patterns and forbidden operations.
           }
           if (guardInstalled) {
             console.log('  Installed: PreToolUse guard hook (.claude/hooks/metta-guard-edit.mjs)')
+          }
+          if (bashGuardInstalled) {
+            console.log('  Installed: PreToolUse Bash guard hook (.claude/hooks/metta-guard-bash.mjs)')
           }
           if (statuslineInstalled) {
             console.log('  Installed: statusline (.claude/statusline/statusline.mjs)')
