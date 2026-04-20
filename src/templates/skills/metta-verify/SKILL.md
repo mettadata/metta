@@ -18,7 +18,7 @@ You are the **orchestrator** for verification. Spawn a verifier subagent.
    - Task: check each Given/When/Then scenario against tests and code
    - Write results to `spec/changes/<change>/summary.md`
    - Commit: `git commit -m "docs(<change>): verification summary"`
-3. `metta complete verification --json --change <name>`
+3. `METTA_SKILL=1 metta complete verification --json --change <name>`
 4. When all_complete: true, tell the user to run `/metta:ship` to finalize and merge
 
 After verification, the next step is always **finalize** (archive + spec merge), then **ship** (merge to main).

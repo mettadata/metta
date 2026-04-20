@@ -14,12 +14,12 @@ Automatically advance to whatever's next in the metta workflow.
 2. Execute the returned command
 3. If it returns an artifact to build: spawn a subagent with the right metta agent type (intent/spec→metta-proposer, research→metta-researcher, design→metta-architect, tasks→metta-planner, implementation→metta-executor, verification→metta-verifier) using `metta instructions` and the agent execution pattern
 4. After completing: `metta next --json` again to get the next step
-5. Repeat until all artifacts are done, then `metta finalize`
+5. Repeat until all artifacts are done, then `METTA_SKILL=1 metta finalize`
 
 ## Rules
 
 - Let the CLI drive — `metta next` tells you what to do
-- MUST call `metta complete` for each artifact
+- MUST call `METTA_SKILL=1 metta complete` for each artifact
 - Commit ownership: the orchestrator commits planning, review, and verification artifacts after each subagent returns. The executor subagent commits atomically per task during implementation. Planning-artifact subagents (proposer, researcher, architect, planner, product) write files only — they do not run git.
 - If `metta next` says "finalize", run `/metta:ship` to finalize and merge
 - If `metta next` says "ship", run `/metta:ship` (or the returned command) to merge the branch to main

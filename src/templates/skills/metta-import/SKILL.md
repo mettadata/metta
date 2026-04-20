@@ -11,7 +11,7 @@ You are the **orchestrator** for importing existing code into metta specs.
 
 ## Steps
 
-1. `metta import "$ARGUMENTS" --json` → returns scan path, modules list, and output paths
+1. `METTA_SKILL=1 metta import "$ARGUMENTS" --json` → returns scan path, modules list, and output paths
 2. Parse the response — check `mode` (parallel or single) and `modules` list
 3. **If modules > 1**: spawn one metta-researcher per module **in parallel** (single message)
    **If single module**: spawn one metta-researcher for the whole path

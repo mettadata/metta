@@ -13,9 +13,9 @@ Drive the `metta backlog` CLI. The CLI owns the `spec/backlog/` directory; this 
 
    - **list** → run `metta backlog list` and report the output.
    - **show** → ask for `slug` via `AskUserQuestion`, then run `metta backlog show <slug>`.
-   - **add** → ask for `title` (free-form), `priority` (`high | medium | low`), and `description` (free-form). Run `metta backlog add "<title>" --priority <level> --description "<description>"`. Omit `--priority` if the user declined to pick one. Omit `--description` if the user left it blank (description then defaults to the title).
-   - **promote** → run `metta backlog list --json`, parse `.backlog[].slug` from the output, present the slugs via `AskUserQuestion`, then run `metta backlog promote <chosen-slug>`. The CLI prints the `metta propose "<title>"` command to run next; echo that back to the user.
-   - **done** → run `metta backlog list --json`, parse `.backlog[].slug` from the output to build the list of available slugs. Present the slugs via `AskUserQuestion`. Then ask, via `AskUserQuestion`, for an optional change name to record as `--change <name>` (free-form; if the user skips or leaves blank, omit the flag). Run `metta backlog done <slug>` or `metta backlog done <slug> --change <changeName>` as appropriate. Echo the archived path printed by the CLI back to the user.
+   - **add** → ask for `title` (free-form), `priority` (`high | medium | low`), and `description` (free-form). Run `METTA_SKILL=1 metta backlog add "<title>" --priority <level> --description "<description>"`. Omit `--priority` if the user declined to pick one. Omit `--description` if the user left it blank (description then defaults to the title).
+   - **promote** → run `metta backlog list --json`, parse `.backlog[].slug` from the output, present the slugs via `AskUserQuestion`, then run `METTA_SKILL=1 metta backlog promote <chosen-slug>`. The CLI prints the `metta propose "<title>"` command to run next; echo that back to the user.
+   - **done** → run `metta backlog list --json`, parse `.backlog[].slug` from the output to build the list of available slugs. Present the slugs via `AskUserQuestion`. Then ask, via `AskUserQuestion`, for an optional change name to record as `--change <name>` (free-form; if the user skips or leaves blank, omit the flag). Run `METTA_SKILL=1 metta backlog done <slug>` or `METTA_SKILL=1 metta backlog done <slug> --change <changeName>` as appropriate. Echo the archived path printed by the CLI back to the user.
 
 3. Echo the slug / path / next command printed by the CLI.
 

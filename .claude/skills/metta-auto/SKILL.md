@@ -17,8 +17,8 @@ You are the **orchestrator** for the full Metta lifecycle. Spawn subagents for e
    - Valid names are owned by the CLI (`standard` default, also `quick`, `full`); do NOT validate the name here — pass through and let `metta propose` reject unknown values with a clear error.
 
    Then run:
-   `metta propose "<description>" --workflow <name> --json` (when flag present)
-   `metta propose "<description>" --json` (when flag absent — standard workflow)
+   `METTA_SKILL=1 metta propose "<description>" --workflow <name> --json` (when flag present)
+   `METTA_SKILL=1 metta propose "<description>" --json` (when flag absent — standard workflow)
    → creates change
 
 2. **DISCOVERY GATE (mandatory):**
@@ -30,13 +30,13 @@ You are the **orchestrator** for the full Metta lifecycle. Spawn subagents for e
    e. Pass answers as context to all downstream subagents
 
 3. For each **planning** artifact (intent, spec, design, tasks) — one subagent per artifact:
-   `metta instructions <artifact> --json` → spawn agent → `metta complete <artifact>`
+   `metta instructions <artifact> --json` → spawn agent → `METTA_SKILL=1 metta complete <artifact>`
 
    When a non-default `--workflow` is used, the artifact loop uses whatever sequence `metta propose` returned — `metta instructions <artifact> --json` provides the correct agent persona per stage. Note: as of this change, the `full` workflow references stage templates (`domain-research`, `architecture`, `ux-spec`) that do not yet exist in `src/templates/artifacts/`; running `--workflow full` will fail on the first missing template. Tracked as issue `full-workflow-references-missing-template-files-domain-resea` for a follow-up.
 
    For **research**: spawn 2-4 metta-researcher agents in parallel (one per approach). Each researcher MUST write to `spec/changes/<change>/research-<approach-slug>.md` (a short kebab-case slug per approach, e.g. `research-websockets.md`, `research-sse.md`, `research-polling.md`). Forbid `/tmp/` paths — per-approach output MUST be in-tree so the synthesis step can read it.
 
-4. **Synthesize research** — read all `spec/changes/<change>/research-*.md` files you just created, write a single consolidated `spec/changes/<change>/research.md` that summarizes each approach and ends with a recommendation, and git-commit it. Do NOT call `metta complete research` until `spec/changes/<change>/research.md` exists on disk with real content.
+4. **Synthesize research** — read all `spec/changes/<change>/research-*.md` files you just created, write a single consolidated `spec/changes/<change>/research.md` that summarizes each approach and ends with a recommendation, and git-commit it. Do NOT call `METTA_SKILL=1 metta complete research` until `spec/changes/<change>/research.md` exists on disk with real content.
 
 5. **IMPLEMENTATION — MANDATORY PARALLEL EXECUTION:**
    **⚠️ DO NOT spawn a single metta-executor for all tasks. You MUST parse batches and spawn per-task.**
@@ -49,7 +49,7 @@ You are the **orchestrator** for the full Metta lifecycle. Spawn subagents for e
       - Each executor prompt: include ONLY that task's details (Files, Action, Verify, Done)
       - Wait for ALL executors in batch to complete before next batch
    d. After all batches: write summary.md and commit
-   e. `metta complete implementation --json --change <name>`
+   e. `METTA_SKILL=1 metta complete implementation --json --change <name>`
 6. **Spawn 3 metta-reviewer agents in parallel** (fan-out):
    - Agent 1 (subagent_type: "metta-reviewer"): "**Correctness reviewer**"
    - Agent 2 (subagent_type: "metta-reviewer"): "**Security reviewer**"
@@ -66,8 +66,8 @@ You are the **orchestrator** for the full Metta lifecycle. Spawn subagents for e
    - Agent 3 (subagent_type: "metta-verifier"): "Read spec.md, check each scenario has a passing test — cite evidence"
    - Merge results into summary.md and commit
    - If any gate fails: spawn parallel metta-executors to fix, then re-verify
-8. `metta complete verification --json --change <name>`
-9. `metta finalize --json --change <name>` → runs gates, archives, merges specs
+8. `METTA_SKILL=1 metta complete verification --json --change <name>`
+9. `METTA_SKILL=1 metta finalize --json --change <name>` → runs gates, archives, merges specs
 10. `git checkout main && git merge metta/<change-name> --no-ff -m "chore: merge <change-name>"`
 11. Report results to user
 
@@ -83,5 +83,5 @@ You are the **orchestrator** for the full Metta lifecycle. Spawn subagents for e
 
 - Ask discovery questions BEFORE writing spec — don't guess requirements
 - Commit ownership: the orchestrator commits planning, review, and verification artifacts after each subagent returns. The executor subagent commits atomically per task during implementation. Planning-artifact subagents (proposer, researcher, architect, planner, product) write files only — they do not run git.
-- Every artifact MUST be followed by `metta complete` to advance workflow
+- Every artifact MUST be followed by `METTA_SKILL=1 metta complete` to advance workflow
 - Deviation Rule 4: design is wrong → STOP, tell user

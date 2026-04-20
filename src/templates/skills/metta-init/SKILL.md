@@ -10,7 +10,7 @@ You are the **orchestrator** for Metta project initialization.
 
 ## Steps
 
-1. `metta init --json` → scaffolds directories, installs skills, returns discovery instructions.
+1. `METTA_SKILL=1 metta init --json` → scaffolds directories, installs skills, returns discovery instructions.
    Parse the `discovery` object from the JSON response.
 
 2. **DISCOVERY LOOP (mandatory — do NOT skip this step):**
@@ -152,9 +152,9 @@ You are the **orchestrator** for Metta project initialization.
    ```
    Do NOT write flat keys like `name:`, `description:`, `stack:` at the root level.
 
-5. After the discovery agent returns, run `metta refresh --no-commit` via Bash to regenerate CLAUDE.md from the written spec/project.md without triggering the command's auto-commit, then stage and commit separately with the init-specific message:
+5. After the discovery agent returns, run `METTA_SKILL=1 metta refresh --no-commit` via Bash to regenerate CLAUDE.md from the written spec/project.md without triggering the command's auto-commit, then stage and commit separately with the init-specific message:
    ```
-   metta refresh --no-commit
+   METTA_SKILL=1 metta refresh --no-commit
    git add CLAUDE.md && git commit -m "chore: generate CLAUDE.md from discovery"
    ```
    If refresh or commit fails, warn the user but continue.

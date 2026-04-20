@@ -19,7 +19,7 @@ You are the **orchestrator** for implementation. Spawn executor subagents per ba
    c. If overlap exists → spawn tasks **sequentially** (one at a time)
    d. Wait for all tasks in batch to complete before starting next batch
 5. After all batches, write `spec/changes/<change>/summary.md`
-6. `metta complete implementation --json --change <name>`
+6. `METTA_SKILL=1 metta complete implementation --json --change <name>`
 
 ## Parallel Execution
 

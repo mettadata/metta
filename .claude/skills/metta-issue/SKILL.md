@@ -10,7 +10,7 @@ Log an issue to `spec/issues/` via the metta CLI.
 
 1. If `description` was not provided as a skill argument, use `AskUserQuestion` to collect it (single free-form question: "What is the issue?").
 2. If `severity` was not provided, use `AskUserQuestion` with options `critical | major | minor` (default `minor`).
-3. Run `metta issue "<description>" --severity <level>` (shell-escape the description).
+3. Run `METTA_SKILL=1 metta issue "<description>" --severity <level>` (shell-escape the description).
 4. Echo the created slug and path to the user. The CLI prints `Issue logged: <slug> (<severity>)`; the file lives at `spec/issues/<slug>.md`.
 
 ## Rules
