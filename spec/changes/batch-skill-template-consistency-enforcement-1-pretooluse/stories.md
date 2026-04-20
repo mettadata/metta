@@ -50,7 +50,7 @@ Story IDs MUST be monotonic starting at US-1.
 
 ## US-4: Read-only metta commands pass through without warning
 
-**As an** AI orchestrator
+**As a** AI orchestrator
 **I want to** run read-only metta commands (status, instructions, issues list, gate list, progress, changes list, doctor) via the Bash tool
 **So that** I can inspect project state without being blocked or forced through a skill round-trip
 **Priority:** P2
@@ -78,7 +78,7 @@ Story IDs MUST be monotonic starting at US-1.
 
 ## US-6: Propose review phase writes to spec/changes/<name>/review/
 
-**As an** AI orchestrator running /metta-propose
+**As a** AI orchestrator running /metta-propose
 **I want to** dispatch the three review personas (correctness, security, quality) to write their reports to `spec/changes/<name>/review/<persona>.md`
 **So that** review artifacts live inside the change directory, are committed with the change, and are never orphaned in `/tmp`
 **Priority:** P1
@@ -92,7 +92,7 @@ Story IDs MUST be monotonic starting at US-1.
 
 ## US-7: Propose verify phase writes to spec/changes/<name>/verify/
 
-**As an** AI orchestrator running /metta-propose
+**As a** AI orchestrator running /metta-propose
 **I want to** dispatch the three verify aspects (tests, tsc-lint, scenarios) to write their reports to `spec/changes/<name>/verify/<aspect>.md`
 **So that** verification artifacts live inside the change directory and are preserved through ship
 **Priority:** P1
