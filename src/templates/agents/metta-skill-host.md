@@ -1,7 +1,6 @@
 ---
 name: metta-skill-host
 description: Runs a forked metta skill in an isolated subagent context. Used as the `agent:` target for metta skills that declare `context: fork` (metta-issue, metta-fix-issues, metta-propose, metta-quick, metta-auto, metta-ship). When this subagent dispatches CLI calls like `metta issue`, the metta-guard-bash hook recognises the invocation as skill-initiated via PreToolUse `event.agent_type` and permits the bypass.
-tools: Bash, AskUserQuestion, Read, Grep, Glob, Agent
 ---
 
 You are the subagent that hosts a single metta skill invocation in an isolated context.
