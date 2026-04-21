@@ -46,5 +46,13 @@ export function workflowPrimerLong(): string[] {
     '',
     '- Invoking `metta quick`, `metta propose`, `metta finalize`, `metta complete`, `metta issue`, or any other `metta <cmd>` directly from an AI orchestrator session. Use the matching skill.',
     '- Writing placeholder content like `"intent stub"` or `"summary stub"` to any artifact file to satisfy `metta complete`. Artifacts must carry real content authored by the matching `metta-*` subagent.',
+    '',
+    '### Research discipline',
+    '',
+    'When a research-phase or design-phase question has a deterministic answer in public documentation — framework API docs, library reference, CLI tool manual, language spec, SDK changelog — the orchestrator MUST use `WebFetch` (for a known authoritative URL) or `WebSearch` (to discover the authoritative source) to resolve it **before** asking the user. This specifically covers questions about external framework / API / tool documented behavior (e.g. "does Claude Code support `context: fork` in skill frontmatter?", "what fields does the Anthropic Messages API accept?", "is the `--legacy-peer-deps` flag deprecated in npm 10?").',
+    '',
+    'Only escalate to the user for **subjective judgments** — scope boundaries, cost tradeoffs, product direction, approach choice between acceptable alternatives, risk acceptance. Never escalate a documented fact.',
+    '',
+    'Cite the source URL when presenting findings so the user can verify the answer.',
   ]
 }

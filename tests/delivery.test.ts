@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { claudeCodeAdapter } from '../src/delivery/claude-code-adapter.js'
 import { installCommands } from '../src/delivery/command-installer.js'
+import { workflowPrimerLong, workflowPrimerShort } from '../src/delivery/workflow-primer.js'
 import type { SkillContent, ProjectContext } from '../src/delivery/tool-adapter.js'
 
 describe('Claude Code Adapter', () => {
@@ -63,6 +64,39 @@ describe('Claude Code Adapter', () => {
     expect(cap.tool).toBe('AskUserQuestion')
     expect(cap.supportsOptions).toBe(true)
     expect(cap.supportsMultiSelect).toBe(true)
+  })
+})
+
+describe('Workflow primer research discipline rule', () => {
+  it('workflowPrimerLong declares a Research discipline subsection', () => {
+    const text = workflowPrimerLong().join('\n')
+    expect(text).toContain('### Research discipline')
+  })
+
+  it('workflowPrimerLong cites WebFetch and WebSearch by name', () => {
+    const text = workflowPrimerLong().join('\n')
+    expect(text).toContain('`WebFetch`')
+    expect(text).toContain('`WebSearch`')
+  })
+
+  it('workflowPrimerLong scopes the rule to research/design-phase questions about external documented behavior', () => {
+    const text = workflowPrimerLong().join('\n')
+    expect(text).toMatch(/research-phase or design-phase question/i)
+    expect(text).toMatch(/external framework \/ API \/ tool documented behavior/i)
+  })
+
+  it('workflowPrimerLong only escalates subjective judgments to the user', () => {
+    const text = workflowPrimerLong().join('\n')
+    expect(text).toMatch(/subjective judgments/i)
+    expect(text).toContain('scope')
+    expect(text).toContain('cost')
+    expect(text).toContain('product direction')
+  })
+
+  it('workflowPrimerShort does not inline the detailed research rule', () => {
+    // The detailed rule lives only in the long primer; short stays short.
+    const text = workflowPrimerShort().join('\n')
+    expect(text).not.toContain('### Research discipline')
   })
 })
 
