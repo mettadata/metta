@@ -456,6 +456,70 @@ describe('CLI', { timeout: 30000 }, () => {
     })
   })
 
+  describe('metta doctor --fix', { timeout: 30000 }, () => {
+    it('dedupes three duplicate stacks: entries and auto-commits', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      const configPath = join(tempDir, '.metta', 'config.yaml')
+      const corrupt = [
+        'project:',
+        '  name: test',
+        '  stacks: ["js"]',
+        '  stacks: ["rust"]',
+        '  stacks: ["py"]',
+        '',
+      ].join('\n')
+      await writeFile(configPath, corrupt, 'utf8')
+      await execAsync('git', ['add', '--', '.metta/config.yaml'], { cwd: tempDir })
+      await execAsync('git', ['commit', '-m', 'corrupt config fixture'], { cwd: tempDir })
+
+      const { code } = await runCli(['doctor', '--fix'], tempDir)
+      expect(code).toBe(0)
+
+      const { readFile } = await import('node:fs/promises')
+      const written = await readFile(configPath, 'utf8')
+      const stacksLines = written.split('\n').filter(l => /^\s*stacks:/.test(l))
+      expect(stacksLines).toHaveLength(1)
+      expect(stacksLines[0]).toContain('py')
+
+      const { stdout: subject } = await execAsync('git', ['log', '-1', '--format=%s'], { cwd: tempDir })
+      expect(subject.trim()).toBe('chore: metta doctor repaired .metta/config.yaml')
+    })
+
+    it('drops a schema-invalid top-level key', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      const configPath = join(tempDir, '.metta', 'config.yaml')
+      const { readFile } = await import('node:fs/promises')
+      const existing = await readFile(configPath, 'utf8')
+      const withBadKey = existing + (existing.endsWith('\n') ? '' : '\n') + 'foo: "bar"\n'
+      await writeFile(configPath, withBadKey, 'utf8')
+      await execAsync('git', ['add', '--', '.metta/config.yaml'], { cwd: tempDir })
+      await execAsync('git', ['commit', '-m', 'invalid config fixture'], { cwd: tempDir })
+
+      const { stdout, code } = await runCli(['doctor', '--fix'], tempDir)
+      expect(code).toBe(0)
+
+      const written = await readFile(configPath, 'utf8')
+      expect(written).not.toContain('foo:')
+      expect(stdout).toContain("dropped unrecognized key 'foo'")
+    })
+
+    it('is a no-op on an already-valid config', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      const configPath = join(tempDir, '.metta', 'config.yaml')
+      const { readFile } = await import('node:fs/promises')
+      const baseline = await readFile(configPath, 'utf8')
+      const { stdout: beforeLog } = await execAsync('git', ['log', '--oneline'], { cwd: tempDir })
+
+      const { code } = await runCli(['doctor', '--fix'], tempDir)
+      expect(code).toBe(0)
+
+      const after = await readFile(configPath, 'utf8')
+      expect(after).toBe(baseline)
+      const { stdout: afterLog } = await execAsync('git', ['log', '--oneline'], { cwd: tempDir })
+      expect(afterLog).toBe(beforeLog)
+    })
+  })
+
   describe('corrupt config error boundary', () => {
     async function corruptConfig(): Promise<void> {
       const configPath = join(tempDir, '.metta', 'config.yaml')

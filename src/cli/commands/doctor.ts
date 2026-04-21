@@ -1,15 +1,86 @@
 import { Command } from 'commander'
-import { stat } from 'node:fs/promises'
+import { readFile, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { createCliContext, outputJson, color } from '../helpers.js'
+import { autoCommitFile, createCliContext, outputJson, color } from '../helpers.js'
+import { repairProjectConfig } from '../../config/repair-config.js'
 
 export function registerDoctorCommand(program: Command): void {
   program
     .command('doctor')
     .description('Diagnose common issues')
-    .action(async () => {
+    .option('--fix', 'Repair duplicate keys and schema-invalid entries in .metta/config.yaml')
+    .action(async (options) => {
       const json = program.opts().json
       const ctx = createCliContext()
+
+      if (options.fix) {
+        const configPath = join(ctx.projectRoot, '.metta', 'config.yaml')
+        let source: string
+        try {
+          source = await readFile(configPath, 'utf8')
+        } catch (err) {
+          if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+            if (json) {
+              outputJson({ repair: { status: 'no_config' } })
+            } else {
+              console.log('No .metta/config.yaml found — nothing to repair.')
+            }
+            return
+          }
+          throw err
+        }
+
+        const result = repairProjectConfig(source)
+
+        if (!result.changed) {
+          if (json) {
+            outputJson({
+              repair: {
+                status: 'clean',
+                duplicates_removed: [],
+                invalid_keys_removed: [],
+                committed: false,
+              },
+            })
+          } else {
+            console.log('.metta/config.yaml is already valid — no changes needed.')
+          }
+          return
+        }
+
+        await writeFile(configPath, result.source, 'utf8')
+        const commit = await autoCommitFile(
+          ctx.projectRoot,
+          configPath,
+          'chore: metta doctor repaired .metta/config.yaml',
+        )
+
+        if (json) {
+          outputJson({
+            repair: {
+              status: 'repaired',
+              duplicates_removed: result.duplicatesRemoved,
+              invalid_keys_removed: result.invalidKeysRemoved,
+              committed: commit.committed,
+              commit_sha: commit.sha ?? null,
+            },
+          })
+        } else {
+          for (const entry of result.duplicatesRemoved) {
+            console.log(`  - ${entry}`)
+          }
+          for (const entry of result.invalidKeysRemoved) {
+            console.log(`  - ${entry}`)
+          }
+          if (commit.committed) {
+            console.log(`  Committed: ${commit.sha?.slice(0, 7)}`)
+          } else if (commit.reason) {
+            console.log(`  Not committed: ${commit.reason}`)
+          }
+        }
+        return
+      }
+
       const checks: Array<{ check: string; status: 'pass' | 'fail' | 'warn'; detail?: string }> = []
 
       // Node.js version
