@@ -1575,6 +1575,47 @@ describe('CLI', { timeout: 30000 }, () => {
     })
   })
 
+  describe('metta instructions verification context', { timeout: 30000 }, () => {
+    it('strategy present: emits configured values in context', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await runCli(['propose', 'ver ctx present'], tempDir)
+
+      // Append a top-level `verification:` block — sibling of `project:`.
+      const { readFile, writeFile } = await import('node:fs/promises')
+      const configPath = join(tempDir, '.metta', 'config.yaml')
+      const existing = await readFile(configPath, 'utf8')
+      const appended =
+        (existing.endsWith('\n') ? existing : existing + '\n') +
+        'verification:\n' +
+        '  strategy: playwright\n' +
+        '  instructions: "http://localhost:3000"\n'
+      await writeFile(configPath, appended, 'utf8')
+
+      const { stdout, code } = await runCli(
+        ['--json', 'instructions', 'verification', '--change', 'ver-ctx-present'],
+        tempDir,
+      )
+      expect(code).toBe(0)
+      const data = JSON.parse(stdout)
+      expect(data.context.verification_strategy).toBe('playwright')
+      expect(data.context.verification_instructions).toBe('http://localhost:3000')
+    })
+
+    it('strategy absent: emits null for both fields', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await runCli(['propose', 'ver ctx absent'], tempDir)
+
+      const { stdout, code } = await runCli(
+        ['--json', 'instructions', 'verification', '--change', 'ver-ctx-absent'],
+        tempDir,
+      )
+      expect(code).toBe(0)
+      const data = JSON.parse(stdout)
+      expect(data.context.verification_strategy).toBeNull()
+      expect(data.context.verification_instructions).toBeNull()
+    })
+  })
+
   describe('metta complete intent-time downscale prompt', () => {
     async function readChangeMetaYaml(changeName: string): Promise<Record<string, unknown>> {
       const { readFile } = await import('node:fs/promises')
