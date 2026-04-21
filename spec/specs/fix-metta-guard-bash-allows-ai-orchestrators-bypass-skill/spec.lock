@@ -1,0 +1,34 @@
+version: 6
+hash: sha256:41146d6fa123
+updated: 2026-04-21T10:54:23.052Z
+status: draft
+source: change
+requirements:
+  - id: guard-hook-fails-closed-on-high-value-skill-enforced-subcommands
+    hash: sha256:7cb8f2c5d85e
+    scenarios:
+      - direct-metta-issue-call-is-blocked-and-names-the-skill
+      - inline-prefix-metta-skill-1-metta-propose-is-blocked-and-names-the-skill
+  - id: guard-hook-preserves-inline-bypass-for-non-skill-enforced-subcommands
+    hash: sha256:762aae2aefd5
+    scenarios:
+      - inline-prefix-metta-skill-1-metta-complete-is-allowed-when-complete-is-enforced-only-via-env-var-path
+  - id: guard-hook-appends-every-blocked-or-bypass-detected-attempt-to-metta-logs-guard-bypass-log
+    hash: sha256:e8e3d2a06b66
+    scenarios:
+      - blocked-skill-enforced-call-appends-one-json-line-with-verdict-block
+      - non-enforced-inline-bypass-call-appends-one-json-line-with-verdict-allow-with-bypass
+  - id: read-only-subcommands-are-unaffected
+    hash: sha256:8cf53554313b
+    scenarios:
+      - metta-status-exits-0-with-no-audit-log-entry
+      - metta-issues-list-exits-0-with-no-audit-log-entry
+  - id: templates-and-deployed-hook-stay-byte-identical
+    hash: sha256:f17a187ae56a
+    scenarios:
+      - diff-q-reports-no-difference-between-source-and-deployed-hook
+      - both-test-describe-blocks-assert-the-new-fail-closed-behavior
+  - id: skills-using-inline-metta-skill-1-for-enforced-subcommands-are-updated-to-use-an-alternative-dispatch
+    hash: sha256:faaadcdbfb5b
+    scenarios:
+      - metta-issue-end-to-end-still-writes-an-issue-file-after-skill-dispatch-is-migrated
