@@ -26,3 +26,5 @@ artifact_tokens:
   implementation:
     context: 0
     budget: 10000
+review_iterations: 1
+verify_iterations: 1
