@@ -86,28 +86,36 @@ export function registerInstructionsCommand(program: Command): void {
         // unset) and `artifact_tokens[id]` (always overwritten with the
         // freshly-computed budget numbers). Never throws into the
         // instructions path — instrumentation MUST NOT block workflow.
-        try {
-          const timings = { ...(metadata.artifact_timings ?? {}) }
-          const existingTiming = timings[artifactId] ?? {}
-          if (!existingTiming.started) {
-            timings[artifactId] = {
-              ...existingTiming,
-              started: new Date().toISOString(),
+        //
+        // Status guard: only stamp when the artifact is still in progress
+        // (`ready` or `in_progress`). Re-reading instructions for an
+        // already-`complete` artifact is a pure inspection and MUST NOT
+        // mutate timing/token records for the closed artifact.
+        const preStatus = metadata.artifacts[artifactId]
+        if (preStatus === 'ready' || preStatus === 'in_progress') {
+          try {
+            const timings = { ...(metadata.artifact_timings ?? {}) }
+            const existingTiming = timings[artifactId] ?? {}
+            if (!existingTiming.started) {
+              timings[artifactId] = {
+                ...existingTiming,
+                started: new Date().toISOString(),
+              }
             }
+            const tokens = { ...(metadata.artifact_tokens ?? {}) }
+            tokens[artifactId] = {
+              context: output.budget.context_tokens,
+              budget: output.budget.budget_tokens,
+            }
+            await ctx.artifactStore.updateChange(changeName, {
+              artifact_timings: timings,
+              artifact_tokens: tokens,
+            })
+          } catch (err) {
+            process.stderr.write(
+              `Warning: failed to record instructions metrics for ${artifactId}: ${err instanceof Error ? err.message : String(err)}\n`,
+            )
           }
-          const tokens = { ...(metadata.artifact_tokens ?? {}) }
-          tokens[artifactId] = {
-            context: output.budget.context_tokens,
-            budget: output.budget.budget_tokens,
-          }
-          await ctx.artifactStore.updateChange(changeName, {
-            artifact_timings: timings,
-            artifact_tokens: tokens,
-          })
-        } catch (err) {
-          process.stderr.write(
-            `Warning: failed to record instructions metrics for ${artifactId}: ${err instanceof Error ? err.message : String(err)}\n`,
-          )
         }
 
         // Map agent name to metta agent type for subagent spawning

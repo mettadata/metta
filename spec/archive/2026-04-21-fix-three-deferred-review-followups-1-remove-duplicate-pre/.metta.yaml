@@ -1,0 +1,30 @@
+workflow: quick
+created: 2026-04-21T13:16:53.401Z
+status: active
+current_artifact: verification
+base_versions: {}
+artifacts:
+  intent: complete
+  implementation: complete
+  verification: complete
+complexity_score:
+  score: 0
+  signals:
+    file_count: 0
+  recommended_workflow: trivial
+artifact_timings:
+  intent:
+    started: 2026-04-21T13:17:02.547Z
+    completed: 2026-04-21T13:18:20.347Z
+  implementation:
+    started: 2026-04-21T13:18:30.383Z
+    completed: 2026-04-21T21:36:28.752Z
+  verification:
+    completed: 2026-04-21T21:48:13.531Z
+artifact_tokens:
+  intent:
+    context: 775
+    budget: 20000
+  implementation:
+    context: 0
+    budget: 10000
