@@ -3,6 +3,8 @@ name: metta:propose
 description: Start a new change with Metta
 argument-hint: "<description of what you want to build>"
 allowed-tools: [Read, Write, Grep, Glob, Bash, Agent]
+context: fork
+agent: metta-skill-host
 ---
 
 **IMPORTANT: When using the Agent tool, use these metta agent types: metta-proposer, metta-product, metta-researcher, metta-architect, metta-planner, metta-executor, metta-reviewer, metta-verifier, metta-discovery. Do NOT use gsd-executor or general-purpose.**
