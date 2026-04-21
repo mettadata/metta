@@ -34,6 +34,29 @@ const DROPPABLE_PLANNING_ARTIFACTS = new Set([
 
 const execAsync = promisify(execFile)
 
+/**
+ * Best-effort stamp of `artifact_timings[artifactId].completed` on the
+ * change's metadata. Preserves any existing `started` value. Never throws
+ * into the completion path — instrumentation MUST NOT block workflow.
+ */
+async function stampArtifactCompleted(
+  ctx: ReturnType<typeof createCliContext>,
+  changeName: string,
+  artifactId: string,
+): Promise<void> {
+  try {
+    const meta = await ctx.artifactStore.getChange(changeName)
+    const timings = { ...(meta.artifact_timings ?? {}) }
+    const existing = timings[artifactId] ?? {}
+    timings[artifactId] = { ...existing, completed: new Date().toISOString() }
+    await ctx.artifactStore.updateChange(changeName, { artifact_timings: timings })
+  } catch (err) {
+    process.stderr.write(
+      `Warning: failed to record completion timestamp for ${artifactId}: ${err instanceof Error ? err.message : String(err)}\n`,
+    )
+  }
+}
+
 const MIN_CONTENT_BYTES = 200
 const SUMMARY_MIN_CONTENT_BYTES = 100
 const STUB_MARKERS = [
@@ -154,6 +177,12 @@ export function registerCompleteCommand(program: Command): void {
 
         // Mark complete
         await ctx.artifactStore.markArtifact(changeName, artifactId, 'complete')
+
+        // Stamp `artifact_timings[id].completed` (best-effort; never blocks
+        // the completion path). Existing `started` value — if any — is
+        // preserved. See spec `metta complete stamps artifact completed
+        // timestamp` requirement.
+        await stampArtifactCompleted(ctx, changeName, artifactId)
 
         // The workflow graph used by the downstream "next artifact" logic.
         // Defaults to the graph loaded for the current workflow above; after a

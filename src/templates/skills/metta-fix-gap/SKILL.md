@@ -50,27 +50,30 @@ For a given `<gap-slug>`:
    e. `METTA_SKILL=1 metta complete implementation --json --change <name>`
 
 6. **Review — spawn 3 metta-reviewer agents in parallel** (fan-out — single message):
+   - Before spawning reviewer agents, run: `METTA_SKILL=1 metta iteration record --phase review --change <name>`
    - Agent 1 (subagent_type: "metta-reviewer"): "**Correctness reviewer**"
    - Agent 2 (subagent_type: "metta-reviewer"): "**Security reviewer**"
    - Agent 3 (subagent_type: "metta-reviewer"): "**Quality reviewer**"
    - Merge results into `spec/changes/<change>/review.md` and commit
 
 7. **Review-Fix Loop (repeat until clean):**
-   a. If any critical issues found:
+   a. Run `METTA_SKILL=1 metta iteration record --phase review --change <name>`
+   b. If any critical issues found:
       - Parse each issue's file path from review.md
       - Batch issues by file — independent files = parallel
       - Spawn one metta-executor per file batch (parallel fixes)
-   b. After fixes: re-run the 3 reviewers
-   c. If new issues found: repeat from (a)
-   d. If all 3 reviewers report PASS or PASS_WITH_WARNINGS: exit loop
-   e. Max 3 iterations — if still failing after 3 rounds, stop and report to user
+   c. After fixes: re-run the 3 reviewers
+   d. If new issues found: repeat from (a)
+   e. If all 3 reviewers report PASS or PASS_WITH_WARNINGS: exit loop
+   f. Max 3 iterations — if still failing after 3 rounds, stop and report to user
 
 8. **Verify — spawn 3 metta-verifier agents in parallel** (fan-out — single message):
+   - Before spawning verifier agents, run: `METTA_SKILL=1 metta iteration record --phase verify --change <name>`
    - Agent 1 (subagent_type: "metta-verifier"): "Run `npm test` — report pass/fail count and failures"
    - Agent 2 (subagent_type: "metta-verifier"): "Run `npx tsc --noEmit` and `npm run lint` — report errors"
    - Agent 3 (subagent_type: "metta-verifier"): "Read spec.md, check each scenario has a passing test — cite evidence"
    - Merge results into summary.md and commit
-   - If any gate fails: spawn parallel metta-executors to fix, then re-verify
+   - If any gate fails: run `METTA_SKILL=1 metta iteration record --phase verify --change <name>` again, then spawn parallel metta-executors to fix, then re-verify
 
 9. **Finalize** — `METTA_SKILL=1 metta finalize --json --change <name>` → runs gates, archives, merges specs
 

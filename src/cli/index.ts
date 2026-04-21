@@ -32,6 +32,7 @@ import { registerNextCommand } from './commands/next.js'
 import { registerCompletionCommand } from './commands/completion.js'
 import { registerUpdateCommand } from './commands/update.js'
 import { registerProgressCommand } from './commands/progress.js'
+import { registerIterationCommand } from './commands/iteration.js'
 import { registerImportCommand } from './commands/import.js'
 import { registerGapsCommand } from './commands/gaps.js'
 import { registerFixGapCommand } from './commands/fix-gap.js'
@@ -81,6 +82,7 @@ registerNextCommand(program)
 registerCompletionCommand(program)
 registerUpdateCommand(program)
 registerProgressCommand(program)
+registerIterationCommand(program)
 registerImportCommand(program)
 registerGapsCommand(program)
 registerFixGapCommand(program)

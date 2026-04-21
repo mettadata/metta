@@ -135,18 +135,20 @@ You are the **orchestrator** for a quick change (intent → implementation → r
      Agent(subagent_type: "metta-reviewer", ...quality...)
    ```
 
+   - Before spawning reviewer agents, run: `METTA_SKILL=1 metta iteration record --phase review --change <name>`
    - Agent 1 (subagent_type: "metta-reviewer"): "You are a **correctness reviewer**."
    - Agent 2 (subagent_type: "metta-reviewer"): "You are a **security reviewer**."
    - Agent 3 (subagent_type: "metta-reviewer"): "You are a **quality reviewer**."
    - Each writes their findings. Merge results into `spec/changes/<change>/review.md` and commit.
 
    **REVIEW-FIX LOOP (applies to both paths, repeat until clean):**
-   a. If critical issues found:
+   a. Run `METTA_SKILL=1 metta iteration record --phase review --change <name>`
+   b. If critical issues found:
       - Parse each issue's file path from review.md
       - Group issues by file — independent files MUST be fixed in parallel (one metta-executor per file group, all spawned in the SAME orchestrator message)
       - Sequential fix-spawning is forbidden unless two issues share the same file path; in that case you MUST name the shared file in writing before serializing
-   b. After fixes: re-run the reviewer(s) for the active path (standard path MUST re-spawn all 3 in one message)
-   c. Repeat until all reviewers report PASS/PASS_WITH_WARNINGS (max 3 iterations)
+   c. After fixes: re-run the reviewer(s) for the active path (standard path MUST re-spawn all 3 in one message)
+   d. Repeat until all reviewers report PASS/PASS_WITH_WARNINGS (max 3 iterations)
 8. **VERIFICATION — trivial-detection gate, then fan-out:**
 
    **Trivial-detection gate (first action):** Run `metta status --json --change <name>` and read `complexity_score.recommended_workflow` from the returned state. If it equals `'trivial'`, take the trivial path below; otherwise (including when `complexity_score` is absent) take the standard 3-verifier path.
@@ -186,12 +188,13 @@ You are the **orchestrator** for a quick change (intent → implementation → r
      Agent(subagent_type: "metta-verifier", ...intent traceability...)
    ```
 
+   - Before spawning verifier agents, run: `METTA_SKILL=1 metta iteration record --phase verify --change <name>`
    - Agent 1 (subagent_type: "metta-verifier"): "Run `npm test` — report pass/fail count and any failures"
    - Agent 2 (subagent_type: "metta-verifier"): "Run `npx tsc --noEmit` and `npm run lint` — report any type or lint errors"
    - Agent 3 (subagent_type: "metta-verifier"): "Read intent.md and check each stated goal is implemented in the code — cite file:line evidence"
    - Merge results into `spec/changes/<change>/summary.md` and commit.
 
-   If any gate fails (either path): spawn parallel metta-executors to fix (all fixes in ONE orchestrator message unless two fixes share a file path you have named in writing), then re-verify.
+   If any gate fails (either path): run `METTA_SKILL=1 metta iteration record --phase verify --change <name>` again, then spawn parallel metta-executors to fix (all fixes in ONE orchestrator message unless two fixes share a file path you have named in writing), then re-verify.
 9. `METTA_SKILL=1 metta complete verification --json --change <name>`
 10. `METTA_SKILL=1 metta finalize --json --change <name>` → runs gates, archives, merges specs
 11. `git checkout main && git merge metta/<change-name> --no-ff -m "chore: merge <change-name>"`

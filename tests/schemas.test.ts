@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import {
   ChangeMetadataSchema,
+  ArtifactTimingSchema,
+  ArtifactTokensSchema,
   ComplexityScoreSchema,
   SpecLockSchema,
   SpecLockRequirementSchema,
@@ -141,6 +143,99 @@ describe('ChangeMetadataSchema', () => {
     }
   })
 
+  it('accepts metadata with artifact_timings, artifact_tokens, and iteration counters', () => {
+    const data = {
+      workflow: 'standard',
+      created: '2026-04-21T12:00:00Z',
+      status: 'active',
+      current_artifact: 'spec',
+      base_versions: {},
+      artifacts: { intent: 'complete', spec: 'in_progress' },
+      artifact_timings: {
+        intent: {
+          started: '2026-04-21T11:30:00Z',
+          completed: '2026-04-21T11:45:00Z',
+        },
+        spec: { started: '2026-04-21T11:46:00Z' },
+      },
+      artifact_tokens: {
+        intent: { context: 775, budget: 20000 },
+        spec: { context: 4086, budget: 40000 },
+      },
+      review_iterations: 2,
+      verify_iterations: 1,
+    }
+    const result = ChangeMetadataSchema.safeParse(data)
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.artifact_timings?.intent?.completed).toBe('2026-04-21T11:45:00Z')
+      expect(result.data.artifact_tokens?.spec?.budget).toBe(40000)
+      expect(result.data.review_iterations).toBe(2)
+      expect(result.data.verify_iterations).toBe(1)
+    }
+  })
+
+  it('accepts legacy metadata with none of the new optional fields', () => {
+    const data = {
+      workflow: 'standard',
+      created: '2026-04-04T12:00:00Z',
+      status: 'active',
+      current_artifact: 'spec',
+      base_versions: {},
+      artifacts: {},
+    }
+    const result = ChangeMetadataSchema.safeParse(data)
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.artifact_timings).toBeUndefined()
+      expect(result.data.artifact_tokens).toBeUndefined()
+      expect(result.data.review_iterations).toBeUndefined()
+      expect(result.data.verify_iterations).toBeUndefined()
+    }
+  })
+
+  it('rejects negative review_iterations', () => {
+    const data = {
+      workflow: 'standard',
+      created: '2026-04-21T12:00:00Z',
+      status: 'active',
+      current_artifact: 'spec',
+      base_versions: {},
+      artifacts: {},
+      review_iterations: -1,
+    }
+    const result = ChangeMetadataSchema.safeParse(data)
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects negative verify_iterations', () => {
+    const data = {
+      workflow: 'standard',
+      created: '2026-04-21T12:00:00Z',
+      status: 'active',
+      current_artifact: 'spec',
+      base_versions: {},
+      artifacts: {},
+      verify_iterations: -5,
+    }
+    const result = ChangeMetadataSchema.safeParse(data)
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects non-integer review_iterations', () => {
+    const data = {
+      workflow: 'standard',
+      created: '2026-04-21T12:00:00Z',
+      status: 'active',
+      current_artifact: 'spec',
+      base_versions: {},
+      artifacts: {},
+      review_iterations: 1.5,
+    }
+    const result = ChangeMetadataSchema.safeParse(data)
+    expect(result.success).toBe(false)
+  })
+
   it('allows complexity_score and actual_complexity_score to coexist independently', () => {
     const intentScore: ComplexityScore = {
       score: 1,
@@ -171,6 +266,90 @@ describe('ChangeMetadataSchema', () => {
       expect(result.data.complexity_score?.recommended_workflow).toBe('quick')
       expect(result.data.actual_complexity_score?.recommended_workflow).toBe('standard')
     }
+  })
+})
+
+describe('ArtifactTimingSchema', () => {
+  it('accepts empty object (both fields optional)', () => {
+    const result = ArtifactTimingSchema.safeParse({})
+    expect(result.success).toBe(true)
+  })
+
+  it('accepts only started', () => {
+    const result = ArtifactTimingSchema.safeParse({ started: '2026-04-21T10:00:00Z' })
+    expect(result.success).toBe(true)
+  })
+
+  it('accepts only completed', () => {
+    const result = ArtifactTimingSchema.safeParse({ completed: '2026-04-21T10:00:00Z' })
+    expect(result.success).toBe(true)
+  })
+
+  it('accepts both started and completed', () => {
+    const result = ArtifactTimingSchema.safeParse({
+      started: '2026-04-21T09:00:00Z',
+      completed: '2026-04-21T10:00:00Z',
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('rejects non-ISO started', () => {
+    const result = ArtifactTimingSchema.safeParse({ started: 'yesterday' })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects unknown fields (.strict())', () => {
+    const result = ArtifactTimingSchema.safeParse({
+      started: '2026-04-21T10:00:00Z',
+      extra: true,
+    })
+    expect(result.success).toBe(false)
+  })
+})
+
+describe('ArtifactTokensSchema', () => {
+  it('accepts non-negative context and budget', () => {
+    const result = ArtifactTokensSchema.safeParse({ context: 100, budget: 1000 })
+    expect(result.success).toBe(true)
+  })
+
+  it('accepts zeros', () => {
+    const result = ArtifactTokensSchema.safeParse({ context: 0, budget: 0 })
+    expect(result.success).toBe(true)
+  })
+
+  it('rejects negative context', () => {
+    const result = ArtifactTokensSchema.safeParse({ context: -1, budget: 1000 })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects negative budget', () => {
+    const result = ArtifactTokensSchema.safeParse({ context: 100, budget: -1 })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects non-integer values', () => {
+    const result = ArtifactTokensSchema.safeParse({ context: 1.5, budget: 1000 })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects when context is missing', () => {
+    const result = ArtifactTokensSchema.safeParse({ budget: 1000 })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects when budget is missing', () => {
+    const result = ArtifactTokensSchema.safeParse({ context: 100 })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects unknown fields (.strict())', () => {
+    const result = ArtifactTokensSchema.safeParse({
+      context: 100,
+      budget: 1000,
+      extra: true,
+    })
+    expect(result.success).toBe(false)
   })
 })
 
