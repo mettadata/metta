@@ -19,14 +19,14 @@ function countOccurrences(haystack: string, needle: string): number {
 }
 
 describe('metta-init SKILL.md structure', () => {
-  it('has exactly 3 Round headings (REQ-35)', async () => {
+  it('has exactly 4 Round headings', async () => {
     const full = await readFile(SKILL_PATH, 'utf8')
-    expect((full.match(/^## Round \d/gim) || []).length).toBe(3)
+    expect((full.match(/^## Round \d/gim) || []).length).toBe(4)
   })
 
-  it('includes the early-exit option at least 3 times (REQ-36)', async () => {
+  it('includes the early-exit option at least 4 times (REQ-36)', async () => {
     const full = await readFile(SKILL_PATH, 'utf8')
-    expect(countOccurrences(full, EXIT_PHRASE)).toBeGreaterThanOrEqual(3)
+    expect(countOccurrences(full, EXIT_PHRASE)).toBeGreaterThanOrEqual(4)
   })
 
   it('Round 1 contains no WebSearch or WebFetch references (REQ-37)', async () => {
