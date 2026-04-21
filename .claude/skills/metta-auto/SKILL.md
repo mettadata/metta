@@ -53,7 +53,6 @@ You are the **orchestrator** for the full Metta lifecycle. Spawn subagents for e
    d. After all batches: write summary.md and commit
    e. `METTA_SKILL=1 metta complete implementation --json --change <name>`
 6. **Spawn 3 metta-reviewer agents in parallel** (fan-out):
-   - Before spawning reviewer agents, run: `METTA_SKILL=1 metta iteration record --phase review --change <name>`
    - Agent 1 (subagent_type: "metta-reviewer"): "**Correctness reviewer**"
    - Agent 2 (subagent_type: "metta-reviewer"): "**Security reviewer**"
    - Agent 3 (subagent_type: "metta-reviewer"): "**Quality reviewer**"

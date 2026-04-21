@@ -16,7 +16,12 @@ artifact_timings:
   intent:
     started: 2026-04-21T13:17:02.547Z
     completed: 2026-04-21T13:18:20.347Z
+  implementation:
+    started: 2026-04-21T13:18:30.383Z
 artifact_tokens:
   intent:
     context: 775
     budget: 20000
+  implementation:
+    context: 0
+    budget: 10000

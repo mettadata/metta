@@ -135,7 +135,6 @@ You are the **orchestrator** for a quick change (intent → implementation → r
      Agent(subagent_type: "metta-reviewer", ...quality...)
    ```
 
-   - Before spawning reviewer agents, run: `METTA_SKILL=1 metta iteration record --phase review --change <name>`
    - Agent 1 (subagent_type: "metta-reviewer"): "You are a **correctness reviewer**."
    - Agent 2 (subagent_type: "metta-reviewer"): "You are a **security reviewer**."
    - Agent 3 (subagent_type: "metta-reviewer"): "You are a **quality reviewer**."

@@ -54,7 +54,6 @@ For a given `<issue-slug>`:
    e. `METTA_SKILL=1 metta complete implementation --json --change <name>`
 
 6. **Review — spawn 3 metta-reviewer agents in parallel** (fan-out — single message):
-   - Before spawning reviewer agents, run: `METTA_SKILL=1 metta iteration record --phase review --change <name>`
    - Agent 1 (subagent_type: "metta-reviewer"): "**Correctness reviewer**"
    - Agent 2 (subagent_type: "metta-reviewer"): "**Security reviewer**"
    - Agent 3 (subagent_type: "metta-reviewer"): "**Quality reviewer**"

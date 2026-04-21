@@ -10,6 +10,7 @@ import { dirname, join } from 'node:path';
 // Explicit ALLOW list: known safe read-only single-subcommand forms.
 const ALLOWED_SUBCOMMANDS = new Set([
   'status', 'instructions', 'progress', 'doctor',
+  'iteration', // counter-only instrumentation; skills call it during fan-out. Read-safe-ish; no state-mutating side effects beyond a per-change counter.
   'install', // intentional pass-through for human/CI-driven install (no matching skill yet)
 ]);
 
