@@ -110,4 +110,30 @@ function printChangeStatus(name: string, metadata: ChangeMetadata): void {
   } else {
     console.log(color('Complexity: not yet scored', 90))
   }
+
+  // Token totals — rounded to nearest 1k, suppressed when no data.
+  const tokens = metadata.artifact_tokens
+  if (tokens && Object.keys(tokens).length > 0) {
+    let contextSum = 0
+    let budgetSum = 0
+    for (const [, v] of Object.entries(tokens)) {
+      contextSum += v.context
+      budgetSum += v.budget
+    }
+    const ctxK = Math.round(contextSum / 1000)
+    const budK = Math.round(budgetSum / 1000)
+    console.log(`Tokens: ${ctxK}k / ${budK}k`)
+  }
+
+  // Iteration counters — suppress each half when zero/absent.
+  const iterHalves: string[] = []
+  if ((metadata.review_iterations ?? 0) > 0) {
+    iterHalves.push(`review ×${metadata.review_iterations}`)
+  }
+  if ((metadata.verify_iterations ?? 0) > 0) {
+    iterHalves.push(`verify ×${metadata.verify_iterations}`)
+  }
+  if (iterHalves.length > 0) {
+    console.log(`Iterations: ${iterHalves.join(', ')}`)
+  }
 }
