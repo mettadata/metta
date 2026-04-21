@@ -1,0 +1,19 @@
+workflow: standard
+created: 2026-04-21T07:43:52.804Z
+status: active
+current_artifact: verification
+base_versions: {}
+artifacts:
+  intent: complete
+  stories: complete
+  spec: complete
+  research: complete
+  design: complete
+  tasks: complete
+  implementation: complete
+  verification: complete
+complexity_score:
+  score: 2
+  signals:
+    file_count: 7
+  recommended_workflow: standard

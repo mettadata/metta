@@ -48,6 +48,8 @@ Doc-only fixes and edits to this workflow section itself are the exceptions.
 - Invoking `metta quick`, `metta propose`, `metta finalize`, `metta complete`, `metta issue`, or any other `metta <cmd>` directly from an AI orchestrator session. Use the matching skill.
 - Writing placeholder content like `"intent stub"` or `"summary stub"` to any artifact file to satisfy `metta complete`. Artifacts must carry real content authored by the matching `metta-*` subagent.
 
+As of change `fix-metta-guard-bash-allows-ai-orchestrators-bypass-skill`, the `metta-guard-bash` hook enforces the first rule by verifying PreToolUse `event.agent_type`: orchestrator direct calls to `metta issue`, `metta fix-issue`, `metta propose`, `metta quick`, `metta auto`, or `metta ship` are hard-blocked regardless of an inline `METTA_SKILL=1` prefix. Only calls dispatched from a forked metta skill (whose subagent's `agent_type` starts with `metta-`) are honored. Every block and every observed inline bypass is appended as a JSON line to `.metta/logs/guard-bypass.log` for audit.
+
 ### Lifecycle skills
 - `/metta-propose <description>` — start a new change (standard workflow)
 - `/metta-quick <description>` — quick mode, skip planning

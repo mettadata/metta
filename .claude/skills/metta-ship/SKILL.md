@@ -2,6 +2,8 @@
 name: metta:ship
 description: Finalize and ship the active change
 allowed-tools: [Read, Write, Bash, Grep, Glob]
+context: fork
+agent: metta-skill-host
 ---
 
 Two-step process: **finalize** (archive + merge specs on branch) then **ship** (merge branch to main).

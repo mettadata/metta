@@ -3,6 +3,8 @@ name: metta:auto
 description: Full lifecycle loop — discover, build, verify, ship
 argument-hint: "<description of what to build>"
 allowed-tools: [Read, Write, Edit, Bash, Grep, Glob, Agent]
+context: fork
+agent: metta-skill-host
 ---
 
 **IMPORTANT: When using the Agent tool, use these metta agent types: metta-proposer, metta-researcher, metta-architect, metta-planner, metta-executor, metta-reviewer, metta-verifier, metta-discovery. Do NOT use gsd-executor or general-purpose.**

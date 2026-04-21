@@ -6,6 +6,7 @@ const REPO_ROOT = join(import.meta.dirname, '..')
 
 const agents = [
   'metta-product',
+  'metta-skill-host',
   'metta-verifier',
   // Add other agents here as we centralize
 ]

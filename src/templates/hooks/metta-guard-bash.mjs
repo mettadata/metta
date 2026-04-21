@@ -4,7 +4,8 @@
 // Secondary bypass: process.env.METTA_SKILL === '1' (belt-and-suspenders).
 // Emergency bypass: disable hook in .claude/settings.local.json.
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, appendFileSync, mkdirSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 
 // Explicit ALLOW list: known safe read-only single-subcommand forms.
 const ALLOWED_SUBCOMMANDS = new Set([
@@ -30,6 +31,22 @@ const BLOCKED_SUBCOMMANDS = new Set([
 const BLOCKED_TWO_WORD = new Map([
   ['backlog', new Set(['add', 'done', 'promote'])],
   ['changes', new Set(['abandon'])],
+]);
+
+// Subcommands that require BOTH inline METTA_SKILL=1 bypass AND a trusted agent_type
+// (caller identity set by the Claude Code runtime when a forked metta-* subagent fires the tool).
+const SKILL_ENFORCED_SUBCOMMANDS = new Set([
+  'issue', 'fix-issue', 'propose', 'quick', 'auto', 'ship',
+]);
+
+// Mapping from enforced subcommand to the user-facing skill hint shown in rejection messages.
+const SKILL_HINT_MAP = new Map([
+  ['issue', '/metta-issue'],
+  ['fix-issue', '/metta-fix-issues'],
+  ['propose', '/metta-propose'],
+  ['quick', '/metta-quick'],
+  ['auto', '/metta-auto'],
+  ['ship', '/metta-ship'],
 ]);
 
 function readStdin() {
@@ -76,6 +93,36 @@ function classify(inv) {
   return 'unknown';
 }
 
+// Caller-identity check: the Claude Code runtime populates event.agent_type when a tool call
+// fires from a forked subagent. Orchestrator-driven Bash calls outside a skill fork have no
+// agent_type or a non-metta value. This signal is not forgeable via the command string.
+function isTrustedSkillCaller(event) {
+  return typeof event.agent_type === 'string' && event.agent_type.startsWith('metta-');
+}
+
+// Append one JSON line to <cwd>/.metta/logs/guard-bypass.log. Swallows all I/O errors so
+// audit-log failures never break the hook's primary enforcement path.
+function appendAuditLog(event, verdict, inv, reason) {
+  try {
+    const cwd = event.cwd ?? process.cwd();
+    const logPath = join(cwd, '.metta', 'logs', 'guard-bypass.log');
+    const entry = {
+      ts: new Date().toISOString(),
+      verdict,
+      subcommand: inv.sub ?? null,
+      third: inv.third ?? null,
+      agent_type: event.agent_type ?? null,
+      skill_bypass: Boolean(inv.skillBypass),
+      reason,
+      event_keys: Object.keys(event),
+    };
+    mkdirSync(dirname(logPath), { recursive: true });
+    appendFileSync(logPath, JSON.stringify(entry) + '\n', 'utf8');
+  } catch {
+    // Audit log errors must not break the hook — swallow silently.
+  }
+}
+
 async function main() {
   const raw = readStdin();
   if (!raw) { process.exit(0); }
@@ -89,16 +136,50 @@ async function main() {
   const command = event.tool_input?.command ?? '';
   const invocations = tokenize(command);
 
-  // Find the first invocation that is not skill-bypassed AND is not classified as allow.
-  const offender = invocations.find(
-    (inv) => !inv.skillBypass && classify(inv) !== 'allow',
-  );
-  if (!offender) process.exit(0);
+  // Find the first invocation that is not allowed. For SKILL_ENFORCED_SUBCOMMANDS the call
+  // must carry BOTH the inline METTA_SKILL=1 bypass AND a trusted metta-* agent_type; for
+  // every other blocked subcommand the existing inline-bypass behavior is preserved.
+  const offender = invocations.find((inv) => {
+    if (classify(inv) === 'allow') return false; // never an offender
+    // Enforced skill subcommands require BOTH inline bypass AND trusted agent_type
+    if (SKILL_ENFORCED_SUBCOMMANDS.has(inv.sub)) {
+      return !(inv.skillBypass && isTrustedSkillCaller(event));
+    }
+    // Non-enforced subcommands: today's behavior — inline bypass is enough
+    return !inv.skillBypass;
+  });
+
+  if (!offender) {
+    // No offender — but still log any observed inline bypass on a non-enforced subcommand
+    // so the audit trail reflects every skill-bypass use.
+    const firstBypassInv = invocations.find(
+      (inv) => inv.skillBypass && !SKILL_ENFORCED_SUBCOMMANDS.has(inv.sub) && classify(inv) !== 'allow',
+    );
+    if (firstBypassInv) {
+      appendAuditLog(event, 'allow_with_bypass', firstBypassInv, 'non-enforced inline bypass');
+    }
+    process.exit(0);
+  }
 
   const verdict = classify(offender);
   const subDisplay = `metta ${offender.sub ?? ''}${offender.third ? ' ' + offender.third : ''}`.trim();
 
+  // Skill-enforced subcommand blocked because the caller lacks a trusted agent_type.
+  // This is the new enforcement path: inline METTA_SKILL=1 alone is no longer sufficient.
+  if (SKILL_ENFORCED_SUBCOMMANDS.has(offender.sub)) {
+    const skillHint = SKILL_HINT_MAP.get(offender.sub) ?? '/metta-<skill>';
+    appendAuditLog(event, 'block', offender, 'skill-enforced subcommand without trusted agent_type');
+    process.stderr.write(
+      `metta-guard-bash: Blocked skill-enforced subcommand '${subDisplay}' from AI orchestrator session.\n` +
+      `Use the matching skill via the Skill tool: ${skillHint}\n` +
+      `Inline METTA_SKILL=1 prefix no longer bypasses skill-enforced subcommands — use the Skill tool.\n` +
+      `Emergency bypass: disable this hook in .claude/settings.local.json.\n`
+    );
+    process.exit(2);
+  }
+
   if (verdict === 'unknown') {
+    appendAuditLog(event, 'block', offender, 'unknown');
     process.stderr.write(
       `metta-guard-bash: Blocked unknown metta subcommand '${offender.sub}' in '${subDisplay}'.\n` +
       `Update the allowlist in metta-guard-bash.mjs if this is a legitimate read-only command.\n` +
@@ -109,6 +190,7 @@ async function main() {
   }
 
   // verdict === 'block'
+  appendAuditLog(event, 'block', offender, 'block');
   process.stderr.write(
     `metta-guard-bash: Blocked direct CLI call '${subDisplay}' from AI orchestrator session.\n` +
     `Use the matching /metta-<skill> skill via the Skill tool; see CLAUDE.md for the mapping.\n` +
