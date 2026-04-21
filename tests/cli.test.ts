@@ -100,6 +100,8 @@ describe('CLI', { timeout: 30000 }, () => {
     })
 
     it('is idempotent on an already-installed project', async () => {
+      // Drop a stack marker so writeStacksToConfig is exercised on both installs.
+      await writeFile(join(tempDir, 'package.json'), '{"name":"x"}\n')
       const first = await runCli(['--json', 'install', '--git-init'], tempDir)
       expect(first.code).toBe(0)
       const second = await runCli(['--json', 'install'], tempDir)
@@ -107,6 +109,11 @@ describe('CLI', { timeout: 30000 }, () => {
       const data = JSON.parse(second.stdout)
       expect(data.status).toBe('initialized')
       expect(data.committed).toBe(false)
+
+      const { readFile } = await import('node:fs/promises')
+      const configRaw = await readFile(join(tempDir, '.metta', 'config.yaml'), 'utf8')
+      const stacksLines = configRaw.split('\n').filter(l => /^\s*stacks:/.test(l))
+      expect(stacksLines).toHaveLength(1)
     })
   })
 
@@ -446,6 +453,116 @@ describe('CLI', { timeout: 30000 }, () => {
       expect(code).toBe(0)
       const data = JSON.parse(stdout)
       expect(data.checks.length).toBeGreaterThan(0)
+    })
+  })
+
+  describe('metta doctor --fix', { timeout: 30000 }, () => {
+    it('dedupes three duplicate stacks: entries and auto-commits', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      const configPath = join(tempDir, '.metta', 'config.yaml')
+      const corrupt = [
+        'project:',
+        '  name: test',
+        '  stacks: ["js"]',
+        '  stacks: ["rust"]',
+        '  stacks: ["py"]',
+        '',
+      ].join('\n')
+      await writeFile(configPath, corrupt, 'utf8')
+      await execAsync('git', ['add', '--', '.metta/config.yaml'], { cwd: tempDir })
+      await execAsync('git', ['commit', '-m', 'corrupt config fixture'], { cwd: tempDir })
+
+      const { code } = await runCli(['doctor', '--fix'], tempDir)
+      expect(code).toBe(0)
+
+      const { readFile } = await import('node:fs/promises')
+      const written = await readFile(configPath, 'utf8')
+      const stacksLines = written.split('\n').filter(l => /^\s*stacks:/.test(l))
+      expect(stacksLines).toHaveLength(1)
+      expect(stacksLines[0]).toContain('py')
+
+      const { stdout: subject } = await execAsync('git', ['log', '-1', '--format=%s'], { cwd: tempDir })
+      expect(subject.trim()).toBe('chore: metta doctor repaired .metta/config.yaml')
+    })
+
+    it('drops a schema-invalid top-level key', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      const configPath = join(tempDir, '.metta', 'config.yaml')
+      const { readFile } = await import('node:fs/promises')
+      const existing = await readFile(configPath, 'utf8')
+      const withBadKey = existing + (existing.endsWith('\n') ? '' : '\n') + 'foo: "bar"\n'
+      await writeFile(configPath, withBadKey, 'utf8')
+      await execAsync('git', ['add', '--', '.metta/config.yaml'], { cwd: tempDir })
+      await execAsync('git', ['commit', '-m', 'invalid config fixture'], { cwd: tempDir })
+
+      const { stdout, code } = await runCli(['doctor', '--fix'], tempDir)
+      expect(code).toBe(0)
+
+      const written = await readFile(configPath, 'utf8')
+      expect(written).not.toContain('foo:')
+      expect(stdout).toContain("dropped unrecognized key 'foo'")
+    })
+
+    it('is a no-op on an already-valid config', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      const configPath = join(tempDir, '.metta', 'config.yaml')
+      const { readFile } = await import('node:fs/promises')
+      const baseline = await readFile(configPath, 'utf8')
+      const { stdout: beforeLog } = await execAsync('git', ['log', '--oneline'], { cwd: tempDir })
+
+      const { code } = await runCli(['doctor', '--fix'], tempDir)
+      expect(code).toBe(0)
+
+      const after = await readFile(configPath, 'utf8')
+      expect(after).toBe(baseline)
+      const { stdout: afterLog } = await execAsync('git', ['log', '--oneline'], { cwd: tempDir })
+      expect(afterLog).toBe(beforeLog)
+    })
+  })
+
+  describe('corrupt config error boundary', () => {
+    async function corruptConfig(): Promise<void> {
+      const configPath = join(tempDir, '.metta', 'config.yaml')
+      await writeFile(
+        configPath,
+        'project:\n  name: foo\nproject:\n  name: bar\n',
+        'utf8',
+      )
+    }
+
+    it('blocks metta status with actionable doctor --fix remedy', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await corruptConfig()
+      const { stdout, stderr, code } = await runCli(['--json', 'status'], tempDir)
+      expect(code).toBe(4)
+      const combined = stdout + stderr
+      expect(combined).toContain('.metta/config.yaml')
+      expect(combined).toContain("metta doctor --fix")
+      // JSON payload shape sanity check when --json is set.
+      const data = JSON.parse(stdout)
+      expect(data.error.code).toBe(4)
+      expect(data.error.type).toBe('config_parse_error')
+      expect(data.error.path).toContain('.metta/config.yaml')
+      expect(data.error.remedy).toBe("Run 'metta doctor --fix' to repair.")
+    })
+
+    it('emits actionable stderr without --json', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await corruptConfig()
+      const { stderr, code } = await runCli(['status'], tempDir)
+      expect(code).toBe(4)
+      expect(stderr).toContain('.metta/config.yaml')
+      expect(stderr).toContain("metta doctor --fix")
+    })
+
+    it('does not block metta doctor on corrupt config', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await corruptConfig()
+      const { stdout, stderr } = await runCli(['doctor'], tempDir)
+      // Doctor's own diagnostic output is fine; it must NOT surface the
+      // ConfigParseError remedy line since it owns the repair path.
+      const combined = stdout + stderr
+      expect(combined).not.toContain("metta doctor --fix")
     })
   })
 
@@ -1519,6 +1636,47 @@ describe('CLI', { timeout: 30000 }, () => {
       expect(() => JSON.parse(stdout)).not.toThrow()
       const data = JSON.parse(stdout)
       expect(data).toHaveProperty('metta_agent')
+    })
+  })
+
+  describe('metta instructions verification context', { timeout: 30000 }, () => {
+    it('strategy present: emits configured values in context', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await runCli(['propose', 'ver ctx present'], tempDir)
+
+      // Append a top-level `verification:` block — sibling of `project:`.
+      const { readFile, writeFile } = await import('node:fs/promises')
+      const configPath = join(tempDir, '.metta', 'config.yaml')
+      const existing = await readFile(configPath, 'utf8')
+      const appended =
+        (existing.endsWith('\n') ? existing : existing + '\n') +
+        'verification:\n' +
+        '  strategy: playwright\n' +
+        '  instructions: "http://localhost:3000"\n'
+      await writeFile(configPath, appended, 'utf8')
+
+      const { stdout, code } = await runCli(
+        ['--json', 'instructions', 'verification', '--change', 'ver-ctx-present'],
+        tempDir,
+      )
+      expect(code).toBe(0)
+      const data = JSON.parse(stdout)
+      expect(data.context.verification_strategy).toBe('playwright')
+      expect(data.context.verification_instructions).toBe('http://localhost:3000')
+    })
+
+    it('strategy absent: emits null for both fields', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await runCli(['propose', 'ver ctx absent'], tempDir)
+
+      const { stdout, code } = await runCli(
+        ['--json', 'instructions', 'verification', '--change', 'ver-ctx-absent'],
+        tempDir,
+      )
+      expect(code).toBe(0)
+      const data = JSON.parse(stdout)
+      expect(data.context.verification_strategy).toBeNull()
+      expect(data.context.verification_instructions).toBeNull()
     })
   })
 

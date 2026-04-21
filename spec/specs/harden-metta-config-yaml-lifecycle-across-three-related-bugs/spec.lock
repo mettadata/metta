@@ -1,0 +1,46 @@
+version: 8
+hash: sha256:9389e3a2e4cc
+updated: 2026-04-21T05:14:48.385Z
+status: draft
+source: change
+requirements:
+  - id: shared-setprojectfield-config-writer-helper
+    hash: sha256:a958e15cb000
+    scenarios:
+      - idempotent-re-write-produces-no-diff
+      - comment-above-mutated-key-is-preserved
+  - id: metta-install-writes-stacks-via-the-shared-helper
+    hash: sha256:525f0b9af41b
+    scenarios:
+      - re-run-idempotency-single-stacks-key-after-two-installs
+      - three-pre-existing-duplicate-stacks-lines-become-one-after-install
+  - id: config-loader-hard-fails-on-yaml-parse-errors
+    hash: sha256:d9af31849b21
+    scenarios:
+      - corrupt-config-blocks-metta-status-with-actionable-message
+      - metta-doctor-is-not-blocked-by-the-same-corrupt-config
+  - id: metta-doctor-fix-repairs-duplicate-keys-and-schema-invalid-config
+    hash: sha256:83d5922dcf55
+    scenarios:
+      - three-duplicate-stacks-lines-collapsed-to-one-with-auto-commit
+      - schema-invalid-key-is-dropped-with-a-reported-line
+  - id: projectconfigschema-carries-a-verification-section
+    hash: sha256:3fd6a2dfe172
+    scenarios:
+      - valid-verification-block-is-accepted-by-zod
+      - invalid-strategy-enum-value-is-rejected-with-a-field-level-error
+  - id: metta-init-round-4-captures-verification-strategy
+    hash: sha256:2d0f35544f33
+    scenarios:
+      - selecting-tmux-tui-with-instructions-writes-verification-block
+      - the-two-skill-md-copies-are-byte-identical-after-the-update
+  - id: metta-instructions-verification-injects-strategy-into-agent-context
+    hash: sha256:963fa5898c3e
+    scenarios:
+      - both-fields-populated-when-config-has-a-full-verification-block
+      - both-fields-are-null-when-verification-block-is-absent
+  - id: verifier-agents-error-on-missing-verification-strategy-in-non-default-projects
+    hash: sha256:3e98f0a97715
+    scenarios:
+      - legacy-project-config-triggers-a-hard-error-with-copy-pasteable-remediation
+      - first-run-verification-with-no-changes-defaults-to-tests-only-with-informational-note

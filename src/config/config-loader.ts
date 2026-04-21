@@ -5,6 +5,16 @@ import YAML from 'yaml'
 import { ZodError } from 'zod'
 import { ProjectConfigSchema, type ProjectConfig, type ProjectInfo } from '../schemas/project-config.js'
 
+export class ConfigParseError extends Error {
+  readonly parserMessage: string
+  constructor(public readonly path: string, public readonly cause: unknown) {
+    const parserMessage = cause instanceof Error ? cause.message : String(cause)
+    super(`Failed to parse YAML config at ${path}: ${parserMessage}`)
+    this.name = 'ConfigParseError'
+    this.parserMessage = parserMessage
+  }
+}
+
 /**
  * Resolve the list of detected/declared stacks for a project.
  * Accepts the legacy single-string `project.stack` and promotes it to `[stack]`.
@@ -52,8 +62,7 @@ async function loadYamlFile(filePath: string): Promise<Record<string, unknown> |
   try {
     return YAML.parse(content) as Record<string, unknown>
   } catch (err: unknown) {
-    process.stderr.write(`Warning: failed to parse YAML config at ${filePath}: ${err instanceof Error ? err.message : String(err)}\n`)
-    return null
+    throw new ConfigParseError(filePath, err)
   }
 }
 

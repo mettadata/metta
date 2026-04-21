@@ -2,7 +2,7 @@ import { join, relative } from 'node:path'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { createInterface } from 'node:readline'
-import { ConfigLoader } from '../config/config-loader.js'
+import { ConfigLoader, ConfigParseError } from '../config/config-loader.js'
 import { ArtifactStore } from '../artifacts/artifact-store.js'
 import { WorkflowEngine } from '../workflow/workflow-engine.js'
 import { ContextEngine } from '../context/context-engine.js'
@@ -140,6 +140,23 @@ export function outputJson(data: unknown): void {
 }
 
 export function handleError(err: unknown, json: boolean): never {
+  if (err instanceof ConfigParseError) {
+    if (json) {
+      outputJson({
+        error: {
+          code: 4,
+          type: 'config_parse_error',
+          path: err.path,
+          message: err.parserMessage,
+          remedy: "Run 'metta doctor --fix' to repair.",
+        },
+      })
+    } else {
+      process.stderr.write(`${err.path}: ${err.parserMessage}\n`)
+      process.stderr.write(`Run 'metta doctor --fix' to repair.\n`)
+    }
+    process.exit(4)
+  }
   const message = err instanceof Error ? err.message : String(err)
   if (json) {
     outputJson({ error: { code: 4, type: 'validation_error', message } })

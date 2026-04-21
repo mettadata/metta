@@ -66,6 +66,22 @@ export function registerInstructionsCommand(program: Command): void {
           ],
         })
 
+        // Inject verification context for the verification artifact so the
+        // metta-verifier subagent receives the project's configured strategy
+        // and free-form instructions from `.metta/config.yaml`. When absent,
+        // both fields are emitted as `null` so the verifier can fall back to
+        // its first-run / legacy-project heuristics. ConfigParseError
+        // propagates to the error boundary below.
+        if (artifactId === 'verification') {
+          const cfg = await ctx.configLoader.load()
+          const v = (cfg as Record<string, unknown>).verification as
+            | { strategy?: string; instructions?: string }
+            | undefined
+          const ctxObj = output.context as Record<string, unknown>
+          ctxObj.verification_strategy = v?.strategy ?? null
+          ctxObj.verification_instructions = v?.instructions ?? null
+        }
+
         // Map agent name to metta agent type for subagent spawning
         const agentTypeMap: Record<string, string> = {
           proposer: 'metta-proposer', specifier: 'metta-proposer',

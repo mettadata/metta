@@ -20,7 +20,7 @@ You are the **orchestrator** for Metta project initialization.
    **Exit-option declaration:** every `AskUserQuestion` call within the loop MUST include a
    final selectable option exactly spelled `I'm done — proceed with these answers`.
 
-   **Exit criterion:** Exit the loop when (a) all three rounds have completed, or (b) the
+   **Exit criterion:** Exit the loop when (a) all four rounds have completed, or (b) the
    user selects the early-exit option `I'm done — proceed with these answers`.
 
    **Between-round status line** — print this between rounds (not an `AskUserQuestion`):
@@ -99,6 +99,25 @@ You are the **orchestrator** for Metta project initialization.
      → [No third-party auth SDKs, No ORM, No CommonJS, None,
         I'm done — proceed with these answers]
 
+   Resolved: identity, stack, conventions. Open: verification — proceeding to Round 4.
+
+## Round 4 — Verification Strategy
+
+   ALWAYS run unless the user exits early. Cap: 2 `AskUserQuestion` calls.
+   Captures how verifier subagents should exercise the running app during verification.
+
+   - "How should verifier subagents exercise your running application?"
+     → [Run tests only (tests_only),
+        CLI commands and exit codes (cli_exit_codes),
+        Playwright / browser end-to-end (playwright),
+        tmux TUI session observation (tmux_tui),
+        I'm done — proceed with these answers]
+
+   - "Any additional verification instructions for the verifier agent? (free-form; e.g. tmux pane name, Playwright base URL, scenario script path) — leave blank for none"
+     → [free text entry, I'm done — proceed with these answers]
+
+   Resolved: all questions. Proceeding to metta-discovery subagent.
+
 3. **Build `<DISCOVERY_ANSWERS>`** from all collected answers. Empty elements for rounds
    skipped via early exit. Append `<CITATIONS>` when WebSearch was used in R2 or R3.
    Do NOT write any file to disk at this step (REQ-23).
@@ -111,6 +130,10 @@ You are the **orchestrator** for Metta project initialization.
      <architectural_constraints><!-- R3: guardrails --></architectural_constraints>
      <quality_standards><!-- R3: coverage, type safety, lint --></quality_standards>
      <off_limits><!-- R3: prohibited areas --></off_limits>
+     <verification>
+       strategy: <!-- one of: tmux_tui | playwright | cli_exit_codes | tests_only; omit if user exited before Round 4 -->
+       instructions: <!-- free-form text or empty -->
+     </verification>
    </DISCOVERY_ANSWERS>
    <CITATIONS>
      <source url="..." title="..." fetched_at="..." />
@@ -141,7 +164,8 @@ You are the **orchestrator** for Metta project initialization.
    - Also update `discovery.output_paths.config` with the project name, description, and stack from the user's answers
    - Clear task: "Write spec/project.md and .metta/config.yaml using the answers in
      `<DISCOVERY_ANSWERS>`. Do NOT re-ask any answered question. Fill empty fields from
-     brownfield detection and web defaults (≤ 2 gap-fill questions). Then git add + commit."
+     brownfield detection and web defaults (≤ 2 gap-fill questions). Then git add + commit.
+     After writing `spec/project.md`, if `<verification>` was provided and `<verification><strategy>` is non-empty, call `setProjectField(projectRoot, ['verification', 'strategy'], strategy)` (from `src/config/config-writer.ts`) to persist the verification strategy to `.metta/config.yaml`. When `<verification><instructions>` is non-empty, additionally call `setProjectField(projectRoot, ['verification', 'instructions'], instructions)`. If `<verification>` is absent or empty (user exited before Round 4), skip this step — do NOT write an empty `verification:` block."
 
    The .metta/config.yaml MUST use this exact schema (nested under project:):
    ```yaml

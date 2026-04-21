@@ -55,6 +55,15 @@ export const ProjectInfoSchema = z.object({
 
 export type ProjectInfo = z.infer<typeof ProjectInfoSchema>
 
+export const VerificationStrategyEnum = z.enum(['tmux_tui', 'playwright', 'cli_exit_codes', 'tests_only'])
+
+export const VerificationConfigSchema = z.object({
+  strategy: VerificationStrategyEnum,
+  instructions: z.string().optional(),
+}).strict()
+
+export type VerificationConfig = z.infer<typeof VerificationConfigSchema>
+
 export const ProjectConfigSchema = z.object({
   project: ProjectInfoSchema.optional(),
   defaults: z.object({
@@ -72,6 +81,7 @@ export const ProjectConfigSchema = z.object({
   cleanup: z.object({
     log_retention_days: z.number().int().positive().default(30),
   }).strict().optional(),
+  verification: VerificationConfigSchema.optional(),
 }).strict()
 
 export type ProjectConfig = z.infer<typeof ProjectConfigSchema>

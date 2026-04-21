@@ -8,6 +8,7 @@ import { createInterface } from 'node:readline'
 import { createCliContext, outputJson } from '../helpers.js'
 import { claudeCodeAdapter } from '../../delivery/claude-code-adapter.js'
 import { installCommands } from '../../delivery/command-installer.js'
+import { setProjectField } from '../../config/config-writer.js'
 
 const execAsync = promisify(execFile)
 
@@ -175,37 +176,7 @@ function resolveStacksFromFlagOrMarkers(stackFlag: string | undefined, root: str
  * Write or upgrade `.metta/config.yaml` to include the detected stacks.
  */
 async function writeStacksToConfig(root: string, stacks: StackName[]): Promise<void> {
-  const configPath = join(root, '.metta', 'config.yaml')
-  let raw: string
-  try {
-    raw = await readFile(configPath, 'utf8')
-  } catch {
-    // Config doesn't exist yet (should have been created earlier in install)
-    return
-  }
-  // Replace `stack: ""` line if present, else inject a `stacks:` line under `project:`.
-  const stacksLine = `  stacks: [${stacks.map((s) => `"${s}"`).join(', ')}]`
-  const lines = raw.split('\n')
-  const stackIdx = lines.findIndex((l) => /^\s*stack:\s*"/.test(l))
-  if (stackIdx !== -1) {
-    // Replace the legacy single-string `stack:` line with the new array form.
-    lines.splice(stackIdx, 1, stacksLine)
-  } else {
-    // Append under `project:` block — find the project: line and insert after
-    // the last indented child of it.
-    const projIdx = lines.findIndex((l) => l.startsWith('project:'))
-    if (projIdx !== -1) {
-      let insertAt = projIdx + 1
-      while (insertAt < lines.length && lines[insertAt].startsWith('  ')) {
-        insertAt++
-      }
-      lines.splice(insertAt, 0, stacksLine)
-    } else {
-      // Fallback: append a new project block
-      lines.push('project:', stacksLine)
-    }
-  }
-  await writeFile(configPath, lines.join('\n'), 'utf8')
+  await setProjectField(root, ['project', 'stacks'], stacks)
 }
 
 /**

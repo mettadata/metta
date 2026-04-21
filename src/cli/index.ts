@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 
 import { Command } from 'commander'
+import { ConfigLoader, ConfigParseError } from '../config/config-loader.js'
+import { handleError } from './helpers.js'
 import { registerInstallCommand } from './commands/install.js'
 import { registerInitCommand } from './commands/init.js'
 import { registerProposeCommand } from './commands/propose.js'
@@ -88,4 +90,43 @@ registerValidateStoriesCommand(program)
 registerReconcileCommand(program)
 registerDocsCommand(program)
 
-program.parse()
+// Commands that must still run even when .metta/config.yaml is corrupt.
+// These are the repair/bootstrap surfaces that the user needs access to
+// in order to recover a broken project config.
+const CONFIG_PARSE_EXEMPT_COMMANDS = new Set([
+  'install',
+  'init',
+  'doctor',
+  'update',
+  'completion',
+])
+
+// Preflight hook: fail fast with a ConfigParseError before running any
+// command whose action handler may load config itself. Commands that own
+// the repair path are exempted so the user can always get back to a good
+// state. The ConfigParseError surfaces through handleError, which renders
+// the actionable `metta doctor --fix` remedy.
+program.hook('preAction', async (_thisCommand, actionCommand) => {
+  const name = actionCommand.name()
+  if (CONFIG_PARSE_EXEMPT_COMMANDS.has(name)) return
+  const json = program.opts().json ?? false
+  const loader = new ConfigLoader(process.cwd())
+  try {
+    await loader.load()
+  } catch (err) {
+    if (err instanceof ConfigParseError) {
+      handleError(err, json)
+    }
+    // Non-parse errors (e.g. schema validation) belong to the individual
+    // command's own error handling — let them through.
+  }
+})
+
+// Safety net: any ConfigParseError that escapes a command's local try/catch
+// still renders the correct actionable remedy instead of a naked stack trace.
+program.parseAsync().catch((err: unknown) => {
+  if (err instanceof ConfigParseError) {
+    handleError(err, program.opts().json ?? false)
+  }
+  throw err
+})
