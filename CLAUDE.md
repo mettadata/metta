@@ -48,7 +48,13 @@ Doc-only fixes and edits to this workflow section itself are the exceptions.
 - Invoking `metta quick`, `metta propose`, `metta finalize`, `metta complete`, `metta issue`, or any other `metta <cmd>` directly from an AI orchestrator session. Use the matching skill.
 - Writing placeholder content like `"intent stub"` or `"summary stub"` to any artifact file to satisfy `metta complete`. Artifacts must carry real content authored by the matching `metta-*` subagent.
 
-As of change `fix-metta-guard-bash-allows-ai-orchestrators-bypass-skill`, the `metta-guard-bash` hook enforces the first rule by verifying PreToolUse `event.agent_type`: orchestrator direct calls to `metta issue`, `metta fix-issue`, `metta propose`, `metta quick`, `metta auto`, or `metta ship` are hard-blocked regardless of an inline `METTA_SKILL=1` prefix. Only calls dispatched from a forked metta skill (whose subagent's `agent_type` starts with `metta-`) are honored. Every block and every observed inline bypass is appended as a JSON line to `.metta/logs/guard-bypass.log` for audit.
+### Research discipline
+
+When a research-phase or design-phase question has a deterministic answer in public documentation — framework API docs, library reference, CLI tool manual, language spec, SDK changelog — the orchestrator MUST use `WebFetch` (for a known authoritative URL) or `WebSearch` (to discover the authoritative source) to resolve it **before** asking the user. This specifically covers questions about external framework / API / tool documented behavior (e.g. "does Claude Code support `context: fork` in skill frontmatter?", "what fields does the Anthropic Messages API accept?", "is the `--legacy-peer-deps` flag deprecated in npm 10?").
+
+Only escalate to the user for **subjective judgments** — scope boundaries, cost tradeoffs, product direction, approach choice between acceptable alternatives, risk acceptance. Never escalate a documented fact.
+
+Cite the source URL when presenting findings so the user can verify the answer.
 
 ### Lifecycle skills
 - `/metta-propose <description>` — start a new change (standard workflow)
@@ -84,7 +90,7 @@ As of change `fix-metta-guard-bash-allows-ai-orchestrators-bypass-skill`, the `m
 
 | Capability | Requirements |
 |------------|-------------|
-| adaptive-workflow-tier-selection | 13 |
+| adaptive-workflow-tier-selection | 309 |
 | artifact-store | 19 |
 | config-loader | 59 |
 | context-engine | 72 |
@@ -95,9 +101,12 @@ As of change `fix-metta-guard-bash-allows-ai-orchestrators-bypass-skill`, the `m
 | fix-gate-runner-process-group-kill-timeout-scope-gates | 10 |
 | fix-issue-full-workflow-refere | 1 |
 | fix-issue-stories-parser-multi | 3 |
+| fix-metta-guard-bash-allows-ai-orchestrators-bypass-skill | 34 |
 | fix-metta-next-gap-detect-unme | 8 |
+| harden-metta-config-yaml-lifecycle-across-three-related-bugs | 38 |
 | metta-issue-metta-backlog-slas | 11 |
 | schemas | 126 |
+| skill-template-consistency-enforcement | 29 |
 | spec-branch-safety-guard-metta-issue-metta-backlog-state | 5 |
 | spec-metta-backlog-description-flag-whitelist-spec-issues | 9 |
 | spec-model | 26 |
@@ -111,9 +120,12 @@ As of change `fix-metta-guard-bash-allows-ai-orchestrators-bypass-skill`, the `m
 | spec:-metta-fix-issues-cli-command-m | 78 |
 | split-metta-install-metta-init | 20 |
 | state-store | 73 |
+| surface-time-token-budget-review-verifier-iteration-count | 53 |
 | t8-post-merge-gate-re-run-afte | 5 |
+| upgrade-metta-issue-skill-run-short-debugging-session-before | 40 |
 | user-story-layer-for-spec-format-(t5) | 84 |
 | workflow-engine | 69 |
+| workflow-parallelism-discipline | 37 |
 <!-- metta:specs-end -->
 
 <!-- metta:reference-start -->
