@@ -2,6 +2,8 @@
 name: metta:issue
 description: Log an issue with root-cause analysis
 allowed-tools: [Bash, AskUserQuestion, Read, Grep, Glob]
+context: fork
+agent: metta-skill-host
 ---
 
 Log an issue to `spec/issues/` via the metta CLI, running a short root-cause analysis (RCA) session first so the issue carries evidence and candidate solutions.
