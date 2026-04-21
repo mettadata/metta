@@ -2,7 +2,7 @@
 
 ## Batch 1 (no dependencies — foundational schema + utilities)
 
-- [ ] **Task 1.1: Extend `ChangeMetadataSchema` with four optional fields**
+- [x] **Task 1.1: Extend `ChangeMetadataSchema` with four optional fields**
   - **Files**: `src/schemas/change-metadata.ts`,
     `src/schemas/change-metadata.test.ts`
   - **Action**: Add `ArtifactTimingSchema` (object with optional
@@ -19,7 +19,7 @@
     and wrong types, existing `.metta.yaml` files from archive still
     validate.
 
-- [ ] **Task 1.2: Add `formatDuration` utility**
+- [x] **Task 1.2: Add `formatDuration` utility**
   - **Files**: `src/util/duration.ts` (new),
     `src/util/duration.test.ts` (new)
   - **Action**: Implement `formatDuration(ms: number): string` with three
@@ -30,7 +30,7 @@
   - **Done**: Utility returns correct strings for all branches; negative
     clamp tested.
 
-- [ ] **Task 1.3: Add `git-log-timings` utility**
+- [x] **Task 1.3: Add `git-log-timings` utility**
   - **Files**: `src/util/git-log-timings.ts` (new),
     `src/util/git-log-timings.test.ts` (new)
   - **Action**: Export `getGitLogTimings(projectRoot: string, relativePath:
@@ -47,7 +47,7 @@
 
 ## Batch 2 (depends on Batch 1 — write-side CLI instrumentation)
 
-- [ ] **Task 2.1: Stamp `artifact_timings[id].completed` in `metta complete`**
+- [x] **Task 2.1: Stamp `artifact_timings[id].completed` in `metta complete`**
   - **Depends on**: Task 1.1
   - **Files**: `src/cli/commands/complete.ts`,
     `src/cli/commands/complete.test.ts`
@@ -65,7 +65,7 @@
   - **Done**: `.metta.yaml` after `metta complete intent` on a fresh change
     contains `artifact_timings.intent.completed` as a recent ISO string.
 
-- [ ] **Task 2.2: Stamp `artifact_timings[id].started` + `artifact_tokens[id]` in `metta instructions`**
+- [x] **Task 2.2: Stamp `artifact_timings[id].started` + `artifact_tokens[id]` in `metta instructions`**
   - **Depends on**: Task 1.1
   - **Files**: `src/cli/commands/instructions.ts`,
     `src/cli/commands/instructions.test.ts`
@@ -86,7 +86,7 @@
     both `artifact_timings.intent.started` and `artifact_tokens.intent`;
     re-running does not bump `started`.
 
-- [ ] **Task 2.3: New `metta iteration record` CLI command**
+- [x] **Task 2.3: New `metta iteration record` CLI command**
   - **Depends on**: Task 1.1
   - **Files**: `src/cli/commands/iteration.ts` (new),
     `src/cli/commands/iteration.test.ts` (new), `src/cli/index.ts`
@@ -110,7 +110,7 @@
 
 ## Batch 3 (depends on Batch 1 + 2 — read-side renderer updates)
 
-- [ ] **Task 3.1: Surface new fields in `metta progress` JSON + human output**
+- [x] **Task 3.1: Surface new fields in `metta progress` JSON + human output**
   - **Depends on**: Tasks 1.1, 1.2, 1.3
   - **Files**: `src/cli/commands/progress.ts`,
     `src/cli/commands/progress.test.ts`
@@ -141,7 +141,7 @@
   - **Done**: All five test cases green; human output matches scenarios
     in spec.md.
 
-- [ ] **Task 3.2: Surface new fields in `metta status` human output**
+- [x] **Task 3.2: Surface new fields in `metta status` human output**
   - **Depends on**: Task 1.1
   - **Files**: `src/cli/commands/status.ts`,
     `src/cli/commands/status.test.ts`
@@ -163,7 +163,7 @@
 
 ## Batch 4 (depends on Batch 2 — skill template updates)
 
-- [ ] **Task 4.1: Insert `metta iteration record` calls in five skill templates**
+- [x] **Task 4.1: Insert `metta iteration record` calls in five skill templates**
   - **Depends on**: Task 2.3
   - **Files**: `src/templates/skills/metta-propose/SKILL.md`,
     `src/templates/skills/metta-quick/SKILL.md`,
@@ -194,7 +194,7 @@
 
 ## Batch 5 (depends on all prior — verification sweep)
 
-- [ ] **Task 5.1: End-to-end verification and summary**
+- [x] **Task 5.1: End-to-end verification and summary**
   - **Depends on**: Tasks 3.1, 3.2, 4.1
   - **Files**: `spec/changes/surface-time-token-budget-review-verifier-iteration-count/summary.md` (new)
   - **Action**: Run `npm run build`, `npx tsc --noEmit`, `npm run lint`,
