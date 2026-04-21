@@ -49,8 +49,12 @@ Closes three related bugs/features that all touched `.metta/config.yaml` lifecyc
 ## Verification state
 
 - `npx tsc --noEmit` clean
-- `npx vitest run` — 835/835 tests green across 60 files
+- `npm run lint` clean
+- `npm run build` clean (templates copied)
+- `npx vitest run` — 839/839 tests green across 60 files
 - `diff -q` confirms byte-identical SKILL.md and metta-verifier.md pairs
+- 15 of 16 scenarios directly Verified, 1 Partial (projects with pre-existing duplicates require `metta doctor --fix`, which is the documented remediation)
+- All 3 reviewers PASS_WITH_WARNINGS; no criticals; 1 warning (verifier parity test coverage) fixed in review-fix loop; others accepted/deferred
 - The YAML-parse-warning spam (visible throughout this session on every metta command) is gone after self-repair
 
 ## Non-goals honored
