@@ -266,13 +266,16 @@ describe('metta-guard-bash hook', { timeout: 30_000 }, () => {
           expect(code).toBe(2)
         })
 
-        // (e) Enforced subcommand + NO METTA_SKILL=1 + NO agent_type -> block (legacy path)
-        it('blocks enforced subcommand with no bypass and no agent_type with legacy message (exit 2)', () => {
+        // (e) Enforced subcommand + NO METTA_SKILL=1 + NO agent_type -> block with unified skill-enforced message
+        it('blocks bare enforced subcommand with unified skill-enforced message (exit 2)', () => {
           const { code, stderr } = runHook(hookPath, bashEvent('metta issue "foo"'))
           expect(code).toBe(2)
-          // Should NOT be the new "skill-enforced" message; uses the existing /metta-<skill> block path.
-          expect(stderr).toContain('/metta-')
-          expect(stderr).not.toContain('Inline METTA_SKILL=1 prefix no longer bypasses')
+          // Per spec R1: ANY block of an enforced subcommand emits the unified advisory,
+          // even when no inline bypass was attempted.
+          expect(stderr).toContain('/metta-issue')
+          expect(stderr).toContain(
+            'Inline METTA_SKILL=1 prefix no longer bypasses skill-enforced subcommands',
+          )
         })
 
         // (f) Non-enforced subcommand + METTA_SKILL=1 + NO agent_type -> allow
