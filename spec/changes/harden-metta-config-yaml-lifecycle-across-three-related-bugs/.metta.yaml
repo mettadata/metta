@@ -1,0 +1,19 @@
+workflow: standard
+created: 2026-04-21T00:13:02.700Z
+status: active
+current_artifact: stories
+base_versions: {}
+artifacts:
+  intent: complete
+  stories: ready
+  spec: pending
+  research: pending
+  design: pending
+  tasks: pending
+  implementation: pending
+  verification: pending
+complexity_score:
+  score: 3
+  signals:
+    file_count: 8
+  recommended_workflow: full
