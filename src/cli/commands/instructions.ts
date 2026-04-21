@@ -82,6 +82,34 @@ export function registerInstructionsCommand(program: Command): void {
           ctxObj.verification_instructions = v?.instructions ?? null
         }
 
+        // Best-effort stamp of `artifact_timings[id].started` (only if
+        // unset) and `artifact_tokens[id]` (always overwritten with the
+        // freshly-computed budget numbers). Never throws into the
+        // instructions path — instrumentation MUST NOT block workflow.
+        try {
+          const timings = { ...(metadata.artifact_timings ?? {}) }
+          const existingTiming = timings[artifactId] ?? {}
+          if (!existingTiming.started) {
+            timings[artifactId] = {
+              ...existingTiming,
+              started: new Date().toISOString(),
+            }
+          }
+          const tokens = { ...(metadata.artifact_tokens ?? {}) }
+          tokens[artifactId] = {
+            context: output.budget.context_tokens,
+            budget: output.budget.budget_tokens,
+          }
+          await ctx.artifactStore.updateChange(changeName, {
+            artifact_timings: timings,
+            artifact_tokens: tokens,
+          })
+        } catch (err) {
+          process.stderr.write(
+            `Warning: failed to record instructions metrics for ${artifactId}: ${err instanceof Error ? err.message : String(err)}\n`,
+          )
+        }
+
         // Map agent name to metta agent type for subagent spawning
         const agentTypeMap: Record<string, string> = {
           proposer: 'metta-proposer', specifier: 'metta-proposer',
