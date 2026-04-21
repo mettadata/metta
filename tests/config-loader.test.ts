@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mkdtemp, rm, mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir, homedir } from 'node:os'
-import { ConfigLoader } from '../src/config/config-loader.js'
+import { ConfigLoader, ConfigParseError } from '../src/config/config-loader.js'
 
 describe('ConfigLoader', () => {
   let tempDir: string
@@ -138,22 +138,28 @@ providers:
     expect(config.providers?.anthropic?.api_key_env).toBe('MY_SECRET_KEY')
   })
 
-  it('logs warning and falls back to defaults for malformed YAML', async () => {
-    const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
-    await writeFile(join(projectDir, '.metta', 'config.yaml'), `
+  it('throws ConfigParseError when project config YAML is corrupt', async () => {
+    await writeFile(join(projectDir, '.metta', 'config.yaml'), `project:
+  name: foo
 project:
-  name: "Valid"
-`)
-    await writeFile(join(projectDir, '.metta', 'local.yaml'), `
-  bad yaml: [unterminated
-    : broken
+  name: bar
 `)
     const loader = new ConfigLoader(projectDir, globalDir)
+    await expect(loader.load()).rejects.toThrow(ConfigParseError)
+    try {
+      await loader.load()
+    } catch (err) {
+      expect(err).toBeInstanceOf(ConfigParseError)
+      expect((err as ConfigParseError).path).toContain(join('.metta', 'config.yaml'))
+    }
+  })
+
+  it('returns defaults when no project config file exists', async () => {
+    // No .metta/config.yaml, no global, no local — ENOENT path in loadYamlFile
+    // should return null and load() should merge empty layers successfully.
+    const loader = new ConfigLoader(projectDir, globalDir)
     const config = await loader.load()
-    // The valid project config should still load; malformed local.yaml is skipped
-    expect(config.project?.name).toBe('Valid')
-    expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining('Warning: failed to parse YAML config'))
-    stderrSpy.mockRestore()
+    expect(config).toBeDefined()
   })
 
   it('exposes path accessors', () => {
