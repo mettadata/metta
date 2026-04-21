@@ -456,6 +456,52 @@ describe('CLI', { timeout: 30000 }, () => {
     })
   })
 
+  describe('corrupt config error boundary', () => {
+    async function corruptConfig(): Promise<void> {
+      const configPath = join(tempDir, '.metta', 'config.yaml')
+      await writeFile(
+        configPath,
+        'project:\n  name: foo\nproject:\n  name: bar\n',
+        'utf8',
+      )
+    }
+
+    it('blocks metta status with actionable doctor --fix remedy', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await corruptConfig()
+      const { stdout, stderr, code } = await runCli(['--json', 'status'], tempDir)
+      expect(code).toBe(4)
+      const combined = stdout + stderr
+      expect(combined).toContain('.metta/config.yaml')
+      expect(combined).toContain("metta doctor --fix")
+      // JSON payload shape sanity check when --json is set.
+      const data = JSON.parse(stdout)
+      expect(data.error.code).toBe(4)
+      expect(data.error.type).toBe('config_parse_error')
+      expect(data.error.path).toContain('.metta/config.yaml')
+      expect(data.error.remedy).toBe("Run 'metta doctor --fix' to repair.")
+    })
+
+    it('emits actionable stderr without --json', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await corruptConfig()
+      const { stderr, code } = await runCli(['status'], tempDir)
+      expect(code).toBe(4)
+      expect(stderr).toContain('.metta/config.yaml')
+      expect(stderr).toContain("metta doctor --fix")
+    })
+
+    it('does not block metta doctor on corrupt config', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await corruptConfig()
+      const { stdout, stderr } = await runCli(['doctor'], tempDir)
+      // Doctor's own diagnostic output is fine; it must NOT surface the
+      // ConfigParseError remedy line since it owns the repair path.
+      const combined = stdout + stderr
+      expect(combined).not.toContain("metta doctor --fix")
+    })
+  })
+
   describe('metta changes list', () => {
     it('lists active changes', async () => {
       await runCli(['install', '--git-init'], tempDir)
