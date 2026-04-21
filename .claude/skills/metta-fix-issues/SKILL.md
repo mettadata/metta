@@ -3,6 +3,8 @@ name: metta:fix-issues
 description: Resolve an issue through the full metta change lifecycle
 argument-hint: "<issue-slug or --all>"
 allowed-tools: [Read, Write, Edit, Bash, Grep, Glob, Agent]
+context: fork
+agent: metta-skill-host
 ---
 
 **IMPORTANT: When using the Agent tool, use these metta agent types: metta-proposer, metta-researcher, metta-architect, metta-planner, metta-executor, metta-reviewer, metta-verifier, metta-discovery. Do NOT use gsd-executor or general-purpose.**
