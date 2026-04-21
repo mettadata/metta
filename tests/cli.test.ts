@@ -100,6 +100,8 @@ describe('CLI', { timeout: 30000 }, () => {
     })
 
     it('is idempotent on an already-installed project', async () => {
+      // Drop a stack marker so writeStacksToConfig is exercised on both installs.
+      await writeFile(join(tempDir, 'package.json'), '{"name":"x"}\n')
       const first = await runCli(['--json', 'install', '--git-init'], tempDir)
       expect(first.code).toBe(0)
       const second = await runCli(['--json', 'install'], tempDir)
@@ -107,6 +109,11 @@ describe('CLI', { timeout: 30000 }, () => {
       const data = JSON.parse(second.stdout)
       expect(data.status).toBe('initialized')
       expect(data.committed).toBe(false)
+
+      const { readFile } = await import('node:fs/promises')
+      const configRaw = await readFile(join(tempDir, '.metta', 'config.yaml'), 'utf8')
+      const stacksLines = configRaw.split('\n').filter(l => /^\s*stacks:/.test(l))
+      expect(stacksLines).toHaveLength(1)
     })
   })
 
