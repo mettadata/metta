@@ -21,6 +21,8 @@ import {
   ViolationSchema,
   ViolationListSchema,
   SeveritySchema,
+  VerificationConfigSchema,
+  VerificationStrategyEnum,
 } from '../src/schemas/index.js'
 import type { ComplexityScore } from '../src/schemas/index.js'
 
@@ -1255,6 +1257,40 @@ describe('ViolationListSchema', () => {
 
   it('rejects when violations field is missing', () => {
     const result = ViolationListSchema.safeParse({})
+    expect(result.success).toBe(false)
+  })
+})
+
+describe('VerificationConfigSchema', () => {
+  it('accepts all four valid strategy enum values with optional instructions', () => {
+    const strategies: Array<'tmux_tui' | 'playwright' | 'cli_exit_codes' | 'tests_only'> = [
+      'tmux_tui',
+      'playwright',
+      'cli_exit_codes',
+      'tests_only',
+    ]
+    for (const strategy of strategies) {
+      expect(() => VerificationConfigSchema.parse({ strategy })).not.toThrow()
+      expect(VerificationStrategyEnum.safeParse(strategy).success).toBe(true)
+    }
+    expect(() =>
+      VerificationConfigSchema.parse({
+        strategy: 'playwright',
+        instructions: 'http://localhost:3000',
+      })
+    ).not.toThrow()
+  })
+
+  it('rejects invalid strategy enum values', () => {
+    const result = VerificationConfigSchema.safeParse({ strategy: 'magic' })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects unknown fields (strict schema)', () => {
+    const result = VerificationConfigSchema.safeParse({
+      strategy: 'tests_only',
+      foo: 'bar',
+    })
     expect(result.success).toBe(false)
   })
 })
