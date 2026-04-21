@@ -166,7 +166,7 @@ async function main() {
 
   // Skill-enforced subcommand blocked because the caller lacks a trusted agent_type.
   // This is the new enforcement path: inline METTA_SKILL=1 alone is no longer sufficient.
-  if (SKILL_ENFORCED_SUBCOMMANDS.has(offender.sub) && offender.skillBypass) {
+  if (SKILL_ENFORCED_SUBCOMMANDS.has(offender.sub)) {
     const skillHint = SKILL_HINT_MAP.get(offender.sub) ?? '/metta-<skill>';
     appendAuditLog(event, 'block', offender, 'skill-enforced subcommand without trusted agent_type');
     process.stderr.write(
