@@ -53,21 +53,24 @@ You are the **orchestrator** for the full Metta lifecycle. Spawn subagents for e
    d. After all batches: write summary.md and commit
    e. `METTA_SKILL=1 metta complete implementation --json --change <name>`
 6. **Spawn 3 metta-reviewer agents in parallel** (fan-out):
+   - Before spawning reviewer agents, run: `METTA_SKILL=1 metta iteration record --phase review --change <name>`
    - Agent 1 (subagent_type: "metta-reviewer"): "**Correctness reviewer**"
    - Agent 2 (subagent_type: "metta-reviewer"): "**Security reviewer**"
    - Agent 3 (subagent_type: "metta-reviewer"): "**Quality reviewer**"
    - Merge results into `spec/changes/<change>/review.md` and commit
    - If critical issues:
    **REVIEW-FIX LOOP (repeat until clean):**
-     a. Group issues by file, spawn parallel metta-executors to fix
-     b. After fixes: re-run the 3 reviewers
-     c. Repeat until all PASS/PASS_WITH_WARNINGS (max 3 iterations)
+     a. Run `METTA_SKILL=1 metta iteration record --phase review --change <name>`
+     b. Group issues by file, spawn parallel metta-executors to fix
+     c. After fixes: re-run the 3 reviewers
+     d. Repeat until all PASS/PASS_WITH_WARNINGS (max 3 iterations)
 7. **Spawn 3 metta-verifier agents in parallel** (fan-out — single message):
+   - Before spawning verifier agents, run: `METTA_SKILL=1 metta iteration record --phase verify --change <name>`
    - Agent 1 (subagent_type: "metta-verifier"): "Run `npm test` — report pass/fail count and failures"
    - Agent 2 (subagent_type: "metta-verifier"): "Run `npx tsc --noEmit` and `npm run lint` — report errors"
    - Agent 3 (subagent_type: "metta-verifier"): "Read spec.md, check each scenario has a passing test — cite evidence"
    - Merge results into summary.md and commit
-   - If any gate fails: spawn parallel metta-executors to fix, then re-verify
+   - If any gate fails: run `METTA_SKILL=1 metta iteration record --phase verify --change <name>` again, then spawn parallel metta-executors to fix, then re-verify
 8. `METTA_SKILL=1 metta complete verification --json --change <name>`
 9. `METTA_SKILL=1 metta finalize --json --change <name>` → runs gates, archives, merges specs
 10. `git checkout main && git merge metta/<change-name> --no-ff -m "chore: merge <change-name>"`

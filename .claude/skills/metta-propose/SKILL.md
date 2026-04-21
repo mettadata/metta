@@ -159,19 +159,21 @@ You are the **orchestrator** for a new spec-driven change. You manage the workfl
 
    If any file is missing or empty, re-spawn the affected reviewer with a corrected prompt before merging into `review.md`.
 
+   - Before spawning reviewer agents, run: `METTA_SKILL=1 metta iteration record --phase review --change <name>`
    - Agent 1 (subagent_type: "metta-reviewer"): "You are a **correctness reviewer**. Check logic errors, off-by-one, edge cases, spec compliance."
    - Agent 2 (subagent_type: "metta-reviewer"): "You are a **security reviewer**. Check OWASP top 10, XSS, injection, secrets."
    - Agent 3 (subagent_type: "metta-reviewer"): "You are a **quality reviewer**. Check dead code, naming, duplication, test gaps."
    - Merge results into `spec/changes/<change>/review.md` and commit.
    - **REVIEW-FIX LOOP (repeat until clean):**
-     a. If any critical issues found:
+     a. Run `METTA_SKILL=1 metta iteration record --phase review --change <name>`
+     b. If any critical issues found:
         - Parse each issue's file path from review.md
         - Group issues by file — independent files MUST be fixed in parallel (one metta-executor per file group, all spawned in the SAME orchestrator message)
         - Sequential fix-spawning is forbidden unless two issues share the same file path; in that case you MUST name the shared file in writing before serializing
-     b. After fixes: re-run the 3 reviewers again (still one message, three `Agent(...)` calls)
-     c. If new issues found: repeat from (a)
-     d. If all 3 reviewers report PASS or PASS_WITH_WARNINGS: exit loop
-     e. Max 3 iterations — if still failing after 3 rounds, stop and report to user
+     c. After fixes: re-run the 3 reviewers again (still one message, three `Agent(...)` calls)
+     d. If new issues found: repeat from (a)
+     e. If all 3 reviewers report PASS or PASS_WITH_WARNINGS: exit loop
+     f. Max 3 iterations — if still failing after 3 rounds, stop and report to user
 7. **VERIFICATION** — **you MUST spawn all 3 metta-verifier agents in a SINGLE orchestrator message** (fan-out — parallel, one message, three `Agent(...)` calls):
 
    **Pre-batch self-check — you MUST complete every bullet before emitting any verifier `Agent(...)` call. SHALL NOT skip. No hedge words:**
@@ -215,11 +217,12 @@ You are the **orchestrator** for a new spec-driven change. You manage the workfl
 
    If any file is missing or empty, re-spawn the affected verifier with a corrected prompt before merging into `summary.md`.
 
+   - Before spawning verifier agents, run: `METTA_SKILL=1 metta iteration record --phase verify --change <name>`
    - Agent 1 (subagent_type: "metta-verifier"): "Run `npm test` — report pass/fail count and failures"
    - Agent 2 (subagent_type: "metta-verifier"): "Run `npx tsc --noEmit` and `npm run lint` — report errors"
    - Agent 3 (subagent_type: "metta-verifier"): "Read spec.md, check each Given/When/Then scenario has a passing test — cite evidence"
    - Merge results into summary.md and commit
-   - If any gate fails: spawn parallel metta-executors to fix (all fixes in ONE orchestrator message unless two fixes share a file path you have named in writing), then re-verify
+   - If any gate fails: run `METTA_SKILL=1 metta iteration record --phase verify --change <name>` again, then spawn parallel metta-executors to fix (all fixes in ONE orchestrator message unless two fixes share a file path you have named in writing), then re-verify
 8. When `all_complete: true`:
    a. `METTA_SKILL=1 metta finalize --json --change <name>` → runs gates, archives, merges specs
    b. `git checkout main && git merge metta/<change-name> --no-ff -m "chore: merge <change-name>"`
