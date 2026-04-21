@@ -2,7 +2,7 @@
 
 ## Batch 1 — Agent scaffolding
 
-- [ ] **Task 1.1: Create `metta-skill-host` subagent (template + deployed, byte-identical)**
+- [x] **Task 1.1: Create `metta-skill-host` subagent (template + deployed, byte-identical)**
   - **Files**:
     - `src/templates/agents/metta-skill-host.md` (NEW)
     - `.claude/agents/metta-skill-host.md` (NEW, byte-identical)
@@ -23,7 +23,7 @@
 
 ## Batch 2 — Skill frontmatter migration (parallel; depends on Batch 1)
 
-- [ ] **Task 2.1: Add `context: fork` + `agent: metta-skill-host` to metta-issue**
+- [x] **Task 2.1: Add `context: fork` + `agent: metta-skill-host` to metta-issue**
   - **Files**:
     - `src/templates/skills/metta-issue/SKILL.md` (MODIFIED)
     - `.claude/skills/metta-issue/SKILL.md` (MODIFIED, byte-identical)
@@ -36,7 +36,7 @@
   - **Verify**: `diff -q src/templates/skills/metta-issue/SKILL.md .claude/skills/metta-issue/SKILL.md` exits 0. `npx vitest run` passes.
   - **Done**: Both copies are byte-identical and the frontmatter contains `context: fork` and `agent: metta-skill-host`.
 
-- [ ] **Task 2.2: Add `context: fork` + `agent: metta-skill-host` to metta-fix-issues**
+- [x] **Task 2.2: Add `context: fork` + `agent: metta-skill-host` to metta-fix-issues**
   - **Files**:
     - `src/templates/skills/metta-fix-issues/SKILL.md` (MODIFIED)
     - `.claude/skills/metta-fix-issues/SKILL.md` (MODIFIED, byte-identical)
@@ -49,7 +49,7 @@
   - **Verify**: `diff -q src/templates/skills/metta-fix-issues/SKILL.md .claude/skills/metta-fix-issues/SKILL.md` exits 0. `npx vitest run` passes.
   - **Done**: Both copies are byte-identical and the frontmatter contains `context: fork` and `agent: metta-skill-host`.
 
-- [ ] **Task 2.3: Add `context: fork` + `agent: metta-skill-host` to metta-propose**
+- [x] **Task 2.3: Add `context: fork` + `agent: metta-skill-host` to metta-propose**
   - **Files**:
     - `src/templates/skills/metta-propose/SKILL.md` (MODIFIED)
     - `.claude/skills/metta-propose/SKILL.md` (MODIFIED, byte-identical)
@@ -62,7 +62,7 @@
   - **Verify**: `diff -q src/templates/skills/metta-propose/SKILL.md .claude/skills/metta-propose/SKILL.md` exits 0. `npx vitest run` passes.
   - **Done**: Both copies are byte-identical and the frontmatter contains `context: fork` and `agent: metta-skill-host`.
 
-- [ ] **Task 2.4: Add `context: fork` + `agent: metta-skill-host` to metta-quick**
+- [x] **Task 2.4: Add `context: fork` + `agent: metta-skill-host` to metta-quick**
   - **Files**:
     - `src/templates/skills/metta-quick/SKILL.md` (MODIFIED)
     - `.claude/skills/metta-quick/SKILL.md` (MODIFIED, byte-identical)
@@ -75,7 +75,7 @@
   - **Verify**: `diff -q src/templates/skills/metta-quick/SKILL.md .claude/skills/metta-quick/SKILL.md` exits 0. `npx vitest run` passes.
   - **Done**: Both copies are byte-identical and the frontmatter contains `context: fork` and `agent: metta-skill-host`.
 
-- [ ] **Task 2.5: Add `context: fork` + `agent: metta-skill-host` to metta-auto**
+- [x] **Task 2.5: Add `context: fork` + `agent: metta-skill-host` to metta-auto**
   - **Files**:
     - `src/templates/skills/metta-auto/SKILL.md` (MODIFIED)
     - `.claude/skills/metta-auto/SKILL.md` (MODIFIED, byte-identical)
@@ -88,7 +88,7 @@
   - **Verify**: `diff -q src/templates/skills/metta-auto/SKILL.md .claude/skills/metta-auto/SKILL.md` exits 0. `npx vitest run` passes.
   - **Done**: Both copies are byte-identical and the frontmatter contains `context: fork` and `agent: metta-skill-host`.
 
-- [ ] **Task 2.6: Add `context: fork` + `agent: metta-skill-host` to metta-ship**
+- [x] **Task 2.6: Add `context: fork` + `agent: metta-skill-host` to metta-ship**
   - **Files**:
     - `src/templates/skills/metta-ship/SKILL.md` (MODIFIED)
     - `.claude/skills/metta-ship/SKILL.md` (MODIFIED, byte-identical)
@@ -103,7 +103,7 @@
 
 ## Batch 3 — Hook enforcement + audit log (depends on Batch 1)
 
-- [ ] **Task 3.1: Update `metta-guard-bash.mjs` with `classifyWithIdentity`, `SKILL_ENFORCED_SUBCOMMANDS`, `ENFORCED_SKILL_MAP`, and `appendAuditLog`**
+- [x] **Task 3.1: Update `metta-guard-bash.mjs` with `classifyWithIdentity`, `SKILL_ENFORCED_SUBCOMMANDS`, `ENFORCED_SKILL_MAP`, and `appendAuditLog`**
   - **Files**:
     - `src/templates/hooks/metta-guard-bash.mjs` (MODIFIED)
     - `.claude/hooks/metta-guard-bash.mjs` (MODIFIED, byte-identical)
@@ -249,7 +249,7 @@
 
 ## Batch 4 — Unit tests for hook (depends on Batch 3)
 
-- [ ] **Task 4.1: Extend `tests/metta-guard-bash.test.ts` with new enforcement and audit-log cases**
+- [x] **Task 4.1: Extend `tests/metta-guard-bash.test.ts` with new enforcement and audit-log cases**
   - **Files**:
     - `tests/metta-guard-bash.test.ts` (MODIFIED)
   - **Action**: The existing test file uses a `for (const hookPath of HOOK_SOURCES)` loop with a `runHook` helper that accepts `(hookPath, payload, opts)`. The `bashEvent` helper produces `{ tool_name: 'Bash', tool_input: { command } }`.
@@ -375,7 +375,7 @@
 
 ## Batch 5 — Integration tests (depends on Batch 3)
 
-- [ ] **Task 5.1: Extend `tests/cli-metta-guard-bash-integration.test.ts` with enforced-subcommand end-to-end cases**
+- [x] **Task 5.1: Extend `tests/cli-metta-guard-bash-integration.test.ts` with enforced-subcommand end-to-end cases**
   - **Files**:
     - `tests/cli-metta-guard-bash-integration.test.ts` (MODIFIED)
   - **Action**: The existing file has a `runHook` helper that builds `spawnSync('node', [HOOK_TEMPLATE_PATH], ...)` and a `bashEvent(command)` helper that returns `{ tool_name: 'Bash', tool_input: { command } }`. The existing `skill bypass end-to-end` describe block tests `METTA_SKILL=1` env-on-process bypass.
@@ -432,7 +432,7 @@
 
 ## Batch 6 — CLAUDE.md documentation update (no dependencies)
 
-- [ ] **Task 6.1: Update `CLAUDE.md` Forbidden section**
+- [x] **Task 6.1: Update `CLAUDE.md` Forbidden section**
   - **Files**:
     - `CLAUDE.md` (MODIFIED)
   - **Action**: Locate the "### Forbidden" section under "## Metta Workflow". After the existing bullet "Invoking `metta quick`, `metta propose`, `metta finalize`, `metta complete`, `metta issue`, or any other `metta <cmd>` directly from an AI orchestrator session. Use the matching skill.", add a new sentence on the same line or as a follow-on note: "As of change `fix-metta-guard-bash-allows-ai-orchestrators-bypass-skill`, the `metta-guard-bash` hook enforces this at the PreToolUse layer by verifying `event.agent_type` — orchestrator direct calls to `metta issue`, `metta fix-issue`, `metta propose`, `metta quick`, `metta auto`, or `metta ship` are now hard-blocked regardless of inline `METTA_SKILL=1` prefix. Bypass attempts are logged to `.metta/logs/guard-bypass.log`." Do not modify any other section.
@@ -441,7 +441,7 @@
 
 ## Batch 7 — Summary (depends on all prior batches)
 
-- [ ] **Task 7.1: Write `summary.md`**
+- [x] **Task 7.1: Write `summary.md`**
   - **Files**:
     - `spec/changes/fix-metta-guard-bash-allows-ai-orchestrators-bypass-skill/summary.md` (NEW)
   - **Action**: Create `summary.md` enumerating every file touched in this change with a one-line rationale for each:
