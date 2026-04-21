@@ -1,7 +1,9 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, afterEach, afterAll } from 'vitest'
 import { spawnSync } from 'node:child_process'
 import { join } from 'node:path'
 import { readFile } from 'node:fs/promises'
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 
 // metta-guard-bash PreToolUse hook integration tests.
 // The source template and the deployed mirror must stay byte-identical; tests
@@ -12,10 +14,24 @@ const HOOK_SOURCES = [
   join(import.meta.dirname, '..', '.claude', 'hooks', 'metta-guard-bash.mjs'),
 ]
 
+// Shared sandbox cwd for hook invocations that do not explicitly opt into their
+// own tempDir. Since Task 3.1 added an audit log written to
+// <cwd>/.metta/logs/guard-bypass.log, every test run that inherits the repo
+// cwd would pollute the real working tree. Default all runHook calls to this
+// throwaway dir and nuke it after the file finishes.
+const SHARED_SANDBOX = mkdtempSync(join(tmpdir(), 'metta-guard-shared-'))
+afterAll(() => {
+  try {
+    rmSync(SHARED_SANDBOX, { recursive: true, force: true })
+  } catch {
+    // best-effort
+  }
+})
+
 function runHook(
   hookPath: string,
   payload: unknown,
-  opts: { env?: NodeJS.ProcessEnv; rawStdin?: string } = {},
+  opts: { env?: NodeJS.ProcessEnv; rawStdin?: string; cwd?: string } = {},
 ): { code: number; stderr: string } {
   const env = { ...process.env, ...(opts.env ?? {}) }
   // Ensure METTA_SKILL is not inherited unless the test opts in.
@@ -28,12 +44,19 @@ function runHook(
     env,
     encoding: 'utf8',
     timeout: 10_000,
+    cwd: opts.cwd ?? SHARED_SANDBOX,
   })
   return { code: result.status ?? -1, stderr: result.stderr ?? '' }
 }
 
-function bashEvent(command: string) {
-  return { tool_name: 'Bash', tool_input: { command } }
+function bashEvent(
+  command: string,
+  extra: { agent_type?: string; cwd?: string } = {},
+): Record<string, unknown> {
+  const event: Record<string, unknown> = { tool_name: 'Bash', tool_input: { command } }
+  if (extra.agent_type !== undefined) event.agent_type = extra.agent_type
+  if (extra.cwd !== undefined) event.cwd = extra.cwd
+  return event
 }
 
 describe('metta-guard-bash hook', { timeout: 30_000 }, () => {
@@ -148,12 +171,18 @@ describe('metta-guard-bash hook', { timeout: 30_000 }, () => {
       })
 
       it('bypasses with inline env-var prefix `METTA_SKILL=1 metta propose "foo"` (exit 0)', () => {
-        const { code } = runHook(hookPath, bashEvent('METTA_SKILL=1 metta propose "foo"'))
+        const { code } = runHook(
+          hookPath,
+          bashEvent('METTA_SKILL=1 metta propose "foo"', { agent_type: 'metta-skill-host' }),
+        )
         expect(code).toBe(0)
       })
 
       it('bypasses with multiple env prefixes `FOO=bar METTA_SKILL=1 metta propose` (exit 0)', () => {
-        const { code } = runHook(hookPath, bashEvent('FOO=bar METTA_SKILL=1 metta propose'))
+        const { code } = runHook(
+          hookPath,
+          bashEvent('FOO=bar METTA_SKILL=1 metta propose', { agent_type: 'metta-skill-host' }),
+        )
         expect(code).toBe(0)
       })
 
@@ -178,6 +207,133 @@ describe('metta-guard-bash hook', { timeout: 30_000 }, () => {
       it('scans chain `cd /foo && metta issue "bar"` (exit 2)', () => {
         const { code } = runHook(hookPath, bashEvent('cd /foo && metta issue "bar"'))
         expect(code).toBe(2)
+      })
+
+      // ----- Skill-enforced caller-identity enforcement + audit log -----
+      describe('skill-enforced caller-identity enforcement', () => {
+        const tempDirs: string[] = []
+        afterEach(() => {
+          while (tempDirs.length) {
+            const dir = tempDirs.pop()!
+            try {
+              rmSync(dir, { recursive: true, force: true })
+            } catch {
+              // best-effort cleanup
+            }
+          }
+        })
+        function makeTempCwd(): string {
+          const dir = mkdtempSync(join(tmpdir(), 'metta-guard-'))
+          tempDirs.push(dir)
+          return dir
+        }
+
+        // (a) Enforced subcommand + METTA_SKILL=1 + NO agent_type -> block
+        it('blocks enforced subcommand with inline METTA_SKILL=1 but no agent_type (exit 2)', () => {
+          const { code, stderr } = runHook(
+            hookPath,
+            bashEvent('METTA_SKILL=1 metta issue "hello"'),
+          )
+          expect(code).toBe(2)
+          expect(stderr).toContain('/metta-issue')
+          expect(stderr).toContain('Inline METTA_SKILL=1 prefix no longer bypasses')
+        })
+
+        // (b) Enforced subcommand + METTA_SKILL=1 + agent_type='metta-skill-host' -> allow
+        it('allows enforced subcommand with inline bypass + agent_type=metta-skill-host (exit 0)', () => {
+          const { code } = runHook(
+            hookPath,
+            bashEvent('METTA_SKILL=1 metta issue "hello"', { agent_type: 'metta-skill-host' }),
+          )
+          expect(code).toBe(0)
+        })
+
+        // (c) Enforced subcommand + METTA_SKILL=1 + agent_type='metta-issue' -> allow
+        it('allows enforced subcommand with any metta-* agent_type prefix (exit 0)', () => {
+          const { code } = runHook(
+            hookPath,
+            bashEvent('METTA_SKILL=1 metta issue "hello"', { agent_type: 'metta-issue' }),
+          )
+          expect(code).toBe(0)
+        })
+
+        // (d) Enforced subcommand + METTA_SKILL=1 + agent_type='other-agent' -> block
+        it('blocks enforced subcommand with non-metta agent_type (exit 2)', () => {
+          const { code } = runHook(
+            hookPath,
+            bashEvent('METTA_SKILL=1 metta issue "hello"', { agent_type: 'other-agent' }),
+          )
+          expect(code).toBe(2)
+        })
+
+        // (e) Enforced subcommand + NO METTA_SKILL=1 + NO agent_type -> block (legacy path)
+        it('blocks enforced subcommand with no bypass and no agent_type with legacy message (exit 2)', () => {
+          const { code, stderr } = runHook(hookPath, bashEvent('metta issue "foo"'))
+          expect(code).toBe(2)
+          // Should NOT be the new "skill-enforced" message; uses the existing /metta-<skill> block path.
+          expect(stderr).toContain('/metta-')
+          expect(stderr).not.toContain('Inline METTA_SKILL=1 prefix no longer bypasses')
+        })
+
+        // (f) Non-enforced subcommand + METTA_SKILL=1 + NO agent_type -> allow
+        it('allows non-enforced subcommand with inline METTA_SKILL=1 and no agent_type (exit 0)', () => {
+          const { code } = runHook(hookPath, bashEvent('METTA_SKILL=1 metta refresh'))
+          expect(code).toBe(0)
+        })
+
+        // (g) Allowed subcommand -> exit 0 and no audit log created
+        it('does not create an audit log entry for an allowed subcommand', () => {
+          const cwd = makeTempCwd()
+          const { code } = runHook(hookPath, bashEvent('metta status'), { cwd })
+          expect(code).toBe(0)
+          expect(existsSync(join(cwd, '.metta', 'logs', 'guard-bypass.log'))).toBe(false)
+        })
+
+        // (h) Audit log written on enforced block
+        it('writes a JSON audit log entry when an enforced block fires', () => {
+          const cwd = makeTempCwd()
+          const { code } = runHook(
+            hookPath,
+            bashEvent('METTA_SKILL=1 metta issue "hello"', { cwd }),
+            { cwd },
+          )
+          expect(code).toBe(2)
+          const logPath = join(cwd, '.metta', 'logs', 'guard-bypass.log')
+          expect(existsSync(logPath)).toBe(true)
+          const raw = readFileSync(logPath, 'utf8')
+          const lines = raw.split('\n').filter((l) => l.length > 0)
+          expect(lines.length).toBe(1)
+          const entry = JSON.parse(lines[0])
+          expect(entry.verdict).toBe('block')
+          expect(entry.subcommand).toBe('issue')
+          expect(entry.agent_type).toBe(null)
+          expect(entry.skill_bypass).toBe(true)
+          expect(typeof entry.reason).toBe('string')
+          expect(Array.isArray(entry.event_keys)).toBe(true)
+          expect(entry.event_keys.length).toBeGreaterThan(0)
+          expect(typeof entry.ts).toBe('string')
+          // ISO 8601 date string roundtrip
+          const parsed = new Date(entry.ts)
+          expect(Number.isNaN(parsed.getTime())).toBe(false)
+          expect(parsed.toISOString()).toBe(entry.ts)
+        })
+
+        // (i) Audit log on allow-with-bypass for non-enforced subcommand
+        it('writes an allow_with_bypass audit entry for non-enforced inline bypass', () => {
+          const cwd = makeTempCwd()
+          const { code } = runHook(hookPath, bashEvent('METTA_SKILL=1 metta refresh', { cwd }), {
+            cwd,
+          })
+          expect(code).toBe(0)
+          const logPath = join(cwd, '.metta', 'logs', 'guard-bypass.log')
+          expect(existsSync(logPath)).toBe(true)
+          const raw = readFileSync(logPath, 'utf8')
+          const lines = raw.split('\n').filter((l) => l.length > 0)
+          expect(lines.length).toBe(1)
+          const entry = JSON.parse(lines[0])
+          expect(entry.verdict).toBe('allow_with_bypass')
+          expect(entry.subcommand).toBe('refresh')
+        })
       })
 
       // ----- Non-Bash / edge cases -----
