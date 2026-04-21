@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { spawnSync, execFile } from 'node:child_process'
 import { mkdtemp, rm, readFile } from 'node:fs/promises'
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { promisify } from 'node:util'
@@ -37,7 +38,7 @@ const HOOK_TEMPLATE_PATH = join(
 
 function runHook(
   payload: unknown,
-  opts: { env?: NodeJS.ProcessEnv } = {},
+  opts: { env?: NodeJS.ProcessEnv; cwd?: string } = {},
 ): { code: number; stderr: string; stdout: string } {
   const env = { ...process.env, ...(opts.env ?? {}) }
   // Ensure METTA_SKILL is not inherited from the outer test process env unless
@@ -51,6 +52,7 @@ function runHook(
     env,
     encoding: 'utf8',
     timeout: 10_000,
+    cwd: opts.cwd,
   })
   return {
     code: result.status ?? -1,
@@ -59,8 +61,14 @@ function runHook(
   }
 }
 
-function bashEvent(command: string) {
-  return { tool_name: 'Bash', tool_input: { command } }
+function bashEvent(
+  command: string,
+  extra: { agent_type?: string; cwd?: string } = {},
+): Record<string, unknown> {
+  const event: Record<string, unknown> = { tool_name: 'Bash', tool_input: { command } }
+  if (extra.agent_type !== undefined) event.agent_type = extra.agent_type
+  if (extra.cwd !== undefined) event.cwd = extra.cwd
+  return event
 }
 
 async function runCli(
@@ -129,6 +137,77 @@ describe('metta-guard-bash integration', { timeout: 60_000 }, () => {
       expect(stderr).toContain('/metta-')
       expect(stderr).toContain('Use the matching')
       expect(stderr).toContain('skill')
+    })
+  })
+
+  describe('caller-identity enforcement end-to-end', () => {
+    let tempDir: string
+
+    beforeEach(() => {
+      tempDir = mkdtempSync(join(tmpdir(), 'metta-guard-int-'))
+    })
+
+    afterEach(() => {
+      rmSync(tempDir, { recursive: true, force: true })
+    })
+
+    it('blocks main-session direct call with inline METTA_SKILL=1 and no agent_type — exit 2, stderr names /metta-issue', () => {
+      const { code, stderr } = runHook(
+        bashEvent('METTA_SKILL=1 metta issue "test"', { cwd: tempDir }),
+        { cwd: tempDir },
+      )
+      expect(code).toBe(2)
+      expect(stderr).toContain('/metta-issue')
+    })
+
+    it('allows subagent dispatch when event carries agent_type=metta-skill-host — exit 0', () => {
+      const { code } = runHook(
+        bashEvent('METTA_SKILL=1 metta issue "test"', {
+          agent_type: 'metta-skill-host',
+          cwd: tempDir,
+        }),
+        { cwd: tempDir },
+      )
+      expect(code).toBe(0)
+    })
+
+    it('audit log records block verdict for orchestrator attempt and no block verdict for subagent attempt', () => {
+      // (a) Orchestrator attempt — no agent_type, should block and log verdict=block.
+      const blocked = runHook(
+        bashEvent('METTA_SKILL=1 metta issue "test"', { cwd: tempDir }),
+        { cwd: tempDir },
+      )
+      expect(blocked.code).toBe(2)
+
+      // (b) Subagent attempt — trusted agent_type, should allow.
+      const allowed = runHook(
+        bashEvent('METTA_SKILL=1 metta issue "test"', {
+          agent_type: 'metta-skill-host',
+          cwd: tempDir,
+        }),
+        { cwd: tempDir },
+      )
+      expect(allowed.code).toBe(0)
+
+      const logPath = join(tempDir, '.metta', 'logs', 'guard-bypass.log')
+      expect(existsSync(logPath)).toBe(true)
+      const logRaw = readFileSync(logPath, 'utf8')
+      const lines = logRaw.split('\n').filter((l) => l.trim().length > 0)
+      expect(lines.length).toBeGreaterThanOrEqual(1)
+
+      const entries = lines.map((l) => JSON.parse(l) as { verdict: string; subcommand: string | null; agent_type: string | null })
+
+      // The orchestrator attempt MUST have produced a 'block' verdict entry.
+      const blockEntries = entries.filter((e) => e.verdict === 'block')
+      expect(blockEntries.length).toBeGreaterThanOrEqual(1)
+      expect(blockEntries[0].subcommand).toBe('issue')
+      expect(blockEntries[0].agent_type).toBe(null)
+
+      // The subagent attempt (agent_type=metta-skill-host) MUST NOT have produced a 'block' entry.
+      const blockEntriesForTrusted = entries.filter(
+        (e) => e.verdict === 'block' && e.agent_type === 'metta-skill-host',
+      )
+      expect(blockEntriesForTrusted.length).toBe(0)
     })
   })
 
