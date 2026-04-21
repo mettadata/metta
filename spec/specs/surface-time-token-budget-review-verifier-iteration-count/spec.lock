@@ -1,0 +1,50 @@
+version: 7
+hash: sha256:0057c6a53d90
+updated: 2026-04-21T12:47:34.031Z
+status: draft
+source: change
+requirements:
+  - id: schema-extension-for-per-artifact-timing-tokens-and-iteration-counters
+    hash: sha256:97ba74e468ff
+    scenarios:
+      - legacy-file-without-new-fields-validates-cleanly
+      - new-file-round-trips-all-four-fields
+      - zod-rejects-invalid-values
+  - id: metta-complete-stamps-artifact-completed-timestamp
+    hash: sha256:4e4ad548ef42
+    scenarios:
+      - complete-stamps-completed
+      - complete-preserves-prior-started
+      - skipped-artifact-also-records-completed
+  - id: metta-instructions-stamps-started-and-records-token-budget
+    hash: sha256:d12c82b959df
+    scenarios:
+      - instructions-sets-started-once
+      - re-running-instructions-does-not-overwrite-started
+      - instructions-records-token-budget
+      - instrumentation-failure-does-not-abort-the-command
+  - id: metta-iteration-cli-command
+    hash: sha256:2bc7618440af
+    scenarios:
+      - first-record-creates-the-counter
+      - subsequent-record-increments
+      - independent-counters
+      - non-existent-change-errors-clearly
+      - single-active-change-auto-selected
+  - id: metta-progress-surfaces-new-fields
+    hash: sha256:976a63de8087
+    scenarios:
+      - json-mode-includes-timings-and-tokens
+      - human-mode-renders-all-three-segments
+      - suppress-empty-segments
+      - git-fallback-for-legacy-timings
+  - id: metta-status-surfaces-iteration-counters-and-token-totals
+    hash: sha256:138a13879ae5
+    scenarios:
+      - status-renders-iteration-line-when-counters-set
+      - status-suppresses-lines-when-fields-absent
+  - id: skill-instructions-record-review-and-verify-iterations
+    hash: sha256:09ca24b31a35
+    scenarios:
+      - each-skill-template-invokes-iteration-record-once-per-review-round
+      - the-prefix-is-always-metta-skill-1
