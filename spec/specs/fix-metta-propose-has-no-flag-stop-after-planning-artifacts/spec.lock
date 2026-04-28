@@ -1,0 +1,51 @@
+version: 8
+hash: sha256:92d49d1a1d23
+updated: 2026-04-28T13:49:11.391Z
+status: draft
+source: change
+requirements:
+  - id: metta-propose-must-accept-a-stop-after-artifact-option
+    hash: sha256:8bf7fa7126b9
+    scenarios:
+      - option-appears-in-cli-help
+      - option-is-accepted-with-a-valid-value
+      - option-is-omitted-full-lifecycle-behavior-preserved
+  - id: stop-after-must-be-validated-against-the-resolved-workflow
+    hash: sha256:3aba4088d573
+    scenarios:
+      - unknown-artifact-id-is-rejected-before-any-side-effects
+      - execution-phase-artifact-id-is-rejected
+      - planning-phase-id-from-a-non-default-workflow-is-accepted
+  - id: change-record-schema-must-persist-stop-after-as-an-optional-field
+    hash: sha256:5735d97e6fd3
+    scenarios:
+      - schema-accepts-records-with-stop-after
+      - schema-accepts-records-without-stop-after
+      - schema-rejects-non-string-stop-after
+  - id: artifactstore-createchange-must-accept-and-persist-a-stopafter-argument
+    hash: sha256:47f5a0ff1c94
+    scenarios:
+      - createchange-writes-stop-after-when-supplied
+      - createchange-omits-stop-after-when-not-supplied
+  - id: propose-skill-must-honor-the-stop-after-boundary
+    hash: sha256:ac0af7bd3b51
+    scenarios:
+      - skill-parses-and-forwards-stop-after-from-arguments
+      - skill-exits-cleanly-at-the-stop-after-boundary-for-tasks
+      - skill-exits-cleanly-at-the-stop-after-boundary-for-spec
+      - skill-behaves-identically-when-no-stop-after-is-set
+  - id: metta-status-must-surface-stop-after-in-json-output
+    hash: sha256:d0a577317ed5
+    scenarios:
+      - metta-status-json-reflects-stop-after-when-set
+      - metta-status-json-omits-or-nulls-stop-after-when-not-set
+  - id: stop-after-must-compose-with-all-existing-propose-flags
+    hash: sha256:f6fa3ee87c83
+    scenarios:
+      - stop-after-composes-with-workflow-and-auto
+      - stop-after-composes-with-from-issue
+  - id: handoff-message-must-be-deterministic-and-matchable
+    hash: sha256:6bd6ee4e21f1
+    scenarios:
+      - tests-can-assert-the-handoff-line-shape
+      - no-implementation-implying-lines-appear
