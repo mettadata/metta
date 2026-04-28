@@ -1,0 +1,27 @@
+version: 4
+hash: sha256:ce9e8dd8020b
+updated: 2026-04-28T04:42:47.717Z
+status: draft
+source: change
+requirements:
+  - id: default-docs-block-in-projectconfigschema
+    hash: sha256:9f345ec029f4
+    scenarios:
+      - empty-config-object-yields-populated-docs-defaults
+      - config-with-only-project-block-yields-populated-docs-defaults
+      - explicit-partial-docs-block-keeps-overrides-and-fills-missing-fields
+      - explicit-generate-on-manual-is-preserved
+  - id: finalizer-doc-generation-guard
+    hash: sha256:655580e13aef
+    scenarios:
+      - finalize-regenerates-docs-when-config-has-no-docs-block
+      - finalize-skips-doc-generation-when-generate-on-manual
+      - finalize-swallows-doc-generation-errors
+  - id: original-docs-generate-spec-compliance
+    hash: sha256:0b4c77fb4abb
+    scenarios:
+      - absent-docs-block-produces-all-four-doc-types-on-finalize
+  - id: no-changes-to-docgenerator-docsconfigschema-inner-defaults-or-finalizer-flow-ordering
+    hash: sha256:96734e7877cc
+    scenarios:
+      - scope-discipline-only-two-source-files-changed

@@ -1,0 +1,67 @@
+workflow: standard
+created: 2026-04-28T04:14:36.849Z
+status: active
+current_artifact: verification
+base_versions: {}
+artifacts:
+  intent: complete
+  stories: complete
+  spec: complete
+  research: complete
+  design: complete
+  tasks: complete
+  implementation: complete
+  verification: complete
+complexity_score:
+  score: 3
+  signals:
+    file_count: 9
+  recommended_workflow: full
+artifact_timings:
+  intent:
+    started: 2026-04-28T04:14:41.140Z
+    completed: 2026-04-28T04:15:45.356Z
+  stories:
+    started: 2026-04-28T04:15:51.955Z
+    completed: 2026-04-28T04:16:26.488Z
+  spec:
+    started: 2026-04-28T04:16:30.045Z
+    completed: 2026-04-28T04:18:11.416Z
+  research:
+    started: 2026-04-28T04:18:15.725Z
+    completed: 2026-04-28T04:20:08.120Z
+  design:
+    started: 2026-04-28T04:20:12.089Z
+    completed: 2026-04-28T04:21:31.624Z
+  tasks:
+    started: 2026-04-28T04:21:35.278Z
+    completed: 2026-04-28T04:22:12.154Z
+  implementation:
+    completed: 2026-04-28T04:41:16.412Z
+  verification:
+    started: 2026-04-28T04:42:23.229Z
+    completed: 2026-04-28T04:42:42.889Z
+artifact_tokens:
+  intent:
+    context: 775
+    budget: 20000
+  stories:
+    context: 2506
+    budget: 20000
+  spec:
+    context: 3647
+    budget: 40000
+  research:
+    context: 2409
+    budget: 60000
+  design:
+    context: 3488
+    budget: 80000
+  tasks:
+    context: 3449
+    budget: 40000
+  verification:
+    context: 5495
+    budget: 50000
+review_iterations: 1
+verify_iterations: 1

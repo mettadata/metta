@@ -125,7 +125,7 @@ export class Finalizer {
         const config = await configLoader.load()
         const docsConfig = config.docs
 
-        if (docsConfig && docsConfig.generate_on === 'finalize') {
+        if (docsConfig.generate_on === 'finalize') {
           const generator = new DocGenerator(this.specDir, this.projectRoot, docsConfig)
           const docResult = await generator.generate()
           docsGenerated = docResult.generated
