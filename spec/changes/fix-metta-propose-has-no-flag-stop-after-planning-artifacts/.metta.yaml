@@ -1,15 +1,15 @@
 workflow: standard
 created: 2026-04-28T12:30:00.386Z
 status: active
-current_artifact: design
+current_artifact: tasks
 base_versions: {}
 artifacts:
   intent: complete
   stories: complete
   spec: complete
   research: complete
-  design: ready
-  tasks: pending
+  design: complete
+  tasks: ready
   implementation: pending
   verification: pending
 complexity_score:
@@ -30,6 +30,9 @@ artifact_timings:
   research:
     started: 2026-04-28T12:34:30.934Z
     completed: 2026-04-28T12:37:50.433Z
+  design:
+    started: 2026-04-28T12:37:54.543Z
+    completed: 2026-04-28T12:39:24.812Z
 artifact_tokens:
   intent:
     context: 775
@@ -43,3 +46,6 @@ artifact_tokens:
   research:
     context: 4146
     budget: 60000
+  design:
+    context: 5838
+    budget: 80000
