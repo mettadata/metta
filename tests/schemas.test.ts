@@ -812,6 +812,37 @@ describe('ProjectConfigSchema', () => {
     const result = ProjectConfigSchema.parse({ cleanup: {} })
     expect(result.cleanup?.log_retention_days).toBe(30)
   })
+
+  it('applies defaults for absent docs block', () => {
+    const result = ProjectConfigSchema.parse({})
+    expect(result.docs).toEqual({
+      output: './docs',
+      generate_on: 'finalize',
+      types: ['architecture', 'api', 'changelog', 'getting-started'],
+    })
+  })
+
+  it('fills missing docs fields when only output is set', () => {
+    const result = ProjectConfigSchema.parse({ docs: { output: './website' } })
+    expect(result.docs.output).toBe('./website')
+    expect(result.docs.generate_on).toBe('finalize')
+    expect(result.docs.types).toEqual(['architecture', 'api', 'changelog', 'getting-started'])
+  })
+
+  it('preserves explicit generate_on: manual', () => {
+    const result = ProjectConfigSchema.parse({ docs: { generate_on: 'manual' } })
+    expect(result.docs.generate_on).toBe('manual')
+    expect(result.docs.output).toBe('./docs')
+  })
+
+  it('docs default applies even when only project block is set', () => {
+    const result = ProjectConfigSchema.parse({ project: { name: 'x' } })
+    expect(result.docs).toEqual({
+      output: './docs',
+      generate_on: 'finalize',
+      types: ['architecture', 'api', 'changelog', 'getting-started'],
+    })
+  })
 })
 
 describe('GateResultSchema', () => {
