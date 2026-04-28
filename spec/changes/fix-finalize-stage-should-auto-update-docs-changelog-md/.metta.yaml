@@ -1,0 +1,27 @@
+workflow: standard
+created: 2026-04-28T04:14:36.849Z
+status: active
+current_artifact: stories
+base_versions: {}
+artifacts:
+  intent: complete
+  stories: ready
+  spec: pending
+  research: pending
+  design: pending
+  tasks: pending
+  implementation: pending
+  verification: pending
+complexity_score:
+  score: 3
+  signals:
+    file_count: 9
+  recommended_workflow: full
+artifact_timings:
+  intent:
+    started: 2026-04-28T04:14:41.140Z
+    completed: 2026-04-28T04:15:45.356Z
+artifact_tokens:
+  intent:
+    context: 775
+    budget: 20000
