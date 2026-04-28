@@ -97,6 +97,43 @@ describe('ArtifactStore', () => {
       expect(metadata.auto_accept_recommendation).toBe(true)
       expect(metadata.workflow_locked).toBe(true)
     })
+
+    it('persists stop_after when supplied', async () => {
+      await store.createChange(
+        'stop after change',
+        'standard',
+        ['intent', 'spec', 'tasks', 'implementation', 'verification'],
+        {},
+        false,
+        false,
+        'tasks',
+      )
+      const metadata = await store.getChange('stop-after-change')
+      expect(metadata.stop_after).toBe('tasks')
+    })
+
+    it('omits stop_after when not supplied', async () => {
+      await store.createChange('no stop after change', 'quick', ['intent'])
+      const metadata = await store.getChange('no-stop-after-change')
+      expect(metadata.stop_after).toBeUndefined()
+      expect(Object.prototype.hasOwnProperty.call(metadata, 'stop_after')).toBe(false)
+    })
+
+    it('persists stop_after alongside autoAccept and workflowLocked', async () => {
+      await store.createChange(
+        'composed flags change',
+        'standard',
+        ['intent', 'spec', 'tasks', 'implementation', 'verification'],
+        {},
+        true,
+        true,
+        'spec',
+      )
+      const metadata = await store.getChange('composed-flags-change')
+      expect(metadata.auto_accept_recommendation).toBe(true)
+      expect(metadata.workflow_locked).toBe(true)
+      expect(metadata.stop_after).toBe('spec')
+    })
   })
 
   describe('listChanges', () => {

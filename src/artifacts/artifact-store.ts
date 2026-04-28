@@ -24,6 +24,7 @@ export class ArtifactStore {
     baseVersions: Record<string, string> = {},
     autoAccept?: boolean,
     workflowLocked?: boolean,
+    stopAfter?: string,
   ): Promise<{ name: string; path: string }> {
     const name = toSlug(description, { stopWords: STOP_WORDS })
     const changePath = join('changes', name)
@@ -55,6 +56,9 @@ export class ArtifactStore {
     }
     if (workflowLocked === true) {
       metadata.workflow_locked = true
+    }
+    if (stopAfter !== undefined) {
+      metadata.stop_after = stopAfter
     }
 
     await this.state.write(

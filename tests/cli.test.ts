@@ -433,6 +433,22 @@ describe('CLI', { timeout: 30000 }, () => {
       expect(data.change).toBe('test-change')
       expect(data.workflow).toBe('standard')
     })
+
+    it('surfaces stop_after from the change record when propose --stop-after was used', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await runCli(['propose', 'status stop after probe', '--stop-after', 'tasks'], tempDir)
+      const { stdout } = await runCli(['--json', 'status'], tempDir)
+      const data = JSON.parse(stdout)
+      expect(data.stop_after).toBe('tasks')
+    })
+
+    it('omits stop_after from status JSON when no --stop-after was used', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await runCli(['propose', 'status no stop probe'], tempDir)
+      const { stdout } = await runCli(['--json', 'status'], tempDir)
+      const data = JSON.parse(stdout)
+      expect(data.stop_after === undefined || data.stop_after === null).toBe(true)
+    })
   })
 
   describe('metta issue', () => {
