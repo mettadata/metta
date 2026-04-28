@@ -83,7 +83,7 @@ The schema MUST NOT validate the artifact-id membership at the schema layer — 
 
 ---
 
-## MODIFIED: Requirement: `ArtifactStore.createChange` MUST accept and persist a `stopAfter` argument
+## ADDED: Requirement: `ArtifactStore.createChange` MUST accept and persist a `stopAfter` argument
 
 The signature of `ArtifactStore.createChange` in `src/artifacts/artifact-store.ts` MUST accept an optional `stopAfter?: string` argument (placed after the existing optional `workflowLocked` argument to preserve positional compatibility, OR refactored to take an options object — implementer's choice during design). When supplied, the value MUST be set on the constructed `ChangeMetadata` as `stop_after` BEFORE the call to `state.write(...)` so the schema-validated write captures it.
 
