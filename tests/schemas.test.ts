@@ -236,6 +236,53 @@ describe('ChangeMetadataSchema', () => {
     expect(result.success).toBe(false)
   })
 
+  it('accepts stop_after as a string', () => {
+    const data = {
+      workflow: 'standard',
+      created: '2026-04-21T12:00:00Z',
+      status: 'active',
+      current_artifact: 'tasks',
+      base_versions: {},
+      artifacts: { intent: 'complete' as const },
+      stop_after: 'tasks',
+    }
+    const result = ChangeMetadataSchema.safeParse(data)
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.stop_after).toBe('tasks')
+    }
+  })
+
+  it('omits stop_after when absent', () => {
+    const data = {
+      workflow: 'standard',
+      created: '2026-04-21T12:00:00Z',
+      status: 'active',
+      current_artifact: 'tasks',
+      base_versions: {},
+      artifacts: { intent: 'complete' as const },
+    }
+    const result = ChangeMetadataSchema.safeParse(data)
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.stop_after).toBeUndefined()
+    }
+  })
+
+  it('rejects non-string stop_after', () => {
+    const data = {
+      workflow: 'standard',
+      created: '2026-04-21T12:00:00Z',
+      status: 'active',
+      current_artifact: 'tasks',
+      base_versions: {},
+      artifacts: {},
+      stop_after: 42,
+    }
+    const result = ChangeMetadataSchema.safeParse(data)
+    expect(result.success).toBe(false)
+  })
+
   it('allows complexity_score and actual_complexity_score to coexist independently', () => {
     const intentScore: ComplexityScore = {
       score: 1,

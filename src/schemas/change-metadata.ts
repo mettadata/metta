@@ -59,6 +59,7 @@ export const ChangeMetadataSchema = z.object({
   artifact_tokens: z.record(z.string(), ArtifactTokensSchema).optional(),
   review_iterations: z.number().int().nonnegative().optional(),
   verify_iterations: z.number().int().nonnegative().optional(),
+  stop_after: z.string().optional(),
 }).strict()
 
 export type ChangeMetadata = z.infer<typeof ChangeMetadataSchema>
