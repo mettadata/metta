@@ -26,7 +26,7 @@ When `.metta/config.yaml` does not declare a top-level `docs` key, the parsed `P
 
 ---
 
-## MODIFIED: Requirement: Finalizer doc-generation guard
+## ADDED: Requirement: Finalizer doc-generation guard
 
 `Finalizer.finalize()` in `src/finalize/finalizer.ts` MUST gate doc generation on the `docs.generate_on` field alone, because after the schema change `docs` is always a populated object. Specifically, the conditional at the equivalent of `src/finalize/finalizer.ts:128` MUST read `if (docsConfig.generate_on === 'finalize')` (single equality check, no truthy left operand). The finalizer MUST continue to swallow `DocGenerator.generate()` failures so that doc generation cannot block archive/spec-merge — the existing `try { ... } catch { /* ignored */ }` discipline is preserved. The finalizer MUST continue to populate `result.docsGenerated` from the `DocGenerator` return value when generation runs, and MUST set `result.docsGenerated` to `[]` when generation is skipped.
 
