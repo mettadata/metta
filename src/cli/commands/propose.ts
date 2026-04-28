@@ -17,6 +17,10 @@ export function registerProposeCommand(program: Command): void {
     .option('--from-issue <issue>', 'Create from an issue')
     .option('--discovery <mode>', 'Discovery mode: interactive, batch, review', 'interactive')
     .option('--auto, --accept-recommended', 'auto-accept adaptive routing recommendations')
+    .option(
+      '--stop-after <artifact>',
+      'Stop after the named planning artifact (e.g. intent, stories, spec, research, design, tasks)',
+    )
     .action(async (description, options, command) => {
       const json = program.opts().json
       const ctx = createCliContext()
@@ -32,6 +36,26 @@ export function registerProposeCommand(program: Command): void {
         const projectWorkflows = join(ctx.projectRoot, '.metta', 'workflows')
         const graph = await ctx.workflowEngine.loadWorkflow(workflowName, [projectWorkflows, builtinWorkflows])
 
+        // Validate --stop-after against the resolved workflow's buildOrder.
+        // Reject execution-phase ids and unknown ids BEFORE creating any change state.
+        const stopAfter: string | undefined = options.stopAfter
+        if (stopAfter !== undefined) {
+          const planningIds = graph.buildOrder.filter(
+            id => id !== 'implementation' && id !== 'verification',
+          )
+          const validList = planningIds.join(', ')
+          if (stopAfter === 'implementation' || stopAfter === 'verification') {
+            throw new Error(
+              `--stop-after value '${stopAfter}' is an execution-phase artifact and is not a valid stop point. Valid values are: ${validList}.`,
+            )
+          }
+          if (!graph.buildOrder.includes(stopAfter)) {
+            throw new Error(
+              `--stop-after value '${stopAfter}' is not a valid artifact id for workflow '${workflowName}'. Valid values are: ${validList}.`,
+            )
+          }
+        }
+
         // Create the change
         const artifactIds = graph.buildOrder
         const result = await ctx.artifactStore.createChange(
@@ -41,6 +65,7 @@ export function registerProposeCommand(program: Command): void {
           {},
           autoAccept,
           workflowLocked,
+          stopAfter,
         )
 
         // Create worktree branch (all work happens off main)
@@ -63,6 +88,7 @@ export function registerProposeCommand(program: Command): void {
             path: result.path,
             artifacts: artifactIds,
             branch: branchCreated ? branchName : null,
+            stop_after: stopAfter ?? null,
             next: `Run \`metta instructions intent --json --change ${result.name}\` to get guidance`,
           })
         } else {
@@ -70,6 +96,9 @@ export function registerProposeCommand(program: Command): void {
           console.log(`  Workflow: ${workflowName}`)
           if (branchCreated) console.log(`  Branch: ${branchName}`)
           console.log(`  Artifacts: ${artifactIds.join(' → ')}`)
+          if (stopAfter !== undefined) {
+            console.log(`  Stop after: ${stopAfter}`)
+          }
           console.log('')
           console.log(`Next: metta instructions intent --change ${result.name}`)
         }
