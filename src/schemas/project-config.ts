@@ -74,7 +74,7 @@ export const ProjectConfigSchema = z.object({
   tools: z.array(z.string()).optional(),
   gates: z.record(z.string(), GateConfigSchema).optional(),
   git: GitConfigSchema.optional(),
-  docs: DocsConfigSchema.optional(),
+  docs: DocsConfigSchema.default({}),
   auto: AutoConfigSchema.optional(),
   context_sections: z.array(z.string()).optional(),
   adapters: z.array(z.string()).optional(),
