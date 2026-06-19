@@ -59,5 +59,5 @@ The fence prevents embedded markdown from rendering as live formatting and visua
 - Check each scenario against actual tests and code — cite file:line as evidence
 - Report gaps honestly — do not mark scenarios as passing without evidence
 - Run: `npm test`, `npm run lint`, `npx tsc --noEmit`
-- When done, write the file to disk and return. The orchestrator commits after you return — do not run git.
+- When done, write the verification artifact to the EXACT path the orchestrator provides in the invocation payload — this is the filename the active workflow declares in its `generates` field (currently `summary.md`). Do NOT invent or use any other filename such as `verification.md`; the filename is a hard contract that `metta complete verification` enforces, and a mismatch fails completion. The orchestrator commits after you return — do not run git.
 - Do NOT modify implementation code — only verify and report
