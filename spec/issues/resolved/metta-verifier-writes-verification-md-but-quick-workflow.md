@@ -1,8 +1,9 @@
 # metta-verifier writes verification.md but quick workflow complete expects summary.md
 
 **Captured**: 2026-06-19
-**Status**: logged
+**Status**: resolved
 **Severity**: minor
+**Resolved by**: change `fix-metta-verifier-output-filename-match-workflow-generates` (2026-06-19) — candidate solution #2: pinned the verifier persona's output filename to the workflow `generates` contract (`summary.md`) in `src/templates/agents/metta-verifier.md`.
 
 ## Symptom
 During the `exclude-vendored-referrences` quick-workflow change, the metta-verifier produced a complete, valid verification artifact named `verification.md`, but `metta complete verification` failed with "Artifact file 'summary.md' not found". The verifier content was correct; only the filename mismatched. The change was unblocked by manually renaming `verification.md` to `summary.md`, which is why the archived change now contains `summary.md`.
