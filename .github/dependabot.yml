@@ -1,0 +1,18 @@
+# Dependabot configuration.
+#
+# metta's own dependencies live in the root package.json / package-lock.json.
+# Vendored reference projects under referrences/ are not part of metta's
+# supply chain and their manifests are gitignored so they stay out of the
+# dependency graph (and therefore out of Dependabot alerts). This config
+# scopes version-update PRs to the root manifest only.
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
