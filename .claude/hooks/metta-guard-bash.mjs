@@ -72,7 +72,12 @@ function tokenize(command) {
     }
     if (tokens[i] === 'metta') {
       results.push({ sub: tokens[i + 1], third: tokens[i + 2], skillBypass });
-      i += 3;
+      // Skip the rest of this command's arguments up to the next chain separator
+      // so words inside a quoted argument (e.g. a propose description that mentions
+      // "metta finalize") are not misparsed as a second invocation.
+      i += 1;
+      while (i < tokens.length && !['&&', ';', '||', '|'].includes(tokens[i])) i++;
+      i++; // skip the separator
       continue;
     }
     // Skip until we see a chain separator

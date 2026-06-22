@@ -1,8 +1,9 @@
 # metta-guard-bash hook false-positive: quoted free-text argument containing 'metta <subcommand>' substring wrongly blocked
 
 **Captured**: 2026-06-22
-**Status**: logged
+**Status**: resolved
 **Severity**: minor
+**Resolved by**: change `make-metta-guard-bash-tokenizer-quote-aware-stop-false` (2026-06-22) — Candidate Solution 1: `tokenize()` now skips to the next chain separator after recording each metta invocation, so quoted free-text arguments are no longer misparsed as phantom invocations. Applied identically to both hook copies; regression test added. Fully quote-aware parser deferred.
 
 ## Symptom
 The `metta-guard-bash` PreToolUse hook produces a false positive: a metta command whose quoted free-text argument contains the substring "metta <subcommand>" is wrongly blocked. For example `METTA_SKILL=1 metta propose "fix metta finalize: bug" --from-issue X` is rejected because the words inside the quoted description are misparsed as a second metta invocation. Observed during the fix of issue metta-finalize-hangs, where the propose description had to be reworded to avoid the substring.
