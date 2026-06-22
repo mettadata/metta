@@ -5,6 +5,7 @@ import { promisify } from 'node:util'
 import { createCliContext, outputJson, color } from '../helpers.js'
 import { Finalizer } from '../../finalize/finalizer.js'
 import { WorkflowEngine } from '../../workflow/workflow-engine.js'
+import { acquireFinalizeLock, FinalizeLockError } from '../../finalize/finalize-lock.js'
 
 const execAsync = promisify(execFile)
 
@@ -24,6 +25,11 @@ export function registerFinalizeCommand(program: Command): void {
         const changes = await ctx.artifactStore.listChanges()
         const name = changeName ?? (changes.length === 1 ? changes[0] : null)
         if (!name) throw new Error(changes.length === 0 ? 'No active changes.' : `Multiple changes: ${changes.join(', ')}`)
+
+        // Guard against concurrent finalize runs for this change. The lock's
+        // exit handler releases it even when finalize calls process.exit(),
+        // so the returned release fn can be safely ignored here.
+        await acquireFinalizeLock(ctx.projectRoot, name)
 
         // Load gates — built-ins first, then project-local overrides.
         // Gates registered in the second pass replace any built-in of the same
@@ -164,6 +170,10 @@ export function registerFinalizeCommand(program: Command): void {
           }
         }
       } catch (err) {
+        if (err instanceof FinalizeLockError) {
+          if (json) { outputJson({ error: { code: 5, type: 'finalize_locked', message: err.message } }) } else { console.error(color(err.message, 31)) }
+          process.exit(5)
+        }
         const message = err instanceof Error ? err.message : String(err)
         if (json) { outputJson({ error: { code: 4, type: 'finalize_error', message } }) } else { console.error(`Finalize failed: ${message}`) }
         process.exit(4)

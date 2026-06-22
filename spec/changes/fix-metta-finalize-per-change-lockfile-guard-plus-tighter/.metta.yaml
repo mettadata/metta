@@ -1,0 +1,18 @@
+workflow: quick
+created: 2026-06-22T01:17:13.504Z
+status: active
+current_artifact: verification
+base_versions: {}
+artifacts:
+  intent: complete
+  implementation: complete
+  verification: complete
+auto_accept_recommendation: true
+workflow_locked: true
+artifact_timings:
+  intent:
+    started: 2026-06-22T01:17:25.971Z
+artifact_tokens:
+  intent:
+    context: 775
+    budget: 20000

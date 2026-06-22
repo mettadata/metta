@@ -1,8 +1,9 @@
 # metta finalize hangs on the vitest pre-merge gate and has no concurrency guard (OOM/respawn loop)
 
 **Captured**: 2026-06-19
-**Status**: logged
+**Status**: resolved
 **Severity**: major
+**Resolved by**: change `fix-metta-finalize-per-change-lockfile-guard-plus-tighter` (2026-06-22) — solutions 1+2: added a per-change PID lockfile guard in `metta finalize` (refuses concurrent runs, auto-reclaims stale locks) and tightened the test gate (`tests.yaml` timeout 25min→5min, `on_failure` retry_once→stop). Solution 3 (worker-count pinning) intentionally out of scope.
 
 ## Symptom
 `metta finalize` runs the full vitest suite (~55 workers) as a pre-merge gate and frequently sits idle (load near 0, no progress) for 10-15+ minutes instead of completing or failing fast — it appears to hang. Some runs exited 144 (signal/OOM). Separately, there is no concurrency guard: re-invoking `metta finalize` for the same change while a prior run is in flight spawns additional full vitest pools. Three to four concurrent finalizes (165+ node test workers) OOM-thrashed the machine, and finalize agents' monitors kept respawning finalize whenever one was killed, creating a respawn loop that only stopped once the change was manually merged and archived out of `spec/changes/`. Finalize was effectively unusable on a resource-constrained host; the change had to be completed manually via git merge + manual archive.
