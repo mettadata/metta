@@ -1,6 +1,6 @@
 import { Command } from 'commander'
 import { join } from 'node:path'
-import { assertOnMainBranch, autoCommitFile, createCliContext, outputJson, readPipedStdin } from '../helpers.js'
+import { assertOnMainBranch, autoCommitFile, createCliContext, outputJson, readPipedStdin, getErrorMessage } from '../helpers.js'
 import type { Severity } from '../../issues/issues-store.js'
 
 export function registerIssueCommand(program: Command): void {
@@ -35,7 +35,7 @@ export function registerIssueCommand(program: Command): void {
           else if (commit.reason) { console.log(`  Not committed: ${commit.reason}`) }
         }
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err)
+        const message = getErrorMessage(err)
         const type = message.startsWith('Refusing to write') ? 'branch_guard' : 'issue_error'
         if (json) { outputJson({ error: { code: 4, type, message } }) } else { console.error(message) }
         process.exit(4)

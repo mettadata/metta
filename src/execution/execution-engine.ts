@@ -6,6 +6,7 @@ import { GateRegistry } from '../gates/gate-registry.js'
 import { type BatchPlan, type TaskDefinition, planBatches } from './batch-planner.js'
 import { WorktreeManager, HeadAdvancedError, type Worktree } from './worktree-manager.js'
 import { type FanOutPlan, type FanOutResult, mergeFanOutResults } from './fan-out.js'
+import { getErrorMessage } from '../util/errors.js'
 
 export interface FanOutCallbacks {
   onTaskStart?(taskId: string): Promise<void>
@@ -151,7 +152,7 @@ export class ExecutionEngine {
         }
       } catch (err: unknown) {
         task.status = 'failed'
-        const message = err instanceof Error ? err.message : String(err)
+        const message = getErrorMessage(err)
         await safeCallback(() => callbacks?.onTaskFailed?.(task.id, message) ?? Promise.resolve())
       }
     })
@@ -179,7 +180,7 @@ export class ExecutionEngine {
           task.status = 'failed'
           const message = err instanceof HeadAdvancedError
             ? `Base commit check failed: ${err.message}`
-            : `Worktree merge error: ${err instanceof Error ? err.message : String(err)}`
+            : `Worktree merge error: ${getErrorMessage(err)}`
           await safeCallback(() => callbacks?.onTaskFailed?.(task.id, message) ?? Promise.resolve())
         }
       }
@@ -209,7 +210,7 @@ export class ExecutionEngine {
         }
       } catch (err: unknown) {
         task.status = 'failed'
-        const message = err instanceof Error ? err.message : String(err)
+        const message = getErrorMessage(err)
         await safeCallback(() => callbacks?.onTaskFailed?.(task.id, message) ?? Promise.resolve())
       }
     }
@@ -278,7 +279,7 @@ export class ExecutionEngine {
             }
           } catch (err: unknown) {
             task.status = 'failed'
-            const message = err instanceof Error ? err.message : String(err)
+            const message = getErrorMessage(err)
             await safeCallback(() => callbacks?.onTaskFailed?.(task.id, message) ?? Promise.resolve())
           }
         }
@@ -316,7 +317,7 @@ export class ExecutionEngine {
           await safeCallback(() => callbacks?.onTaskFailed?.(task.id, result.output) ?? Promise.resolve())
         }
       } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : String(err)
+        const message = getErrorMessage(err)
         const failedResult: FanOutResult = {
           id: task.id,
           agent: task.agent,

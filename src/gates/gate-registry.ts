@@ -4,6 +4,7 @@ import { spawn } from 'node:child_process'
 import YAML from 'yaml'
 import { GateDefinitionSchema, type GateDefinition } from '../schemas/gate-definition.js'
 import type { GateResult } from '../schemas/gate-result.js'
+import { getErrorMessage } from '../util/errors.js'
 
 export class GateRegistry {
   private gates = new Map<string, GateDefinition>()
@@ -151,7 +152,7 @@ export class GateRegistry {
       }
     } catch (err: unknown) {
       const duration = Date.now() - start
-      const message = err instanceof Error ? err.message : String(err)
+      const message = getErrorMessage(err)
       return {
         gate: name,
         status: 'fail',

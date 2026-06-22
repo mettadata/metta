@@ -2,7 +2,7 @@ import { Command } from 'commander'
 import { join } from 'node:path'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import { createCliContext, outputJson } from '../helpers.js'
+import { createCliContext, outputJson, getErrorMessage } from '../helpers.js'
 
 const execAsync = promisify(execFile)
 
@@ -57,7 +57,7 @@ export function registerQuickCommand(program: Command): void {
           console.log(`  Artifacts: ${artifactIds.join(' → ')}`)
         }
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err)
+        const message = getErrorMessage(err)
         if (json) {
           outputJson({ error: { code: 4, type: 'quick_error', message } })
         } else {

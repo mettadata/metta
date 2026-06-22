@@ -2,7 +2,7 @@ import { Command } from 'commander'
 import { readdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
-import { autoCommitFile, outputJson, type AutoCommitResult } from '../helpers.js'
+import { autoCommitFile, outputJson, type AutoCommitResult, getErrorMessage } from '../helpers.js'
 import { workflowPrimerLong } from '../../delivery/workflow-primer.js'
 
 /** Marker pair definition */
@@ -364,7 +364,7 @@ export function registerRefreshCommand(program: Command): void {
           }
         }
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err)
+        const message = getErrorMessage(err)
         if (json) {
           outputJson({ error: { code: 4, type: 'refresh_error', message } })
         } else {

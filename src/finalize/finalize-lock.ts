@@ -88,6 +88,8 @@ export async function acquireFinalizeLock(
 
   return async () => {
     process.removeListener('exit', cleanup)
+    // Best-effort unlink on release: the lock file may already be gone (removed
+    // by the exit handler or a prior release), and a missing file is a no-op here.
     await unlink(lockPath).catch(() => {})
   }
 }

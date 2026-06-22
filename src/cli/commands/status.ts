@@ -1,5 +1,5 @@
 import { Command } from 'commander'
-import { createCliContext, outputJson, color } from '../helpers.js'
+import { createCliContext, outputJson, color, getErrorMessage } from '../helpers.js'
 import { renderStatusLine } from '../../complexity/index.js'
 import type { ChangeMetadata, ComplexityScore } from '../../schemas/change-metadata.js'
 
@@ -70,7 +70,7 @@ export function registerStatusCommand(program: Command): void {
           }
         }
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err)
+        const message = getErrorMessage(err)
         if (json) {
           outputJson({ error: { code: 4, type: 'status_error', message } })
         } else {

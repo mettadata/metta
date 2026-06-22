@@ -4,13 +4,27 @@ import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import { createInterface } from 'node:readline'
-import { createCliContext, outputJson } from '../helpers.js'
+import { createCliContext, outputJson, getErrorMessage, askYesNo } from '../helpers.js'
 import { claudeCodeAdapter } from '../../delivery/claude-code-adapter.js'
 import { installCommands } from '../../delivery/command-installer.js'
 import { setProjectField } from '../../config/config-writer.js'
 
 const execAsync = promisify(execFile)
+
+/**
+ * Read and parse a `.claude/settings.json` file. Returns an empty object when
+ * the file does not exist. Throws a descriptive error (rather than silently
+ * overwriting) when the file exists but contains invalid JSON.
+ */
+async function readSettingsJson(settingsPath: string): Promise<Record<string, unknown>> {
+  if (!existsSync(settingsPath)) return {}
+  const raw = await readFile(settingsPath, 'utf8')
+  try {
+    return JSON.parse(raw)
+  } catch (err) {
+    throw new Error(`.claude/settings.json exists but is not valid JSON — refusing to overwrite. Fix it and re-run metta install. Cause: ${getErrorMessage(err)}`)
+  }
+}
 
 async function installMettaGuardHook(root: string): Promise<void> {
   const hookDir = join(root, '.claude', 'hooks')
@@ -22,15 +36,7 @@ async function installMettaGuardHook(root: string): Promise<void> {
   await copyFile(templateHook, hookPath)
   await chmod(hookPath, 0o755)
 
-  let settings: Record<string, unknown> = {}
-  if (existsSync(settingsPath)) {
-    const raw = await readFile(settingsPath, 'utf8')
-    try {
-      settings = JSON.parse(raw)
-    } catch (err) {
-      throw new Error(`.claude/settings.json exists but is not valid JSON — refusing to overwrite. Fix it and re-run metta install. Cause: ${err instanceof Error ? err.message : String(err)}`)
-    }
-  }
+  const settings = await readSettingsJson(settingsPath)
 
   const rawHooks = settings.hooks
   const hooks: Record<string, unknown> = rawHooks && typeof rawHooks === 'object' && !Array.isArray(rawHooks)
@@ -63,15 +69,7 @@ async function installMettaBashGuardHook(root: string): Promise<void> {
   await copyFile(templateHook, hookPath)
   await chmod(hookPath, 0o755)
 
-  let settings: Record<string, unknown> = {}
-  if (existsSync(settingsPath)) {
-    const raw = await readFile(settingsPath, 'utf8')
-    try {
-      settings = JSON.parse(raw)
-    } catch (err) {
-      throw new Error(`.claude/settings.json exists but is not valid JSON — refusing to overwrite. Fix it and re-run metta install. Cause: ${err instanceof Error ? err.message : String(err)}`)
-    }
-  }
+  const settings = await readSettingsJson(settingsPath)
 
   const rawHooks = settings.hooks
   const hooks: Record<string, unknown> = rawHooks && typeof rawHooks === 'object' && !Array.isArray(rawHooks)
@@ -105,15 +103,7 @@ async function installMettaStatusline(root: string): Promise<void> {
   await copyFile(templateScript, statuslinePath)
   await chmod(statuslinePath, 0o755)
 
-  let settings: Record<string, unknown> = {}
-  if (existsSync(settingsPath)) {
-    const raw = await readFile(settingsPath, 'utf8')
-    try {
-      settings = JSON.parse(raw)
-    } catch (err) {
-      throw new Error(`.claude/settings.json exists but is not valid JSON — refusing to overwrite. Fix it and re-run metta install. Cause: ${err instanceof Error ? err.message : String(err)}`)
-    }
-  }
+  const settings = await readSettingsJson(settingsPath)
 
   const existing = settings.statusLine
   if (existing !== undefined) {
@@ -129,16 +119,6 @@ async function installMettaStatusline(root: string): Promise<void> {
 
   settings.statusLine = { type: 'command', command: installedCmd, padding: 0 }
   await writeFile(settingsPath, JSON.stringify(settings, null, 2) + '\n')
-}
-
-function askYesNo(question: string): Promise<boolean> {
-  const rl = createInterface({ input: process.stdin, output: process.stdout })
-  return new Promise((resolve) => {
-    rl.question(question, (answer) => {
-      rl.close()
-      resolve(answer.trim().toLowerCase() !== 'n')
-    })
-  })
 }
 
 type StackName = 'rust' | 'go' | 'python' | 'js'
@@ -239,7 +219,10 @@ export function registerInstallCommand(program: Command): void {
             })
             process.exit(3)
           } else {
-            const shouldInit = await askYesNo('No git repository detected. Initialize one? [Y/n] ')
+            const shouldInit = await askYesNo('No git repository detected. Initialize one? [Y/n]', {
+              defaultYes: true,
+              jsonMode: json,
+            })
             if (shouldInit) {
               await execAsync('git', ['init'], { cwd: root })
               gitInitialized = true
@@ -297,6 +280,9 @@ Banned patterns and forbidden operations.
 .metta/logs/
 .metta/state.lock
 `
+        // Best-effort write with the exclusive `wx` flag: if .metta/.gitignore
+        // already exists from a prior install run, the EEXIST is expected and we
+        // intentionally leave the existing file untouched.
         await writeFile(join(root, '.metta', '.gitignore'), gitignoreContent, { flag: 'wx' }).catch(() => {})
 
         // Detect project stack and scaffold .metta/gates/ for non-JS projects.
@@ -342,7 +328,7 @@ Banned patterns and forbidden operations.
           await installMettaGuardHook(root)
           guardInstalled = true
         } catch (err) {
-          const message = err instanceof Error ? err.message : String(err)
+          const message = getErrorMessage(err)
           console.error(`Warning: failed to install metta-guard hook — ${message}`)
         }
 
@@ -352,7 +338,7 @@ Banned patterns and forbidden operations.
           await installMettaBashGuardHook(root)
           bashGuardInstalled = true
         } catch (err) {
-          const message = err instanceof Error ? err.message : String(err)
+          const message = getErrorMessage(err)
           console.error(`Warning: failed to install metta-guard-bash hook — ${message}`)
         }
 
@@ -362,7 +348,7 @@ Banned patterns and forbidden operations.
           await installMettaStatusline(root)
           statuslineInstalled = true
         } catch (err) {
-          const message = err instanceof Error ? err.message : String(err)
+          const message = getErrorMessage(err)
           console.error(`Warning: failed to install statusline — ${message}`)
         }
 
@@ -429,7 +415,7 @@ Banned patterns and forbidden operations.
           console.log('Next: run `metta init` to discover project context')
         }
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err)
+        const message = getErrorMessage(err)
         if (json) {
           outputJson({ error: { code: 4, type: 'install_error', message } })
         } else {

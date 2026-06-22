@@ -1,6 +1,6 @@
 import { Command } from 'commander'
 import { join } from 'node:path'
-import { createCliContext, outputJson, agentBanner } from '../helpers.js'
+import { createCliContext, outputJson, agentBanner, getErrorMessage } from '../helpers.js'
 import { renderBanner } from '../../complexity/index.js'
 import type { AgentDefinition } from '../../schemas/agent-definition.js'
 
@@ -113,7 +113,7 @@ export function registerInstructionsCommand(program: Command): void {
             })
           } catch (err) {
             process.stderr.write(
-              `Warning: failed to record instructions metrics for ${artifactId}: ${err instanceof Error ? err.message : String(err)}\n`,
+              `Warning: failed to record instructions metrics for ${artifactId}: ${getErrorMessage(err)}\n`,
             )
           }
         }
@@ -141,7 +141,7 @@ export function registerInstructionsCommand(program: Command): void {
           console.log(output.template)
         }
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err)
+        const message = getErrorMessage(err)
         if (json) {
           outputJson({ error: { code: 4, type: 'instructions_error', message } })
         } else {

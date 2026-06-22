@@ -2,7 +2,7 @@ import { Command } from 'commander'
 import { join } from 'node:path'
 import { stat } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
-import { createCliContext, outputJson, type CliContext } from '../helpers.js'
+import { createCliContext, outputJson, type CliContext, getErrorMessage } from '../helpers.js'
 import { parseStories, StoriesParseError } from '../../specs/stories-parser.js'
 import {
   validateFulfillsRefs,
@@ -119,7 +119,7 @@ export function registerValidateStoriesCommand(program: Command): void {
         }
         process.exit(ok ? 0 : 4)
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err)
+        const message = getErrorMessage(err)
         const isParseErr = err instanceof StoriesParseError
         const type = isParseErr ? 'stories_parse_error' : 'validate_stories_error'
         if (json) {

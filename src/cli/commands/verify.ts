@@ -1,5 +1,5 @@
 import { Command } from 'commander'
-import { createCliContext, outputJson, color } from '../helpers.js'
+import { createCliContext, outputJson, color, getErrorMessage } from '../helpers.js'
 
 export function registerVerifyCommand(program: Command): void {
   program
@@ -54,7 +54,7 @@ export function registerVerifyCommand(program: Command): void {
 
         if (!allPassed) process.exit(1)
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err)
+        const message = getErrorMessage(err)
         if (json) {
           outputJson({ error: { code: 4, type: 'verify_error', message } })
         } else {

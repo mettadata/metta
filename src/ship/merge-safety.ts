@@ -81,6 +81,9 @@ export class MergeSafetyPipeline {
 
     const restore = async (): Promise<void> => {
       if (startingBranch && startingBranch !== targetBranch) {
+        // Best-effort restore: checking out the starting branch may fail if the
+        // working tree is already detached/dirty; the caller's result still reports
+        // the real failure, so a failed cleanup here is non-fatal.
         await execAsync(`git checkout ${startingBranch}`, { cwd: this.cwd }).catch(() => {})
       }
     }
@@ -116,9 +119,13 @@ export class MergeSafetyPipeline {
     // Step 3: Dry-run merge (we are now on target)
     try {
       await this.git(`merge --no-commit --no-ff ${sourceBranch}`)
+      // Best-effort cleanup of the dry-run merge: there may be nothing to abort
+      // when the merge was a clean fast-forward, so an error here is expected.
       await execAsync('git merge --abort', { cwd: this.cwd }).catch(() => {})
       steps.push({ step: 'dry-run-merge', status: 'pass' })
     } catch {
+      // Best-effort rollback of the conflicted dry-run; the conflict is already
+      // recorded below, so a failed abort does not change the reported outcome.
       await execAsync('git merge --abort', { cwd: this.cwd }).catch(() => {})
       steps.push({ step: 'dry-run-merge', status: 'fail', detail: 'Merge conflicts detected' })
       await restore()
@@ -176,6 +183,8 @@ export class MergeSafetyPipeline {
     try {
       const targetHeadAfter = await this.git(`rev-parse ${targetBranch}`)
       if (targetHeadAfter === targetHeadBefore) {
+        // Best-effort recovery: reset target back to the pre-merge snapshot. The
+        // failure is already being reported, so a failed reset does not mask it.
         await this.git(`reset --hard ${snapshotTag}`).catch(() => {})
         steps.push({ step: 'merge', status: 'fail', detail: 'target branch did not advance (already up to date?)' })
         await restore()
@@ -185,6 +194,8 @@ export class MergeSafetyPipeline {
       try {
         await this.git(`merge-base --is-ancestor ${sourceHead} ${targetHeadAfter}`)
       } catch {
+        // Best-effort recovery: reset target back to the pre-merge snapshot. The
+        // failure is already being reported, so a failed reset does not mask it.
         await this.git(`reset --hard ${snapshotTag}`).catch(() => {})
         steps.push({ step: 'merge', status: 'fail', detail: 'source not an ancestor of target after merge' })
         await restore()

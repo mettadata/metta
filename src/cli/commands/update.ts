@@ -1,7 +1,7 @@
 import { Command } from 'commander'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import { outputJson, color } from '../helpers.js'
+import { outputJson, color, getErrorMessage } from '../helpers.js'
 
 const execAsync = promisify(execFile)
 
@@ -48,7 +48,7 @@ export function registerUpdateCommand(program: Command): void {
           console.log('Run `metta install` in your projects to update skills and agents.')
         }
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err)
+        const message = getErrorMessage(err)
         if (json) { outputJson({ error: { code: 4, type: 'update_error', message } }) } else { console.error(`Update failed: ${message}`) }
         process.exit(4)
       }

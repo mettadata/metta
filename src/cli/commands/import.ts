@@ -1,7 +1,7 @@
 import { Command } from 'commander'
 import { stat, readdir } from 'node:fs/promises'
 import { join, resolve, relative } from 'node:path'
-import { createCliContext, outputJson, color } from '../helpers.js'
+import { createCliContext, outputJson, color, getErrorMessage } from '../helpers.js'
 
 export function registerImportCommand(program: Command): void {
   program
@@ -100,7 +100,7 @@ export function registerImportCommand(program: Command): void {
           }
         }
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err)
+        const message = getErrorMessage(err)
         if (json) { outputJson({ error: { code: 4, type: 'import_error', message } }) } else { console.error(message) }
         process.exit(4)
       }

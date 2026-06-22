@@ -2,7 +2,7 @@ import { Command } from 'commander'
 import { execFile } from 'node:child_process'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
-import { assertOnMainBranch, autoCommitFile, createCliContext, outputJson } from '../helpers.js'
+import { assertOnMainBranch, autoCommitFile, createCliContext, outputJson, getErrorMessage } from '../helpers.js'
 import { SLUG_RE } from '../../util/slug.js'
 
 const execAsync = promisify(execFile)
@@ -75,7 +75,7 @@ export function registerBacklogCommand(program: Command): void {
           else if (commit.reason) { console.log(`  Not committed: ${commit.reason}`) }
         }
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err)
+        const message = getErrorMessage(err)
         const type = message.startsWith('Refusing to write') ? 'branch_guard' : 'backlog_error'
         if (json) { outputJson({ error: { code: 4, type, message } }) } else { console.error(message) }
         process.exit(4)
@@ -154,7 +154,7 @@ export function registerBacklogCommand(program: Command): void {
           if (committed) { console.log(`  Committed: ${commitSha?.slice(0, 7)}`) }
         }
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err)
+        const message = getErrorMessage(err)
         if (json) { outputJson({ error: { code: 4, type: 'done_error', message } }) } else { console.error(message) }
         process.exit(4)
       }

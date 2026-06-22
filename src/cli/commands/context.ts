@@ -1,7 +1,7 @@
 import { Command } from 'commander'
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
-import { createCliContext, outputJson, type CliContext } from '../helpers.js'
+import { createCliContext, outputJson, type CliContext, getErrorMessage } from '../helpers.js'
 import { ARTIFACT_KINDS } from '../../context/context-engine.js'
 import { assertSafeSlug } from '../../util/slug.js'
 
@@ -91,7 +91,7 @@ export function registerContextCommand(program: Command): void {
         }
         process.exit(0)
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err)
+        const message = getErrorMessage(err)
         if (json) outputJson({ error: { code: 4, type: 'context_stats_error', message } })
         else console.error(`context stats failed: ${message}`)
         process.exit(4)

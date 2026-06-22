@@ -2,6 +2,7 @@ import { join, relative } from 'node:path'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { createInterface } from 'node:readline'
+import { getErrorMessage } from '../util/errors.js'
 import { ConfigLoader, ConfigParseError } from '../config/config-loader.js'
 import { ArtifactStore } from '../artifacts/artifact-store.js'
 import { WorkflowEngine } from '../workflow/workflow-engine.js'
@@ -125,12 +126,15 @@ export async function autoCommitFile(
     return { committed: false, reason: 'failed to read git status' }
   }
   try {
+    // TODO(consolidate-git-commit): the ~7 `git commit` sites across the CLI have
+    // divergent error handling and cannot share a single helper without behavior
+    // changes; deferred to a dedicated refactor.
     await execAsync('git', ['add', '--', rel], { cwd: projectRoot })
     await execAsync('git', ['commit', '-m', message], { cwd: projectRoot })
     const { stdout } = await execAsync('git', ['rev-parse', 'HEAD'], { cwd: projectRoot })
     return { committed: true, sha: stdout.trim() }
   } catch (err) {
-    const raw = err instanceof Error ? err.message : String(err)
+    const raw = getErrorMessage(err)
     return { committed: false, reason: `git commit failed: ${raw}` }
   }
 }
@@ -138,6 +142,12 @@ export async function autoCommitFile(
 export function outputJson(data: unknown): void {
   console.log(JSON.stringify(data, null, 2))
 }
+
+// getErrorMessage is imported from util/errors (above) for internal use here and
+// re-exported so CLI files can keep importing it from helpers, while core
+// (non-CLI) modules import it directly from util/errors to avoid depending on
+// the CLI layer.
+export { getErrorMessage }
 
 export function handleError(err: unknown, json: boolean): never {
   if (err instanceof ConfigParseError) {
@@ -157,7 +167,7 @@ export function handleError(err: unknown, json: boolean): never {
     }
     process.exit(4)
   }
-  const message = err instanceof Error ? err.message : String(err)
+  const message = getErrorMessage(err)
   if (json) {
     outputJson({ error: { code: 4, type: 'validation_error', message } })
   } else {
@@ -196,7 +206,7 @@ const phaseColorMap: Record<string, number> = {
   dim: 90,
 }
 
-export function phaseColor(phase: string): number {
+function phaseColor(phase: string): number {
   return phaseColorMap[phase] ?? 36
 }
 

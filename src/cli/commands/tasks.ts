@@ -1,7 +1,7 @@
 import { Command } from 'commander'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { createCliContext, outputJson } from '../helpers.js'
+import { createCliContext, outputJson, getErrorMessage } from '../helpers.js'
 import { parseTasksMd, computeWaves } from '../../planning/index.js'
 import { renderHumanPlan, renderJsonPlan } from './tasks-renderer.js'
 
@@ -48,7 +48,7 @@ export function registerTasksCommand(program: Command): void {
         if (isNodeError(err) && err.code === 'ENOENT') {
           emitError(json, 'not_found', `tasks.md not found: ${tasksMdPath}`)
         }
-        const message = err instanceof Error ? err.message : String(err)
+        const message = getErrorMessage(err)
         emitError(json, 'malformed', `Failed to read tasks.md: ${message}`)
       }
 
@@ -56,7 +56,7 @@ export function registerTasksCommand(program: Command): void {
       try {
         graph = parseTasksMd(contents)
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err)
+        const message = getErrorMessage(err)
         emitError(json, 'malformed', `Failed to parse tasks.md: ${message}`)
       }
 
@@ -64,7 +64,7 @@ export function registerTasksCommand(program: Command): void {
       try {
         plan = computeWaves(graph, options.change)
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err)
+        const message = getErrorMessage(err)
         const type: ErrorType = /cycle/i.test(message) ? 'cycle' : 'malformed'
         emitError(json, type, message)
       }

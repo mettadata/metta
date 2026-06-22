@@ -1,7 +1,7 @@
 import { Command } from 'commander'
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
-import { createCliContext, outputJson } from '../helpers.js'
+import { createCliContext, outputJson, getErrorMessage } from '../helpers.js'
 import { detectBrownfield, buildDiscoveryInstructions } from './discovery-helpers.js'
 
 export function registerInitCommand(program: Command): void {
@@ -49,7 +49,7 @@ export function registerInitCommand(program: Command): void {
           console.log('Next: run `/metta:init` in Claude Code to run the interactive discovery interview')
         }
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err)
+        const message = getErrorMessage(err)
         if (json) {
           outputJson({ error: { code: 4, type: 'init_error', message } })
         } else {
