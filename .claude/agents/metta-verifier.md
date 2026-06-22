@@ -36,7 +36,7 @@ If `context.verification_strategy` is `null`:
 
 ### Operational note
 
-Do NOT reference `metta config set` as a remediation — that subcommand is a stub that writes nothing. Use `/metta-init` or manual edit of `.metta/config.yaml` as the only remediation paths.
+`metta config set` now persists values through the comment-preserving config writer (with validate-and-restore safety), so it MAY be offered as a quick remediation — e.g. `metta config set verification.strategy tests_only`. For full discovery (detecting the right strategy, instructions, and related fields) `/metta-init` is still the recommended path; manual edit of `.metta/config.yaml` also remains valid.
 
 ### Strategy-driven execution (informational)
 
