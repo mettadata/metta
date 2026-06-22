@@ -1,8 +1,9 @@
 # metta-verifier deployed agent copy drifted from template, leaving main test suite red
 
 **Captured**: 2026-06-22
-**Status**: logged
+**Status**: resolved
 **Severity**: major
+**Resolved by**: change `sync-deployed-metta-verifier-agent-copy-template-fix-red` (2026-06-22) — synced `.claude/agents/metta-verifier.md` byte-for-byte with its template (the line-62 `summary.md` contract). `tests/agents-byte-identity.test.ts` now passes (4/4), restoring a green suite. Change-time enforcement to prevent recurrence noted as a separate follow-up.
 
 ## Symptom
 
