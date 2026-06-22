@@ -69,9 +69,15 @@ async function loadYamlFile(filePath: string): Promise<Record<string, unknown> |
 function applyEnvOverrides(config: Record<string, unknown>): Record<string, unknown> {
   const result = { ...config }
   const envPrefix = 'METTA_'
+  // Control/runtime signals that share the METTA_ prefix but are NOT config
+  // overrides (e.g. the metta-guard skill-bypass marker). Skipping them prevents
+  // a spurious "Unrecognized key(s) in object: 'skill'" warning on every
+  // skill-initiated CLI call.
+  const RESERVED = new Set(['METTA_SKILL'])
 
   for (const [key, value] of Object.entries(process.env)) {
     if (!key.startsWith(envPrefix) || value === undefined) continue
+    if (RESERVED.has(key)) continue
     // Use double underscore (__) as segment separator to avoid ambiguity
     // with config keys that contain single underscores (e.g., api_key_env).
     // Example: METTA_PROVIDERS__ANTHROPIC__API_KEY_ENV → config.providers.anthropic.api_key_env
