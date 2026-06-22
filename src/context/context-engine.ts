@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { createHash } from 'node:crypto'
 import { countTokens } from './token-counter.js'
+import { getErrorMessage } from '../util/errors.js'
 
 export interface ContextManifest {
   required: string[]
@@ -98,7 +99,7 @@ export class ContextEngine {
           continue
         }
         // Surface non-ENOENT I/O errors (permission denied, disk errors, etc.)
-        const msg = error instanceof Error ? error.message : String(error)
+        const msg = getErrorMessage(error)
         console.warn(`[metta] warning: failed to read required context file ${filePath}: ${msg}`)
         truncations.push(`${filePath} (read error: ${code ?? 'unknown'})`)
       }

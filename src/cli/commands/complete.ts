@@ -1,5 +1,5 @@
 import { Command } from 'commander'
-import { createCliContext, outputJson, color, agentBanner, askYesNo } from '../helpers.js'
+import { createCliContext, outputJson, color, agentBanner, askYesNo, getErrorMessage } from '../helpers.js'
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { execFile } from 'node:child_process'
@@ -52,7 +52,7 @@ async function stampArtifactCompleted(
     await ctx.artifactStore.updateChange(changeName, { artifact_timings: timings })
   } catch (err) {
     process.stderr.write(
-      `Warning: failed to record completion timestamp for ${artifactId}: ${err instanceof Error ? err.message : String(err)}\n`,
+      `Warning: failed to record completion timestamp for ${artifactId}: ${getErrorMessage(err)}\n`,
     )
   }
 }
@@ -557,7 +557,7 @@ export function registerCompleteCommand(program: Command): void {
           // Git not available or nothing to commit
         }
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err)
+        const message = getErrorMessage(err)
         if (json) { outputJson({ error: { code: 4, type: 'complete_error', message } }) } else { console.error(`Complete failed: ${message}`) }
         process.exit(4)
       }

@@ -1,7 +1,7 @@
 import { Command } from 'commander'
 import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
-import { createCliContext, outputJson, color, agentBanner } from '../helpers.js'
+import { createCliContext, outputJson, color, agentBanner, getErrorMessage } from '../helpers.js'
 import { formatDuration } from '../../util/duration.js'
 import { getGitLogTimings } from '../../util/git-log-timings.js'
 import type { ArtifactTiming, ArtifactTokens } from '../../schemas/change-metadata.js'
@@ -153,7 +153,7 @@ export function registerProgressCommand(program: Command): void {
         console.log(`  ${color(String(archived.length), 32)} shipped  ${color(String(active.length), 33)} active  ${color(String(total), 36)} total`)
 
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err)
+        const message = getErrorMessage(err)
         if (json) { outputJson({ error: { code: 4, type: 'progress_error', message } }) } else { console.error(`Progress failed: ${message}`) }
         process.exit(4)
       }

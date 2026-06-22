@@ -1,5 +1,5 @@
 import { Command } from 'commander'
-import { createCliContext, outputJson } from '../helpers.js'
+import { createCliContext, outputJson, getErrorMessage } from '../helpers.js'
 
 export function registerChangesCommand(program: Command): void {
   const changes = program
@@ -65,7 +65,7 @@ export function registerChangesCommand(program: Command): void {
           console.log(`Change '${name}' abandoned. Archived as: ${archiveName}`)
         }
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err)
+        const message = getErrorMessage(err)
         if (json) { outputJson({ error: { code: 4, type: 'abandon_error', message } }) } else { console.error(message) }
         process.exit(4)
       }

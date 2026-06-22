@@ -1,7 +1,7 @@
 import { Command } from 'commander'
 import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { createCliContext, outputJson } from '../helpers.js'
+import { createCliContext, outputJson, getErrorMessage } from '../helpers.js'
 
 export function registerSpecsCommand(program: Command): void {
   const specs = program
@@ -43,7 +43,7 @@ export function registerSpecsCommand(program: Command): void {
           }
         }
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err)
+        const message = getErrorMessage(err)
         if (json) { outputJson({ error: { code: 4, type: 'specs_error', message } }) } else { console.error(message) }
         process.exit(4)
       }
@@ -108,7 +108,7 @@ export function registerSpecsCommand(program: Command): void {
           }
         }
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err)
+        const message = getErrorMessage(err)
         if (json) { outputJson({ error: { code: 4, type: 'diff_error', message } }) } else { console.error(message) }
         process.exit(4)
       }
@@ -159,7 +159,7 @@ export function registerSpecsCommand(program: Command): void {
           console.log(`Spec '${capability}' approved.`)
         }
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err)
+        const message = getErrorMessage(err)
         if (json) { outputJson({ error: { code: 4, type: 'approve_error', message } }) } else { console.error(message) }
         process.exit(4)
       }

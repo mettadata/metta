@@ -3,7 +3,7 @@ import { writeFile, mkdir } from 'node:fs/promises'
 import { join, dirname } from 'node:path'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import { createCliContext, outputJson } from '../helpers.js'
+import { createCliContext, outputJson, getErrorMessage } from '../helpers.js'
 import {
   checkConstitution,
   isBlockingViolation,
@@ -138,7 +138,7 @@ export function registerCheckConstitutionCommand(program: Command): void {
 
         process.exit(result.blocking ? 4 : 0)
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err)
+        const message = getErrorMessage(err)
         if (json) {
           outputJson({
             error: { code: 4, type: 'check_constitution_error', message },

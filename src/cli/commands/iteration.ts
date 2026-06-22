@@ -1,5 +1,5 @@
 import { Command } from 'commander'
-import { createCliContext, outputJson } from '../helpers.js'
+import { createCliContext, outputJson, getErrorMessage } from '../helpers.js'
 
 /**
  * `metta iteration record --phase <review|verify> --change <name>`
@@ -58,7 +58,7 @@ export function registerIterationCommand(program: Command): void {
           )
         }
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err)
+        const message = getErrorMessage(err)
         if (json) {
           outputJson({
             error: { code: 4, type: 'iteration_error', message },

@@ -2,7 +2,7 @@ import { Command } from 'commander'
 import { spawn } from 'node:child_process'
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { createCliContext, outputJson } from '../helpers.js'
+import { createCliContext, outputJson, getErrorMessage } from '../helpers.js'
 import { setProjectField } from '../../config/config-writer.js'
 
 /**
@@ -58,7 +58,7 @@ export function registerConfigCommand(program: Command): void {
           console.log(typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value ?? 'undefined'))
         }
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err)
+        const message = getErrorMessage(err)
         if (json) { outputJson({ error: { code: 4, type: 'config_error', message } }) } else { console.error(message) }
         process.exit(4)
       }
@@ -97,7 +97,7 @@ export function registerConfigCommand(program: Command): void {
           await ctx.configLoader.load()
         } catch (validationErr) {
           await writeFile(configPath, backup, 'utf8')
-          const message = validationErr instanceof Error ? validationErr.message : String(validationErr)
+          const message = getErrorMessage(validationErr)
           throw new Error(`Rejected: ${message} (config restored)`)
         }
 
@@ -107,7 +107,7 @@ export function registerConfigCommand(program: Command): void {
           console.log(`Set ${key} = ${coerced}`)
         }
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err)
+        const message = getErrorMessage(err)
         if (json) { outputJson({ error: { code: 4, type: 'config_error', message } }) } else { console.error(message) }
         process.exit(4)
       }

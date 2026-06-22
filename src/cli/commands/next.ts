@@ -2,7 +2,7 @@ import { Command } from 'commander'
 import { join } from 'node:path'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import { createCliContext, outputJson, color, banner } from '../helpers.js'
+import { createCliContext, outputJson, color, banner, getErrorMessage } from '../helpers.js'
 
 const execAsync = promisify(execFile)
 
@@ -143,7 +143,7 @@ export function registerNextCommand(program: Command): void {
           }
         }
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err)
+        const message = getErrorMessage(err)
         if (json) { outputJson({ error: { code: 4, type: 'next_error', message } }) } else { console.error(`Next failed: ${message}`) }
         process.exit(4)
       }

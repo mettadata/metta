@@ -1,5 +1,5 @@
 import { Command } from 'commander'
-import { createCliContext, outputJson } from '../helpers.js'
+import { createCliContext, outputJson, getErrorMessage } from '../helpers.js'
 import { join } from 'node:path'
 
 export function registerReconcileCommand(program: Command): void {
@@ -49,7 +49,7 @@ export function registerReconcileCommand(program: Command): void {
           }
         }
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err)
+        const message = getErrorMessage(err)
         if (json) { outputJson({ error: { code: 4, type: 'reconcile_error', message } }) } else { console.error(message) }
         process.exit(4)
       }

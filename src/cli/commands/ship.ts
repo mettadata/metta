@@ -1,5 +1,5 @@
 import { Command } from 'commander'
-import { createCliContext, outputJson } from '../helpers.js'
+import { createCliContext, outputJson, getErrorMessage } from '../helpers.js'
 import { MergeSafetyPipeline } from '../../ship/merge-safety.js'
 
 export function registerShipCommand(program: Command): void {
@@ -52,7 +52,7 @@ export function registerShipCommand(program: Command): void {
         if (result.status === 'failure') process.exit(1)
         if (result.status === 'conflict') process.exit(2)
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err)
+        const message = getErrorMessage(err)
         if (json) { outputJson({ error: { code: 4, type: 'ship_error', message } }) } else { console.error(`Ship failed: ${message}`) }
         process.exit(4)
       }

@@ -4,11 +4,12 @@ import { homedir } from 'node:os'
 import YAML from 'yaml'
 import { ZodError } from 'zod'
 import { ProjectConfigSchema, type ProjectConfig, type ProjectInfo } from '../schemas/project-config.js'
+import { getErrorMessage } from '../util/errors.js'
 
 export class ConfigParseError extends Error {
   readonly parserMessage: string
   constructor(public readonly path: string, public readonly cause: unknown) {
-    const parserMessage = cause instanceof Error ? cause.message : String(cause)
+    const parserMessage = getErrorMessage(cause)
     super(`Failed to parse YAML config at ${path}: ${parserMessage}`)
     this.name = 'ConfigParseError'
     this.parserMessage = parserMessage

@@ -3,6 +3,7 @@ import { promisify } from 'node:util'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { mkdir, rm } from 'node:fs/promises'
+import { getErrorMessage } from '../util/errors.js'
 
 const execAsync = promisify(execFile)
 
@@ -98,7 +99,9 @@ export class WorktreeManager {
           { cwd: worktree.path },
         )
       } catch {
-        // Abort the failed rebase to leave the repo in a clean state
+        // Abort the failed rebase to leave the repo in a clean state. Best-effort:
+        // if there is nothing to abort the error is harmless, and we throw the
+        // real HeadAdvancedError below regardless.
         await execAsync('git', ['rebase', '--abort'], { cwd: worktree.path }).catch(() => {})
         throw new HeadAdvancedError(worktree.baseCommit, currentHead, worktree.branch)
       }
@@ -120,12 +123,13 @@ export class WorktreeManager {
       )
       return { status: 'clean', changedFiles }
     } catch (err) {
-      // Abort failed merge
+      // Abort failed merge. Best-effort cleanup: a failed abort cannot mask the
+      // conflict, which is returned to the caller below.
       await execAsync('git', ['merge', '--abort'], { cwd: this.repoRoot }).catch(() => {})
       return {
         status: 'conflict',
         changedFiles,
-        detail: err instanceof Error ? err.message : String(err),
+        detail: getErrorMessage(err),
       }
     }
   }

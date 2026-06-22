@@ -2,7 +2,7 @@ import { Command } from 'commander'
 import { join } from 'node:path'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import { createCliContext, outputJson, color } from '../helpers.js'
+import { createCliContext, outputJson, color, getErrorMessage } from '../helpers.js'
 import { Finalizer } from '../../finalize/finalizer.js'
 import { WorkflowEngine } from '../../workflow/workflow-engine.js'
 import { acquireFinalizeLock, FinalizeLockError } from '../../finalize/finalize-lock.js'
@@ -174,7 +174,7 @@ export function registerFinalizeCommand(program: Command): void {
           if (json) { outputJson({ error: { code: 5, type: 'finalize_locked', message: err.message } }) } else { console.error(color(err.message, 31)) }
           process.exit(5)
         }
-        const message = err instanceof Error ? err.message : String(err)
+        const message = getErrorMessage(err)
         if (json) { outputJson({ error: { code: 4, type: 'finalize_error', message } }) } else { console.error(`Finalize failed: ${message}`) }
         process.exit(4)
       }
