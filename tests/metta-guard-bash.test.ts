@@ -209,6 +209,17 @@ describe('metta-guard-bash hook', { timeout: 30_000 }, () => {
         expect(code).toBe(2)
       })
 
+      // ----- Quote-aware tokenization: free-text args must not trigger phantom invocations -----
+      it('allows `metta status "see metta finalize docs"`: quoted arg text is not a phantom invocation (exit 0)', () => {
+        const { code } = runHook(hookPath, bashEvent('metta status "see metta finalize docs"'))
+        expect(code).toBe(0)
+      })
+
+      it('still blocks a genuine chained `metta status && metta finalize` (exit 2)', () => {
+        const { code } = runHook(hookPath, bashEvent('metta status && metta finalize'))
+        expect(code).toBe(2)
+      })
+
       // ----- Skill-enforced caller-identity enforcement + audit log -----
       describe('skill-enforced caller-identity enforcement', () => {
         const tempDirs: string[] = []
