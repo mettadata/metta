@@ -1,8 +1,9 @@
 # metta finalize test gate cannot pass: tests/cli.test.ts is a single 140-test file that exceeds the gate timeout on one worker
 
 **Captured**: 2026-06-22
-**Status**: logged
+**Status**: resolved
 **Severity**: major
+**Resolved by**: change `split-tests-cli-test-ts-per-command-files-so-finalize-test` (2026-06-22) — split the 140-test `tests/cli.test.ts` into 7 per-command files (largest 28 tests) sharing an extracted `tests/helpers/cli.ts` runCli helper, so vitest file-parallelism distributes the load across workers and the slowest CLI file drops from ~10 min to ~2 min. All 140 tests preserved (parity verified: 140 == 140, expect() 499 == 499, test descriptions diff-identical).
 
 ## Symptom
 `metta finalize` always fails its `tests` gate with a Timeout at the 5-minute cap (validated live: gate fail at 300178ms), so finalize can never archive and every change must be finalized manually. The failure presents misleadingly as "load near 0, no progress" rather than an obvious hang.
