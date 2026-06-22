@@ -1,8 +1,9 @@
 # config-loader emits spurious "Unrecognized key 'skill'" warning on every skill-initiated CLI call
 
 **Captured**: 2026-06-22
-**Status**: logged
+**Status**: resolved
 **Severity**: minor
+**Resolved by**: change `reserve-control-env-vars-config-loader-applyenvoverrides-so` (2026-06-22) — added a RESERVED set in `applyEnvOverrides()` that skips `METTA_SKILL` so the guard bypass marker is no longer misread as a config key. Genuine misconfiguration warnings preserved. Verified live (`METTA_SKILL=1 metta status` no longer warns).
 
 ## Symptom
 

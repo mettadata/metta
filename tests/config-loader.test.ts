@@ -186,6 +186,27 @@ project:
     stderrSpy.mockRestore()
   })
 
+  it('ignores reserved control env var METTA_SKILL without warning or leaking config', async () => {
+    const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+    await writeFile(join(projectDir, '.metta', 'config.yaml'), `
+project:
+  name: "Test"
+`)
+    // METTA_SKILL is the metta-guard skill-bypass marker, not a config override.
+    process.env.METTA_SKILL = '1'
+    const loader = new ConfigLoader(projectDir, globalDir)
+    loader.clearCache()
+    const config = await loader.load()
+    // File config still loads correctly.
+    expect(config.project?.name).toBe('Test')
+    // No Zod/unrecognized-key warning emitted to stderr.
+    expect(stderrSpy).not.toHaveBeenCalledWith(expect.stringContaining('Unrecognized key'))
+    expect(stderrSpy).not.toHaveBeenCalledWith(expect.stringContaining('METTA_* environment variable(s)'))
+    // The reserved control signal does not leak into the config object.
+    expect('skill' in config).toBe(false)
+    stderrSpy.mockRestore()
+  })
+
   it('defaults globalDir to ~/.metta when not provided', () => {
     const loader = new ConfigLoader(projectDir)
     expect(loader.globalPath).toBe(join(homedir(), '.metta'))
