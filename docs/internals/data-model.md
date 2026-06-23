@@ -8,7 +8,7 @@ metta has no database. All durable state is plain files on disk:
 - **Markdown artifact/spec bodies** — free-form prose authored by subagents; deliberately *not* schema-validated.
 - **git** — the transaction log. Changes and specs are committed as work progresses; completed changes are archived on ship.
 
-Related reading: [Architecture](../architecture.md) for how the components fit together, and the [Configuration guide](../guide/configuration.md) for the user-facing view of `.metta/config.yaml`.
+Related reading: [Architecture](./architecture.md) for how the components fit together, and the [Configuration guide](../guide/configuration.md) for the user-facing view of `.metta/config.yaml`.
 
 ---
 
@@ -278,4 +278,4 @@ metta has no separate write-ahead log — **git is the durability and rollback m
 - `git.snapshot_retention` (default `until_ship`) and `merge_strategy` (default `ff-only`) keep the history recoverable and protected branches safe.
 - **On ship**, the completed change directory is moved out of `changes/` into `archive/<date>-<slug>/` (or `…-abandoned`) and committed — the archive is the frozen, post-merge record of the change and its artifacts.
 
-See [Architecture](../architecture.md) for the component boundaries and [the Configuration guide](../guide/configuration.md) for tuning the git/merge policy.
+See [Architecture](./architecture.md) for the component boundaries and [the Configuration guide](../guide/configuration.md) for tuning the git/merge policy.

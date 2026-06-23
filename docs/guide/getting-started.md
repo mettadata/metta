@@ -158,7 +158,7 @@ Then it advances (`metta complete implementation`).
 
 ### Step 5 — Review (3 reviewers in parallel)
 
-The orchestrator spawns three `metta-reviewer` subagents at once — **correctness**, **security**, and **quality**. For a one-word typo fix all three return `PASS` fast. Their verdicts are merged into `review.md` and committed. (If a reviewer found a real problem, the orchestrator would fix it and re-review — up to 3 iterations.)
+The orchestrator spawns three `metta-reviewer` subagents at once — **correctness**, **security**, and **quality**. For a one-word typo fix all three return `PASS` fast. Their verdicts are merged into `review.md`, which the orchestrator commits (the reviewer subagents don't run git). (If a reviewer found a real problem, the orchestrator would fix it and re-review — up to 3 iterations.)
 
 ### Step 6 — Verification (3 verifiers in parallel)
 
@@ -168,7 +168,7 @@ Three `metta-verifier` subagents run concurrently:
 2. `npx tsc --noEmit` + `npm run lint` — reports type/lint errors
 3. Intent-evidence check — confirms each goal in `intent.md` is actually implemented, citing `file:line`
 
-Results are merged into `summary.md` and committed. The orchestrator advances (`metta complete verification`), which now reports `all_complete: true`.
+Results are merged into `summary.md`, which the orchestrator commits (the verifier subagents don't run git). The orchestrator advances (`metta complete verification`), which now reports `all_complete: true`.
 
 ### Step 7 — Finalize and merge with `/metta-ship`
 
@@ -201,9 +201,8 @@ The artifacts produced on the branch:
 ```
 spec/changes/fix-typo-in-doctor-error-message/
 ├── intent.md      # proposer — Problem / Proposal / Impact / Out of Scope
-├── implementation.md  # what changed
 ├── review.md      # 3 reviewers merged
-└── summary.md     # verification artifact (the `verification` stage generates summary.md)
+└── summary.md     # implementation + verification notes (the `verification` stage generates summary.md)
 ```
 
 After finalize, the same files live under `spec/archive/<date>-fix-typo-in-doctor-error-me/` plus a `gates.yaml`. A clean quick change produces roughly 7–9 commits on the branch plus the merge commit on `main` — a complete, auditable trail of the change from intent to ship.

@@ -1,6 +1,6 @@
 # Workflows
 
-Reference for metta's three built-in YAML-defined workflows.
+Reference for metta's four built-in YAML-defined workflows.
 
 ## What a workflow is
 
@@ -19,23 +19,62 @@ A **workflow** is an ordered DAG of **artifacts**. Each artifact declares:
 ### Engine semantics
 
 - **Loading.** `loadWorkflow(name, searchPaths)` walks each search path, reads `<name>.yaml`, parses with `yaml`, and validates with `WorkflowDefinitionSchema` (a strict Zod object). Results are cached per engine instance.
-- **Inheritance.** A workflow may declare `extends: <base>` and an `overrides:` array. Child artifacts are appended (or replace same-id base artifacts) and overrides patch `requires`, `agents`, `gates` on existing artifacts. None of the three built-in workflows use `extends`; they are fully specified.
+- **Inheritance.** A workflow may declare `extends: <base>` and an `overrides:` array. Child artifacts are appended (or replace same-id base artifacts) and overrides patch `requires`, `agents`, `gates` on existing artifacts. None of the four built-in workflows use `extends`; they are fully specified.
 - **Build order.** `topologicalSort` throws on unknown `requires:` references and on cycles (`WorkflowCycleError`). Tie-breaking is alphabetical — the ready set is sorted before being handed out so ordering is deterministic.
 - **Readiness.** `getNext(graph, statuses)` returns every artifact with status `pending` or `ready` whose every dependency has status `complete` or `skipped`. Statuses are drawn from `ArtifactStatusSchema` (`src/schemas/change-metadata.ts`): `pending | ready | in_progress | complete | failed | skipped`.
 - **Gates run after authoring.** The workflow YAML only names gates. Gate definitions live elsewhere (see `gates.md`). The engine is not responsible for executing them; it reports which gates apply per artifact.
 
 ## Workflow comparison
 
-| Aspect | quick | standard | full |
-|---|---|---|---|
-| Stage count | 3 | 8 | 10 |
-| Discovery intensity | none | light (stories + spec + research) | heavy (domain-research + spec + research + architecture + ux-spec) |
-| Typical duration | minutes to an hour | hours to a day | days |
-| User-facing stories required | no | yes (`stories` stage) | no (spec-first, stories folded into spec) |
-| UX contract required | no | no | yes (`ux-spec` stage) |
-| Separate architecture artifact | no | no | yes (`architecture` stage) |
-| Implementation gates | tests, lint, typecheck | tests, lint, typecheck | tests, lint, typecheck |
-| Verification gate | uat | uat | uat |
+| Aspect | trivial | quick | standard | full |
+|---|---|---|---|---|
+| Stage count | 3 | 3 | 8 | 10 |
+| Discovery intensity | none | none | light (stories + spec + research) | heavy (domain-research + spec + research + architecture + ux-spec) |
+| Typical duration | minutes | minutes to an hour | hours to a day | days |
+| User-facing stories required | no | no | yes (`stories` stage) | no (spec-first, stories folded into spec) |
+| UX contract required | no | no | no | yes (`ux-spec` stage) |
+| Separate architecture artifact | no | no | no | yes (`architecture` stage) |
+| Implementation gates | tests, lint, typecheck, build | tests, lint, typecheck, build | tests, lint, typecheck, build | tests, lint, typecheck |
+| Verification gate | (none) | (none) | (none) | (none) |
+
+---
+
+## trivial
+
+Source: `src/templates/workflows/trivial.yaml`
+
+### Stage flow
+
+```
+intent → implementation → verification
+```
+
+### Stages
+
+| Stage | Template | Agent | Gates | Requires |
+|---|---|---|---|---|
+| intent | `intent.md` | proposer | (none) | (none) |
+| implementation | `execute.md` | executor | tests, lint, typecheck, build | intent |
+| verification | `verify.md` | verifier | (none) | implementation |
+
+Each stage generates:
+
+- `intent` → `intent.md`
+- `implementation` → `**/*` (source files anywhere in the repo)
+- `verification` → `summary.md`
+
+### When to use this workflow
+
+- Single-file fixes where scope is unambiguous (selected automatically when the change scores `file_count <= 1`)
+- One-line corrections, typo fixes, and trivial config tweaks
+- The smallest changes where even `quick`'s framing is overhead
+
+### Notes
+
+- Same stage shape as `quick`: intent → implementation → verification, zero planning ceremony.
+- `intent` has no gates; the change is greenlit as soon as the proposer writes intent.
+- `implementation` runs the full code-quality gate set (`tests`, `lint`, `typecheck`, `build`) — correctness is never shortcut, only planning.
+- `verification` runs no gates; it produces `summary.md` confirming the fix matches the intent.
 
 ---
 
@@ -54,8 +93,8 @@ intent → implementation → verification
 | Stage | Template | Agent | Gates | Requires |
 |---|---|---|---|---|
 | intent | `intent.md` | proposer | (none) | (none) |
-| implementation | `execute.md` | executor | tests, lint, typecheck | intent |
-| verification | `verify.md` | verifier | uat | implementation |
+| implementation | `execute.md` | executor | tests, lint, typecheck, build | intent |
+| verification | `verify.md` | verifier | (none) | implementation |
 
 Each stage generates:
 
@@ -74,8 +113,8 @@ Each stage generates:
 
 - Three stages, zero planning ceremony. No spec, no stories, no research, no design, no tasks.
 - `intent` has no gates; the change is greenlit as soon as the proposer writes intent.
-- `implementation` runs the same code-quality gates as the larger workflows (`tests`, `lint`, `typecheck`) — there is no shortcut on correctness, only on planning.
-- `verification` runs `uat` to confirm the fix matches the intent.
+- `implementation` runs the same code-quality gates as the larger workflows (`tests`, `lint`, `typecheck`, `build`) — there is no shortcut on correctness, only on planning.
+- `verification` runs no gates; it produces `summary.md` confirming the fix matches the intent.
 
 ---
 
@@ -95,12 +134,12 @@ intent → stories → spec → research → design → tasks → implementation
 |---|---|---|---|---|
 | intent | `intent.md` | proposer | (none) | (none) |
 | stories | `stories.md` | product | (none) | intent |
-| spec | `spec.md` | specifier | spec-quality, stories-valid | stories |
+| spec | `spec.md` | specifier | stories-valid | stories |
 | research | `research.md` | researcher | (none) | spec |
-| design | `design.md` | architect | design-review | research |
-| tasks | `tasks.md` | planner | task-quality | design |
-| implementation | `execute.md` | executor | tests, lint, typecheck | tasks |
-| verification | `verify.md` | verifier | uat | implementation |
+| design | `design.md` | architect | (none) | research |
+| tasks | `tasks.md` | planner | (none) | design |
+| implementation | `execute.md` | executor | tests, lint, typecheck, build | tasks |
+| verification | `verify.md` | verifier | (none) | implementation |
 
 Each stage generates a file of the same name (`intent.md`, `stories.md`, `spec.md`, `research.md`, `design.md`, `tasks.md`, `summary.md`); `implementation` writes to `**/*`.
 
@@ -116,8 +155,8 @@ This is the default workflow invoked by `/metta-propose`.
 ### Notes
 
 - `stories` is a mandatory stage. User stories are authored by the `product` agent before the spec is written.
-- `spec` runs two gates: `spec-quality` (spec is well-formed) and `stories-valid` (the spec's stories are internally consistent).
-- `design` runs `design-review`. `tasks` runs `task-quality`. These are the only planning-stage gates; `research` is unblocked by gates entirely.
+- `spec` runs one gate: `stories-valid` (the spec's stories are internally consistent).
+- `spec` is the only planning stage that runs a gate; `research`, `design`, and `tasks` are unblocked by gates entirely (`gates: []`).
 - The build order is strictly linear — each stage has exactly one predecessor, so the engine will only ever surface one ready artifact at a time until implementation.
 
 ---
@@ -144,14 +183,14 @@ domain-research → intent → spec → research → design ┬─→ tasks ─�
 |---|---|---|---|---|
 | domain-research | `domain-research.md` | researcher | (none) | (none) |
 | intent | `intent.md` | proposer | (none) | domain-research |
-| spec | `spec.md` | specifier | spec-quality | intent |
+| spec | `spec.md` | specifier | (none) | intent |
 | research | `research.md` | researcher | (none) | spec |
-| design | `design.md` | architect | design-review | research |
+| design | `design.md` | architect | (none) | research |
 | architecture | `architecture.md` | architect | (none) | design |
-| tasks | `tasks.md` | planner | task-quality | design |
+| tasks | `tasks.md` | planner | (none) | design |
 | ux-spec | `ux-spec.md` | architect | (none) | design |
 | implementation | `execute.md` | executor | tests, lint, typecheck | tasks, architecture |
-| verification | `verify.md` | verifier | uat | implementation |
+| verification | `verify.md` | verifier | (none) | implementation |
 
 Each stage generates a file of the same name (`domain-research.md`, `intent.md`, `spec.md`, `research.md`, `design.md`, `architecture.md`, `tasks.md`, `ux-spec.md`, `summary.md`); `implementation` writes to `**/*`.
 
@@ -159,9 +198,10 @@ Notable differences from `standard`:
 
 - Begins with `domain-research` (no `requires:`) before any intent is written.
 - Does not include a separate `stories` stage — user stories are folded into `spec`.
-- `spec` depends on `intent` directly (no stories between them) and runs only the `spec-quality` gate (not `stories-valid`).
+- `spec` depends on `intent` directly (no stories between them) and runs no gates (`standard`'s `spec` runs `stories-valid`).
 - Adds `architecture` (deep system design) and `ux-spec` (UX contract) as siblings of `tasks`, all depending on `design`.
 - `implementation` requires both `tasks` and `architecture` — architecture must be authored and signed off before code starts.
+- `implementation` runs `tests`, `lint`, `typecheck` but **not** `build` (the smaller workflows add `build`).
 
 ### When to use this workflow
 
@@ -175,7 +215,7 @@ Notable differences from `standard`:
 - The fan-out after `design` means `getNext` can return `tasks`, `ux-spec`, and `architecture` simultaneously. Alphabetical tie-breaking orders them `architecture`, `tasks`, `ux-spec` in the build order.
 - `ux-spec` is off the critical path to implementation: `implementation.requires = [tasks, architecture]` does not include `ux-spec`. A change may ship without `ux-spec` being `complete` only if it is explicitly `skipped` — status `skipped` is treated as satisfied by `getNext`.
 - `architecture` runs no gates itself. The signal for architecture readiness is that the `architect` agent has authored it and the change advances to `implementation`.
-- `spec` in `full` does not run the `stories-valid` gate (standard does). Stories are handled inline within the spec.
+- `spec` in `full` runs no gates at all; in particular it does not run the `stories-valid` gate (standard does). Stories are handled inline within the spec.
 
 ---
 
@@ -185,11 +225,12 @@ All invocations go through metta skills (AI orchestrators must not call the CLI 
 
 | Workflow | Slash command |
 |---|---|
+| trivial | auto-selected for single-file changes (`file_count <= 1`); also `/metta-propose --workflow trivial "<description>"` |
 | quick | `/metta-quick "<description>"` |
 | standard | `/metta-propose "<description>"` |
 | full | `/metta-propose --workflow full "<description>"` |
 
-`/metta-propose` defaults to `standard`. Pass `--workflow quick` or `--workflow full` to override.
+`/metta-propose` defaults to `standard`. Pass `--workflow trivial`, `--workflow quick`, or `--workflow full` to override.
 
 Once a change is active, downstream skills advance through whatever workflow the change was created with:
 
@@ -202,6 +243,14 @@ Once a change is active, downstream skills advance through whatever workflow the
 The engine selects the next artifact by calling `getNext(graph, statuses)`: an artifact is ready when its status is `pending` or `ready` and every ID in its `requires:` list has status `complete` or `skipped`.
 
 ## DAG adjacency (derived from `requires:`)
+
+### trivial
+
+| Artifact | Upstream (`requires:`) | Downstream |
+|---|---|---|
+| intent | (none) | implementation |
+| implementation | intent | verification |
+| verification | implementation | (sink) |
 
 ### quick
 
@@ -263,13 +312,14 @@ overrides:                     # optional — only meaningful with `extends:`
     gates: [...]               # optional override
 ```
 
-All object shapes are `.strict()` Zod — unknown keys will fail to load. The three built-in workflows do not use `extends` or `overrides`; they list every artifact directly.
+All object shapes are `.strict()` Zod — unknown keys will fail to load. The four built-in workflows do not use `extends` or `overrides`; they list every artifact directly.
 
 ## Selection heuristics
 
 | Signal | Workflow |
 |---|---|
-| Single-file change, known root cause | quick |
+| Single-file fix, unambiguous scope (`file_count <= 1`) | trivial |
+| Small change touching one or two files, known root cause | quick |
 | New user-facing feature with stories | standard |
 | Greenfield subsystem, new domain vocabulary | full |
 | API-breaking change | standard or full |
@@ -297,12 +347,13 @@ Every artifact in a change carries a status drawn from `ArtifactStatusSchema`:
 
 - [`artifacts.md`](./artifacts.md) — what each stage's artifact file looks like (intent, stories, spec, research, design, architecture, tasks, ux-spec, execution, verification)
 - [`agents.md`](./agents.md) — agent personas: `proposer`, `product`, `specifier`, `researcher`, `architect`, `planner`, `executor`, `verifier`
-- [`gates.md`](./gates.md) — gate definitions: `spec-quality`, `stories-valid`, `design-review`, `task-quality`, `tests`, `lint`, `typecheck`, `uat`
+- [`gates.md`](./gates.md) — gate definitions: `tests`, `lint`, `typecheck`, `build`, `stories-valid`
 
 ## Source of truth
 
 If this document drifts from the YAML, the YAML wins. Regenerate or update this file from:
 
+- `src/templates/workflows/trivial.yaml`
 - `src/templates/workflows/quick.yaml`
 - `src/templates/workflows/standard.yaml`
 - `src/templates/workflows/full.yaml`

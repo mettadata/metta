@@ -4,7 +4,7 @@ Orientation hub for contributors working on metta itself. For users of the tool,
 
 ## What is metta's workflow system?
 
-metta's workflow system is three concepts that compose. **Skills** are the `/metta-*` slash commands an AI orchestrator invokes to drive a change through its lifecycle; they wrap the CLI and spawn the correct subagent personas. **Workflows** are YAML-defined stage sequences — `quick`, `standard`, and `full` — that declare which artifacts a change produces and in what order. **Artifacts** are the markdown files each stage authors (`intent.md`, `design.md`, `tasks.md`, `implementation.md`, `verification.md`, and so on) under `spec/changes/<slug>/`. A skill invocation selects a workflow; the workflow schedules stages; each stage binds a subagent that writes one artifact. Gates fire between stages to enforce quality; state on disk (`.metta/` + `spec/`) is the durable transaction log, with git as the audit trail.
+metta's workflow system is three concepts that compose. **Skills** are the `/metta-*` slash commands an AI orchestrator invokes to drive a change through its lifecycle; they wrap the CLI and spawn the correct subagent personas. **Workflows** are YAML-defined stage sequences — `trivial`, `quick`, `standard`, and `full` — that declare which artifacts a change produces and in what order. **Artifacts** are the markdown files each stage authors (`intent.md`, `design.md`, `tasks.md`, `implementation.md`, `verification.md`, and so on) under `spec/changes/<slug>/`. A skill invocation selects a workflow; the workflow schedules stages; each stage binds a subagent that writes one artifact. Gates fire between stages to enforce quality; state on disk (`.metta/` + `spec/`) is the durable transaction log, with git as the audit trail.
 
 ## Decision tree: which skill should I use?
 
@@ -34,11 +34,11 @@ Each sibling doc is self-contained reference material. Read `walkthroughs.md` fi
 
 | Doc | Covers |
 |-----|--------|
-| [`workflows.md`](workflows.md) | The three YAML workflow definitions: stage sequences, `requires` dependencies, gate bindings, agent bindings. |
+| [`workflows.md`](workflows.md) | The four YAML workflow definitions: stage sequences, `requires` dependencies, gate bindings, agent bindings. |
 | [`skills.md`](skills.md) | All 18 `/metta-*` skills: slash-command name, CLI commands wrapped, subagents spawned, when to use. |
-| [`agents.md`](agents.md) | The 10 `metta-*` subagent personas: role, permitted tools, artifacts authored, stages participated in. |
+| [`agents.md`](agents.md) | The 11 `metta-*` subagent personas: role, permitted tools, artifacts authored, stages participated in. |
 | [`artifacts.md`](artifacts.md) | The 11 artifact types: purpose, required sections, author agent, owning workflow stages. |
-| [`gates.md`](gates.md) | Quality gates: the 5 YAML-defined (`build`, `lint`, `typecheck`, `tests`, `stories-valid`) plus agent/CLI-enforced (`spec-quality`, `design-review`, `task-quality`, `uat`). |
+| [`gates.md`](gates.md) | Quality gates: the 5 YAML-defined (`build`, `lint`, `typecheck`, `tests`, `stories-valid`). |
 | [`state.md`](state.md) | On-disk state model under `.metta/` and `spec/` — layout, ownership, lifecycle events that write each location. |
 | [`walkthroughs.md`](walkthroughs.md) | Four end-to-end examples tracing skill → workflow → artifact → gate → state → commit. |
 

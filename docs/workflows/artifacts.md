@@ -6,9 +6,10 @@ This doc is the per-template reference. For how templates compose into stage seq
 
 ## Notes on applicability
 
-- **`stories.md` is used only by the `standard` workflow.** Neither `quick` nor `full` includes a `stories` stage. User stories are a medium-ceremony concept; `quick` skips planning entirely, and `full` uses a different authoring path (`domain-research` → `intent` → `spec` directly, with UX details deferred to `ux-spec.md`).
-- **`execute.md` is the template for the `implementation` stage.** The stage id is `implementation`, the template file is `execute.md`. All three workflows use it.
-- **`verify.md` is the template for the `verification` stage.** The stage id is `verification`, the template file is `verify.md`. All three workflows use it.
+- **Four workflows exist:** `trivial` (single-file fixes — `intent → implementation → verification`), `quick` (same three-stage shape, the small-change default), `standard` (full planning), and `full` (the most comprehensive). The notes below name the specific workflows each template applies to.
+- **`stories.md` is used only by the `standard` workflow.** None of `trivial`, `quick`, or `full` includes a `stories` stage. User stories are a medium-ceremony concept; `trivial` and `quick` skip planning entirely, and `full` uses a different authoring path (`domain-research` → `intent` → `spec` directly, with UX details deferred to `ux-spec.md`).
+- **`execute.md` is the template for the `implementation` stage.** The stage id is `implementation`, the template file is `execute.md`. All four workflows use it.
+- **`verify.md` is the template for the `verification` stage.** The stage id is `verification`, the template file is `verify.md`. All four workflows use it.
 - Placeholders use `{snake_case}` or `{Option|Other}` syntax. A `{Option|Other}` placeholder is a required choice among literal values. A `{snake_case}` placeholder is freeform prose the agent must author.
 - Placeholder content like `"intent stub"` or `"summary stub"` is explicitly forbidden. Artifacts must carry real content authored by the matching subagent — see the `metta complete` issue history referenced in [`README.md`](README.md).
 
@@ -43,9 +44,9 @@ Artifacts below are ordered by their position in the most comprehensive workflow
 
 ## `intent.md`
 
-**Used by stages:** `intent` (in `quick`, `standard`, and `full`)
+**Used by stages:** `intent` (in `trivial`, `quick`, `standard`, and `full`)
 **Owning agent:** `metta-proposer` — see [`agents.md`](agents.md)
-**Purpose:** The entry-point artifact for every change. Declares the problem, the proposal, the impact on existing functionality, and an explicit out-of-scope list. This is the human-readable charter for the change and the only artifact produced by the `quick` workflow before implementation begins. All three workflows start here (or, in `full`, the second stage after `domain-research`).
+**Purpose:** The entry-point artifact for every change. Declares the problem, the proposal, the impact on existing functionality, and an explicit out-of-scope list. This is the human-readable charter for the change and the only planning artifact produced by the `trivial` and `quick` workflows before implementation begins. All four workflows start here (or, in `full`, the second stage after `domain-research`).
 
 **Required sections** (verbatim, in order):
 1. `## Problem`
@@ -59,7 +60,7 @@ Artifacts below are ordered by their position in the most comprehensive workflow
 The four body sections are authored as freeform prose answering the prompt under each heading (`What problem does this solve? Who is affected?`, `What are we changing? Be specific about scope.`, `What existing functionality is affected?`, `What are we explicitly NOT doing?`). No `{snake_case}` tokens appear in the body — the prompts themselves are the scaffolding.
 
 **Downstream consumers:**
-- In `quick`: `implementation` (`requires: [intent]`).
+- In `trivial` and `quick`: `implementation` (`requires: [intent]`).
 - In `standard`: `stories` (`requires: [intent]`).
 - In `full`: `spec` (`requires: [intent]`).
 
@@ -115,7 +116,7 @@ The template shows a single requirement and a single scenario. Real specs repeat
 - `verification` (transitive; the verifier iterates the spec's scenarios as a checklist).
 - `spec/specs/` merge during ship — the change's spec delta is reconciled into the living capability spec on `/metta-ship`.
 
-The `spec-quality` gate fires on this artifact. In `standard`, `stories-valid` also fires.
+In `standard`, the `stories-valid` gate fires at the `spec` stage (confirming story structure before spec authoring proceeds). In `full`, the `spec` stage binds no gates.
 
 ---
 
@@ -148,7 +149,7 @@ The `spec-quality` gate fires on this artifact. In `standard`, `stories-valid` a
 
 **Used by stages:** `design` (in `standard` and `full`)
 **Owning agent:** `metta-architect` — see [`agents.md`](agents.md)
-**Purpose:** High-level design for the change: approach, components and responsibilities, data model, API design, external and internal dependencies, and identified risks with mitigations. The bridge between "what are we doing" (spec) and "how do we do it in concrete steps" (tasks). The `design-review` gate fires on this artifact before tasks are planned.
+**Purpose:** High-level design for the change: approach, components and responsibilities, data model, API design, external and internal dependencies, and identified risks with mitigations. The bridge between "what are we doing" (spec) and "how do we do it in concrete steps" (tasks). The `design` stage binds no gates in any workflow.
 
 **Required sections** (verbatim, in order):
 1. `## Approach`
@@ -232,7 +233,7 @@ The template shows two batches with one task each; real plans repeat the batch p
 - `{how to verify it works}` / `{verify}`
 - `{acceptance criteria}` / `{done}`
 
-**Downstream consumers:** `implementation` — `requires: [tasks]` in `standard`, `requires: [tasks, architecture]` in `full`. The `task-quality` gate fires before tasks are handed off to the executor. During implementation, the executor treats each task block as a unit of work and flips its checkbox on commit.
+**Downstream consumers:** `implementation` — `requires: [tasks]` in `standard`, `requires: [tasks, architecture]` in `full`. The `tasks` stage binds no gates in any workflow. During implementation, the executor treats each task block as a unit of work and flips its checkbox on commit.
 
 ---
 
@@ -265,9 +266,9 @@ The template shows two batches with one task each; real plans repeat the batch p
 
 ## `execute.md` (template for the `implementation` stage)
 
-**Used by stages:** `implementation` (in `quick`, `standard`, and `full`)
+**Used by stages:** `implementation` (in `trivial`, `quick`, `standard`, and `full`)
 **Owning agent:** `metta-executor` — see [`agents.md`](agents.md)
-**Purpose:** The per-task execution prompt. Packages a single task's description, files, action, verification steps, and acceptance criteria along with the four Deviation Rules that govern how the executor handles unexpected situations (bug found, missing utility, infrastructure block, design-level change needed). The template is applied once per task batch during the implementation stage — this is the only artifact template used iteratively rather than written once per change.
+**Purpose:** The per-task execution prompt. Packages a single task's description, files, action, verification steps, and acceptance criteria along with the four Deviation Rules that govern how the executor handles unexpected situations (bug found, missing utility, infrastructure block, design-level change needed). The template is applied once per task batch during the implementation stage — this is the only artifact template used iteratively rather than written once per change. (In `trivial` and `quick`, which have no `tasks` artifact, the executor works directly from `intent.md`.)
 
 **Required sections** (verbatim, in order):
 1. `## Task`
@@ -287,15 +288,15 @@ The `## Rules` section is fixed boilerplate in the template (not a placeholder):
 - `{verification_steps}`
 - `{acceptance_criteria}`
 
-**Workflow config:** the `implementation` stage in every workflow declares `generates: "**/*"` (the executor can touch any file in the repo), and binds the gates `tests`, `lint`, `typecheck`. In `full`, the stage requires both `tasks` and `architecture`; elsewhere it requires `tasks` (standard) or `intent` (quick).
+**Workflow config:** the `implementation` stage in every workflow declares `generates: "**/*"` (the executor can touch any file in the repo). It binds the gates `tests`, `lint`, `typecheck`, `build` in `trivial`, `quick`, and `standard`; `full` binds `tests`, `lint`, `typecheck` (no `build`). In `full`, the stage requires both `tasks` and `architecture`; elsewhere it requires `tasks` (standard) or `intent` (quick/trivial).
 
-**Downstream consumers:** `verification` (`requires: [implementation]` in all three workflows). The verifier inspects the commits produced during implementation, not the template output itself.
+**Downstream consumers:** `verification` (`requires: [implementation]` in all four workflows). The verifier inspects the commits produced during implementation, not the template output itself.
 
 ---
 
 ## `verify.md` (template for the `verification` stage)
 
-**Used by stages:** `verification` (in `quick`, `standard`, and `full`)
+**Used by stages:** `verification` (in `trivial`, `quick`, `standard`, and `full`)
 **Owning agent:** `metta-verifier` — see [`agents.md`](agents.md)
 **Purpose:** Verification report for the completed change. Walks the spec scenarios as a checklist, summarises the gate results from the implementation stage, and provides a plain-prose implementation summary. Output is written to `summary.md` in the change directory (per every workflow's `generates: summary.md` declaration for the `verification` stage). This is the final artifact before a change is eligible for `/metta-ship`.
 
@@ -310,7 +311,7 @@ The `## Rules` section is fixed boilerplate in the template (not a placeholder):
 - `{gate_results_summary}`
 - `{implementation_summary}`
 
-**Workflow config:** every workflow's `verification` stage binds the `uat` gate — the final human-facing quality check before ship.
+**Workflow config:** every workflow's `verification` stage binds no gates. The final cross-cutting quality checks run at `metta finalize`, which executes every registered gate (`build`, `lint`, `stories-valid`, `tests`, `typecheck`) regardless of which workflow ran — see [`gates.md`](gates.md).
 
 **Downstream consumers:** none inside the workflow DAG. On `/metta-ship`, the change directory (including `summary.md`) is moved from `spec/changes/` to `spec/archive/`, and the spec deltas from `spec.md` are reconciled into `spec/specs/`. The summary becomes the durable record of what was verified.
 
