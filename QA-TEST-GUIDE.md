@@ -1,5 +1,7 @@
 # Metta v0.1 — QA Test Guide
 
+> **Note:** This guide's detailed test inventory dates from early in the project and may be out of date. The canonical, current testing guidance lives in [`CONTRIBUTING.md`](CONTRIBUTING.md). The headline counts below are current.
+
 ## Prerequisites
 
 ```bash
@@ -9,7 +11,7 @@ npm install      # Install dependencies
 
 ---
 
-## 1. Automated Tests (185 tests)
+## 1. Automated Tests (1015 tests across 78 files)
 
 ```bash
 # Run all tests

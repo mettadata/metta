@@ -8,6 +8,15 @@ It synthesizes the best ideas from OpenSpec, Spec Kit, GSD, BMAD, Taskmaster, an
 
 ---
 
+> ⚠️ **Historical design documents.** The files in this directory were written early in metta's life (April 2026) to capture the intended philosophy, architecture, and feature set. **They are historical and may not match the current implementation** — some features are partial or not yet built, and details have evolved (the "Proposed UX" below, for example, predates the skills-based workflow).
+>
+> For documentation that reflects the code as it is **today**, see:
+> - **Users:** [`../guide/`](../guide/) — getting-started, concepts, CLI reference, configuration, troubleshooting
+> - **Contributors:** [`../internals/`](../internals/) — architecture, data model, extending, guard hooks
+> - **Workflow reference:** [`../workflows/`](../workflows/) · **Docs index:** [`../README.md`](../README.md)
+
+---
+
 ## Design Documents
 
 0. [Quick Start & Usage Guide](00-quickstart-usage.md) — How to install and use Metta
