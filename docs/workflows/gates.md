@@ -6,10 +6,10 @@ Reference for metta's quality gates — what they check, where they fire, and ho
 
 A **gate** is a named check that produces a [`GateResult`](../../src/schemas/gate-result.ts): a record with a `gate` name, a `status` (`pass` | `fail` | `warn` | `skip`), a `duration_ms`, an optional `output` string, and an optional `failures[]` array of structured `{ file, line?, message, severity }` entries. Gates fire at two moments:
 
-1. **During a stage** — when a workflow artifact declares a non-empty `gates:` list (e.g. the `implementation` stage declares `gates: [tests, lint, typecheck]`), those gates run after the artifact is authored and before the stage is marked `complete`.
-2. **During `metta finalize`** — the terminal gate set is run before the change is archived and its specs are merged. Any gate `fail` blocks finalize.
+1. **During a stage** — when a workflow artifact declares a non-empty `gates:` list (e.g. the `implementation` stage declares `gates: [tests, lint, typecheck, build]`), those gates run after the artifact is authored and before the stage is marked `complete`.
+2. **During `metta finalize`** — the workflow-scoped gate set (the union of every artifact's `gates:` list in the active workflow) is run before the change is archived and its specs are merged. Any gate `fail` blocks finalize.
 
-Gate definitions can be YAML files under `src/templates/gates/` (shell-command gates loaded by `GateRegistry`) or code-driven checks implemented elsewhere in the codebase (described below). The workflow YAMLs reference gates by name; the name must resolve to one of these two definitions or the gate degrades to `status: skip` with the message `Gate '<name>' not configured` (see `GateRegistry.run` in [`src/gates/gate-registry.ts`](../../src/gates/gate-registry.ts)).
+Gate definitions are YAML files under `src/templates/gates/` (shell-command gates loaded by `GateRegistry`). Exactly five gates are registered: `tests`, `lint`, `typecheck`, `build`, and `stories-valid`. The workflow YAMLs reference gates by name; if a referenced name is not registered, the gate degrades to `status: skip` with the message `Gate '<name>' not configured` (see `GateRegistry.run` in [`src/gates/gate-registry.ts`](../../src/gates/gate-registry.ts)).
 
 ## Gate result shape
 
@@ -32,7 +32,7 @@ interface GateFailure {
 }
 ```
 
-For the five YAML-defined gates, `GateRegistry.run` populates `failures[]` with a single synthetic entry on `fail` (see [`src/gates/gate-registry.ts`](../../src/gates/gate-registry.ts) lines 71–93): either a `Timeout` entry when the child process was killed by the `timeout` budget, or a single entry carrying `error.stderr || error.message`. Callers that want per-file structured failures must implement a code-driven gate (see section 3).
+For the five YAML-defined gates, `GateRegistry.run` populates `failures[]` with a single synthetic entry on `fail` (see [`src/gates/gate-registry.ts`](../../src/gates/gate-registry.ts) lines 121–152): either a `Timeout` entry when the child process was killed by the `timeout` budget, or a single entry carrying `stderr || error.message`. Callers that want per-file structured failures would need a richer gate implementation; none exists today.
 
 ### Status semantics
 
@@ -41,9 +41,9 @@ For the five YAML-defined gates, `GateRegistry.run` populates `failures[]` with 
 | `pass` | Command exited 0 | Non-blocking |
 | `fail` | Command exited non-zero or timed out | **Blocks** — finalize aborts, no archive, no spec merge |
 | `warn` | Reserved for code-driven gates that want to surface non-blocking issues | Non-blocking (treated as pass) |
-| `skip` | Gate name not registered, or registered but explicitly skipped | Non-blocking |
+| `skip` | Gate name not registered, or skipped because an earlier `stop` gate failed | Non-blocking |
 
-`Finalizer` considers a run successful when `gates.every(g => g.status === 'pass' || g.status === 'skip' || g.status === 'warn')` ([`finalizer.ts`](../../src/finalize/finalizer.ts) line 54). `metta verify` is stricter — it only accepts `pass` or `skip` ([`verify.ts`](../../src/cli/commands/verify.ts) line 28) and will exit 1 if a gate returns `warn`. This asymmetry means a `warn`-returning gate will pass `finalize` but fail `verify`. No current gate emits `warn`, so the asymmetry is latent.
+`Finalizer` considers a run successful when `gates.every(g => g.status === 'pass' || g.status === 'skip' || g.status === 'warn')` ([`finalizer.ts`](../../src/finalize/finalizer.ts) line 71). `metta verify` also accepts `pass`, `skip`, and `warn` ([`verify.ts`](../../src/cli/commands/verify.ts) line 32), but it surfaces every `warn` to stderr and reports "All gates passed (with warnings)" — whereas finalize treats `warn` silently as a pass. No YAML gate emits `warn` directly; a gate only becomes `warn` when its `on_failure` policy is `continue_with_warning`, which no built-in gate declares. So the asymmetry is latent today.
 
 ## YAML-defined gates
 
@@ -58,19 +58,19 @@ required: <bool>               # default true
 on_failure: retry_once | stop | continue_with_warning   # default retry_once
 ```
 
-`GateRegistry.loadFromDirectory` walks the directory, parses every `*.yaml` / `*.yml` with Zod, and registers each gate under its `name`. `runWithRetry` consults `on_failure` — currently only `retry_once` is honoured (one retry on `fail`); `stop` and `continue_with_warning` are parsed and stored but not acted on by `runWithRetry`.
+`GateRegistry.loadFromDirectory` walks the directory, parses every `*.yaml` / `*.yml` with Zod, and registers each gate under its `name`. The runner consults `on_failure` in `runWithPolicy`: `retry_once` re-runs the command once on `fail`; `continue_with_warning` converts a `fail` into a `warn`; `stop` leaves the `fail` as-is and, inside `runAll`, short-circuits the rest of the gate list (every subsequent gate is marked `skip` with `Skipped due to earlier fail of <name>`).
 
 ### `on_failure` policy
 
-Declared by each YAML gate; interpreted by [`GateRegistry.runWithRetry`](../../src/gates/gate-registry.ts) (lines 105–115):
+Declared by each YAML gate; interpreted by [`GateRegistry.runWithPolicy`](../../src/gates/gate-registry.ts) (lines 195–211):
 
 | Policy | Declared by | Runtime behaviour |
 |--------|-------------|-------------------|
-| `retry_once` | `lint`, `tests`, `typecheck` | On `fail`, run the command once more; return the retry result |
-| `stop` | `build`, `stories-valid` | Fail-fast — no retry. Documented intent is to halt the rest of the stage; current runtime returns a single `fail` result and does not short-circuit the outer `runAll` loop |
-| `continue_with_warning` | none currently | Not honoured by `runWithRetry`; parsed and stored for future use |
+| `retry_once` | `lint`, `typecheck` | On `fail`, run the command once more; return the retry result |
+| `stop` | `tests`, `build`, `stories-valid` | Fail-fast — no retry. The `fail` is returned as-is, and inside `runAll` it short-circuits the rest of the gate list (every later gate is marked `skip`) |
+| `continue_with_warning` | none currently | Converts a `fail` into a `warn`; parsed but declared by no built-in gate |
 
-`Finalizer.finalize` calls `runAll`, **not** `runWithRetry` ([`finalizer.ts`](../../src/finalize/finalizer.ts) line 53). This means the retry policy does not apply during `metta finalize` — a `fail` on the terminal gate pass is terminal, with no second attempt. `runWithRetry` **is** invoked during `/metta-execute`: [`ExecutionEngine.runTaskGatesInDir`](../../src/execution/execution-engine.ts) (line 355) iterates every required gate in the registry and calls `this.gateRegistry.runWithRetry(gate.name, cwd)` after each task batch. So `on_failure: retry_once` is honoured at implementation time (one automatic retry on `fail` during execution) but not at finalize time. `stop` and `continue_with_warning` remain parsed-but-not-honoured in either path.
+`Finalizer.finalize` calls `runAll` ([`finalizer.ts`](../../src/finalize/finalizer.ts) line 70), and `runAll` runs each gate through `runWithPolicy`. So the `on_failure` policy **is** honoured at finalize time: `retry_once` gates get one automatic retry on `fail`, and a `stop` gate's failure skips the remaining gates in the run. The same `runWithPolicy` path is used during `/metta-execute` via `runWithRetry` (a thin alias for `runWithPolicy`).
 
 ### Project-level gate overrides
 
@@ -91,7 +91,7 @@ Override fields: `command`, `timeout`, `required`, `on_failure`. The config load
 
 **Defined in:** [`src/templates/gates/build.yaml`](../../src/templates/gates/build.yaml)
 **What it runs:** `npm run build`
-**When it fires:** not declared by any built-in workflow's `gates:` list, but loaded into the registry by `metta finalize` and `metta verify`. Because `Finalizer.finalize` currently iterates over every gate in the registry (`this.gateRegistry.list().map(g => g.name)` — see [`src/finalize/finalizer.ts`](../../src/finalize/finalizer.ts) line 51), `build` fires during `metta finalize` alongside the other four YAML gates.
+**When it fires:** `implementation` stage of the `trivial`, `quick`, and `standard` workflows (each declares `gates: [tests, lint, typecheck, build]`). The `full` workflow's `implementation` stage omits `build`. `build` therefore also runs during `metta finalize` for `trivial`/`quick`/`standard` (those workflows' gate union includes it) and always runs under `metta verify` (registry-wide sweep).
 **Pass criterion:** exit code 0 from `npm run build`.
 **Fail output shape:** `output` carries `stdout || stderr || error.message`; `failures[]` carries a single synthetic entry. Timeout budget is 120 s; `on_failure: stop`.
 
@@ -99,7 +99,7 @@ Override fields: `command`, `timeout`, `required`, `on_failure`. The config load
 
 **Defined in:** [`src/templates/gates/lint.yaml`](../../src/templates/gates/lint.yaml)
 **What it runs:** `npm run lint`
-**When it fires:** `implementation` stage of every workflow (`quick`, `standard`, `full`); also during `metta finalize` and `metta verify` (registry-wide sweep).
+**When it fires:** `implementation` stage of every workflow (`trivial`, `quick`, `standard`, `full`); also during `metta finalize` (in the workflow gate union) and `metta verify` (registry-wide sweep).
 **Pass criterion:** exit code 0 from `npm run lint`.
 **Fail output shape:** `output` + one synthetic `failures[]` entry. Timeout 30 s; `on_failure: retry_once` — `GateRegistry.runWithRetry` re-executes the command once before reporting `fail`.
 
@@ -107,7 +107,7 @@ Override fields: `command`, `timeout`, `required`, `on_failure`. The config load
 
 **Defined in:** [`src/templates/gates/stories-valid.yaml`](../../src/templates/gates/stories-valid.yaml)
 **What it runs:** `metta validate-stories` — implemented at [`src/cli/commands/validate-stories.ts`](../../src/cli/commands/validate-stories.ts). It parses `spec/changes/<change>/stories.md`, validates schema, cross-checks `Fulfills:` refs in `spec.md` against story IDs, and detects mtime drift between `stories.md` and `spec.md`.
-**When it fires:** `spec` stage of the `standard` workflow (`gates: [spec-quality, stories-valid]`). Not declared by `quick` (no stories stage) or `full` (stories folded into spec). Also runs during `metta finalize` and `metta verify` (registry sweep). When invoked post-archive with no active change, the command exits 0 with the message `validate-stories: no active changes to validate`.
+**When it fires:** `spec` stage of the `standard` workflow (`gates: [stories-valid]`). Not declared by `trivial`/`quick` (no stories stage) or `full` (whose `spec` stage declares no gates). It therefore runs during `metta finalize` only for the `standard` workflow (its gate union is the only one that includes `stories-valid`), and always under `metta verify` (registry-wide sweep). When invoked post-archive with no active change, the command exits 0 with the message `validate-stories: no active changes to validate`.
 **Pass criterion:** exit code 0 — no schema errors and every `Fulfills:` ref resolves to an existing story ID. Drift between `stories.md` and `spec.md` emits a warning but does not fail.
 **Fail output shape:** exit code 4 on parse error, missing `stories.md`, or unresolved refs. `GateRegistry` wraps the non-zero exit into a standard `fail` result with one synthetic entry in `failures[]`. The underlying JSON output from `metta validate-stories --json` has richer per-story detail (`errors[]`, `warnings[]`, `drift_warning`) but the gate runner currently captures it only as `output` text.
 
@@ -115,83 +115,64 @@ Override fields: `command`, `timeout`, `required`, `on_failure`. The config load
 
 **Defined in:** [`src/templates/gates/tests.yaml`](../../src/templates/gates/tests.yaml)
 **What it runs:** `npm test`
-**When it fires:** `implementation` stage of every workflow (`quick`, `standard`, `full`); also during `metta finalize` and `metta verify`.
+**When it fires:** `implementation` stage of every workflow (`trivial`, `quick`, `standard`, `full`); also during `metta finalize` (workflow gate union) and `metta verify`.
 **Pass criterion:** exit code 0 from `npm test`.
-**Fail output shape:** `output` + one synthetic `failures[]` entry. Timeout 300 s (the longest of the five); `on_failure: retry_once`.
+**Fail output shape:** `output` + one synthetic `failures[]` entry. Timeout 300 s (the longest of the five); `on_failure: stop` — no retry, and a failure short-circuits the rest of the gate run inside `runAll`.
 
 ### `typecheck`
 
 **Defined in:** [`src/templates/gates/typecheck.yaml`](../../src/templates/gates/typecheck.yaml)
 **What it runs:** `npx tsc --noEmit`
-**When it fires:** `implementation` stage of every workflow; also during `metta finalize` and `metta verify`.
+**When it fires:** `implementation` stage of every workflow (`trivial`, `quick`, `standard`, `full`); also during `metta finalize` (workflow gate union) and `metta verify`.
 **Pass criterion:** exit code 0 from `tsc --noEmit`.
 **Fail output shape:** `output` + one synthetic `failures[]` entry. Timeout 60 s; `on_failure: retry_once`.
 
-## Code-driven gates (not under `src/templates/gates/`)
+## Gate names described in older docs but not implemented
 
-The workflow YAMLs reference four gate names that are **not** defined as YAML files and have **no current implementation** in the registry. When `GateRegistry.run(name, cwd)` is asked to execute one of these, it falls through to the `gate: undefined` branch and returns:
+Earlier drafts of this doc and some design notes referred to four additional gate names — `spec-quality`, `design-review`, `task-quality`, and `uat` — wired into the `spec`, `design`, `tasks`, and `verification` stages. **None of these is implemented.** They appear in **zero** source files: no YAML under `src/templates/gates/`, no registry code, and no workflow YAML references them. The four built-in workflows (`trivial`, `quick`, `standard`, `full`) declare gates on their `implementation` stage (and, for `standard`, its `spec` stage); every other stage declares `gates: []`.
+
+If one of these names were ever referenced by a workflow, `GateRegistry.run(name, cwd)` would fall through to the `gate: undefined` branch and return:
 
 ```ts
 { gate: name, status: 'skip', duration_ms: 0, output: "Gate '<name>' not configured" }
 ```
 
-This is a known gap — see below. The intent of each gate, inferred from workflow wiring and the change's [intent.md](../../spec/changes/create-comprehensive-internal/intent.md), is documented here so future implementations preserve the contract.
-
-### `spec-quality`
-
-**Referenced by:** `spec` stage in `standard` (`gates: [spec-quality, stories-valid]`) and `full` (`gates: [spec-quality]`).
-**Intended check:** evaluate the authored `spec.md` for completeness and testability — every requirement has `Fulfills:`/`Validation:` metadata, every requirement ID resolves, every scenario follows Given/When/Then, no "TBD"/"TODO" placeholders.
-**Implementation status:** **no implementation present.** `grep -r spec-quality src/` matches only the workflow YAMLs, tests, and this doc. The closest existing artifact-quality check is `metta check-constitution` ([`src/cli/commands/check-constitution.ts`](../../src/cli/commands/check-constitution.ts)), but that enforces Conventions/Off-Limits rules, not spec completeness. At runtime this gate returns `status: skip`, so the workflow advances without blocking.
-
-### `design-review`
-
-**Referenced by:** `design` stage in `standard` and `full`.
-**Intended check:** architect-style review of the authored `design.md` — coherence with spec, explicit tradeoff analysis, ADRs where warranted, no dangling interface references.
-**Implementation status:** **no implementation present.** No code in `src/gates/` or `src/cli/commands/` handles `design-review`. Returns `status: skip` at runtime.
-
-### `task-quality`
-
-**Referenced by:** `tasks` stage in `standard` and `full`.
-**Intended check:** validate `tasks.md` — every task is atomic and commit-scoped, dependencies form a DAG, estimates present, each task maps to a spec requirement or design element.
-**Implementation status:** **no implementation present.** Returns `status: skip` at runtime.
-
-### `uat`
-
-**Referenced by:** `verification` stage in **every** workflow (`quick`, `standard`, `full`).
-**Intended check:** user-acceptance verification — confirm each Given/When/Then scenario in `spec.md` has a passing test citing evidence, and that `summary.md` accounts for every spec requirement. The [`metta-verifier`](../../src/templates/agents/metta-verifier.md) subagent persona is the human-in-the-loop analogue invoked by the `/metta-verify` skill.
-**Implementation status:** **no programmatic gate implementation.** The `uat` gate name resolves to `skip` in the registry. Verification rigor today comes from the verifier subagent spawned by `/metta-verify`, which authors `summary.md` and confirms gate results — but that subagent is not a `GateRegistry` entry and therefore does not appear in `FinalizeResult.gates`.
+Verification rigor today comes not from a `uat` gate but from the verifier subagent spawned by `/metta-verify` (see [`src/templates/agents/metta-verifier.md`](../../src/templates/agents/metta-verifier.md)), which authors `summary.md` and confirms the YAML gate results. That subagent is not a `GateRegistry` entry and does not appear in `FinalizeResult.gates`.
 
 ## Stages → gates matrix
 
-Every stage across the three built-in workflows and the gates it fires. Gates in **bold** are YAML-defined and execute; gates in *italic* are referenced but return `skip` (known gap).
+Every stage across the four built-in workflows and the gates it fires. All listed gates are the five registered YAML gates; every unlisted stage declares `gates: []`.
 
 | Workflow | Stage | `gates:` list |
 |----------|-------|---------------|
+| trivial | intent | — |
+| trivial | implementation | tests, lint, typecheck, build |
+| trivial | verification | — |
 | quick | intent | — |
-| quick | implementation | **tests**, **lint**, **typecheck** |
-| quick | verification | *uat* |
+| quick | implementation | tests, lint, typecheck, build |
+| quick | verification | — |
 | standard | intent | — |
 | standard | stories | — |
-| standard | spec | *spec-quality*, **stories-valid** |
+| standard | spec | stories-valid |
 | standard | research | — |
-| standard | design | *design-review* |
-| standard | tasks | *task-quality* |
-| standard | implementation | **tests**, **lint**, **typecheck** |
-| standard | verification | *uat* |
+| standard | design | — |
+| standard | tasks | — |
+| standard | implementation | tests, lint, typecheck, build |
+| standard | verification | — |
 | full | domain-research | — |
 | full | intent | — |
-| full | spec | *spec-quality* |
+| full | spec | — |
 | full | research | — |
-| full | design | *design-review* |
+| full | design | — |
 | full | architecture | — |
-| full | tasks | *task-quality* |
+| full | tasks | — |
 | full | ux-spec | — |
-| full | implementation | **tests**, **lint**, **typecheck** |
-| full | verification | *uat* |
+| full | implementation | tests, lint, typecheck |
+| full | verification | — |
 
-Sources: [`src/templates/workflows/quick.yaml`](../../src/templates/workflows/quick.yaml), [`src/templates/workflows/standard.yaml`](../../src/templates/workflows/standard.yaml), [`src/templates/workflows/full.yaml`](../../src/templates/workflows/full.yaml).
+Sources: [`src/templates/workflows/trivial.yaml`](../../src/templates/workflows/trivial.yaml), [`src/templates/workflows/quick.yaml`](../../src/templates/workflows/quick.yaml), [`src/templates/workflows/standard.yaml`](../../src/templates/workflows/standard.yaml), [`src/templates/workflows/full.yaml`](../../src/templates/workflows/full.yaml).
 
-Note: the `build` gate is registered but not referenced by any stage's `gates:` list. It still runs during `metta finalize` because the finalize loop sweeps the entire gate registry.
+Note: `build` is referenced by the `implementation` stage of `trivial`, `quick`, and `standard`, but **not** `full`. So `metta finalize` runs `build` for the first three workflows (it is in their gate union) but not for `full`, while `metta verify` always runs `build` because it sweeps the whole registry.
 
 ## The finalize gate loop
 
@@ -201,45 +182,47 @@ Source: [`src/cli/commands/finalize.ts`](../../src/cli/commands/finalize.ts) and
 
 1. **Load builtin gates.** The command resolves `src/templates/gates/` relative to its module and calls `ctx.gateRegistry.loadFromDirectory(builtinGates)` ([`finalize.ts`](../../src/cli/commands/finalize.ts) lines 28–29). This registers all five YAML gates.
 2. **Merge delta specs.** `Finalizer` first runs `SpecMerger.merge` to check for requirement-level conflicts between the change's spec delta and `spec/specs/`. If `specMerge.status === 'conflict'`, finalize exits with code 2 before any gate runs.
-3. **Run all registered gates.** `Finalizer.finalize` reads `this.gateRegistry.list().map(g => g.name)` and calls `runAll(gateNames, projectRoot)` ([`finalizer.ts`](../../src/finalize/finalizer.ts) lines 51–53). Gates execute **sequentially** in registry-insertion order — no parallelism, no stage filtering. Every YAML gate runs, regardless of which stages declared it.
-4. **Evaluate pass/fail.** `gatesPassed` is true iff every result's status is `pass`, `skip`, or `warn`. A single `fail` flips it to false ([`finalizer.ts`](../../src/finalize/finalizer.ts) line 54).
+3. **Run the workflow-scoped gate set.** `Finalizer.finalize` is **workflow-scoped**: it loads the active change's workflow YAML and unions the `gates:` arrays declared across every artifact (`workflow.artifacts.flatMap(a => a.gates ?? [])`, deduplicated — see [`finalizer.ts`](../../src/finalize/finalizer.ts) lines 34–41). It then calls `runAll(gateNames, projectRoot)` with that scoped set ([`finalizer.ts`](../../src/finalize/finalizer.ts) lines 68–70). Gates execute **sequentially** via `runWithPolicy`, so `on_failure` (retry/stop) applies. Only if the workflow fails to load does it fall back to the full registry (`this.gateRegistry.list().map(g => g.name)`). For a `quick`/`trivial`/`standard` change the scoped set is `[tests, lint, typecheck, build]` (plus `stories-valid` for `standard`); for a `full` change it is `[tests, lint, typecheck]`.
+4. **Evaluate pass/fail.** `gatesPassed` is true iff every result's status is `pass`, `skip`, or `warn`. A single `fail` flips it to false ([`finalizer.ts`](../../src/finalize/finalizer.ts) line 71).
 5. **Block on failure.** If `!gatesPassed` and we are not in `--dry-run`, `Finalizer.finalize` returns early with `archiveName: ''`, `docsGenerated: []`, `refreshed: false`. The change is not archived and specs are not merged.
 6. **Report failure.** [`finalize.ts`](../../src/cli/commands/finalize.ts) lines 42–80 handle the failure path:
    - In `--json` mode, emits `{ status: 'gates_failed', change, gates, message }` and exits 1.
    - In human mode, prints `Quality gates failed:`, then one line per gate with a pass/skip/fail icon and duration. For each failing gate it prints the gate name in red, followed by structured `failures[]` entries (`file:line — message`) when present, or the raw `output` text otherwise. This structured-failures rendering came from the `finalize-surfaces-failing-gate` change and replaces the older "opaque gate names with no error detail" behaviour.
-7. **On success, archive + write `gates.yaml`.** After all gates pass, `Finalizer` archives the change directory, then writes `spec/archive/<archive-name>/gates.yaml` capturing `finalized_at`, `all_passed`, and one record per gate (`gate`, `status`, `duration_ms`) — see [`finalizer.ts`](../../src/finalize/finalizer.ts) lines 87–100. This is the permanent audit trail for the gate run.
+7. **On success, archive + write `gates.yaml`.** After all gates pass, `Finalizer` archives the change directory, then writes `spec/archive/<archive-name>/gates.yaml` capturing `finalized_at`, `all_passed`, and one record per gate (`gate`, `status`, `duration_ms`) — see [`finalizer.ts`](../../src/finalize/finalizer.ts) lines 104–117. This is the permanent audit trail for the gate run.
 8. **Generate docs, commit archive.** If `.metta/config` declares `docs.generate_on: finalize`, `DocGenerator.generate()` runs. Finally the command stages `spec/archive/<archive-name>`, `spec/changes/<name>`, and any merged `spec/specs/<cap>` paths, and commits with message `chore(<name>): archive and finalize` — scoped to avoid sweeping unrelated untracked files into the archive commit.
 
 ### Archive record: `gates.yaml`
 
-On success, `Finalizer` writes one `gates.yaml` per archived change under `spec/archive/<archive-name>/gates.yaml`. Shape (from [`finalizer.ts`](../../src/finalize/finalizer.ts) lines 87–100):
+On success, `Finalizer` writes one `gates.yaml` per archived change under `spec/archive/<archive-name>/gates.yaml`. Shape (from [`finalizer.ts`](../../src/finalize/finalizer.ts) lines 104–117). The records reflect the workflow-scoped gate set — this example is from a `quick`/`trivial` change (`[tests, lint, typecheck, build]`); a `standard` change would additionally include `stories-valid`, and a `full` change would omit `build`:
 
 ```yaml
 finalized_at: 2026-04-17T14:32:11.012Z
 all_passed: true
 results:
-  - gate: build
-    status: pass
-    duration_ms: 14230
-  - gate: lint
-    status: pass
-    duration_ms: 1852
-  - gate: stories-valid
-    status: skip
-    duration_ms: 0
   - gate: tests
     status: pass
     duration_ms: 42117
+  - gate: lint
+    status: pass
+    duration_ms: 1852
   - gate: typecheck
     status: pass
     duration_ms: 6221
+  - gate: build
+    status: pass
+    duration_ms: 14230
 ```
 
 Only `gate`, `status`, and `duration_ms` are persisted — `output` and `failures[]` are dropped because by the time this record is written the change has already passed its gates. The file is committed alongside the archive with message `chore(<change-name>): archive and finalize`. This is the permanent gate audit trail; `spec/changes/<change>/` is removed when the change is archived.
 
 ### `metta verify` vs `metta finalize`
 
-[`metta verify`](../../src/cli/commands/verify.ts) performs the same registry-wide sweep (`runAll` over every gate name in the registry) but does not archive, does not merge specs, and does not write `gates.yaml`. It exits 1 if any gate fails. Treat `metta verify` as the pre-flight check for `metta finalize`.
+The two commands choose their gate set differently:
+
+- [`metta verify`](../../src/cli/commands/verify.ts) is a **registry-wide sweep**: it loads `src/templates/gates/` and runs `runAll` over `ctx.gateRegistry.list().map(g => g.name)` — all five gates, regardless of the active change's workflow ([`verify.ts`](../../src/cli/commands/verify.ts) lines 24–26). It does not archive, does not merge specs, and does not write `gates.yaml`. It exits 1 if any gate fails.
+- [`metta finalize`](../../src/finalize/finalizer.ts) is **workflow-scoped**: it runs only the union of gates declared by the active workflow's artifacts (see "The finalize gate loop" above), falling back to the full registry only if the workflow YAML fails to load.
+
+Because `verify` sweeps the whole registry, it can run gates that `finalize` would skip for that workflow — e.g. `build` and `stories-valid` run under `verify` even for a `full` change, but `finalize` excludes them from a `full` change's scoped set. Treat `metta verify` as a broad pre-flight check; `metta finalize` is the narrower, workflow-accurate gate that actually blocks the archive.
 
 ### Exit codes
 

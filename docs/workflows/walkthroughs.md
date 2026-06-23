@@ -87,15 +87,7 @@ Quick is a single-file typo fix, so the orchestrator spawns **one** `metta-execu
 - Commits: `fix(fix-typo-in-doctor-error-message): correct typo in doctor error message`
 - Writes a short `spec/changes/fix-typo-in-doctor-error-message/summary.md`
 
-The orchestrator then writes a **stories sentinel** and commits it:
-
-```
-spec/changes/fix-typo-in-doctor-error-message/stories.md
-```
-
-Content is the sentinel form: "No user stories — internal/infrastructure change" plus a short justification.
-
-Why this file exists even though the `quick` workflow has no `stories` artifact: the `stories-valid` gate lives in the gate registry, and the finalizer runs **every** registered gate regardless of which workflow ran. Without a `stories.md` carrying valid sentinel frontmatter (or real user-story blocks), `stories-valid` fails and finalize aborts. See [`gates.md`](./gates.md) for the gate's exact contract.
+The `quick` workflow has no `stories` stage and the `metta-quick` SKILL.md has no stories logic — the orchestrator writes no `stories.md` here. The `stories-valid` gate never fires on a quick change: the finalizer scopes gates to the union of the `gates` arrays declared across the workflow's artifacts (`Finalizer` in `src/finalize/finalizer.ts`), and `quick.yaml` declares `stories-valid` nowhere. See [`gates.md`](./gates.md) for the gate's contract.
 
 Then:
 
@@ -162,7 +154,7 @@ git merge metta/fix-typo-in-doctor-error-message --no-ff \
   -m "chore: merge fix-typo-in-doctor-error-message"
 ```
 
-The branch is left intact on the local clone. `metta abandon` does not delete branches automatically — operator chore.
+The branch is left intact on the local clone. `metta changes abandon <name>` does not delete branches automatically — operator chore.
 
 ### Artifacts produced
 
@@ -260,10 +252,10 @@ For each planning artifact, the loop is the same: `metta instructions <artifact>
 |---|---|---|---|
 | intent | `metta-proposer` | `intent.md` | receives cumulative Q/A pairs from discovery |
 | stories | `metta-product` | `stories.md` | orchestrator passes intent wrapped in `<INTENT>...</INTENT>` to prevent prompt injection |
-| spec | `metta-proposer` | `spec.md` | gates: `spec-quality`, `stories-valid` |
+| spec | `metta-proposer` | `spec.md` | gate: `stories-valid` |
 | research | `metta-researcher` × 2–4 in parallel | `research.md` | one agent per candidate approach, then orchestrator merges |
-| design | `metta-architect` | `design.md` | gate: `design-review` |
-| tasks | `metta-planner` | `tasks.md` | gate: `task-quality` |
+| design | `metta-architect` | `design.md` | gates: none |
+| tasks | `metta-planner` | `tasks.md` | gates: none |
 
 Concretely for research, the orchestrator might fan out two researchers: one investigating "print JSON via existing logger pathway" and another investigating "collect findings into a schema-validated struct and `console.log(JSON.stringify(...))`". Each writes a self-contained `research.md` snippet; the orchestrator merges them into one `research.md` with a recommendation section and commits.
 
@@ -480,7 +472,7 @@ The discovery loop runs here — same format as walkthrough 2 but grounded on th
 
 ### Step 3 — Spec
 
-One `metta-proposer` writes `spec.md`. Gate: `spec-quality` only (full workflow omits `stories-valid` at the spec stage because there is no separate stories artifact — user stories are folded into the spec itself).
+One `metta-proposer` writes `spec.md`. The full workflow's `spec` stage declares no gates (and no `stories-valid`, because there is no separate stories artifact — user stories are folded into the spec itself); spec quality is enforced by the proposer persona.
 
 ### Step 4 — Research
 
@@ -488,7 +480,7 @@ One or more `metta-researcher` subagents evaluate implementation approaches now 
 
 ### Step 5 — Design
 
-One `metta-architect` writes `design.md`. Gate: `design-review`.
+One `metta-architect` writes `design.md`. The `design` stage declares no gates; design quality is enforced by the architect persona (and the reviewer pass).
 
 ### Step 6 — Parallel fan-out: tasks + architecture + ux-spec
 
@@ -500,7 +492,7 @@ This is where `full` differs structurally from `standard`. After `design` comple
 
 The orchestrator spawns them in one Agent call:
 
-1. `metta-planner` → `tasks.md` (gate: `task-quality`)
+1. `metta-planner` → `tasks.md` (no stage gate)
 2. `metta-architect` with architecture persona → `architecture.md`
 3. `metta-architect` with ux-spec persona → `ux-spec.md`
 
@@ -521,7 +513,7 @@ Implementation itself runs the same per-batch parallel pattern as walkthrough 2:
 
 ### Step 8 — Verification
 
-Three `metta-verifier` subagents in parallel (tests, typecheck+lint, spec-evidence). The verification stage's gate is `uat`. For a subsystem-level change the UAT gate typically requires the orchestrator to demonstrate the new CLI surface end-to-end (`metta obs tail` emits events in the documented shape, dashboard renders the documented screens).
+Three `metta-verifier` subagents in parallel (tests, typecheck+lint, spec-evidence). The verification stage declares no programmatic gate — verification rigor comes from these subagents. For a subsystem-level change, UAT-style validation typically requires the orchestrator to demonstrate the new CLI surface end-to-end (`metta obs tail` emits events in the documented shape, dashboard renders the documented screens).
 
 Results in `summary.md`, commit, `metta complete verification`.
 
@@ -562,7 +554,7 @@ git merge metta/add-metta-observability-subsystem --no-ff \
 
 ### Smoke-test changes leave a branch behind
 
-`metta abandon` marks a change as abandoned in state and renames the archive dir with an `-abandoned` suffix, but **does not delete the git branch**. If you smoke-test `/metta-propose` twice, the second attempt can fail on `git checkout -b metta/<slug>` because the branch from the first run is still there. Delete stale branches by hand:
+`metta changes abandon <name>` marks a change as abandoned in state and renames the archive dir with an `-abandoned` suffix, but **does not delete the git branch**. If you smoke-test `/metta-propose` twice, the second attempt can fail on `git checkout -b metta/<slug>` because the branch from the first run is still there. Delete stale branches by hand:
 
 ```bash
 git branch -D metta/<old-slug>

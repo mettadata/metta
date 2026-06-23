@@ -25,11 +25,11 @@ You drive these phases through **skills** (`/metta-*` slash commands), never by 
 
 ## Workflow tiers
 
-A **workflow** is an ordered DAG of artifacts defined in YAML. It declares which artifacts a change produces, in what order, which AI persona authors each, and which gates run afterward. metta ships three built-in workflows plus an implied trivial tier; you pick the one that matches the size of your change.
+A **workflow** is an ordered DAG of artifacts defined in YAML. It declares which artifacts a change produces, in what order, which AI persona authors each, and which gates run afterward. metta ships four built-in workflows; you pick the one that matches the size of your change.
 
 | Tier | For | Stages | Artifacts produced |
 |------|-----|--------|--------------------|
-| **trivial** | One-liners, copy edits — work too small for any ceremony. | n/a | none (handled inline) |
+| **trivial** | One-liners, copy edits, single-file fixes (scored `file_count <= 1`). | 3 | `intent` → implementation → `summary` |
 | **quick** | Small, well-understood bug fixes, tiny refactors, one- or two-file changes. | 3 | `intent` → implementation → `summary` |
 | **standard** | New features with user-facing stories, multi-file changes, API surface changes. **Default.** | 8 | `intent` → `stories` → `spec` → `research` → `design` → `tasks` → implementation → `summary` |
 | **full** | Complex, cross-subsystem systems work; greenfield domains; UX-heavy or high-stakes changes. | 10 | `domain-research` → `intent` → `spec` → `research` → `design` → (`architecture`, `tasks`, `ux-spec`) → implementation → `summary` |
@@ -67,13 +67,13 @@ The five YAML-defined gates run real shell commands:
 
 | Gate | Runs | Default `on_failure` |
 |------|------|----------------------|
-| **tests** | `npm test` | `retry_once` |
+| **tests** | `npm test` | `stop` |
 | **lint** | `npm run lint` | `retry_once` |
 | **typecheck** | `npx tsc --noEmit` | `retry_once` |
 | **build** | `npm run build` | `stop` |
 | **stories-valid** | `metta validate-stories` (schema + cross-ref checks) | `stop` |
 
-The workflow YAMLs also reference four agent/CLI-enforced gate names — `spec-quality`, `design-review`, `task-quality`, and `uat` — whose rigor today comes from the reviewer/verifier subagent personas rather than a registered programmatic gate (they resolve to `skip` in the gate registry).
+Those five are the only gates wired into the workflows. (Older documentation mentions `spec-quality`, `design-review`, `task-quality`, and `uat` gate names — but these are **not** present in any current workflow YAML and are not registered. Spec, design, task, and UAT rigor today comes from the reviewer and verifier subagent personas, not a programmatic gate.)
 
 ### `on_failure` policies
 
@@ -92,7 +92,7 @@ These three layers are how a change actually gets driven. Understanding the spli
 | Layer | What it is |
 |-------|-----------|
 | **Skills** (`/metta-*`) | The **user entry points** — slash commands an AI orchestrator invokes (e.g. `/metta-propose`, `/metta-plan`, `/metta-execute`, `/metta-verify`, `/metta-ship`). A skill wraps the underlying CLI calls *and* spawns the correct subagent personas. |
-| **Agents / personas** (`metta-*`) | Single-turn AI subagents, each a specialist that authors one artifact and commits it: `proposer` (authors both intent and spec), `product`, `researcher`, `architect`, `planner`, `executor`, `reviewer`, `verifier`, plus `discovery` for setup. (Workflow YAML names the spec stage's agent `specifier`, but that maps to the `metta-proposer` persona — there is no separate `specifier` agent.) A skill selects a workflow; the workflow binds an agent to each stage. |
+| **Agents / personas** (`metta-*`) | Single-turn AI subagents, each a specialist that authors one artifact: `proposer` (authors both intent and spec), `product`, `researcher`, `architect`, `planner`, `executor`, `reviewer`, `verifier`, plus `discovery` for setup. Planning, review, and verification agents write their file and return — **the orchestrator commits it**; only `executor` (atomically, per task) and `discovery` run git themselves. (Workflow YAML names the spec stage's agent `specifier`, but that maps to the `metta-proposer` persona — there is no separate `specifier` agent.) A skill selects a workflow; the workflow binds an agent to each stage. |
 | **CLI** (`metta <cmd>`) | The underlying state machine — reads/writes `.metta/` and `spec/`, validates with Zod, runs gates. |
 
 **The core rule:** an AI orchestrator MUST invoke the matching skill — never call `metta <cmd>` directly. Skills own the persona wrapping and artifact-quality guarantees; calling the CLI directly bypasses them and has shipped broken artifacts in the past. (A human running `metta` in a terminal is unaffected — the rule scopes to AI-driven sessions.)
@@ -136,7 +136,7 @@ The **constitution** at [`spec/project.md`](../../spec/project.md) is the projec
 ## Where to go next
 
 - [`../workflows/README.md`](../workflows/README.md) — the skill decision tree: which `/metta-*` to use when.
-- [`../workflows/workflows.md`](../workflows/workflows.md) — the three workflow DAGs in detail.
+- [`../workflows/workflows.md`](../workflows/workflows.md) — the four workflow DAGs in detail.
 - [`../workflows/artifacts.md`](../workflows/artifacts.md) — every artifact's required sections.
 - [`../workflows/gates.md`](../workflows/gates.md) — gate semantics, `on_failure`, and the finalize loop.
 - [`../workflows/agents.md`](../workflows/agents.md) — the subagent personas.

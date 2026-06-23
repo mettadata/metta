@@ -2,7 +2,7 @@
 
 A contributor's guide to adding new pieces to metta: CLI commands, gates, workflow tiers, skills/agents, and AI providers. Each section shows where files go, the required shape, a minimal real example, how the piece is discovered and wired, and a short checklist.
 
-For the big-picture component map, see [architecture.md](../architecture.md).
+For the big-picture component map, see [architecture.md](./architecture.md).
 
 ## Ground rules (apply to every extension)
 
@@ -360,5 +360,5 @@ Today providers are constructed directly at the call site (e.g. `new AnthropicPr
 
 ## See also
 
-- [architecture.md](../architecture.md) — component map and capability specs (WorkflowEngine, GateRegistry, Artifact Store, Schemas, etc.)
+- [architecture.md](./architecture.md) — component map and capability specs (WorkflowEngine, GateRegistry, Artifact Store, Schemas, etc.)
 - `CLAUDE.md` (repo root) — conventions and the metta workflow rules

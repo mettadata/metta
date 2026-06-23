@@ -165,6 +165,15 @@ Schema: `ChangeMetadataSchema` in `src/schemas/change-metadata.ts`. Strict objec
 | `current_artifact` | `string` | ID of the currently in-progress or next-ready artifact. |
 | `base_versions` | `Record<string, string>` | Per-capability `spec.lock.hash` snapshots taken at change start. Used to detect upstream spec drift at finalize time. |
 | `artifacts` | `Record<string, ArtifactStatus>` | Status per artifact ID. `ArtifactStatusSchema` = `pending \| ready \| in_progress \| complete \| failed \| skipped`. |
+| `complexity_score` | `ComplexityScoreSchema` (optional) | Tier-selection signal computed at proposal time: `{ score: 0–3, signals: { file_count }, recommended_workflow ∈ trivial \| quick \| standard \| full }`. |
+| `actual_complexity_score` | `ComplexityScoreSchema` (optional) | Same shape, recomputed from the realized change to compare against the initial estimate. |
+| `auto_accept_recommendation` | `boolean` (optional) | Whether the recommended workflow was auto-accepted without prompting. |
+| `workflow_locked` | `boolean` (optional) | When set, pins the workflow so later tier re-selection cannot override it. |
+| `artifact_timings` | `Record<string, ArtifactTiming>` (optional) | Per-artifact `{ started?, completed? }` ISO-8601 timestamps. |
+| `artifact_tokens` | `Record<string, ArtifactTokens>` (optional) | Per-artifact `{ context, budget }` token counts (non-negative ints). |
+| `review_iterations` | non-negative int (optional) | Number of review passes run for the change. |
+| `verify_iterations` | non-negative int (optional) | Number of verification passes run for the change. |
+| `stop_after` | `string` (optional) | Artifact ID to halt the workflow after, for stop-after-planning runs. |
 
 On `createChange`, every artifact in the workflow is seeded `pending`; the first artifact is flipped to `ready`, and `current_artifact` is set to it. `ArtifactStore.markArtifact(change, id, status)` updates one entry and advances `current_artifact` when the new status is `ready`, `in_progress`, or `complete`.
 

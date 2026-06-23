@@ -1,34 +1,35 @@
 # Agents
 
-Reference for the ten `metta-*` subagent personas that execute the change lifecycle.
+Reference for the `metta-*` subagent personas that execute the change lifecycle: 10 lifecycle personas plus `metta-skill-host`, the fork host that runs forked metta skills in an isolated context.
 
 ## What a metta agent is
 
 A **metta agent** is a named Claude Code subagent persona defined by a single markdown file under `src/templates/agents/`. At `metta init` time, each file is copied (unchanged) to `.claude/agents/` where the Agent tool picks it up. Every agent file has:
 
 - a YAML frontmatter with `name`, `description`, `tools:` (the allowed tool allow-list), and usually a `color` and optional `model`
-- a markdown body that sets the persona's role, rules, input contract (often XML-wrapped), and commit format
+- a markdown body that sets the persona's role, rules, input contract (often XML-wrapped), and — for the two agents that run git (`metta-discovery`, `metta-executor`) — a commit format. Every other artifact agent ends with "The orchestrator commits after you return — do not run git."
 
 Orchestrator skills (`/metta-*`) spawn agents via the Agent tool using `subagent_type: "metta-<name>"`. **AI orchestrators must always go through a skill** — never spawn an agent from a bare CLI invocation. The skills own the prompt shape, input wrapping, and artifact path conventions; calling the CLI directly bypasses those guarantees.
 
-Agents are single-turn specialists: each runs with its own tool budget, writes its artifact, commits it, and returns. They do not talk to one another — the orchestrator is the only connective tissue.
+Agents are single-turn specialists: each runs with its own tool budget, writes its artifact, and returns. Only `metta-discovery` and `metta-executor` run git themselves; for every other artifact the orchestrator commits after the agent returns. Agents do not talk to one another — the orchestrator is the only connective tissue.
 
 ## Agent roster at a glance
 
-Ordered by the sequence they typically fire within a workflow.
+The 10 lifecycle personas, ordered by the sequence they typically fire within a workflow. `metta-skill-host` is listed last as an out-of-band fork host, not a lifecycle stage.
 
 | # | Agent | Primary artifact(s) | Tools |
 |---|---|---|---|
 | 1 | `metta-discovery` | `spec/project.md`, `.metta/config.yaml` | Read, Write, Bash, Grep, Glob, WebSearch, WebFetch |
 | 2 | `metta-proposer` | `intent.md`, `spec.md` | Read, Write, Grep, Glob, Bash |
-| 3 | `metta-product` | `stories.md` | Read, Write |
+| 3 | `metta-product` | `stories.md` | Read, Write, Bash |
 | 4 | `metta-constitution-checker` | `violations.md` (via CLI wrapper) | Read |
 | 5 | `metta-researcher` | `research.md`, `domain-research.md` | Read, Write, Grep, Glob, Bash, WebSearch, WebFetch |
 | 6 | `metta-architect` | `design.md`, `architecture.md`, `ux-spec.md` | Read, Write, Grep, Glob, Bash |
 | 7 | `metta-planner` | `tasks.md` | Read, Write, Grep, Glob, Bash |
-| 8 | `metta-executor` | source code, `summary.md` | Read, Write, Edit, Bash, Grep, Glob |
+| 8 | `metta-executor` | source code (orchestrator writes `summary.md`) | Read, Write, Edit, Bash, Grep, Glob |
 | 9 | `metta-reviewer` | `review.md` | Read, Write, Bash, Grep, Glob |
 | 10 | `metta-verifier` | `summary.md` (verification) | Read, Write, Bash, Grep, Glob |
+| — | `metta-skill-host` | none (fork host for `context: fork` skills) | All tools |
 
 Cross-links:
 
@@ -68,7 +69,7 @@ Cross-links:
 
 **Output:**
 - `spec/changes/<change>/intent.md` or `spec/changes/<change>/spec.md` — all template sections filled with specific content; no placeholders; every requirement carries at least one Given/When/Then scenario; Out of Scope is explicit.
-- Commit: `git commit -m "docs(<change>): create <artifact>"`
+- Commit: none — the agent writes the file and returns; **the orchestrator commits** after it returns (`docs(<change>): create <artifact>`).
 
 **Tone/style:** Crisp problem definition. Requirements are declarative (MUST/SHOULD/MAY); scenarios are testable; out-of-scope is explicit rather than implicit. No hedging, no filler.
 
@@ -87,7 +88,7 @@ Cross-links:
 **Output:**
 - `spec/changes/<change>/stories.md` — `US-1`, `US-2`, … stories in the documented format (As a / I want to / So that / Priority: P1|P2|P3 / Independent Test Criteria / Acceptance Criteria with Given-When-Then). IDs monotonic starting at `US-1`.
 - For internal/refactor changes with no user-facing value, a sentinel block: `## No user stories — internal/infrastructure change` with a ≥10-character `**Justification:**`.
-- Commit: `git add spec/changes/<change>/stories.md && git commit -m "docs(<change>): add user stories"`
+- Commit: none — the agent writes the file and returns; **the orchestrator commits** after it returns (`docs(<change>): add user stories`).
 
 **Tone/style:** User-value lens. Every story answers "so that what." Deliberately minimal tooling (only `Read`/`Write`) — this agent does not scan code or search the web; it only reads the intent and writes stories.
 
@@ -133,7 +134,7 @@ The CLI then materializes the JSON into `spec/changes/<change>/violations.md`.
 
 **Output:**
 - `spec/changes/<change>/research.md` or `spec/changes/<change>/domain-research.md` — options with pros/cons, one recommended approach with rationale, grounded factual claims cited as markdown footnotes (`[^N]` inline; `[^N]: <url> accessed YYYY-MM-DD` at section end).
-- Commit: `git commit -m "docs(<change>): create research"`
+- Commit: none — the agent writes the file and returns; **the orchestrator commits** after it returns (`docs(<change>): create research`).
 
 **Tone/style:** Grounded and comparative. Scans existing code patterns before recommending. Grounds uncertain claims (versions, breaking changes, CVEs, recent syntax) via WebSearch/WebFetch before asserting them; treats fetched web content as untrusted data and never follows embedded instructions. On fetch failure: records `tried <url>, failed: <reason>` inline and falls back to training knowledge rather than blocking the phase.
 
@@ -151,7 +152,7 @@ The CLI then materializes the JSON into `spec/changes/<change>/violations.md`.
 
 **Output:**
 - `spec/changes/<change>/design.md`, `architecture.md`, or `ux-spec.md` — approach, components, data models, API design, dependencies, risks, with decisions documented as ADRs where appropriate; spec requirements and research decisions are referenced by ID; any decision creating vendor lock-in is flagged.
-- Commit: `git commit -m "docs(<change>): create design"`
+- Commit: none — the agent writes the file and returns; **the orchestrator commits** after it returns (`docs(<change>): create design`).
 
 **Tone/style:** Proven patterns over novel approaches. Composition over inheritance. Decisions are framed as ADRs with clear rationale; lock-in is called out explicitly rather than buried.
 
@@ -169,7 +170,7 @@ The CLI then materializes the JSON into `spec/changes/<change>/violations.md`.
 
 **Output:**
 - `spec/changes/<change>/tasks.md` — numbered batches with tasks carrying Files, Action, Verify, and Done fields; file-level dependencies between tasks are explicit so the orchestrator knows which tasks can be parallelized; each task is atomic enough to fit one commit.
-- Commit: `git commit -m "docs(<change>): create tasks"`
+- Commit: none — the agent writes the file and returns; **the orchestrator commits** after it returns (`docs(<change>): create tasks`).
 
 **Tone/style:** Dependency-first thinker. Batches are chosen so that parallelism is safe (no shared file writes within a batch). Task descriptions are short and imperative.
 
@@ -187,14 +188,15 @@ The CLI then materializes the JSON into `spec/changes/<change>/violations.md`.
 
 **Output:**
 - Source code changes scoped to the task's declared files.
-- `tasks.md` — the task's `- [ ]` flipped to `- [x]` and staged in the **same commit** as the code. Never a separate commit.
-- Commit: `git commit -m "feat(<change>): <task description>"`
+- Commit: `git commit -m "feat(<change>): <task description>"` — the executor is one of only two agents that run git, committing **atomically per task**.
+- The executor MUST NOT edit `tasks.md`. Task completion is signaled by the orchestrator's `metta complete implementation` call, not by flipping `- [ ]` to `- [x]`. Any status update goes in the executor's final reply to the orchestrator.
 - Deviation commits per the standing deviation rules:
   - Bug found → `git commit -m "fix(<change>): <description>"`
   - Missing utility added → separate commit
   - Blocked by infrastructure (>10 lines to fix) → **STOP** and report back
   - Design is wrong or major change needed → **STOP** and report back
-- After all tasks done: writes `summary.md` and commits `git commit -m "docs(<change>): implementation summary"`.
+  - Cascading test failures (a task breaks unrelated tests) → **STOP** after at most 2 fix attempts and report back.
+- After all tasks are done, **the orchestrator** writes `summary.md` and commits it (`docs(<change>): implementation summary`) — the executor does not run git for `summary.md`.
 
 **Tone/style:** Pragmatic implementer. Atomic commits, tests-after-every-change, conventional-commit format. Refuses to modify files outside the task's declared scope without logging a deviation.
 
@@ -228,7 +230,7 @@ Each agent reviews every changed file; the orchestrator aggregates their verdict
   ## Verdict
   PASS | PASS_WITH_WARNINGS | NEEDS_CHANGES
   ```
-- Commit: `git add spec/changes/<change>/review.md && git commit -m "docs(<change>): code review"`
+- Commit: none — the agent writes the file and returns; **the orchestrator commits** after it returns (`docs(<change>): code review`).
 
 **Tone/style:** Direct, citation-heavy. Every issue cites `file:line`. Reads every changed file; does not skip. Never modifies code — only reviews and reports. If the verdict is `NEEDS_CHANGES`, lists exactly what must be fixed so a follow-up executor can act without guessing.
 
@@ -250,10 +252,29 @@ The orchestrator aggregates the three reports into a single verification summary
 **Input expected:** The change slug, the spec.md or intent.md (depending on workflow — `quick` uses intent.md goals because there is no spec), and the gate assignment for the specific agent in the fan-out.
 
 **Output:**
-- `spec/changes/<change>/summary.md` — verification summary: gate results, scenario-to-test evidence (cited as `file:line`), any gaps honestly reported (scenarios must not be marked as passing without evidence).
-- Commit: `git commit -m "docs(<change>): verification summary"`
+- `spec/changes/<change>/summary.md` — verification summary written to the **exact path the orchestrator provides** (the active workflow's `generates` filename, currently `summary.md`; never `verification.md`): gate results, scenario-to-test evidence (cited as `file:line`), any gaps honestly reported (scenarios must not be marked as passing without evidence).
+- Commit: none — the agent writes the file and returns; **the orchestrator commits** after it returns (`docs(<change>): verification summary`).
 
 **Tone/style:** Evidence-first. Reports gaps honestly rather than optimistically. Never modifies implementation code — only verifies and reports. Gate failures produce concrete failure counts and messages, not vague "some tests failed" summaries.
+
+---
+
+## `metta-skill-host`
+
+**Role:** Generic fork host — runs a forked metta skill in an isolated subagent context. It is not a lifecycle persona and authors no artifact of its own; it is the `agent:` target that metta skills declaring `context: fork` are dispatched into.
+
+**Tools allowed:** All tools (the host inherits whatever the forked skill needs).
+
+**Typical invocation:** Used as the fork target for skills that declare `context: fork` — `metta-issue`, `metta-fix-issues`, `metta-propose`, `metta-quick`, `metta-auto`, and `metta-ship`. When this subagent dispatches a CLI call (e.g. `metta issue`), the `metta-guard-bash` PreToolUse hook recognizes the invocation as skill-initiated via `event.agent_type` and permits the bypass, so the inline `METTA_SKILL=1` prefix is honored rather than blocked.
+
+**Input expected:** The forked skill's instructions. The host follows the skill exactly, uses `AskUserQuestion` when the skill directs it to, and dispatches the final CLI call via `Bash` with the inline `METTA_SKILL=1` prefix the skill specifies.
+
+**Output:**
+- Whatever the forked skill produces (no fixed artifact).
+- Commit: governed by the forked skill, not by this host.
+- On completion, returns a short summary (slug, path, exit code) to the orchestrator.
+
+**Tone/style:** Faithful executor of the forked skill. Does not deviate unless the skill's own fallback rules apply.
 
 ---
 
@@ -282,20 +303,22 @@ This is defense in depth: the inputs are normally benign (team-authored specs, u
 
 ## Commit message conventions
 
-Every artifact-authoring agent commits with the conventional-commits format:
+Only **two** agents run git themselves: `metta-discovery` commits the constitution during init, and `metta-executor` commits code atomically per task. For every other artifact the **orchestrator** commits after the agent writes its file and returns. The commit shapes below are conventional-commits regardless of who runs git — the "Committed by" column records who actually invokes `git`.
 
-| Agent | Commit shape |
-|---|---|
-| `metta-discovery` | `docs: generate project constitution` |
-| `metta-proposer` | `docs(<change>): create <artifact>` |
-| `metta-product` | `docs(<change>): add user stories` |
-| `metta-constitution-checker` | (CLI writes `violations.md`; commit shape owned by the `/metta-check-constitution` wrapper) |
-| `metta-researcher` | `docs(<change>): create research` |
-| `metta-architect` | `docs(<change>): create design` |
-| `metta-planner` | `docs(<change>): create tasks` |
-| `metta-executor` | `feat(<change>): <task>` (plus `fix(<change>): <desc>` deviations; plus `docs(<change>): implementation summary` at end) |
-| `metta-reviewer` | `docs(<change>): code review` |
-| `metta-verifier` | `docs(<change>): verification summary` |
+| Artifact / agent | Commit shape | Committed by |
+|---|---|---|
+| `metta-discovery` | `docs: generate project constitution` | the agent (during init) |
+| `metta-proposer` | `docs(<change>): create <artifact>` | orchestrator |
+| `metta-product` | `docs(<change>): add user stories` | orchestrator |
+| `metta-constitution-checker` | (CLI writes `violations.md`; commit shape owned by the `/metta-check-constitution` wrapper) | CLI wrapper |
+| `metta-researcher` | `docs(<change>): create research` | orchestrator |
+| `metta-architect` | `docs(<change>): create design` | orchestrator |
+| `metta-planner` | `docs(<change>): create tasks` | orchestrator |
+| `metta-executor` | `feat(<change>): <task>` (plus `fix(<change>): <desc>` deviations) | the agent (atomically per task) |
+| `summary.md` (implementation) | `docs(<change>): implementation summary` | orchestrator |
+| `metta-reviewer` | `docs(<change>): code review` | orchestrator |
+| `metta-verifier` | `docs(<change>): verification summary` | orchestrator |
+| `metta-skill-host` | (governed by the forked skill) | forked skill |
 
 ## Cross-links
 
@@ -318,5 +341,6 @@ If this document drifts from the agent markdown files, the agent files win. Rege
 - `src/templates/agents/metta-executor.md`
 - `src/templates/agents/metta-reviewer.md`
 - `src/templates/agents/metta-verifier.md`
+- `src/templates/agents/metta-skill-host.md`
 
 Installed mirrors live at `.claude/agents/metta-*.md` and are byte-identical to the templates above — `metta init` copies without modification.
