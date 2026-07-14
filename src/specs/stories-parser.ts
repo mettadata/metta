@@ -45,6 +45,9 @@ interface StoryDraft {
 }
 
 const FIELD_PREFIXES: Array<{ prefix: string; key: keyof StoryDraft }> = [
+  // Both article variants bind to asA ("an engineer" vs "a developer").
+  // The closing ** in each literal keeps them disjoint from one another.
+  { prefix: '**As an**', key: 'asA' },
   { prefix: '**As a**', key: 'asA' },
   { prefix: '**I want to**', key: 'iWantTo' },
   { prefix: '**So that**', key: 'soThat' },
