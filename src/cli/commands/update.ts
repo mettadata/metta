@@ -1,18 +1,9 @@
 import { Command } from 'commander'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import { readFile } from 'node:fs/promises'
-import { outputJson, color, getErrorMessage } from '../helpers.js'
+import { outputJson, color, getErrorMessage, getPackageVersion } from '../helpers.js'
 
 const execAsync = promisify(execFile)
-
-async function getInstalledVersion(): Promise<string> {
-  // package.json sits at the package root, three levels up from
-  // {src,dist}/cli/commands/ in both source and compiled layouts.
-  const pkgUrl = new URL('../../../package.json', import.meta.url)
-  const pkg = JSON.parse(await readFile(pkgUrl, 'utf8')) as { version?: string }
-  return pkg.version ?? 'unknown'
-}
 
 export function registerUpdateCommand(program: Command): void {
   program
@@ -26,7 +17,7 @@ export function registerUpdateCommand(program: Command): void {
         if (options.check) {
           const { stdout } = await execAsync('npm', ['view', '@mettadata/metta', 'version'], { timeout: 10000 }).catch(() => ({ stdout: 'unknown' }))
           const latest = stdout.trim()
-          const current = await getInstalledVersion()
+          const current = await getPackageVersion()
 
           if (json) {
             outputJson({ current, latest, update_available: current !== latest })

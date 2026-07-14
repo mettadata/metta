@@ -374,3 +374,14 @@ export async function readPipedStdin(): Promise<string> {
     process.stdin.on('error', onError)
   })
 }
+
+/**
+ * Read the installed package version from package.json. The file sits at the
+ * package root, two levels up from {src,dist}/cli/ in both layouts.
+ */
+export async function getPackageVersion(): Promise<string> {
+  const { readFile } = await import('node:fs/promises')
+  const pkgUrl = new URL('../../package.json', import.meta.url)
+  const pkg = JSON.parse(await readFile(pkgUrl, 'utf8')) as { version?: string }
+  return pkg.version ?? 'unknown'
+}

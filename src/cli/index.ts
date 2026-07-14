@@ -2,7 +2,7 @@
 
 import { Command } from 'commander'
 import { ConfigLoader, ConfigParseError } from '../config/config-loader.js'
-import { handleError } from './helpers.js'
+import { handleError, getPackageVersion } from './helpers.js'
 import { registerInstallCommand } from './commands/install.js'
 import { registerInitCommand } from './commands/init.js'
 import { registerProposeCommand } from './commands/propose.js'
@@ -47,7 +47,7 @@ const program = new Command()
 program
   .name('metta')
   .description('A composable, context-aware, spec-driven development framework')
-  .version('0.1.0')
+  .version(await getPackageVersion())
   .option('--json', 'Machine-readable JSON output')
   .option('--verbose', 'Verbose output')
   .option('--debug', 'Debug output')
