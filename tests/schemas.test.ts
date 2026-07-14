@@ -314,6 +314,66 @@ describe('ChangeMetadataSchema', () => {
       expect(result.data.actual_complexity_score?.recommended_workflow).toBe('standard')
     }
   })
+
+  it('accepts metadata with a populated escalation block and round-trips it', () => {
+    const escalation = {
+      from_tier: 'quick' as const,
+      to_tier: 'standard' as const,
+      justification: 'kept standard: declined downscale',
+      timestamp: '2026-07-14T12:00:00Z',
+    }
+    const data = {
+      workflow: 'standard',
+      created: '2026-07-14T12:00:00Z',
+      status: 'active',
+      current_artifact: 'spec',
+      base_versions: {},
+      artifacts: {},
+      escalation,
+    }
+    const result = ChangeMetadataSchema.safeParse(data)
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.escalation).toEqual(escalation)
+      expect(result.data.escalation?.from_tier).toBe('quick')
+      expect(result.data.escalation?.to_tier).toBe('standard')
+    }
+  })
+
+  it('accepts legacy metadata omitting escalation (field undefined)', () => {
+    const data = {
+      workflow: 'standard',
+      created: '2026-07-14T12:00:00Z',
+      status: 'active',
+      current_artifact: 'spec',
+      base_versions: {},
+      artifacts: {},
+    }
+    const result = ChangeMetadataSchema.safeParse(data)
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.escalation).toBeUndefined()
+    }
+  })
+
+  it('rejects escalation with an empty justification', () => {
+    const data = {
+      workflow: 'standard',
+      created: '2026-07-14T12:00:00Z',
+      status: 'active',
+      current_artifact: 'spec',
+      base_versions: {},
+      artifacts: {},
+      escalation: {
+        from_tier: 'quick',
+        to_tier: 'standard',
+        justification: '',
+        timestamp: '2026-07-14T12:00:00Z',
+      },
+    }
+    const result = ChangeMetadataSchema.safeParse(data)
+    expect(result.success).toBe(false)
+  })
 })
 
 describe('ArtifactTimingSchema', () => {
