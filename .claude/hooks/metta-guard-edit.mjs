@@ -65,8 +65,15 @@ const filePath =
   ''
 if (filePath) {
   const projectRoot = process.cwd()
-  const { relative, resolve } = await import('node:path')
+  const { relative, resolve, isAbsolute } = await import('node:path')
   const relPath = relative(projectRoot, resolve(projectRoot, filePath))
+  // Outside-root early allow: a file outside the project root can never be
+  // part of a metta change, so the guard doesn't apply. `..`-prefixed covers
+  // ordinary escapes; isAbsolute covers cases relative() can't express as a
+  // traversal (e.g. a different drive on Windows).
+  if (relPath.startsWith('..') || isAbsolute(relPath)) {
+    process.exit(0)
+  }
   if (ALLOW_LIST.includes(relPath)) {
     process.exit(0)
   }
