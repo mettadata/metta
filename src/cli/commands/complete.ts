@@ -238,12 +238,15 @@ export function registerCompleteCommand(program: Command): void {
                   takeYes = true
                 } else {
                   const fileCount = score.signals.file_count
+                  // Downscale defaults to Yes unless the workflow was explicitly
+                  // locked (e.g. via --workflow), making auto-collapse the silent
+                  // path for non-interactive callers. See AutoDownscalePromptAtIntent.
                   takeYes = await askYesNo(
                     color(
                       `Scored as ${recommendedTier} (${fileCount} files) -- collapse workflow to /metta-${recommendedTier}?`,
                       33,
                     ),
-                    { defaultYes: false, jsonMode: json },
+                    { defaultYes: currentMetadata.workflow_locked !== true, jsonMode: json },
                   )
                 }
 
@@ -280,7 +283,21 @@ export function registerCompleteCommand(program: Command): void {
                   })
                   activeGraph = targetGraph
                 } else {
-                  // No path / non-TTY: informational banner only.
+                  // No path: the change stays above its scored recommendation.
+                  // Record an escalation so staying heavy is auditable
+                  // (EscalationRecording). Justification is keyed by cause.
+                  const justification = currentMetadata.workflow_locked === true
+                    ? `kept ${currentWorkflow}: workflow_locked`
+                    : `kept ${currentWorkflow}: declined downscale`
+                  await ctx.artifactStore.updateChange(changeName, {
+                    escalation: {
+                      from_tier: recommendedTier,
+                      to_tier: currentWorkflow,
+                      justification,
+                      timestamp: new Date().toISOString(),
+                    },
+                  })
+                  // Informational banner only.
                   const banner = renderBanner(score, currentWorkflow)
                   if (banner) {
                     process.stderr.write(banner + '\n')

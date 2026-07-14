@@ -11,6 +11,23 @@ agent: metta-skill-host
 
 You are the **orchestrator** for a new spec-driven change. You manage the workflow; subagents do the work.
 
+## Routing pre-step (run before Step 1)
+
+Before parsing flags or creating any change state, YOU (the orchestrator) MUST classify the incoming change description against these small/bounded criteria:
+
+- Single-file edits
+- Typo or text fixes
+- Small self-contained utilities
+- Bug fixes with an obvious, localized cause
+
+Routing decision:
+
+- **Description matches the criteria AND the caller did NOT pass an explicit `--workflow` flag:** do NOT proceed to Step 1 or the standard proposal pipeline. Run `metta quick` instead — follow the metta-quick skill flow for the same description, then stop; none of the numbered steps below run.
+- **Caller passed an explicit `--workflow` flag (any value):** defer to that choice without overriding it — skip this routing decision and proceed to Step 1, passing the flag through as written.
+- **Description does not match the criteria and no flag was passed:** proceed to Step 1 normally.
+
+**Escalation justification:** explicitly choosing `--workflow standard` or `--workflow full` above the scored recommendation results in a recorded escalation on the change record (per the `EscalationRecording` contract — an `escalation` object with `from_tier`, `to_tier`, `justification`, and `timestamp` persisted to the change's `.metta.yaml`). When you keep a higher tier against the recommendation, supply or acknowledge a one-line justification for that choice so the recorded escalation reflects a deliberate decision, not a default.
+
 ## Steps
 
 1. **Parse optional `--workflow <name>` from `$ARGUMENTS`:**

@@ -47,10 +47,9 @@ Scenarios:
 ### AutoDownscalePromptAtIntent
 
 Scenarios:
-- downscale_prompt_appears_on_oversized_propose
-- downscale_yes_mutates_workflow_and_drops_artifacts
-- downscale_prompt_suppressed_when_workflow_matches
-- downscale_prompt_skipped_non_tty
+- non_tty_unlocked_auto_downscales
+- interactive_unlocked_shows_yes_default
+- locked_change_defaults_to_no
 
 ### AutoUpscalePromptAtIntent
 
@@ -106,308 +105,49 @@ Scenarios:
 - rubric_names_deferred_signals_as_extension_points
 - claude_md_active_specs_table_updated
 
-### ComplexityScoreComputation
+### EscalationSchema
 
 Scenarios:
-- score_computed_from_impact_section
-- score_absent_before_intent_written
-- score_not_recomputed_on_intent_edit
-- score_uses_actual_files_from_summary_for_post_impl_recompute
+- schema_accepts_populated_escalation
+- schema_accepts_legacy_file_without_escalation
 
-### ComplexityScoreStorage
+### EscalationRecording
 
 Scenarios:
-- schema_accepts_full_complexity_block
-- schema_accepts_legacy_file_without_fields
-- actual_score_does_not_overwrite_original
+- escalation_recorded_on_locked_keep
+- escalation_recorded_on_interactive_decline
+- no_escalation_on_downscale_accept
 
-### TierThresholds
-
-Scenarios:
-- single_file_maps_to_trivial
-- two_files_maps_to_quick
-- four_files_maps_to_standard
-- eight_files_maps_to_full
-
-### StatusCommandSurface
+### StatusEscalationSurface
 
 Scenarios:
-- human_output_shows_complexity_line
-- json_output_includes_complexity_object
-- json_output_includes_both_scores_when_present
-- absent_score_renders_without_error
+- human_output_shows_escalation
+- json_output_includes_escalation
+- status_renders_without_escalation
 
-### InstructionsAdvisoryBanner
-
-Scenarios:
-- banner_agreement_state
-- banner_downscale_state
-- banner_upscale_state
-- banner_suppressed_when_score_absent
-
-### AutoDownscalePromptAtIntent
+### SkillRoutingPreStep
 
 Scenarios:
-- downscale_prompt_appears_on_oversized_propose
-- downscale_yes_mutates_workflow_and_drops_artifacts
-- downscale_prompt_suppressed_when_workflow_matches
-- downscale_prompt_skipped_non_tty
+- small_description_routes_to_quick
+- explicit_workflow_flag_deferred
 
-### AutoUpscalePromptAtIntent
+### EscalationJustificationGuidance
 
 Scenarios:
-- upscale_prompt_appears_on_undersized_quick
-- upscale_yes_mutates_workflow_and_inserts_artifacts
-- upscale_prompt_suppressed_when_workflow_exceeds_recommendation
-- upscale_auto_accept_skips_prompt
+- claude_md_states_default_routing
+- skill_documents_justification_requirement
 
-### PostImplementationUpscalePromptAccept
+### ProgressCeremonyRatioMetric
 
 Scenarios:
-- post_impl_prompt_appears_when_recomputed_tier_exceeds_workflow
-- post_impl_yes_spawns_agents_and_updates_metadata
-- post_impl_yes_uses_promoted_fan_out
-- post_impl_no_research_design_tasks_authored
+- human_output_reports_ceremony_ratio
+- json_output_includes_ceremony_ratio
 
-### PostImplementationUpscalePromptDecline
+### ProgressArtifactsPerSmallChangeMetric
 
 Scenarios:
-- decline_persists_actual_score_and_prints_warning
-- decline_does_not_create_stories_or_spec
-- decline_exits_zero_and_verification_proceeds
-- non_tty_defaults_to_decline
-
-### AutoAcceptRecommendationFlag
-
-Scenarios:
-- auto_flag_persists_field
-- auto_flag_skips_all_three_prompts
-- accept_recommended_alias_behaves_identically
-- auto_with_workflow_honours_initial_choice
-
-### OverrideRemainsAuthoritative
-
-Scenarios:
-- workflow_flag_alone_preserves_initial_choice_with_prompt
-- workflow_without_auto_shows_intent_prompts_normally
-- workflow_with_auto_combination_is_predictable
-
-### IntraQuickDownsizeRule
-
-Scenarios:
-- trivial_quick_run_uses_reduced_fan_out
-- trivial_fan_out_excludes_correctness_security_goalcheck
-- non_trivial_quick_run_keeps_standard_fan_out
-- tests_and_tsc_run_regardless_of_tier
-
-### ScoringRubricSpec
-
-Scenarios:
-- rubric_document_exists_with_required_sections
-- rubric_names_deferred_signals_as_extension_points
-- claude_md_active_specs_table_updated
-
-### ComplexityScoreComputation
-
-Scenarios:
-- score_computed_from_impact_section
-- score_absent_before_intent_written
-- score_not_recomputed_on_intent_edit
-- score_uses_actual_files_from_summary_for_post_impl_recompute
-
-### ComplexityScoreStorage
-
-Scenarios:
-- schema_accepts_full_complexity_block
-- schema_accepts_legacy_file_without_fields
-- actual_score_does_not_overwrite_original
-
-### TierThresholds
-
-Scenarios:
-- single_file_maps_to_trivial
-- two_files_maps_to_quick
-- four_files_maps_to_standard
-- eight_files_maps_to_full
-
-### StatusCommandSurface
-
-Scenarios:
-- human_output_shows_complexity_line
-- json_output_includes_complexity_object
-- json_output_includes_both_scores_when_present
-- absent_score_renders_without_error
-
-### InstructionsAdvisoryBanner
-
-Scenarios:
-- banner_agreement_state
-- banner_downscale_state
-- banner_upscale_state
-- banner_suppressed_when_score_absent
-
-### AutoDownscalePromptAtIntent
-
-Scenarios:
-- downscale_prompt_appears_on_oversized_propose
-- downscale_yes_mutates_workflow_and_drops_artifacts
-- downscale_prompt_suppressed_when_workflow_matches
-- downscale_prompt_skipped_non_tty
-
-### AutoUpscalePromptAtIntent
-
-Scenarios:
-- upscale_prompt_appears_on_undersized_quick
-- upscale_yes_mutates_workflow_and_inserts_artifacts
-- upscale_prompt_suppressed_when_workflow_exceeds_recommendation
-- upscale_auto_accept_skips_prompt
-
-### PostImplementationUpscalePromptAccept
-
-Scenarios:
-- post_impl_prompt_appears_when_recomputed_tier_exceeds_workflow
-- post_impl_yes_spawns_agents_and_updates_metadata
-- post_impl_yes_uses_promoted_fan_out
-- post_impl_no_research_design_tasks_authored
-
-### PostImplementationUpscalePromptDecline
-
-Scenarios:
-- decline_persists_actual_score_and_prints_warning
-- decline_does_not_create_stories_or_spec
-- decline_exits_zero_and_verification_proceeds
-- non_tty_defaults_to_decline
-
-### AutoAcceptRecommendationFlag
-
-Scenarios:
-- auto_flag_persists_field
-- auto_flag_skips_all_three_prompts
-- accept_recommended_alias_behaves_identically
-- auto_with_workflow_honours_initial_choice
-
-### OverrideRemainsAuthoritative
-
-Scenarios:
-- workflow_flag_alone_preserves_initial_choice_with_prompt
-- workflow_without_auto_shows_intent_prompts_normally
-- workflow_with_auto_combination_is_predictable
-
-### IntraQuickDownsizeRule
-
-Scenarios:
-- trivial_quick_run_uses_reduced_fan_out
-- trivial_fan_out_excludes_correctness_security_goalcheck
-- non_trivial_quick_run_keeps_standard_fan_out
-- tests_and_tsc_run_regardless_of_tier
-
-### ScoringRubricSpec
-
-Scenarios:
-- rubric_document_exists_with_required_sections
-- rubric_names_deferred_signals_as_extension_points
-- claude_md_active_specs_table_updated
-
-### ComplexityScoreComputation
-
-Scenarios:
-- score_computed_from_impact_section
-- score_absent_before_intent_written
-- score_not_recomputed_on_intent_edit
-- score_uses_actual_files_from_summary_for_post_impl_recompute
-
-### ComplexityScoreStorage
-
-Scenarios:
-- schema_accepts_full_complexity_block
-- schema_accepts_legacy_file_without_fields
-- actual_score_does_not_overwrite_original
-
-### TierThresholds
-
-Scenarios:
-- single_file_maps_to_trivial
-- two_files_maps_to_quick
-- four_files_maps_to_standard
-- eight_files_maps_to_full
-
-### StatusCommandSurface
-
-Scenarios:
-- human_output_shows_complexity_line
-- json_output_includes_complexity_object
-- json_output_includes_both_scores_when_present
-- absent_score_renders_without_error
-
-### InstructionsAdvisoryBanner
-
-Scenarios:
-- banner_agreement_state
-- banner_downscale_state
-- banner_upscale_state
-- banner_suppressed_when_score_absent
-
-### AutoDownscalePromptAtIntent
-
-Scenarios:
-- downscale_prompt_appears_on_oversized_propose
-- downscale_yes_mutates_workflow_and_drops_artifacts
-- downscale_prompt_suppressed_when_workflow_matches
-- downscale_prompt_skipped_non_tty
-
-### AutoUpscalePromptAtIntent
-
-Scenarios:
-- upscale_prompt_appears_on_undersized_quick
-- upscale_yes_mutates_workflow_and_inserts_artifacts
-- upscale_prompt_suppressed_when_workflow_exceeds_recommendation
-- upscale_auto_accept_skips_prompt
-
-### PostImplementationUpscalePromptAccept
-
-Scenarios:
-- post_impl_prompt_appears_when_recomputed_tier_exceeds_workflow
-- post_impl_yes_spawns_agents_and_updates_metadata
-- post_impl_yes_uses_promoted_fan_out
-- post_impl_no_research_design_tasks_authored
-
-### PostImplementationUpscalePromptDecline
-
-Scenarios:
-- decline_persists_actual_score_and_prints_warning
-- decline_does_not_create_stories_or_spec
-- decline_exits_zero_and_verification_proceeds
-- non_tty_defaults_to_decline
-
-### AutoAcceptRecommendationFlag
-
-Scenarios:
-- auto_flag_persists_field
-- auto_flag_skips_all_three_prompts
-- accept_recommended_alias_behaves_identically
-- auto_with_workflow_honours_initial_choice
-
-### OverrideRemainsAuthoritative
-
-Scenarios:
-- workflow_flag_alone_preserves_initial_choice_with_prompt
-- workflow_without_auto_shows_intent_prompts_normally
-- workflow_with_auto_combination_is_predictable
-
-### IntraQuickDownsizeRule
-
-Scenarios:
-- trivial_quick_run_uses_reduced_fan_out
-- trivial_fan_out_excludes_correctness_security_goalcheck
-- non_trivial_quick_run_keeps_standard_fan_out
-- tests_and_tsc_run_regardless_of_tier
-
-### ScoringRubricSpec
-
-Scenarios:
-- rubric_document_exists_with_required_sections
-- rubric_names_deferred_signals_as_extension_points
-- claude_md_active_specs_table_updated
+- reports_mean_artifact_count
+- no_data_renders_without_misleading_zero
 
 ## Artifact Store
 

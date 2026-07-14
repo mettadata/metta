@@ -1,8 +1,38 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mkdtemp, rm, mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
+import { Command } from 'commander'
 import { runCli, execAsync, CLI_PATH } from './helpers/cli.js'
+import { registerCompleteCommand } from '../src/cli/commands/complete.js'
+
+// Scripted TTY prompt state for the in-process interactive downscale tests.
+// When `answers` is non-empty, the node:readline mock below intercepts
+// createInterface and replays the queued answer; otherwise it delegates to
+// the real implementation so every other test is unaffected.
+const ttyPrompt = vi.hoisted(() => ({
+  answers: [] as string[],
+  questions: [] as string[],
+}))
+
+vi.mock('node:readline', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:readline')>()
+  return {
+    ...actual,
+    createInterface: (options: Parameters<typeof actual.createInterface>[0]) => {
+      if (ttyPrompt.answers.length === 0) {
+        return actual.createInterface(options)
+      }
+      return {
+        question(query: string, cb: (answer: string) => void): void {
+          ttyPrompt.questions.push(query)
+          cb(ttyPrompt.answers.shift() ?? '')
+        },
+        close(): void {},
+      } as unknown as ReturnType<typeof actual.createInterface>
+    },
+  }
+})
 
 describe("CLI: instructions banners / complete tier downscale & upscale", { timeout: 30000 }, () => {
   let tempDir: string
@@ -248,8 +278,10 @@ describe("CLI: instructions banners / complete tier downscale & upscale", { time
       expect(artifacts.intent).toBe('complete')
     })
 
-    it('non-TTY (no path): workflow unchanged, advisory banner emitted to stderr', async () => {
-      // execFile gives a non-TTY stdin, so askYesNo returns its default (false).
+    it('non-TTY, workflow unlocked: downscale resolves Yes silently, workflow collapses, no escalation', async () => {
+      // execFile gives a non-TTY stdin. With workflow_locked absent the
+      // downscale default is Yes, so askYesNo resolves Yes without prompting
+      // and the collapse happens silently.
       await runCli(['install', '--git-init'], tempDir)
       await runCli(['propose', 'downscale no'], tempDir)
       const changeDir = join(tempDir, 'spec', 'changes', 'downscale-no')
@@ -261,25 +293,26 @@ describe("CLI: instructions banners / complete tier downscale & upscale", { time
       )
       expect(code).toBe(0)
 
-      // Advisory banner emitted on the no path.
-      expect(stderr).toContain('Advisory:')
-      expect(stderr).toContain('downscale recommended')
+      // No advisory banner — the downscale was accepted, not declined.
+      expect(stderr).not.toContain('Advisory:')
       // No auto-accept banner (the flag was not set).
       expect(stderr).not.toContain('Auto-accepting recommendation')
 
       const meta = await readChangeMetaYaml('downscale-no')
-      // Workflow unchanged — still standard.
-      expect(meta.workflow).toBe('standard')
+      // Workflow collapsed to the recommended tier.
+      expect(meta.workflow).toBe('trivial')
       // complexity_score persisted.
       const cs = meta.complexity_score as { recommended_workflow: string }
       expect(cs.recommended_workflow).toBe('trivial')
-      // Planning artifacts still present.
+      // Planning artifacts dropped by the collapse.
       const artifacts = meta.artifacts as Record<string, string>
-      expect(artifacts).toHaveProperty('stories')
-      expect(artifacts).toHaveProperty('spec')
+      expect(artifacts).not.toHaveProperty('stories')
+      expect(artifacts).not.toHaveProperty('spec')
+      // No escalation recorded on the accept path.
+      expect(meta.escalation).toBeUndefined()
     })
 
-    it('json mode with downscale condition: no prompt, advisory banner on stderr, no workflow change', async () => {
+    it('json mode with downscale condition: no prompt, workflow collapses, stdout stays valid JSON', async () => {
       await runCli(['install', '--git-init'], tempDir)
       await runCli(['propose', 'downscale json'], tempDir)
       const changeDir = join(tempDir, 'spec', 'changes', 'downscale-json')
@@ -292,14 +325,15 @@ describe("CLI: instructions banners / complete tier downscale & upscale", { time
       expect(code).toBe(0)
       // Stdout still parses as JSON (complete's existing payload).
       expect(() => JSON.parse(stdout)).not.toThrow()
-      // Advisory banner emitted on stderr (no path in json mode).
-      expect(stderr).toContain('Advisory:')
+      // No advisory banner — json mode resolves the Yes default silently.
+      expect(stderr).not.toContain('Advisory:')
 
       const meta = await readChangeMetaYaml('downscale-json')
-      expect(meta.workflow).toBe('standard')
+      expect(meta.workflow).toBe('trivial')
+      expect(meta.escalation).toBeUndefined()
     })
 
-    it('three-file impact under standard: no downscale fires (same tier or higher)', async () => {
+    it('three-file impact under standard: downscale to quick fires by default', async () => {
       await runCli(['install', '--git-init'], tempDir)
       await runCli(['propose', 'three file impact'], tempDir)
       const changeDir = join(tempDir, 'spec', 'changes', 'three-file-impact')
@@ -310,20 +344,161 @@ describe("CLI: instructions banners / complete tier downscale & upscale", { time
         tempDir,
       )
       expect(code).toBe(0)
-      // 3 files -> quick, workflow was standard. quick < standard so downscale recommended.
-      // But no auto-accept, non-TTY -> no path: advisory banner yes, no workflow change.
-      expect(stderr).toContain('Advisory:')
+      // 3 files -> quick, workflow was standard. quick < standard, unlocked,
+      // non-TTY -> the Yes default collapses the workflow silently.
+      expect(stderr).not.toContain('Advisory:')
       expect(stderr).not.toContain('Auto-accepting recommendation')
 
       const meta = await readChangeMetaYaml('three-file-impact')
-      expect(meta.workflow).toBe('standard')
+      expect(meta.workflow).toBe('quick')
       const cs = meta.complexity_score as { recommended_workflow: string; signals: { file_count: number } }
       expect(cs.recommended_workflow).toBe('quick')
       expect(cs.signals.file_count).toBe(3)
       const artifacts = meta.artifacts as Record<string, string>
-      // Planning artifacts preserved (no downscale).
+      // Planning artifacts dropped by the collapse.
+      expect(artifacts).not.toHaveProperty('stories')
+      expect(artifacts).not.toHaveProperty('spec')
+      expect(meta.escalation).toBeUndefined()
+    })
+
+    it('workflow_locked, non-TTY: workflow kept, escalation recorded with workflow_locked justification', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      // Explicit --workflow sets workflow_locked: true, which flips the
+      // downscale default back to No.
+      await runCli(['propose', 'downscale locked', '--workflow', 'standard'], tempDir)
+      const changeDir = join(tempDir, 'spec', 'changes', 'downscale-locked')
+      await writeFile(join(changeDir, 'intent.md'), oneFileIntent('Downscale Locked'), 'utf8')
+
+      const { stderr, code } = await runCli(
+        ['complete', 'intent', '--change', 'downscale-locked'],
+        tempDir,
+      )
+      expect(code).toBe(0)
+
+      // No-path advisory banner still emitted.
+      expect(stderr).toContain('Advisory:')
+      expect(stderr).toContain('downscale recommended')
+
+      const meta = await readChangeMetaYaml('downscale-locked')
+      // Workflow unchanged — the lock kept the No default.
+      expect(meta.workflow).toBe('standard')
+      // Planning artifacts preserved (no collapse).
+      const artifacts = meta.artifacts as Record<string, string>
       expect(artifacts).toHaveProperty('stories')
       expect(artifacts).toHaveProperty('spec')
+      // Escalation recorded: staying above the recommendation is auditable.
+      const esc = meta.escalation as {
+        from_tier: string
+        to_tier: string
+        justification: string
+        timestamp: string
+      }
+      expect(esc).toBeDefined()
+      expect(esc.from_tier).toBe('trivial')
+      expect(esc.to_tier).toBe('standard')
+      expect(esc.justification).toContain('workflow_locked')
+      expect(esc.timestamp).toBeDefined()
+    })
+
+    // Run `metta complete intent` in-process with a simulated interactive
+    // TTY: stdin.isTTY is forced true and the node:readline mock at the top
+    // of this file replays `answer` to the first prompt. The subprocess
+    // harness (runCli/execFile) cannot allocate a pty, so the interactive
+    // matrix rows are covered in-process against the real command action.
+    async function runCompleteInteractive(
+      changeName: string,
+      answer: string,
+      cwd: string,
+    ): Promise<void> {
+      const prevCwd = process.cwd()
+      const prevIsTTY = process.stdin.isTTY
+      const exitSpy = vi.spyOn(process, 'exit').mockImplementation(((code?: number) => {
+        throw new Error(`process.exit(${code ?? 0}) called`)
+      }) as never)
+      ttyPrompt.questions.length = 0
+      ttyPrompt.answers.push(answer)
+      Object.defineProperty(process.stdin, 'isTTY', {
+        value: true,
+        configurable: true,
+        writable: true,
+      })
+      try {
+        process.chdir(cwd)
+        const program = new Command()
+        program.option('--json')
+        registerCompleteCommand(program)
+        await program.parseAsync(['complete', 'intent', '--change', changeName], {
+          from: 'user',
+        })
+      } finally {
+        process.chdir(prevCwd)
+        Object.defineProperty(process.stdin, 'isTTY', {
+          value: prevIsTTY,
+          configurable: true,
+          writable: true,
+        })
+        exitSpy.mockRestore()
+        ttyPrompt.answers.length = 0
+      }
+    }
+
+    it('interactive decline (answer n): [Y/n] prompt, workflow kept, declined-downscale escalation', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await runCli(['propose', 'downscale decline'], tempDir)
+      const changeDir = join(tempDir, 'spec', 'changes', 'downscale-decline')
+      await writeFile(join(changeDir, 'intent.md'), oneFileIntent('Downscale Decline'), 'utf8')
+
+      await runCompleteInteractive('downscale-decline', 'n', tempDir)
+
+      // Prompt rendered with the Yes-default suffix.
+      expect(ttyPrompt.questions.length).toBeGreaterThan(0)
+      expect(ttyPrompt.questions[0]).toContain('collapse workflow to /metta-trivial?')
+      expect(ttyPrompt.questions[0]).toContain('[Y/n]')
+
+      const meta = await readChangeMetaYaml('downscale-decline')
+      // Workflow unchanged — the user declined.
+      expect(meta.workflow).toBe('standard')
+      const artifacts = meta.artifacts as Record<string, string>
+      expect(artifacts).toHaveProperty('stories')
+      expect(artifacts).toHaveProperty('spec')
+      // Escalation recorded with the declined-downscale justification.
+      const esc = meta.escalation as {
+        from_tier: string
+        to_tier: string
+        justification: string
+        timestamp: string
+      }
+      expect(esc).toBeDefined()
+      expect(esc.from_tier).toBe('trivial')
+      expect(esc.to_tier).toBe('standard')
+      expect(esc.justification).toContain('declined downscale')
+      expect(esc.timestamp).toBeDefined()
+    })
+
+    it('interactive empty answer: Yes default collapses workflow, no escalation', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await runCli(['propose', 'downscale accept enter'], tempDir)
+      const changeDir = join(tempDir, 'spec', 'changes', 'downscale-accept-enter')
+      await writeFile(
+        join(changeDir, 'intent.md'),
+        oneFileIntent('Downscale Accept Enter'),
+        'utf8',
+      )
+
+      await runCompleteInteractive('downscale-accept-enter', '', tempDir)
+
+      // Prompt rendered with the Yes-default suffix.
+      expect(ttyPrompt.questions.length).toBeGreaterThan(0)
+      expect(ttyPrompt.questions[0]).toContain('[Y/n]')
+
+      const meta = await readChangeMetaYaml('downscale-accept-enter')
+      // Empty answer takes the Yes default: workflow collapses.
+      expect(meta.workflow).toBe('trivial')
+      const artifacts = meta.artifacts as Record<string, string>
+      expect(artifacts).not.toHaveProperty('stories')
+      expect(artifacts).not.toHaveProperty('spec')
+      // No escalation on the accept path.
+      expect(meta.escalation).toBeUndefined()
     })
 
     it('recommendation matches current workflow: no prompt, no banner, no change', async () => {
@@ -636,7 +811,7 @@ describe("CLI: instructions banners / complete tier downscale & upscale", { time
       expect(cs.recommended_workflow).toBe('quick')
     })
 
-    it('standard workflow + 3-file impact: downscale fires, upscale does NOT fire', async () => {
+    it('standard workflow + 3-file impact: downscale fires by default, upscale does NOT fire', async () => {
       await runCli(['install', '--git-init'], tempDir)
       await runCli(['propose', 'downscale not upscale'], tempDir)
       const changeDir = join(tempDir, 'spec', 'changes', 'downscale-not-upscale')
@@ -648,16 +823,15 @@ describe("CLI: instructions banners / complete tier downscale & upscale", { time
       )
       expect(code).toBe(0)
 
-      // Downscale advisory (no TTY, no auto-accept -> no path).
-      expect(stderr).toContain('Advisory:')
-      expect(stderr).toContain('downscale recommended')
+      // Non-TTY, unlocked -> the Yes default collapses the workflow silently.
+      expect(stderr).not.toContain('Advisory:')
       // Upscale advisory must NOT appear.
       expect(stderr).not.toContain('upscale recommended')
       expect(stderr).not.toContain('upscale to full is not yet supported')
 
       const meta = await readChangeMetaYaml('downscale-not-upscale')
-      // Workflow unchanged (no path).
-      expect(meta.workflow).toBe('standard')
+      // Workflow collapsed to the recommended tier.
+      expect(meta.workflow).toBe('quick')
       const cs = meta.complexity_score as { recommended_workflow: string }
       expect(cs.recommended_workflow).toBe('quick')
     })

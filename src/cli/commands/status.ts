@@ -125,6 +125,13 @@ function printChangeStatus(name: string, metadata: ChangeMetadata): void {
     console.log(`Tokens: ${ctxK}k / ${budK}k`)
   }
 
+  // Escalation — only printed when the change was kept above its scored
+  // recommendation; no placeholder line when absent.
+  if (metadata.escalation !== undefined) {
+    const e = metadata.escalation
+    console.log(`Escalation: ${e.from_tier} -> ${e.to_tier} (${e.justification})`)
+  }
+
   // Iteration counters — suppress each half when zero/absent.
   const iterHalves: string[] = []
   if ((metadata.review_iterations ?? 0) > 0) {

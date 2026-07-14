@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { createCliContext, outputJson, color, agentBanner, getErrorMessage } from '../helpers.js'
 import { formatDuration } from '../../util/duration.js'
 import { getGitLogTimings } from '../../util/git-log-timings.js'
+import { getCeremonyCommitRatio, getArtifactsPerSmallChange } from '../../util/ceremony-metrics.js'
 import type { ArtifactTiming, ArtifactTokens } from '../../schemas/change-metadata.js'
 
 export function registerProgressCommand(program: Command): void {
@@ -15,6 +16,11 @@ export function registerProgressCommand(program: Command): void {
       const ctx = createCliContext()
 
       try {
+        // Ceremony metrics — each helper never throws and returns null on
+        // no data; null must pass through verbatim, never coerced to 0.
+        const ceremonyRatio = await getCeremonyCommitRatio(ctx.projectRoot)
+        const artifactsPerSmall = await getArtifactsPerSmallChange(join(ctx.projectRoot, 'spec'))
+
         // Active changes
         const activeNames = await ctx.artifactStore.listChanges()
         const active: Array<{
@@ -81,6 +87,8 @@ export function registerProgressCommand(program: Command): void {
               shipped: archived.length,
               total: active.length + archived.length,
             },
+            ceremony_commit_ratio: ceremonyRatio,
+            artifacts_per_small_change: artifactsPerSmall,
           })
           return
         }
@@ -151,6 +159,19 @@ export function registerProgressCommand(program: Command): void {
         // Summary
         const total = active.length + archived.length
         console.log(`  ${color(String(archived.length), 32)} shipped  ${color(String(active.length), 33)} active  ${color(String(total), 36)} total`)
+
+        // Ceremony metrics — explicit no-data wording, never a bare 0.
+        if (ceremonyRatio !== null) {
+          const pct = Math.round(ceremonyRatio.ratio * 100)
+          console.log(`  Ceremony commits: ${pct}% (${ceremonyRatio.ceremony}/${ceremonyRatio.total} chore/docs)`)
+        } else {
+          console.log('  Ceremony commits: no data')
+        }
+        if (artifactsPerSmall !== null) {
+          console.log(`  Artifacts per small change: ${artifactsPerSmall.mean.toFixed(1)} (avg over ${artifactsPerSmall.sample_size} quick/trivial changes)`)
+        } else {
+          console.log('  Artifacts per small change: no data')
+        }
 
       } catch (err) {
         const message = getErrorMessage(err)

@@ -44,6 +44,15 @@ export const ArtifactTokensSchema = z.object({
 
 export type ArtifactTokens = z.infer<typeof ArtifactTokensSchema>
 
+export const EscalationSchema = z.object({
+  from_tier: z.enum(['trivial', 'quick', 'standard', 'full']),
+  to_tier: z.enum(['trivial', 'quick', 'standard', 'full']),
+  justification: z.string().min(1),
+  timestamp: z.string().datetime(),
+}).strict()
+
+export type Escalation = z.infer<typeof EscalationSchema>
+
 export const ChangeMetadataSchema = z.object({
   workflow: z.string(),
   created: z.string().datetime(),
@@ -60,6 +69,7 @@ export const ChangeMetadataSchema = z.object({
   review_iterations: z.number().int().nonnegative().optional(),
   verify_iterations: z.number().int().nonnegative().optional(),
   stop_after: z.string().optional(),
+  escalation: EscalationSchema.optional(),
 }).strict()
 
 export type ChangeMetadata = z.infer<typeof ChangeMetadataSchema>

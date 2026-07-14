@@ -40,6 +40,8 @@ export function workflowPrimerLong(): string[] {
     'Primary entry points:',
     ...ENTRY_POINTS_BULLETS,
     '',
+    'Quick mode is the default routing decision for small, bounded changes (single-file edits, typo/text fixes, small self-contained utilities, bug fixes with an obvious localized cause). Choosing or keeping `--workflow standard` or `--workflow full` above the scored recommendation requires a recorded justification — the escalation record written to the change\'s `.metta.yaml`.',
+    '',
     'Doc-only fixes and edits to this workflow section itself are the exceptions.',
     '',
     '### Forbidden',
