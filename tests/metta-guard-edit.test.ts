@@ -93,6 +93,31 @@ describe('metta-guard-edit hook init-phase allow-list', { timeout: 30_000 }, () 
         expect(code).toBe(0)
       })
 
+      it('exits 0 for an absolute path outside the project root with no active change', () => {
+        // Outside-root early allow: files not under the project root can never
+        // be part of a metta change, so the guard must not gate them. Regardless
+        // of whether `metta` resolves on PATH (catch-all pass-through) or reports
+        // no active change (outside-root branch), the hook must exit 0 with no
+        // block message.
+        const { code, stderr } = runHook(
+          hookPath,
+          { tool_name: 'Write', tool_input: { file_path: '/tmp/whatever/file.md' } },
+          tempDir,
+        )
+        expect(code).toBe(0)
+        expect(stderr).not.toContain('blocked')
+      })
+
+      it('exits 0 for a ..-relative path escaping the project root with no active change', () => {
+        const { code, stderr } = runHook(
+          hookPath,
+          { tool_name: 'Edit', tool_input: { file_path: '../outside/notes.md' } },
+          tempDir,
+        )
+        expect(code).toBe(0)
+        expect(stderr).not.toContain('blocked')
+      })
+
       it('still blocks spec/issues/ non-md file (e.g. directory traversal)', () => {
         const { code } = runHook(
           hookPath,
