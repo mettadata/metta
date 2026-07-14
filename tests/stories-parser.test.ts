@@ -179,6 +179,70 @@ describe('parseStories', () => {
     expect(doc.stories[0].independentTestCriteria).toBe('parser populates all five fields without blank lines')
   })
 
+  it("accepts the '**As an**' article variant and binds it to asA", async () => {
+    const md = [
+      '# User Stories',
+      '',
+      '## US-1: vowel subject',
+      '',
+      '**As an** engineer',
+      '',
+      '**I want to** write grammatically correct stories',
+      '',
+      '**So that** the parser does not reject valid English',
+      '',
+      '**Priority:** P1',
+      '',
+      '**Independent Test Criteria:** parses without a missing-field error',
+      '',
+      '**Acceptance Criteria:**',
+      '',
+      '- **Given** a story using As an **When** the parser runs **Then** asA is populated',
+      '',
+    ].join('\n')
+    const path = await writeFixture(dir, md)
+    const doc = await parseStories(path)
+    expect(doc.kind).toBe('stories')
+    if (doc.kind !== 'stories') throw new Error('expected stories')
+    expect(doc.stories[0].asA).toBe('engineer')
+  })
+
+  it("still accepts '**As a**' alongside '**As an**' in the same document", async () => {
+    const md = [
+      '# User Stories',
+      '',
+      '## US-1: consonant subject',
+      '',
+      '**As a** developer',
+      '**I want to** keep the original form working',
+      '**So that** existing stories do not regress',
+      '**Priority:** P1',
+      '**Independent Test Criteria:** both article forms parse',
+      '',
+      '**Acceptance Criteria:**',
+      '',
+      '- **Given** g1 **When** w1 **Then** t1',
+      '',
+      '## US-2: vowel subject',
+      '',
+      '**As an** AI orchestrator',
+      '**I want to** use the correct article',
+      '**So that** stories read naturally',
+      '**Priority:** P2',
+      '**Independent Test Criteria:** vowel-article story parses',
+      '',
+      '**Acceptance Criteria:**',
+      '',
+      '- **Given** g2 **When** w2 **Then** t2',
+    ].join('\n')
+    const path = await writeFixture(dir, md)
+    const doc = await parseStories(path)
+    expect(doc.kind).toBe('stories')
+    if (doc.kind !== 'stories') throw new Error('expected stories')
+    expect(doc.stories[0].asA).toBe('developer')
+    expect(doc.stories[1].asA).toBe('AI orchestrator')
+  })
+
   it('parses mixed format (one story compact, one spaced)', async () => {
     const md = [
       '# Mixed',

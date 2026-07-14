@@ -1,0 +1,26 @@
+workflow: trivial
+created: 2026-07-14T07:01:32.523Z
+status: active
+current_artifact: verification
+base_versions: {}
+artifacts:
+  intent: complete
+  implementation: complete
+  verification: complete
+complexity_score:
+  score: 0
+  signals:
+    file_count: 0
+  recommended_workflow: trivial
+artifact_timings:
+  intent:
+    started: 2026-07-14T07:01:40.066Z
+    completed: 2026-07-14T07:02:39.725Z
+  implementation:
+    completed: 2026-07-14T07:17:32.976Z
+  verification:
+    completed: 2026-07-14T07:27:00.635Z
+artifact_tokens:
+  intent:
+    context: 775
+    budget: 20000
