@@ -62,13 +62,13 @@ Requirement -> Task coverage:
 
 ## Batch 4: Skill routing pre-step and CLAUDE.md guidance
 
-- [ ] **Task 4.1: Routing pre-step in metta-propose skill (template + deployed copy)**
+- [x] **Task 4.1: Routing pre-step in metta-propose skill (template + deployed copy)**
   - Files: src/templates/skills/metta-propose/SKILL.md, .claude/skills/metta-propose/SKILL.md
   - Action: Insert an unnumbered `## Routing pre-step (run before Step 1)` section directly above the existing `## Steps` heading, identically in both files (do not renumber the existing "Step N" cross-references). The section must: classify the incoming change description against small/bounded criteria (single-file edits, typo/text fixes, small self-contained utilities, bug fixes with an obvious localized cause); when the description matches those criteria AND the caller did not pass an explicit `--workflow` flag, direct the orchestrator to run `metta quick` instead of proceeding into Step 1 / the standard proposal pipeline; when the caller passed an explicit `--workflow` flag, defer to that choice without overriding it; and document that choosing `--workflow standard`/`--workflow full` explicitly requires a recorded justification consistent with the escalation contract (`EscalationRecording`). Apply the exact same section text to both files. Fulfills SkillRoutingPreStep, EscalationJustificationGuidance.
   - Verify: npx vitest run tests/grounding.test.ts tests/skill-discovery-loop.test.ts
   - Done: the byte-identity tests (`grounding.test.ts`, `skill-discovery-loop.test.ts`) pass, confirming both files carry the identical new section.
 
-- [ ] **Task 4.2: CLAUDE.md default-routing/justification wording via workflow-primer**
+- [x] **Task 4.2: CLAUDE.md default-routing/justification wording via workflow-primer**
   - Files: src/delivery/workflow-primer.ts, CLAUDE.md
   - Action: Update `workflowPrimerLong()` in `src/delivery/workflow-primer.ts` to add a statement in the `### How to work` section text that quick mode is the default routing decision for small, bounded changes, and that choosing or keeping `--workflow standard` or `--workflow full` above the scored recommendation requires a recorded justification (mirroring the skill guidance from Task 4.1). Do not hand-edit `CLAUDE.md` directly — regenerate it: build the project (`npm run build`) then run `node dist/cli/index.js refresh --no-commit` from the repo root so the marker-delimited `<!-- metta:workflow-start -->...<!-- metta:workflow-end -->` section in `CLAUDE.md` picks up the updated `workflowPrimerLong()` text. Fulfills EscalationJustificationGuidance.
   - Verify: npx vitest run tests/refresh.test.ts && npm run build && node dist/cli/index.js refresh --no-commit
@@ -76,7 +76,7 @@ Requirement -> Task coverage:
 
 ## Batch 5: Full gate sweep
 
-- [ ] **Task 5.1: Full gate sweep across all batches**
+- [x] **Task 5.1: Full gate sweep across all batches**
   - Files: (none — whole-repo verification)
   - Action: Run the full test suite, the TypeScript type checker, and the production build to confirm no regressions were introduced across Batches 1-4.
   - Verify: npx vitest run && npx tsc --noEmit && npm run build
