@@ -386,4 +386,68 @@ describe("CLI: status / next / changes / doctor / gate / validate-stories", { ti
     })
   })
 
+
+  describe('metta status escalation surface', () => {
+    const escalation = {
+      from_tier: 'quick',
+      to_tier: 'standard',
+      justification: 'kept standard: workflow_locked',
+      timestamp: '2026-07-01T10:00:00.000Z',
+    }
+
+    async function writeEscalationField(changeName: string): Promise<void> {
+      const { readFile, writeFile } = await import('node:fs/promises')
+      const YAML = (await import('yaml')).default
+      const path = join(tempDir, 'spec', 'changes', changeName, '.metta.yaml')
+      const raw = await readFile(path, 'utf8')
+      const doc = YAML.parse(raw) as Record<string, unknown>
+      doc.escalation = escalation
+      await writeFile(path, YAML.stringify(doc, { lineWidth: 0 }), 'utf8')
+    }
+
+    it('human mode shows the escalation line with from/to/justification when present', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await runCli(['propose', 'escalated change human'], tempDir)
+      await writeEscalationField('escalated-change-human')
+      const { stdout, code } = await runCli(
+        ['status', '--change', 'escalated-change-human'],
+        tempDir,
+      )
+      expect(code).toBe(0)
+      expect(stdout).toContain('Escalation: quick -> standard (kept standard: workflow_locked)')
+    })
+
+    it('JSON mode includes the escalation field verbatim when present', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await runCli(['propose', 'escalated change json'], tempDir)
+      await writeEscalationField('escalated-change-json')
+      const { stdout, code } = await runCli(
+        ['--json', 'status', '--change', 'escalated-change-json'],
+        tempDir,
+      )
+      expect(code).toBe(0)
+      const data = JSON.parse(stdout)
+      expect(data.escalation).toEqual(escalation)
+    })
+
+    it('renders normally with no escalation section/field in either mode when absent', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await runCli(['propose', 'no escalation change'], tempDir)
+
+      const human = await runCli(['status', '--change', 'no-escalation-change'], tempDir)
+      expect(human.code).toBe(0)
+      expect(human.stdout).not.toContain('Escalation:')
+
+      const jsonRun = await runCli(
+        ['--json', 'status', '--change', 'no-escalation-change'],
+        tempDir,
+      )
+      expect(jsonRun.code).toBe(0)
+      const data = JSON.parse(jsonRun.stdout)
+      expect('escalation' in data).toBe(false)
+      // Absent means absent — not normalized to null like complexity_score.
+      expect(data.escalation).toBeUndefined()
+    })
+  })
+
 })
