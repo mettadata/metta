@@ -41,6 +41,8 @@ Primary entry points:
 - `/metta-propose <description>` — anything non-trivial (new features, multi-file changes, API surface changes)
 - `/metta-fix-issues <slug>` — resolve a logged issue from `spec/issues/`
 
+Quick mode is the default routing decision for small, bounded changes (single-file edits, typo/text fixes, small self-contained utilities, bug fixes with an obvious localized cause). Choosing or keeping `--workflow standard` or `--workflow full` above the scored recommendation requires a recorded justification — the escalation record written to the change's `.metta.yaml`.
+
 Doc-only fixes and edits to this workflow section itself are the exceptions.
 
 ### Forbidden
@@ -97,12 +99,14 @@ Cite the source URL when presenting findings so the user can verify the answer.
 | custom-claude-statusline-conte | 86 |
 | execution-engine | 49 |
 | finalize-ship | 26 |
+| fix-finalize-stage-should-auto-update-docs-changelog-md | 15 |
 | fix-gate-infrastructure-bundle | 10 |
 | fix-gate-runner-process-group-kill-timeout-scope-gates | 10 |
 | fix-issue-full-workflow-refere | 1 |
 | fix-issue-stories-parser-multi | 3 |
 | fix-metta-guard-bash-allows-ai-orchestrators-bypass-skill | 34 |
 | fix-metta-next-gap-detect-unme | 8 |
+| fix-metta-propose-has-no-flag-stop-after-planning-artifacts | 71 |
 | harden-metta-config-yaml-lifecycle-across-three-related-bugs | 38 |
 | metta-issue-metta-backlog-slas | 11 |
 | schemas | 126 |
