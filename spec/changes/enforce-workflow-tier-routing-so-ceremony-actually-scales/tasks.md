@@ -14,13 +14,13 @@ Requirement -> Task coverage:
 
 ## Batch 1: Schema foundation
 
-- [ ] **Task 1.1: Add EscalationSchema to ChangeMetadataSchema**
+- [x] **Task 1.1: Add EscalationSchema to ChangeMetadataSchema**
   - Files: src/schemas/change-metadata.ts
   - Action: Add `EscalationSchema = z.object({ from_tier: z.enum(['trivial', 'quick', 'standard', 'full']), to_tier: z.enum(['trivial', 'quick', 'standard', 'full']), justification: z.string().min(1), timestamp: z.string().datetime() }).strict()` per design Data Model. Add `escalation: EscalationSchema.optional()` to `ChangeMetadataSchema` alongside the other optional fields (near `stop_after`). Export the inferred `Escalation` type alongside `ChangeMetadata`. Fulfills EscalationSchema.
   - Verify: npx tsc --noEmit
   - Done: change-metadata.ts compiles with `EscalationSchema` and `Escalation` type exported and `escalation` present as an optional field on `ChangeMetadataSchema`.
 
-- [ ] **Task 1.2: Schema tests for escalation presence/absence**
+- [x] **Task 1.2: Schema tests for escalation presence/absence**
   - Files: tests/schemas.test.ts
   - Action: In the existing `describe('ChangeMetadataSchema', ...)` block, add cases covering: (a) `schema_accepts_populated_escalation` — a metadata object with a populated `escalation` (`from_tier: 'quick'`, `to_tier: 'standard'`, non-empty `justification`, ISO `timestamp`) parses successfully and the field round-trips on the result; (b) `schema_accepts_legacy_file_without_escalation` — a metadata object omitting `escalation` entirely parses successfully with `escalation` absent (`undefined`) and no Zod error; (c) a metadata object with `escalation.justification: ''` fails validation (min-length guard). Fulfills EscalationSchema.
   - Verify: npx vitest run tests/schemas.test.ts
