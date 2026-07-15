@@ -379,6 +379,80 @@ The system MUST support \`metta install\` for Beta with updated behavior.
     expect(headers2.length).toBe(2)
   })
 
+  it('re-applying an ADDED delta does not duplicate an existing requirement', async () => {
+    const existingSpec = `# Auth
+
+## Requirement: Session Management
+
+The system MUST manage sessions.
+
+### Scenario: Session expiry
+- GIVEN a session
+- WHEN it expires
+- THEN user is logged out
+`
+    await writeFile(join(specDir, 'specs', 'auth', 'spec.md'), existingSpec)
+    const parsed = parseSpec(existingSpec)
+    const lock = lockManager.createFromParsed(parsed)
+    await lockManager.write('auth', lock)
+
+    const deltaContent = `# auth (Delta)
+
+## ADDED: Requirement: Session Management
+
+The system MUST manage sessions.
+
+### Scenario: Session expiry
+- GIVEN a session
+- WHEN it expires
+- THEN user is logged out
+`
+    await writeFile(join(specDir, 'changes', 'add-mfa', 'spec.md'), deltaContent)
+
+    const result = await merger.merge('add-mfa', {
+      'auth/spec.md': lock.hash,
+    })
+
+    expect(result.status).toBe('clean')
+    expect(result.noops).toContain('auth/session-management')
+    expect(result.merged).not.toContain('auth/session-management')
+
+    const { readFile } = await import('node:fs/promises')
+    const content = await readFile(join(specDir, 'specs', 'auth', 'spec.md'), 'utf-8')
+    const headers = content.match(/^## Requirement: Session Management$/gm) ?? []
+    expect(headers.length).toBe(1)
+  })
+
+  it('ADDED idempotency holds without a base_versions entry', async () => {
+    const deltaContent = `# newcap (Delta)
+
+## ADDED: Requirement: Brand New Feature
+
+The system MUST do the brand new thing.
+
+### Scenario: It works
+- GIVEN nothing
+- WHEN triggered
+- THEN it works
+`
+    await writeFile(join(specDir, 'changes', 'add-mfa', 'spec.md'), deltaContent)
+
+    // First merge creates the capability spec from scratch.
+    const result1 = await merger.merge('add-mfa', {})
+    expect(result1.status).toBe('clean')
+
+    // Second merge with identical delta content and an empty baseVersions
+    // object — mirrors a retried finalize where the change's own earlier
+    // ADDED delta created the capability, so no base_versions entry exists.
+    const result2 = await merger.merge('add-mfa', {})
+    expect(result2.status).toBe('clean')
+
+    const { readFile } = await import('node:fs/promises')
+    const content = await readFile(join(specDir, 'specs', 'newcap', 'spec.md'), 'utf-8')
+    const headers = content.match(/^## Requirement: Brand New Feature$/gm) ?? []
+    expect(headers.length).toBe(1)
+  })
+
   it('MODIFIED delta targeting missing requirement returns conflict', async () => {
     const existingSpec = `# Auth
 
