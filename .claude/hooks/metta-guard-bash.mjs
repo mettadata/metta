@@ -139,6 +139,21 @@ async function main() {
   // Belt-and-suspenders: honor env-var bypass if set on the hook process itself.
   if (process.env.METTA_SKILL === '1') process.exit(0);
 
+  // Forked metta agents must complete all work synchronously — background Bash is
+  // rejected outright, regardless of the command string (see the Synchronous
+  // completion rule in .claude/agents/metta-skill-host.md).
+  if (event.tool_input?.run_in_background === true && isTrustedSkillCaller(event)) {
+    appendAuditLog(event, 'block', { sub: null, third: null }, 'background-bash-from-fork');
+    process.stderr.write(
+      `metta-guard-bash: Blocked Bash run_in_background from a forked metta agent (${event.agent_type}).\n` +
+      `Forked skills MUST NOT end their turn with background work in flight — see the ` +
+      `Synchronous completion rule in .claude/agents/metta-skill-host.md.\n` +
+      `Run the command in the foreground and wait for it to complete before reporting.\n` +
+      `Emergency bypass: disable this hook in .claude/settings.local.json.\n`
+    );
+    process.exit(2);
+  }
+
   const command = event.tool_input?.command ?? '';
   const invocations = tokenize(command);
 

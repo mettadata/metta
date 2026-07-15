@@ -51,9 +51,11 @@ function runHook(
 
 function bashEvent(
   command: string,
-  extra: { agent_type?: string; cwd?: string } = {},
+  extra: { agent_type?: string; cwd?: string; run_in_background?: boolean } = {},
 ): Record<string, unknown> {
-  const event: Record<string, unknown> = { tool_name: 'Bash', tool_input: { command } }
+  const toolInput: Record<string, unknown> = { command }
+  if (extra.run_in_background !== undefined) toolInput.run_in_background = extra.run_in_background
+  const event: Record<string, unknown> = { tool_name: 'Bash', tool_input: toolInput }
   if (extra.agent_type !== undefined) event.agent_type = extra.agent_type
   if (extra.cwd !== undefined) event.cwd = extra.cwd
   return event
@@ -347,6 +349,116 @@ describe('metta-guard-bash hook', { timeout: 30_000 }, () => {
           const entry = JSON.parse(lines[0])
           expect(entry.verdict).toBe('allow_with_bypass')
           expect(entry.subcommand).toBe('refresh')
+        })
+      })
+
+      // ----- Background Bash rejection from forked metta agents -----
+      describe('background Bash rejection from forked metta agents', () => {
+        const tempDirs: string[] = []
+        afterEach(() => {
+          while (tempDirs.length) {
+            const dir = tempDirs.pop()!
+            try {
+              rmSync(dir, { recursive: true, force: true })
+            } catch {
+              // best-effort cleanup
+            }
+          }
+        })
+        function makeTempCwd(): string {
+          const dir = mkdtempSync(join(tmpdir(), 'metta-guard-bg-'))
+          tempDirs.push(dir)
+          return dir
+        }
+
+        // (1) Background Bash from metta-skill-host -> block, regardless of command
+        it('blocks run_in_background from agent_type=metta-skill-host (exit 2)', () => {
+          const { code, stderr } = runHook(
+            hookPath,
+            bashEvent('sleep 100', { agent_type: 'metta-skill-host', run_in_background: true }),
+          )
+          expect(code).toBe(2)
+          expect(stderr).toContain('Blocked Bash run_in_background')
+          expect(stderr).toContain('metta-skill-host')
+        })
+
+        // (2a) Same background command with NO agent_type -> allowed (caller-scoped block)
+        it('allows run_in_background when agent_type is absent (exit 0)', () => {
+          const { code, stderr } = runHook(
+            hookPath,
+            bashEvent('sleep 100', { run_in_background: true }),
+          )
+          expect(code).toBe(0)
+          expect(stderr).toBe('')
+        })
+
+        // (2b) Same background command from a non-metta agent -> allowed
+        it('allows run_in_background from a non-metta agent_type (exit 0)', () => {
+          const { code, stderr } = runHook(
+            hookPath,
+            bashEvent('sleep 100', { agent_type: 'orchestrator', run_in_background: true }),
+          )
+          expect(code).toBe(0)
+          expect(stderr).toBe('')
+        })
+
+        // (3) Any metta-* prefixed agent is covered, not just metta-skill-host
+        it('blocks run_in_background from any metta-* agent (metta-executor) (exit 2)', () => {
+          const { code, stderr } = runHook(
+            hookPath,
+            bashEvent('sleep 100', { agent_type: 'metta-executor', run_in_background: true }),
+          )
+          expect(code).toBe(2)
+          expect(stderr).toContain('Blocked Bash run_in_background')
+          expect(stderr).toContain('metta-executor')
+        })
+
+        // (4a) Non-background Bash from a trusted metta agent -> existing classify pipeline
+        // is unchanged (enforced subcommand + inline bypass + trusted caller still allows).
+        it('leaves foreground classify behavior unchanged for trusted agents (exit 0)', () => {
+          const { code } = runHook(
+            hookPath,
+            bashEvent('METTA_SKILL=1 metta issue "hello"', { agent_type: 'metta-skill-host' }),
+          )
+          expect(code).toBe(0)
+        })
+
+        // (4b) run_in_background: false is not a background call — same as absent.
+        it('leaves classify behavior unchanged when run_in_background is false (exit 0)', () => {
+          const { code } = runHook(
+            hookPath,
+            bashEvent('METTA_SKILL=1 metta issue "hello"', {
+              agent_type: 'metta-skill-host',
+              run_in_background: false,
+            }),
+          )
+          expect(code).toBe(0)
+        })
+
+        // Audit trail: the block writes a JSON entry with reason background-bash-from-fork.
+        it('writes an audit log entry with reason background-bash-from-fork on block', () => {
+          const cwd = makeTempCwd()
+          const { code } = runHook(
+            hookPath,
+            bashEvent('sleep 100', {
+              agent_type: 'metta-skill-host',
+              run_in_background: true,
+              cwd,
+            }),
+            { cwd },
+          )
+          expect(code).toBe(2)
+          const logPath = join(cwd, '.metta', 'logs', 'guard-bypass.log')
+          expect(existsSync(logPath)).toBe(true)
+          const lines = readFileSync(logPath, 'utf8')
+            .split('\n')
+            .filter((l) => l.length > 0)
+          expect(lines.length).toBe(1)
+          const entry = JSON.parse(lines[0])
+          expect(entry.verdict).toBe('block')
+          expect(entry.reason).toBe('background-bash-from-fork')
+          expect(entry.agent_type).toBe('metta-skill-host')
+          expect(entry.subcommand).toBe(null)
         })
       })
 

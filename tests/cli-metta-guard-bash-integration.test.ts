@@ -63,9 +63,11 @@ function runHook(
 
 function bashEvent(
   command: string,
-  extra: { agent_type?: string; cwd?: string } = {},
+  extra: { agent_type?: string; cwd?: string; run_in_background?: boolean } = {},
 ): Record<string, unknown> {
-  const event: Record<string, unknown> = { tool_name: 'Bash', tool_input: { command } }
+  const toolInput: Record<string, unknown> = { command }
+  if (extra.run_in_background !== undefined) toolInput.run_in_background = extra.run_in_background
+  const event: Record<string, unknown> = { tool_name: 'Bash', tool_input: toolInput }
   if (extra.agent_type !== undefined) event.agent_type = extra.agent_type
   if (extra.cwd !== undefined) event.cwd = extra.cwd
   return event
@@ -208,6 +210,73 @@ describe('metta-guard-bash integration', { timeout: 60_000 }, () => {
         (e) => e.verdict === 'block' && e.agent_type === 'metta-skill-host',
       )
       expect(blockEntriesForTrusted.length).toBe(0)
+    })
+  })
+
+  describe('background Bash rejection end-to-end', () => {
+    let tempDir: string
+
+    beforeEach(() => {
+      tempDir = mkdtempSync(join(tmpdir(), 'metta-guard-bg-int-'))
+    })
+
+    afterEach(() => {
+      rmSync(tempDir, { recursive: true, force: true })
+    })
+
+    it('blocks run_in_background from a forked metta agent — exit 2, stderr points at the synchronous-completion rule', () => {
+      const { code, stderr } = runHook(
+        bashEvent('sleep 100', {
+          agent_type: 'metta-skill-host',
+          run_in_background: true,
+          cwd: tempDir,
+        }),
+        { cwd: tempDir },
+      )
+      expect(code).toBe(2)
+      expect(stderr).toContain('Blocked Bash run_in_background')
+      expect(stderr).toContain('.claude/agents/metta-skill-host.md')
+
+      // Audit log records the block with the dedicated reason.
+      const logPath = join(tempDir, '.metta', 'logs', 'guard-bypass.log')
+      expect(existsSync(logPath)).toBe(true)
+      const entries = readFileSync(logPath, 'utf8')
+        .split('\n')
+        .filter((l) => l.trim().length > 0)
+        .map((l) => JSON.parse(l) as { verdict: string; reason: string; agent_type: string | null })
+      const bgBlocks = entries.filter((e) => e.reason === 'background-bash-from-fork')
+      expect(bgBlocks.length).toBe(1)
+      expect(bgBlocks[0].verdict).toBe('block')
+      expect(bgBlocks[0].agent_type).toBe('metta-skill-host')
+    })
+
+    it('allows the same background command from a non-metta caller — exit 0 (caller-scoped, not command-scoped)', () => {
+      const { code, stderr } = runHook(
+        bashEvent('sleep 100', { agent_type: 'orchestrator', run_in_background: true, cwd: tempDir }),
+        { cwd: tempDir },
+      )
+      expect(code).toBe(0)
+      expect(stderr).toBe('')
+    })
+
+    it('blocks run_in_background from metta-executor too (broad metta-* prefix) — exit 2', () => {
+      const { code, stderr } = runHook(
+        bashEvent('sleep 100', { agent_type: 'metta-executor', run_in_background: true, cwd: tempDir }),
+        { cwd: tempDir },
+      )
+      expect(code).toBe(2)
+      expect(stderr).toContain('metta-executor')
+    })
+
+    it('foreground calls from trusted agents keep existing classify behavior — exit 0', () => {
+      const { code } = runHook(
+        bashEvent('METTA_SKILL=1 metta issue "test"', {
+          agent_type: 'metta-skill-host',
+          cwd: tempDir,
+        }),
+        { cwd: tempDir },
+      )
+      expect(code).toBe(0)
     })
   })
 

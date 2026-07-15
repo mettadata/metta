@@ -366,6 +366,31 @@ Scenarios:
 - Conflict detected
 - Base drift does not block merge
 
+### Finalize Lock Contention Error Message
+
+Scenarios:
+- Lock held by a live process recommends a retry, not manual deletion
+- Re-running finalize reclaims a dead-pid lock without manual cleanup
+
+### Finalize Lock Staleness Fallback Via Mtime
+
+Scenarios:
+- Ambiguous pid liveness with an expired mtime is reclaimed
+- Fresh lock with a confirmed live owner is respected
+- Dead-pid reclaim path is preserved alongside the mtime fallback
+
+### Stale Finalize Lock Surfaced In Status
+
+Scenarios:
+- Status reports a detected stale lock
+- Status is unchanged when no stale lock is present
+
+### Stale Finalize Lock Surfaced In Next Routing
+
+Scenarios:
+- Next surfaces the stale lock instead of routing into a failing finalize
+- Next routing is unchanged when no stale lock is present
+
 ## fix-finalize-stage-should-auto-update-docs-changelog-md
 
 ### Default `docs` block in `ProjectConfigSchema`

@@ -26,7 +26,7 @@
 0 requirements
 
 ### Finalize and Ship
-3 requirements
+7 requirements
 
 ### fix-finalize-stage-should-auto-update-docs-changelog-md
 4 requirements

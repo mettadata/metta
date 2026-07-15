@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { createCliContext, outputJson, color, banner, getErrorMessage } from '../helpers.js'
+import { checkFinalizeLockStale } from '../../finalize/finalize-lock.js'
 
 const execAsync = promisify(execFile)
 
@@ -93,9 +94,22 @@ export function registerNextCommand(program: Command): void {
         const allComplete = Object.values(metadata.artifacts).every(s => s === 'complete' || s === 'skipped')
 
         if (allComplete) {
+          const lockStatus = await checkFinalizeLockStale(ctx.projectRoot, changeName)
           if (json) {
-            outputJson({ next: 'finalize', command: `metta finalize --change ${changeName}`, change: changeName })
+            outputJson({
+              next: 'finalize',
+              command: `metta finalize --change ${changeName}`,
+              change: changeName,
+              // Additive warning fields — omitted entirely when not stale so the
+              // non-stale payload stays byte-identical to the three-field shape.
+              ...(lockStatus.stale
+                ? { finalize_lock_stale: true, finalize_lock_reason: lockStatus.reason }
+                : {}),
+            })
           } else {
+            if (lockStatus.stale) {
+              console.log(`Stale finalize lock detected for ${changeName} — safe to retry.`)
+            }
             console.log(`All artifacts complete for ${changeName}.`)
             console.log(`Next: metta finalize --change ${changeName}`)
           }

@@ -19,3 +19,6 @@ The `metta-guard-bash` PreToolUse hook inspects `event.agent_type` to verify tha
 - Use `AskUserQuestion` when the skill directs you to ask the user a question.
 - Dispatch the final CLI call via `Bash` with the inline `METTA_SKILL=1` prefix as the skill specifies.
 - When the skill completes, return a short summary of what was done (slug, path, exit code) to the orchestrator.
+
+### Synchronous completion (hard rule)
+You MUST NOT invoke `Bash` with `run_in_background: true`. You MUST NOT dispatch an `Agent` call and end your turn before that agent returns a result. Your final message MUST NOT describe any launched work as still "in progress," "running," or "in the background" — it MUST report only outcomes that have already completed or definitively failed, with evidence (exit code, file written, pid confirmed dead). If a step would normally be backgroundable, run it in the foreground and wait for it to return before proceeding.
