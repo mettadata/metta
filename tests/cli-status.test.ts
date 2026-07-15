@@ -450,4 +450,65 @@ describe("CLI: status / next / changes / doctor / gate / validate-stories", { ti
     })
   })
 
+
+  describe('metta status stale finalize lock', () => {
+    const DEAD_PID = 2147483646
+
+    async function writeLockFile(changeName: string, pid: number): Promise<void> {
+      const locksDir = join(tempDir, '.metta', 'locks')
+      await mkdir(locksDir, { recursive: true })
+      await writeFile(
+        join(locksDir, `finalize-${changeName}.lock`),
+        JSON.stringify({ pid, startedAt: new Date().toISOString(), change: changeName }),
+        'utf8',
+      )
+    }
+
+    it('surfaces a dead-pid lock in human and JSON output', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await runCli(['propose', 'stale lock dead pid'], tempDir)
+      await writeLockFile('stale-lock-dead-pid', DEAD_PID)
+
+      const human = await runCli(['status', '--change', 'stale-lock-dead-pid'], tempDir)
+      expect(human.code).toBe(0)
+      expect(human.stdout).toContain('Finalize lock: stale finalize lock detected, safe to retry')
+
+      const jsonRun = await runCli(['--json', 'status', '--change', 'stale-lock-dead-pid'], tempDir)
+      expect(jsonRun.code).toBe(0)
+      const data = JSON.parse(jsonRun.stdout)
+      expect(data.finalize_lock_stale).toBe(true)
+      expect(data.finalize_lock_reason).toBe('dead-pid')
+    })
+
+    it('does not surface a fresh live-owned lock', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await runCli(['propose', 'fresh lock live pid'], tempDir)
+      await writeLockFile('fresh-lock-live-pid', process.pid)
+
+      const human = await runCli(['status', '--change', 'fresh-lock-live-pid'], tempDir)
+      expect(human.code).toBe(0)
+      expect(human.stdout).not.toContain('Finalize lock:')
+
+      const jsonRun = await runCli(['--json', 'status', '--change', 'fresh-lock-live-pid'], tempDir)
+      expect(jsonRun.code).toBe(0)
+      const data = JSON.parse(jsonRun.stdout)
+      expect(data.finalize_lock_stale).toBe(false)
+    })
+
+    it('leaves output unchanged when no lock file exists', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await runCli(['propose', 'no lock at all'], tempDir)
+
+      const human = await runCli(['status', '--change', 'no-lock-at-all'], tempDir)
+      expect(human.code).toBe(0)
+      expect(human.stdout).not.toContain('Finalize lock:')
+
+      const jsonRun = await runCli(['--json', 'status', '--change', 'no-lock-at-all'], tempDir)
+      expect(jsonRun.code).toBe(0)
+      const data = JSON.parse(jsonRun.stdout)
+      expect('finalize_lock_stale' in data).toBe(true)
+      expect(data.finalize_lock_stale).toBe(false)
+    })
+  })
+
 })

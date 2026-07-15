@@ -1,12 +1,15 @@
 import { Command } from 'commander'
 import { createCliContext, outputJson, color, getErrorMessage } from '../helpers.js'
 import { renderStatusLine } from '../../complexity/index.js'
+import { checkFinalizeLockStale } from '../../finalize/finalize-lock.js'
 import type { ChangeMetadata, ComplexityScore } from '../../schemas/change-metadata.js'
 
 type ChangeStatusJson = Omit<ChangeMetadata, 'complexity_score' | 'actual_complexity_score'> & {
   change: string
   complexity_score: ComplexityScore | null
   actual_complexity_score: ComplexityScore | null
+  finalize_lock_stale: boolean
+  finalize_lock_reason?: 'dead-pid' | 'mtime-expired'
 }
 
 export function registerStatusCommand(program: Command): void {
@@ -35,9 +38,9 @@ export function registerStatusCommand(program: Command): void {
         if (changeName) {
           const metadata = await ctx.artifactStore.getChange(changeName)
           if (json) {
-            outputJson(toChangeJson(changeName, metadata))
+            outputJson(await toChangeJson(changeName, metadata, ctx.projectRoot))
           } else {
-            printChangeStatus(changeName, metadata)
+            await printChangeStatus(changeName, metadata, ctx.projectRoot)
           }
           return
         }
@@ -45,9 +48,9 @@ export function registerStatusCommand(program: Command): void {
         if (changes.length === 1) {
           const metadata = await ctx.artifactStore.getChange(changes[0])
           if (json) {
-            outputJson(toChangeJson(changes[0], metadata))
+            outputJson(await toChangeJson(changes[0], metadata, ctx.projectRoot))
           } else {
-            printChangeStatus(changes[0], metadata)
+            await printChangeStatus(changes[0], metadata, ctx.projectRoot)
           }
           return
         }
@@ -61,11 +64,13 @@ export function registerStatusCommand(program: Command): void {
 
         if (json) {
           outputJson({
-            changes: allMetadata.map(({ name, metadata }) => toChangeJson(name, metadata)),
+            changes: await Promise.all(
+              allMetadata.map(({ name, metadata }) => toChangeJson(name, metadata, ctx.projectRoot)),
+            ),
           })
         } else {
           for (const { name, metadata } of allMetadata) {
-            printChangeStatus(name, metadata)
+            await printChangeStatus(name, metadata, ctx.projectRoot)
             console.log('')
           }
         }
@@ -81,16 +86,30 @@ export function registerStatusCommand(program: Command): void {
     })
 }
 
-function toChangeJson(name: string, metadata: ChangeMetadata): ChangeStatusJson {
-  return {
+async function toChangeJson(
+  name: string,
+  metadata: ChangeMetadata,
+  projectRoot: string,
+): Promise<ChangeStatusJson> {
+  const lockStatus = await checkFinalizeLockStale(projectRoot, name)
+  const result: ChangeStatusJson = {
     change: name,
     ...metadata,
     complexity_score: metadata.complexity_score ?? null,
     actual_complexity_score: metadata.actual_complexity_score ?? null,
+    finalize_lock_stale: lockStatus.stale,
   }
+  if (lockStatus.reason !== undefined) {
+    result.finalize_lock_reason = lockStatus.reason
+  }
+  return result
 }
 
-function printChangeStatus(name: string, metadata: ChangeMetadata): void {
+async function printChangeStatus(
+  name: string,
+  metadata: ChangeMetadata,
+  projectRoot: string,
+): Promise<void> {
   console.log(`Change: ${color(name, 36)} (${color(metadata.workflow + ' workflow', 90)})`)
   console.log(`Status: ${metadata.status}`)
   console.log('')
@@ -142,5 +161,11 @@ function printChangeStatus(name: string, metadata: ChangeMetadata): void {
   }
   if (iterHalves.length > 0) {
     console.log(`Iterations: ${iterHalves.join(', ')}`)
+  }
+
+  // Stale finalize lock — only printed when detected; no line otherwise.
+  const lockStatus = await checkFinalizeLockStale(projectRoot, name)
+  if (lockStatus.stale) {
+    console.log('Finalize lock: stale finalize lock detected, safe to retry')
   }
 }
