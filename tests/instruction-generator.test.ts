@@ -192,6 +192,95 @@ describe('InstructionGenerator', () => {
     expect(output.budget.dropped_optionals).toBeUndefined()
   })
 
+  describe('existing_specs capability surfacing', () => {
+    const specArtifact: WorkflowArtifact = {
+      id: 'spec',
+      type: 'spec',
+      template: 'intent.md',
+      generates: 'spec.md',
+      requires: ['intent'],
+      agents: ['specifier'],
+      gates: [],
+    }
+
+    const specAgent: AgentDefinition = {
+      name: 'specifier',
+      persona: 'You are a spec writer.',
+      capabilities: ['spec'],
+      tools: ['Read'],
+      context_budget: 40000,
+    }
+
+    it('populates existing_specs with sorted capability directory names for spec artifacts', async () => {
+      // Created out of order to prove the sort.
+      await mkdir(join(specDir, 'specs', 'billing'), { recursive: true })
+      await mkdir(join(specDir, 'specs', 'auth'), { recursive: true })
+
+      const output = await generator.generate({
+        artifact: specArtifact,
+        changeName: 'test-change',
+        changePath,
+        workflow: 'standard',
+        status: 'ready',
+        specDir,
+        agent: specAgent,
+        nextSteps: [],
+      })
+
+      expect(output.context.existing_specs).toEqual(['auth', 'billing'])
+    })
+
+    it('leaves existing_specs undefined for non-spec artifacts even when capabilities exist', async () => {
+      await mkdir(join(specDir, 'specs', 'auth'), { recursive: true })
+      await mkdir(join(specDir, 'specs', 'billing'), { recursive: true })
+
+      const artifact: WorkflowArtifact = {
+        id: 'intent',
+        type: 'intent',
+        template: 'intent.md',
+        generates: 'intent.md',
+        requires: [],
+        agents: ['proposer'],
+        gates: [],
+      }
+      const agent: AgentDefinition = {
+        name: 'proposer',
+        persona: 'You are a product-minded engineer.',
+        capabilities: ['propose'],
+        tools: ['Read'],
+        context_budget: 20000,
+      }
+
+      const output = await generator.generate({
+        artifact,
+        changeName: 'test-change',
+        changePath,
+        workflow: 'standard',
+        status: 'ready',
+        specDir,
+        agent,
+        nextSteps: [],
+      })
+
+      expect(output.context.existing_specs).toBeUndefined()
+    })
+
+    it('returns [] for spec artifacts when the specs directory does not exist', async () => {
+      const output = await generator.generate({
+        artifact: specArtifact,
+        changeName: 'test-change',
+        changePath,
+        workflow: 'standard',
+        status: 'ready',
+        specDir,
+        agent: specAgent,
+        nextSteps: [],
+      })
+
+      expect(output.context.existing_specs).toEqual([])
+    })
+  })
+
   it('surfaces over-budget warning and dropped_optionals when context overflows', async () => {
     // Required intent consumes most of the agent budget; optional project.md (no headings)
     // cannot fit fully and its skeleton produces zero tokens → dropped.

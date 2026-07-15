@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { mkdtemp, rm, mkdir, writeFile } from 'node:fs/promises'
+import { mkdtemp, rm, mkdir, writeFile, readFile } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { Command } from 'commander'
@@ -1084,6 +1085,218 @@ describe("CLI: instructions banners / complete tier downscale & upscale", { time
       expect(meta.workflow).toBe('quick')
       // actual_complexity_score never written.
       expect(meta.actual_complexity_score).toBeUndefined()
+    })
+  })
+
+
+  describe('metta complete spec capability-target gate', { timeout: 60000 }, () => {
+    async function readChangeMetaYaml(changeName: string): Promise<Record<string, unknown>> {
+      const YAML = (await import('yaml')).default
+      const raw = await readFile(
+        join(tempDir, 'spec', 'changes', changeName, '.metta.yaml'),
+        'utf8',
+      )
+      return YAML.parse(raw) as Record<string, unknown>
+    }
+
+    // Mark every artifact complete so the finalizer's completeness gate passes.
+    async function markAllArtifactsComplete(changeName: string): Promise<void> {
+      const YAML = (await import('yaml')).default
+      const path = join(tempDir, 'spec', 'changes', changeName, '.metta.yaml')
+      const raw = await readFile(path, 'utf8')
+      const doc = YAML.parse(raw) as Record<string, unknown>
+      const artifacts = doc.artifacts as Record<string, string>
+      for (const id of Object.keys(artifacts)) {
+        artifacts[id] = 'complete'
+      }
+      await writeFile(path, YAML.stringify(doc, { lineWidth: 0 }), 'utf8')
+    }
+
+    // Replace every gate the standard workflow references with a passing stub
+    // so `metta finalize` can run end-to-end inside the temp fixture (which
+    // has no package.json for the real npm-based gate commands).
+    async function stubAllGatesPassing(): Promise<void> {
+      await mkdir(join(tempDir, '.metta', 'gates'), { recursive: true })
+      const gateNames = ['tests', 'lint', 'typecheck', 'build', 'stories-valid']
+      for (const name of gateNames) {
+        const yaml = [
+          `name: ${name}`,
+          `description: passing stub for ${name}`,
+          'command: "true"',
+          'timeout: 10000',
+          'required: true',
+          'on_failure: stop',
+          '',
+        ].join('\n')
+        await writeFile(join(tempDir, '.metta', 'gates', `${name}.yaml`), yaml, 'utf8')
+      }
+    }
+
+    // ADDED-only delta spec, padded above the 200-byte content sanity floor.
+    // `marker: true` places `<!-- new-capability -->` directly under the H1.
+    function addedDelta(h1: string, opts: { marker?: boolean } = {}): string {
+      return [
+        `# ${h1}`,
+        ...(opts.marker ? ['', '<!-- new-capability -->'] : []),
+        '',
+        '## ADDED: Requirement: Session Management',
+        '',
+        'The system MUST manage user sessions with secure token rotation and',
+        'expiry so that stale credentials can never be replayed by an attacker',
+        'after they have been superseded by a fresh token issuance.',
+        '',
+        '### Scenario: Token rotation',
+        '- GIVEN an authenticated session',
+        '- WHEN the token approaches expiry',
+        '- THEN a fresh token is issued and the old one is revoked',
+        '',
+      ].join('\n')
+    }
+
+    function modifiedDelta(h1: string, opts: { marker?: boolean } = {}): string {
+      return [
+        `# ${h1}`,
+        ...(opts.marker ? ['', '<!-- new-capability -->'] : []),
+        '',
+        '## MODIFIED: Requirement: Session Management',
+        '',
+        'The system MUST manage user sessions with secure token rotation and',
+        'expiry so that stale credentials can never be replayed by an attacker',
+        'after they have been superseded by a fresh token issuance.',
+        '',
+        '### Scenario: Token rotation',
+        '- GIVEN an authenticated session',
+        '- WHEN the token approaches expiry',
+        '- THEN a fresh token is issued and the old one is revoked',
+        '',
+      ].join('\n')
+    }
+
+    it('self-slug ADDED delta without marker: refuses completion, no capability folder created', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await runCli(['propose', 'landfill no marker'], tempDir)
+      const changeDir = join(tempDir, 'spec', 'changes', 'landfill-no-marker')
+      // H1 left as the unedited change-slug default.
+      await writeFile(join(changeDir, 'spec.md'), addedDelta('landfill-no-marker'), 'utf8')
+
+      const { stderr, code } = await runCli(
+        ['complete', 'spec', '--change', 'landfill-no-marker'],
+        tempDir,
+      )
+
+      expect(code).not.toBe(0)
+      // Stderr names the unconfirmed capability and the remedy.
+      expect(stderr).toContain("'landfill-no-marker'")
+      expect(stderr).toContain("matches this change's own slug")
+      expect(stderr).toContain('<!-- new-capability -->')
+      // No folder created under spec/specs/.
+      expect(existsSync(join(tempDir, 'spec', 'specs', 'landfill-no-marker'))).toBe(false)
+      // Artifact not marked complete — the throw precedes markArtifact.
+      const meta = await readChangeMetaYaml('landfill-no-marker')
+      const artifacts = meta.artifacts as Record<string, string>
+      expect(artifacts.spec).not.toBe('complete')
+    })
+
+    it('self-slug ADDED delta with marker: completes, and finalize merges the new capability', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      // Note: 'with' is a createChange stop word, so the fixture name avoids it.
+      await runCli(['propose', 'landfill marker case'], tempDir)
+      const changeDir = join(tempDir, 'spec', 'changes', 'landfill-marker-case')
+      await writeFile(
+        join(changeDir, 'spec.md'),
+        addedDelta('landfill-marker-case', { marker: true }),
+        'utf8',
+      )
+
+      const complete = await runCli(
+        ['complete', 'spec', '--change', 'landfill-marker-case'],
+        tempDir,
+      )
+      expect(complete.stderr).not.toContain("matches this change's own slug")
+      expect(complete.code).toBe(0)
+
+      // Drive the change to finalize: completeness gate + passing gate stubs.
+      await markAllArtifactsComplete('landfill-marker-case')
+      await stubAllGatesPassing()
+      const finalize = await runCli(['finalize', 'landfill-marker-case'], tempDir)
+      expect(finalize.code).toBe(0)
+
+      // The confirmed net-new capability was merged.
+      const capSpecPath = join(tempDir, 'spec', 'specs', 'landfill-marker-case', 'spec.md')
+      expect(existsSync(capSpecPath)).toBe(true)
+      const capSpec = await readFile(capSpecPath, 'utf8')
+      expect(capSpec).toContain('## Requirement: Session Management')
+    })
+
+    it('delta whose H1 names a pre-existing capability: completes and merges as before', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      // Pre-existing capability spec, unrelated to the change's slug.
+      const capDir = join(tempDir, 'spec', 'specs', 'authcap')
+      await mkdir(capDir, { recursive: true })
+      await writeFile(
+        join(capDir, 'spec.md'),
+        '# authcap\n\n## Requirement: Login\n\nThe system MUST let users log in.\n',
+        'utf8',
+      )
+
+      await runCli(['propose', 'existing cap target'], tempDir)
+      const changeDir = join(tempDir, 'spec', 'changes', 'existing-cap-target')
+      await writeFile(join(changeDir, 'spec.md'), addedDelta('authcap'), 'utf8')
+
+      const complete = await runCli(
+        ['complete', 'spec', '--change', 'existing-cap-target'],
+        tempDir,
+      )
+      expect(complete.stderr).not.toContain("matches this change's own slug")
+      expect(complete.code).toBe(0)
+
+      await markAllArtifactsComplete('existing-cap-target')
+      await stubAllGatesPassing()
+      const finalize = await runCli(['finalize', 'existing-cap-target'], tempDir)
+      expect(finalize.code).toBe(0)
+
+      // Merged into the existing capability — both requirements present, and
+      // no change-slug-named capability folder appeared.
+      const capSpec = await readFile(join(capDir, 'spec.md'), 'utf8')
+      expect(capSpec).toContain('## Requirement: Login')
+      expect(capSpec).toContain('## Requirement: Session Management')
+      expect(existsSync(join(tempDir, 'spec', 'specs', 'existing-cap-target'))).toBe(false)
+    })
+
+    it('MODIFIED delta against a nonexistent capability hard-fails with or without the marker', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await runCli(['propose', 'modified ghost target'], tempDir)
+      const changeDir = join(tempDir, 'spec', 'changes', 'modified-ghost-target')
+
+      // With the marker: the marker MUST NOT bypass the non-ADDED hard-fail.
+      await writeFile(
+        join(changeDir, 'spec.md'),
+        modifiedDelta('modified-ghost-target', { marker: true }),
+        'utf8',
+      )
+      const withMarker = await runCli(
+        ['complete', 'spec', '--change', 'modified-ghost-target'],
+        tempDir,
+      )
+      expect(withMarker.code).not.toBe(0)
+      expect(withMarker.stderr).toContain('targets unknown capability')
+
+      // Without the marker, H1 naming an unrelated nonexistent capability:
+      // the pre-existing hard-fail path still fires.
+      await writeFile(join(changeDir, 'spec.md'), modifiedDelta('ghostcap'), 'utf8')
+      const withoutMarker = await runCli(
+        ['complete', 'spec', '--change', 'modified-ghost-target'],
+        tempDir,
+      )
+      expect(withoutMarker.code).not.toBe(0)
+      expect(withoutMarker.stderr).toContain('targets unknown capability')
+
+      // No writes on either run: artifact not complete, no capability folders.
+      const meta = await readChangeMetaYaml('modified-ghost-target')
+      const artifacts = meta.artifacts as Record<string, string>
+      expect(artifacts.spec).not.toBe('complete')
+      expect(existsSync(join(tempDir, 'spec', 'specs', 'modified-ghost-target'))).toBe(false)
+      expect(existsSync(join(tempDir, 'spec', 'specs', 'ghostcap'))).toBe(false)
     })
   })
 
