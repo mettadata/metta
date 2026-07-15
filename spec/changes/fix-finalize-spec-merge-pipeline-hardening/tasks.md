@@ -76,13 +76,13 @@ Design deviations carried into these tasks (see design.md Risks / API Design):
 
 ## Batch 4: Verification artifact contract fix
 
-- [ ] **Task 4.1: Fix `verify.md`'s instructions to name `summary.md`**
+- [x] **Task 4.1: Fix `verify.md`'s instructions to name `summary.md`**
   - Files: src/templates/artifacts/verify.md
   - Action: Per the design's chosen direction (and the documented deviation from intent.md's Impact list, which named `trivial.yaml`): fix the shared instructions template, not the workflow YAML `generates` declarations. `InstructionGenerator.generate`'s `output_path` (instruction-generator.ts:107) is already computed correctly from `params.artifact.generates`; only the template text presented to the verifying agent is stale. Add an explicit instruction to src/templates/artifacts/verify.md directing the agent to save the completed file as `summary.md` in the change directory (e.g. a line under the H1 or near the `## Summary` section such as "Save this file as `summary.md` in the change directory."). Do NOT modify `src/templates/workflows/trivial.yaml`, `quick.yaml`, or `standard.yaml` -- all three already declare `generates: summary.md` for their `verification` stage and all three render this same template, so this one-file fix aligns the declared contract and the instructed behavior for every tier at once. Fulfills Trivial Workflow Verification Artifact Contract Agreement (US-4).
   - Verify: npx tsc --noEmit
   - Done: src/templates/artifacts/verify.md explicitly instructs saving the artifact as `summary.md`; trivial.yaml, quick.yaml, and standard.yaml are byte-for-byte unchanged.
 
-- [ ] **Task 4.2: Verification-contract agreement test**
+- [x] **Task 4.2: Verification-contract agreement test**
   - Files: tests/verify-template-contract.test.ts
   - Action: Create a new test file asserting the fix holds structurally, covering spec.md's "Declared contract and instructed behavior agree" scenario: (1) read src/templates/artifacts/verify.md and assert its content mentions `summary.md` as the file to save; (2) read src/templates/workflows/trivial.yaml, quick.yaml, and standard.yaml, parse each with the `yaml` package, and assert each workflow's `verification`-id artifact's `generates` field equals `'summary.md'`, matching the filename instructed in (1); (3) render the `verify.md` template through `InstructionGenerator.generate()` for a `verification`-type artifact with `generates: 'summary.md'` and assert `output.output_path` ends in `summary.md`, confirming the generator's `output_path` computation and the rendered template text agree end to end. Fulfills Trivial Workflow Verification Artifact Contract Agreement (US-4).
   - Verify: npx vitest run tests/verify-template-contract.test.ts
@@ -90,7 +90,7 @@ Design deviations carried into these tasks (see design.md Risks / API Design):
 
 ## Batch 5: Full gate sweep
 
-- [ ] **Task 5.1: Full gate sweep across all batches**
+- [x] **Task 5.1: Full gate sweep across all batches**
   - Files: (none -- whole-repo verification)
   - Action: Run the full test suite, the TypeScript type checker, and the production build to confirm no regressions were introduced across Batches 1-4, and confirm the build correctly propagates the Task 4.1 template edit into `dist/templates/artifacts/verify.md` (per project convention, template files are copied to `dist/` at build time and are never hand-edited there).
   - Verify: npx vitest run && npx tsc --noEmit && npm run build && diff src/templates/artifacts/verify.md dist/templates/artifacts/verify.md
