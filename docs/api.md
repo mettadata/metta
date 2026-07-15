@@ -342,21 +342,16 @@ Scenarios:
 ### Spec Delta Merge
 
 Scenarios:
-- New capability created from ADDED delta
-- Conflict detected on modified base
-- Clean merge when base hash matches
-- MODIFIED delta replaces requirement text
-- RENAMED delta replaces old requirement with new name
-- Dry-run does not write files
-- No spec.md returns clean immediately
+- New capability created from a confirmed ADDED delta
+- Re-applying an ADDED delta does not duplicate an existing requirement
+- ADDED idempotency holds without a base_versions entry
 
 ### Finalizer Orchestration
 
 Scenarios:
-- Successful finalize archives the change
-- Finalize aborts on spec conflict
-- Dry-run leaves change active
-- gates.yaml written to archive
+- Incomplete artifact blocks finalize before gates or merge run
+- Gate failure leaves the target capability spec untouched
+- Retry after a fixed gate applies the merge exactly once
 
 ### Merge Safety Pipeline
 
@@ -390,6 +385,26 @@ Scenarios:
 Scenarios:
 - Next surfaces the stale lock instead of routing into a failing finalize
 - Next routing is unchanged when no stale lock is present
+
+### Explicit Capability Target Selection In Spec Authoring
+
+Scenarios:
+- Instructions surface existing capabilities before authoring
+- Generated scaffold carries an explicit target field, not an implicit slug default
+
+### Merge Target Confirmation At Completion
+
+Scenarios:
+- Unconfirmed self-slug target is refused
+- Explicit new-capability marker allows completion
+- Non-ADDED operations against a nonexistent capability still hard-fail
+
+### Trivial Workflow Verification Artifact Contract Agreement
+
+Scenarios:
+- Declared contract and instructed behavior agree
+- Following instructions lets completion succeed
+- Finalize completeness gate passes without manual patching
 
 ## fix-finalize-stage-should-auto-update-docs-changelog-md
 
