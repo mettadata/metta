@@ -4,6 +4,20 @@ import { StateStore } from '../state/state-store.js'
 import { toSlug } from '../util/slug.js'
 import { join } from 'node:path'
 
+/**
+ * Raised when a delta spec's merge target cannot be accepted — e.g. the H1
+ * resolves to the change's own slug, no such capability exists, and the
+ * author has not confirmed a net-new capability with the
+ * `<!-- new-capability -->` marker. Co-located with the merge-target domain
+ * logic; thrown by `metta complete spec` before any write happens.
+ */
+export class SpecTargetError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'SpecTargetError'
+  }
+}
+
 export interface MergeConflict {
   capability: string
   requirementId: string
