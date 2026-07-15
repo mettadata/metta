@@ -511,4 +511,69 @@ describe("CLI: status / next / changes / doctor / gate / validate-stories", { ti
     })
   })
 
+
+  describe('metta next stale finalize lock', () => {
+    const DEAD_PID = 2147483646
+
+    async function writeLockFile(changeName: string, pid: number): Promise<void> {
+      const locksDir = join(tempDir, '.metta', 'locks')
+      await mkdir(locksDir, { recursive: true })
+      await writeFile(
+        join(locksDir, `finalize-${changeName}.lock`),
+        JSON.stringify({ pid, startedAt: new Date().toISOString(), change: changeName }),
+        'utf8',
+      )
+    }
+
+    async function markAllArtifactsComplete(changeName: string): Promise<void> {
+      const { readFile, writeFile } = await import('node:fs/promises')
+      const YAML = (await import('yaml')).default
+      const path = join(tempDir, 'spec', 'changes', changeName, '.metta.yaml')
+      const raw = await readFile(path, 'utf8')
+      const doc = YAML.parse(raw) as { artifacts: Record<string, string> }
+      for (const id of Object.keys(doc.artifacts)) {
+        doc.artifacts[id] = 'complete'
+      }
+      await writeFile(path, YAML.stringify(doc, { lineWidth: 0 }), 'utf8')
+    }
+
+    it('warns on a dead-pid lock while keeping next=finalize', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await runCli(['propose', 'next stale lock'], tempDir)
+      await markAllArtifactsComplete('next-stale-lock')
+      await writeLockFile('next-stale-lock', DEAD_PID)
+
+      const human = await runCli(['next', '--change', 'next-stale-lock'], tempDir)
+      expect(human.code).toBe(0)
+      expect(human.stdout).toContain('Stale finalize lock detected for next-stale-lock — safe to retry.')
+      expect(human.stdout).toContain('All artifacts complete for next-stale-lock.')
+
+      const jsonRun = await runCli(['--json', 'next', '--change', 'next-stale-lock'], tempDir)
+      expect(jsonRun.code).toBe(0)
+      const data = JSON.parse(jsonRun.stdout)
+      expect(data.next).toBe('finalize')
+      expect(data.finalize_lock_stale).toBe(true)
+      expect(data.finalize_lock_reason).toBe('dead-pid')
+    })
+
+    it('emits no warning and no extra JSON fields for a fresh live-owned lock', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await runCli(['propose', 'next fresh lock'], tempDir)
+      await markAllArtifactsComplete('next-fresh-lock')
+      await writeLockFile('next-fresh-lock', process.pid)
+
+      const human = await runCli(['next', '--change', 'next-fresh-lock'], tempDir)
+      expect(human.code).toBe(0)
+      expect(human.stdout).not.toContain('Stale finalize lock detected')
+      expect(human.stdout).toContain('All artifacts complete for next-fresh-lock.')
+
+      const jsonRun = await runCli(['--json', 'next', '--change', 'next-fresh-lock'], tempDir)
+      expect(jsonRun.code).toBe(0)
+      const data = JSON.parse(jsonRun.stdout)
+      expect(data.next).toBe('finalize')
+      expect('finalize_lock_stale' in data).toBe(false)
+      expect('finalize_lock_reason' in data).toBe(false)
+    })
+  })
+
 })
