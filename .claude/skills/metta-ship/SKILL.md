@@ -10,7 +10,7 @@ Two-step process: **finalize** (archive + merge specs on branch) then **ship** (
 
 ## Steps
 
-1. `METTA_SKILL=1 metta finalize --dry-run --json --change <name>` → preview what will change
+1. `METTA_SKILL=1 metta finalize --dry-run --json --change <name>` → preview what will change. This call blocks; wait for it to exit before proceeding — do not treat it as backgrounded.
 2. If clean: `METTA_SKILL=1 metta finalize --json --change <name>` → archives change to spec/archive/, merges delta specs into living specs
 3. If spec conflicts: stop and tell the user to resolve them
 4. `git checkout main` → switch back to main
