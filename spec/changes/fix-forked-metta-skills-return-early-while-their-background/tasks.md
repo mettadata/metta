@@ -40,13 +40,13 @@ Requirement -> Task coverage:
 
 ## Batch 3: Orchestration contract and hook enforcement
 
-- [ ] **Task 3.1: Synchronous-completion hard rule in `metta-skill-host.md` + `metta-ship` blocking clarification**
+- [x] **Task 3.1: Synchronous-completion hard rule in `metta-skill-host.md` + `metta-ship` blocking clarification**
   - Files: .claude/agents/metta-skill-host.md, src/templates/agents/metta-skill-host.md, .claude/skills/metta-ship/SKILL.md, src/templates/skills/metta-ship/SKILL.md
   - Action: In both `metta-skill-host.md` copies (currently byte-identical), insert the following new subsection immediately after the existing `## Rules` list (after the "return a short summary..." line), identically in both files: `\n### Synchronous completion (hard rule)\nYou MUST NOT invoke \`Bash\` with \`run_in_background: true\`. You MUST NOT dispatch an \`Agent\` call and end your turn before that agent returns a result. Your final message MUST NOT describe any launched work as still "in progress," "running," or "in the background" — it MUST report only outcomes that have already completed or definitively failed, with evidence (exit code, file written, pid confirmed dead). If a step would normally be backgroundable, run it in the foreground and wait for it to return before proceeding.\n` (verbatim per design.md's "API Design" section). In both `metta-ship/SKILL.md` copies (currently byte-identical), add one clarifying line to Step 1 (the finalize dry-run step) noting it blocks and must not be treated as backgrounded, e.g. change `1. \`METTA_SKILL=1 metta finalize --dry-run --json --change <name>\` → preview what will change` to `1. \`METTA_SKILL=1 metta finalize --dry-run --json --change <name>\` → preview what will change. This call blocks; wait for it to exit before proceeding — do not treat it as backgrounded.` — apply the identical text to both files. Fulfills US-1.
   - Verify: npx vitest run tests/template-deploy-sync.test.ts tests/agents-byte-identity.test.ts
   - Done: both `metta-skill-host.md` copies and both `metta-ship/SKILL.md` copies are byte-identical pairs (per `template-deploy-sync.test.ts`); the new `### Synchronous completion (hard rule)` heading is grep-discoverable in both host files.
 
-- [ ] **Task 3.2: `metta-guard-bash.mjs` hook branch rejecting background Bash from forked metta agents**
+- [x] **Task 3.2: `metta-guard-bash.mjs` hook branch rejecting background Bash from forked metta agents**
   - Files: .claude/hooks/metta-guard-bash.mjs, src/templates/hooks/metta-guard-bash.mjs
   - Action: In both copies (currently byte-identical), add a new check in `main()` immediately after the existing `if (event.tool_name !== 'Bash') process.exit(0);` guard and the `METTA_SKILL` env-var bypass check, and before `const command = event.tool_input?.command ?? ''; const invocations = tokenize(command);`, per design.md's "2. `.claude/hooks/metta-guard-bash.mjs`" section verbatim:
     ```js
@@ -66,7 +66,7 @@ Requirement -> Task coverage:
   - Verify: npx vitest run tests/template-deploy-sync.test.ts
   - Done: both `metta-guard-bash.mjs` copies are byte-identical (per `template-deploy-sync.test.ts`); the new branch exits with code 2 and writes the audit-log entry with reason `background-bash-from-fork` before any existing `classify()`/`offender` logic runs.
 
-- [ ] **Task 3.3: Hook tests for the background-Bash rejection branch**
+- [x] **Task 3.3: Hook tests for the background-Bash rejection branch**
   - Files: tests/metta-guard-bash.test.ts, tests/cli-metta-guard-bash-integration.test.ts
   - Action: Add test cases (reusing each file's existing `runHook`/event-payload helper and the `HOOK_SOURCES` byte-identical-pair loop already present in `cli-metta-guard-bash-integration.test.ts`, so every case runs against both the template and deployed copies) covering: (1) a `Bash` PreToolUse event with `tool_input: { command: 'sleep 100', run_in_background: true }` and `agent_type: 'metta-skill-host'` → hook exits with code `2` and stderr contains "Blocked Bash run_in_background"; (2) the same event but with `agent_type` absent (or a non-`metta-` value, e.g. `'orchestrator'`) → hook allows it (exit `0`), matching today's non-trusted-caller behavior — this is the same-command, different-caller control case proving the block is caller-scoped, not command-scoped; (3) a `Bash` event with `agent_type: 'metta-executor'` (any `metta-`-prefixed agent, not just `metta-skill-host`) and `run_in_background: true` → also blocked (exit `2`), confirming the broad `isTrustedSkillCaller` prefix match design.md's Risk (a) documents; (4) a non-background `Bash` event (`run_in_background` absent or `false`) from a trusted `metta-` agent, with a command that would normally classify via `classify()`/`offender` (e.g. `metta issue ...` with the `METTA_SKILL=1` bypass) → existing classify/allow/block behavior is unchanged (same result as before this change, proving the new branch is additive and does not shadow the existing pipeline). Fulfills US-2.
   - Verify: npx vitest run tests/metta-guard-bash.test.ts tests/cli-metta-guard-bash-integration.test.ts
@@ -74,7 +74,7 @@ Requirement -> Task coverage:
 
 ## Batch 4: Full gate sweep
 
-- [ ] **Task 4.1: Full test suite, type-check, and build across all batches**
+- [x] **Task 4.1: Full test suite, type-check, and build across all batches**
   - Files: (none — whole-repo verification)
   - Action: Run the full test suite, the TypeScript type checker, and the production build to confirm no regressions were introduced by Batches 1-3.
   - Verify: npx vitest run && npx tsc --noEmit && npm run build
