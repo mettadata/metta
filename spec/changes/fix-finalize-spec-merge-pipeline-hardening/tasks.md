@@ -1,0 +1,97 @@
+<!--
+Requirement -> Task coverage:
+- Explicit Capability Target Selection In Spec Authoring (US-1): 3.1, 3.3
+- Merge Target Confirmation At Completion (US-2): 3.2, 3.3
+- Spec Delta Merge (US-5): 1.1, 1.2
+- Finalizer Orchestration (US-3, US-6): 2.1, 2.2
+- Trivial Workflow Verification Artifact Contract Agreement (US-4): 4.1, 4.2
+
+User story -> Task coverage:
+- US-1: 3.1, 3.3
+- US-2: 3.2, 3.3
+- US-3: 2.1, 2.2
+- US-4: 4.1, 4.2
+- US-5: 1.1, 1.2
+- US-6: 2.1, 2.2
+
+Design deviations carried into these tasks (see design.md Risks / API Design):
+- No "unreplaced H1 placeholder" detection is added anywhere (Task 3.2 explicitly
+  scopes this out) -- the H1 is always a rendered value, never a literal
+  `{capability_name}` token, so there is nothing to detect as unreplaced.
+- US-4 is satisfied by fixing the shared `src/templates/artifacts/verify.md`
+  instructions (Task 4.1), NOT by editing `trivial.yaml`'s `generates` field --
+  intent.md named `trivial.yaml` as the impacted file, but research/design chose
+  the template-instruction fix as the lower-cost, all-tiers-at-once direction.
+-->
+
+# Tasks: fix-finalize-spec-merge-pipeline-hardening
+
+## Batch 1: Merger idempotency
+
+- [ ] **Task 1.1: ADDED-branch idempotency guard and `noops` field**
+  - Files: src/finalize/spec-merger.ts
+  - Action: In `applyDelta` (spec-merger.ts:139-229), before the ADDED branch appends content (currently spec-merger.ts:147-152), call `const { sections } = splitRequirements(content)` and check `sections.has(delta.requirement.name)`. If a matching section already exists, return the string literal `'noop'` instead of appending -- do not write the file or update the lock in that case. Widen `applyDelta`'s return type from `Promise<MergeConflict | null>` to `Promise<MergeConflict | null | 'noop'>` and update its docstring (it currently claims idempotency it doesn't have). Add `noops?: string[]` to the `MergeResult` interface (spec-merger.ts:15-19). In `merge()`'s clean-merge branch (spec-merger.ts:98-106), branch on `applyDelta`'s result: a `MergeConflict` object pushes to `conflicts` as today; the string `'noop'` pushes `` `${capabilityName}/${delta.requirement.id}` `` to a new local `noops` array and is excluded from `merged`; `null` pushes to `merged` as today. Return `noops` on the final result object (spec-merger.ts:109-113). The guard runs unconditionally inside `applyDelta` regardless of whether a `base_versions` entry exists for the target capability, so it holds even when the change itself created the capability earlier in the same retried finalize. Fulfills Spec Delta Merge (US-5).
+  - Verify: npx tsc --noEmit
+  - Done: spec-merger.ts compiles; `MergeResult` exposes `noops`; the ADDED branch no longer unconditionally appends a requirement section that already exists by name.
+
+- [ ] **Task 1.2: Spec-merger idempotency tests**
+  - Files: tests/spec-merger.test.ts
+  - Action: Add cases to the `SpecMerger` describe block: (1) "re-applying an ADDED delta does not duplicate an existing requirement" -- write `specs/auth/spec.md` already containing `## Requirement: Session Management` plus its lock (via `lockManager.createFromParsed`/`write`, mirroring existing MODIFIED-test setup), write an ADDED delta re-adding "Session Management" under `changes/add-mfa/spec.md`, call `merger.merge`, then assert the on-disk spec contains exactly one `## Requirement: Session Management` header (`content.match(/^## Requirement: Session Management$/gm)` has length 1) and that `result.noops` contains `auth/session-management` while `result.merged` does not; (2) "ADDED idempotency holds without a base_versions entry" -- call `merge()` once with an ADDED delta targeting a brand-new capability (no prior `specs/<cap>/spec.md`, so no lock/base_versions entry exists after this first call, matching how a change's own earlier ADDED delta would have created it), then call `merge()` again with the identical delta content and an empty `baseVersions` object, and assert the capability spec still contains exactly one `## Requirement:` section for that name after the second call. Fulfills Spec Delta Merge (US-5).
+  - Verify: npx vitest run tests/spec-merger.test.ts
+  - Done: both new cases and all pre-existing spec-merger.test.ts cases pass; the on-disk spec never contains a duplicate `## Requirement:` section after a second identical ADDED merge, with or without a `base_versions` entry.
+
+## Batch 2: Finalizer ordering and completeness gate
+
+- [ ] **Task 2.1: Completeness gate, dry-run-then-write ordering, and CLI exit-order fix**
+  - Files: src/finalize/finalizer.ts, src/cli/commands/finalize.ts
+  - Action: Rewrite `Finalizer.finalize()` (finalizer.ts:31-150) to the design's step order. Step 1 (unchanged): load `metadata`. Step 2 (NEW): hoist the existing `workflowEngine.loadWorkflow(metadata.workflow, this.workflowSearchPaths)` call (currently nested inside the `scopedGateNames` block at finalizer.ts:38-46) so its result also resolves the workflow-required artifact ids (`workflow.artifacts.map(a => a.id)`); if the workflow engine/paths aren't available or loading throws, fall back to `Object.keys(metadata.artifacts)`. For every required id whose `metadata.artifacts[id]` is not `'complete'`, collect `{ id, status }`. If any are incomplete, return immediately with a new `incompleteArtifacts` array populated and every other field defaulted like today's early-abort returns (`archiveName: ''`, `specMerge: { status: 'clean', merged: [], conflicts: [] }`, `gates: []`, `gatesPassed: false`, `docsGenerated: []`, `refreshed: false`) -- no `merger.merge` call and no gates run before this check passes. Step 3: call `merger.merge(changeName, metadata.base_versions, true)` unconditionally (regardless of the caller's `dryRun` param) for conflict detection only; abort with the existing conflict-shape return (finalizer.ts:52-62) if `status === 'conflict'`. Step 4 (unchanged): run gates (finalizer.ts:64-86), aborting on `!gatesPassed && !dryRun`. Step 5 (NEW): only after gates pass -- when the caller's `dryRun` is true, reuse the Step 3 dry-run result and return the existing dry-run-shape response (finalizer.ts:88-98) without a second merge call; when `dryRun` is false, call `merger.merge(changeName, metadata.base_versions, false)` for the real write and use that as `specMerge` for the rest of the function. Steps 6-8 (unchanged): archive, write `gates.yaml`, generate docs, return. Add `incompleteArtifacts?: Array<{ id: string; status: ArtifactStatus }>` to `FinalizeResult` (finalizer.ts:10-18), importing `ArtifactStatus` from `../schemas/change-metadata.js`. In `src/cli/commands/finalize.ts`, reorder the post-run CLI checks to pipeline order: (a) NEW, first -- `result.incompleteArtifacts` non-empty prints/emits each incomplete artifact by name and `process.exit(3)`; (b) `result.specMerge.status === 'conflict'` (moved up from after the current gate check at line 100) -- existing conflict output, `process.exit(2)`; (c) `!result.gatesPassed` (moved down from its current first position at line 59) -- existing gate-failure output, `process.exit(1)`. This also fixes the latent bug where a conflict result (which today forces `gatesPassed: false, gates: []`) was misreported as "Quality gates failed" with an empty gate list instead of "Spec merge conflicts detected". Fulfills Finalizer Orchestration (US-3, US-6).
+  - Verify: npx tsc --noEmit
+  - Done: finalizer.ts compiles with the new step order and `incompleteArtifacts` on `FinalizeResult`; finalize.ts checks incomplete-artifacts before conflict before gate failure.
+
+- [ ] **Task 2.2: Finalizer and CLI ordering tests**
+  - Files: tests/finalizer.test.ts, tests/cli-finalize.test.ts
+  - Action: In tests/finalizer.test.ts, add `await artifactStore.markArtifact(name, id, 'complete')` for every required artifact immediately after each existing `createChange(...)` call and before the corresponding `finalizer.finalize(...)` call (the top-level cases and the `doc generation gating` sub-describe cases), so the new completeness gate from Task 2.1 doesn't break them -- none of the current cases call `markArtifact(..., 'complete')` today. Add new cases: "aborts with incompleteArtifacts when a required artifact is not complete" -- create a change with `['intent', 'implementation', 'verification']`, mark only `intent`/`implementation` complete, call `finalize`, assert `result.incompleteArtifacts` names `verification`, `result.archiveName === ''`, the change remains in `listChanges()`, and nothing under `specs/` changed; "gate failure leaves the target capability spec untouched" -- register a failing gate (`command: 'false'`), create and fully-complete-mark a change whose delta `spec.md` targets a capability, snapshot the capability spec bytes (or its absence) before `finalize`, call `finalize`, assert `!result.gatesPassed`, and assert the capability spec is byte-identical (or still absent) after the run; "retry after a fixed gate applies the merge exactly once" -- same setup, swap in a passing gate, retry `finalize`, and assert the capability spec contains exactly one section for the delta's requirement. In tests/cli-finalize.test.ts (new file, following the `runCli`/mkdtemp harness pattern used in tests/cli-complete.test.ts), add CLI-level cases: a change with a real spec-merge conflict exits 2 with "Spec merge conflicts detected" in stderr and never "Quality gates failed"; a change with an incomplete artifact exits 3 and lists the incomplete artifact by name. Fulfills Finalizer Orchestration (US-3, US-6).
+  - Verify: npx vitest run tests/finalizer.test.ts tests/cli-finalize.test.ts
+  - Done: all updated and new finalizer.test.ts cases pass, including the before/after byte-identity assertion on the capability spec across a failed gate run; the new cli-finalize.test.ts exit-order cases pass.
+
+## Batch 3: Explicit capability targeting
+
+- [ ] **Task 3.1: Surface existing capabilities in spec-authoring instructions**
+  - Files: src/context/instruction-generator.ts, src/templates/artifacts/spec.md
+  - Action: In `InstructionGenerator.generate()` (instruction-generator.ts:48-113), add a private `listExistingCapabilities(specDir: string): Promise<string[]>` that runs `readdir(join(specDir, 'specs'), { withFileTypes: true })`, filters to directories, returns their names sorted, and returns `[]` on `ENOENT` or any read error. Call it only when `params.artifact.type === 'spec'`, and set the result on `context.existing_specs` in the returned `InstructionOutput` (instruction-generator.ts:104-106 currently only populates `context.project`); leave `context.existing_specs` `undefined` for every other artifact type. Do NOT change `capability_name: params.changeName` (instruction-generator.ts:70) -- the H1 pre-fill stays a human-readable title, per design; this task only adds the missing `existing_specs` producer, it does not remove the pre-fill. In `src/templates/artifacts/spec.md`, add one instructional comment line directly under the H1 (above the first `##` heading) directing the author to add `<!-- new-capability -->` immediately under the H1 to confirm a net-new capability, or otherwise name one of the existing capabilities surfaced via `existing_specs` in the rendered instructions. Do not add any "unreplaced placeholder" detection anywhere in this task -- the H1 is always a rendered value, never a literal `{capability_name}` token (see top-of-file deviation note). Fulfills Explicit Capability Target Selection In Spec Authoring (US-1).
+  - Verify: npx tsc --noEmit
+  - Done: instruction-generator.ts compiles and populates `context.existing_specs` for `type: 'spec'` artifacts only; src/templates/artifacts/spec.md carries the new guidance line under its H1.
+
+- [ ] **Task 3.2: `metta complete spec` capability-target refusal gate**
+  - Files: src/cli/commands/complete.ts
+  - Action: Add a module-level `NEW_CAPABILITY_MARKER = /^<!--\s*new-capability\s*-->\s*$/` regex and a `hasNewCapabilityMarker(raw: string): boolean` helper that scans the raw delta content line by line: find the first line starting with `#`, then test the next non-blank line against the regex. This deliberately never touches `parseDeltaSpec`'s AST, since remark's HTML-comment nodes fall through `parseDeltaSpec` untouched (spec-parser.ts:191) and would be invisible to a parsed-structure check. In the existing "Pre-complete spec-delta target-capability gate" block (complete.ts:157-175), before the current MODIFIED/REMOVED/RENAMED loop, add: if the resolved `capabilityName` equals `toSlug(changeName)` (the change's own slug) AND `!capExists` AND `!hasNewCapabilityMarker(deltaContent)`, throw `` `Delta spec's merge target '${capabilityName}' matches this change's own slug and no such capability exists yet. Add '<!-- new-capability -->' directly under the H1 to confirm creating a new capability, or change the H1 to name an existing capability (see 'existing_specs' in the spec-authoring instructions).` `` -- this throw happens before `ctx.artifactStore.markArtifact(...)` so no file or folder is created. Leave the existing MODIFIED/REMOVED/RENAMED-against-nonexistent-capability hard-fail loop (complete.ts:165-174) completely unchanged: it must still fire even when the marker is present, per the spec's "Non-ADDED operations against a nonexistent capability still hard-fail" scenario. When the marker is present, or the target isn't a self-slug landfill, completion proceeds to `markArtifact` exactly as today. Do NOT add any "unreplaced placeholder" detection here (see top-of-file deviation note) -- this is a scope boundary, not an oversight. Fulfills Merge Target Confirmation At Completion (US-2).
+  - Verify: npx tsc --noEmit
+  - Done: complete.ts compiles; an ADDED-only delta whose H1 matches the change's own slug with no existing capability and no marker throws before any write; the marker or an existing-capability H1 both allow completion; MODIFIED/REMOVED/RENAMED against a nonexistent capability still hard-fails regardless of the marker.
+
+- [ ] **Task 3.3: Capability-targeting tests**
+  - Files: tests/instruction-generator.test.ts, tests/cli-complete.test.ts
+  - Action: In tests/instruction-generator.test.ts, add a case that creates `specDir/specs/<cap>/` directories for two capabilities before calling `generator.generate()` with a `type: 'spec'` artifact, asserting `output.context.existing_specs` contains both names sorted; add a case asserting `existing_specs` is `undefined` for a non-`spec` artifact type (e.g. `type: 'intent'`) even when capability directories exist; add a case asserting `[]` when `specDir/specs` doesn't exist. In tests/cli-complete.test.ts, add end-to-end cases via `runCli`: (1) an ADDED-only delta spec whose H1 is the unedited change-slug default with no `<!-- new-capability -->` marker and no existing capability folder -- `metta complete spec` exits non-zero, stderr names the unrecognized/unconfirmed capability, and no folder is created under `spec/specs/`; (2) the identical delta with `<!-- new-capability -->` added as the first line under the H1 -- `metta complete spec` exits 0 and a subsequent `metta finalize` merges the new capability correctly; (3) a delta whose H1 names a pre-existing capability slug -- completes and merges exactly as before (regression guard); (4) a MODIFIED delta targeting a capability with no existing spec, with or without the marker -- still hard-fails non-zero with no writes (regression guard for the preserved non-ADDED hard-fail path). Fulfills Explicit Capability Target Selection In Spec Authoring (US-1), Merge Target Confirmation At Completion (US-2).
+  - Verify: npx vitest run tests/instruction-generator.test.ts tests/cli-complete.test.ts
+  - Done: all four cli-complete.test.ts capability-targeting scenarios pass; all three instruction-generator.test.ts `existing_specs` scenarios pass.
+
+## Batch 4: Verification artifact contract fix
+
+- [ ] **Task 4.1: Fix `verify.md`'s instructions to name `summary.md`**
+  - Files: src/templates/artifacts/verify.md
+  - Action: Per the design's chosen direction (and the documented deviation from intent.md's Impact list, which named `trivial.yaml`): fix the shared instructions template, not the workflow YAML `generates` declarations. `InstructionGenerator.generate`'s `output_path` (instruction-generator.ts:107) is already computed correctly from `params.artifact.generates`; only the template text presented to the verifying agent is stale. Add an explicit instruction to src/templates/artifacts/verify.md directing the agent to save the completed file as `summary.md` in the change directory (e.g. a line under the H1 or near the `## Summary` section such as "Save this file as `summary.md` in the change directory."). Do NOT modify `src/templates/workflows/trivial.yaml`, `quick.yaml`, or `standard.yaml` -- all three already declare `generates: summary.md` for their `verification` stage and all three render this same template, so this one-file fix aligns the declared contract and the instructed behavior for every tier at once. Fulfills Trivial Workflow Verification Artifact Contract Agreement (US-4).
+  - Verify: npx tsc --noEmit
+  - Done: src/templates/artifacts/verify.md explicitly instructs saving the artifact as `summary.md`; trivial.yaml, quick.yaml, and standard.yaml are byte-for-byte unchanged.
+
+- [ ] **Task 4.2: Verification-contract agreement test**
+  - Files: tests/verify-template-contract.test.ts
+  - Action: Create a new test file asserting the fix holds structurally, covering spec.md's "Declared contract and instructed behavior agree" scenario: (1) read src/templates/artifacts/verify.md and assert its content mentions `summary.md` as the file to save; (2) read src/templates/workflows/trivial.yaml, quick.yaml, and standard.yaml, parse each with the `yaml` package, and assert each workflow's `verification`-id artifact's `generates` field equals `'summary.md'`, matching the filename instructed in (1); (3) render the `verify.md` template through `InstructionGenerator.generate()` for a `verification`-type artifact with `generates: 'summary.md'` and assert `output.output_path` ends in `summary.md`, confirming the generator's `output_path` computation and the rendered template text agree end to end. Fulfills Trivial Workflow Verification Artifact Contract Agreement (US-4).
+  - Verify: npx vitest run tests/verify-template-contract.test.ts
+  - Done: the template-mentions-summary.md assertion, the three-workflow `generates` cross-check, and the rendered `output_path` assertion all pass.
+
+## Batch 5: Full gate sweep
+
+- [ ] **Task 5.1: Full gate sweep across all batches**
+  - Files: (none -- whole-repo verification)
+  - Action: Run the full test suite, the TypeScript type checker, and the production build to confirm no regressions were introduced across Batches 1-4, and confirm the build correctly propagates the Task 4.1 template edit into `dist/templates/artifacts/verify.md` (per project convention, template files are copied to `dist/` at build time and are never hand-edited there).
+  - Verify: npx vitest run && npx tsc --noEmit && npm run build && diff src/templates/artifacts/verify.md dist/templates/artifacts/verify.md
+  - Done: all commands exit 0 with no failing tests, no type errors, a successful build, and the `diff` shows `dist/templates/artifacts/verify.md` is byte-identical to the edited source template.
