@@ -1,26 +1,21 @@
-version: 4
-hash: sha256:4ec2b6335e46
-updated: 2026-07-15T11:15:10.133Z
+version: 9
+hash: sha256:3a38a27ad6b3
+updated: 2026-07-15T12:50:07.407Z
 status: draft
 source: change
 requirements:
   - id: spec-delta-merge
-    hash: sha256:42688eb8b415
+    hash: sha256:e9764d07d1ec
     scenarios:
-      - new-capability-created-from-added-delta
-      - conflict-detected-on-modified-base
-      - clean-merge-when-base-hash-matches
-      - modified-delta-replaces-requirement-text
-      - renamed-delta-replaces-old-requirement-with-new-name
-      - dry-run-does-not-write-files
-      - no-spec-md-returns-clean-immediately
+      - new-capability-created-from-a-confirmed-added-delta
+      - re-applying-an-added-delta-does-not-duplicate-an-existing-requirement
+      - added-idempotency-holds-without-a-base-versions-entry
   - id: finalizer-orchestration
-    hash: sha256:9cef7c71d9b1
+    hash: sha256:0129ffed4dd0
     scenarios:
-      - successful-finalize-archives-the-change
-      - finalize-aborts-on-spec-conflict
-      - dry-run-leaves-change-active
-      - gates-yaml-written-to-archive
+      - incomplete-artifact-blocks-finalize-before-gates-or-merge-run
+      - gate-failure-leaves-the-target-capability-spec-untouched
+      - retry-after-a-fixed-gate-applies-the-merge-exactly-once
   - id: merge-safety-pipeline
     hash: sha256:6c4613d3afb9
     scenarios:
@@ -49,3 +44,20 @@ requirements:
     scenarios:
       - next-surfaces-the-stale-lock-instead-of-routing-into-a-failing-finalize
       - next-routing-is-unchanged-when-no-stale-lock-is-present
+  - id: explicit-capability-target-selection-in-spec-authoring
+    hash: sha256:dfaedb3d8cc9
+    scenarios:
+      - instructions-surface-existing-capabilities-before-authoring
+      - generated-scaffold-carries-an-explicit-target-field-not-an-implicit-slug-default
+  - id: merge-target-confirmation-at-completion
+    hash: sha256:cecc82b6a370
+    scenarios:
+      - unconfirmed-self-slug-target-is-refused
+      - explicit-new-capability-marker-allows-completion
+      - non-added-operations-against-a-nonexistent-capability-still-hard-fail
+  - id: trivial-workflow-verification-artifact-contract-agreement
+    hash: sha256:9258c2538f5f
+    scenarios:
+      - declared-contract-and-instructed-behavior-agree
+      - following-instructions-lets-completion-succeed
+      - finalize-completeness-gate-passes-without-manual-patching

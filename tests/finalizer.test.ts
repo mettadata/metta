@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { mkdtemp, rm, mkdir, writeFile, readFile } from 'node:fs/promises'
+import { mkdtemp, rm, mkdir, writeFile, readFile, readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { Finalizer } from '../src/finalize/finalizer.js'
@@ -28,8 +28,21 @@ describe('Finalizer', () => {
     await rm(specDir, { recursive: true, force: true })
   })
 
+  // The finalizer's completeness gate requires every workflow-required
+  // artifact to be 'complete' before anything else runs.
+  async function markAllComplete(
+    store: ArtifactStore,
+    changeName: string,
+    ids: string[],
+  ): Promise<void> {
+    for (const id of ids) {
+      await store.markArtifact(changeName, id, 'complete')
+    }
+  }
+
   it('finalizes a change and archives it', async () => {
     await artifactStore.createChange('test feature', 'quick', ['intent', 'implementation', 'verification'])
+    await markAllComplete(artifactStore, 'test-feature', ['intent', 'implementation', 'verification'])
 
     const result = await finalizer.finalize('test-feature')
 
@@ -44,6 +57,7 @@ describe('Finalizer', () => {
 
   it('supports dry-run', async () => {
     await artifactStore.createChange('dry run test', 'quick', ['intent'])
+    await markAllComplete(artifactStore, 'dry-run-test', ['intent'])
 
     const result = await finalizer.finalize('dry-run-test', true)
 
@@ -102,6 +116,7 @@ describe('Finalizer', () => {
       'implementation',
       'verification',
     ])
+    await markAllComplete(artifactStore, 'scoped-gates-test', ['intent', 'implementation', 'verification'])
 
     const result = await scopedFinalizer.finalize('scoped-gates-test')
 
@@ -109,6 +124,163 @@ describe('Finalizer', () => {
     expect(result.gates.map(g => g.gate)).not.toContain('lint')
     expect(result.gates.map(g => g.gate)).not.toContain('build')
     expect(result.gatesPassed).toBe(true)
+  })
+
+  it('aborts with incompleteArtifacts when a required artifact is not complete', async () => {
+    await artifactStore.createChange('incomplete change', 'quick', ['intent', 'implementation', 'verification'])
+    await artifactStore.markArtifact('incomplete-change', 'intent', 'complete')
+    await artifactStore.markArtifact('incomplete-change', 'implementation', 'complete')
+    // 'verification' deliberately left incomplete.
+
+    // A delta targeting a capability — proves the merge never ran on abort.
+    const deltaContent = `# blockedcap (Delta)
+
+## ADDED: Requirement: Blocked Feature
+
+The system MUST NOT merge this while verification is incomplete.
+
+### Scenario: Blocked
+- GIVEN an incomplete artifact
+- WHEN finalize runs
+- THEN nothing is merged
+`
+    await writeFile(join(specDir, 'changes', 'incomplete-change', 'spec.md'), deltaContent)
+
+    const specsBefore = await readdir(join(specDir, 'specs'))
+
+    const result = await finalizer.finalize('incomplete-change')
+
+    expect(result.incompleteArtifacts).toBeDefined()
+    expect(result.incompleteArtifacts!.map(a => a.id)).toEqual(['verification'])
+    expect(result.archiveName).toBe('')
+
+    // Change remains active.
+    const changes = await artifactStore.listChanges()
+    expect(changes).toContain('incomplete-change')
+
+    // Nothing under specs/ changed.
+    const specsAfter = await readdir(join(specDir, 'specs'))
+    expect(specsAfter).toEqual(specsBefore)
+  })
+
+  it('gate failure leaves the target capability spec untouched', async () => {
+    const gateRegistry = new GateRegistry()
+    gateRegistry.register({
+      name: 'tests',
+      description: 'always-failing gate',
+      command: 'false',
+      timeout: 5000,
+      required: true,
+      on_failure: 'stop',
+    })
+    const gatedFinalizer = new Finalizer(specDir, artifactStore, lockManager, gateRegistry, specDir)
+
+    // Pre-existing capability spec the delta targets.
+    await mkdir(join(specDir, 'specs', 'gatecap'), { recursive: true })
+    const existingSpec = `# gatecap
+
+## Requirement: Existing Behavior
+
+The system MUST keep behaving.
+
+### Scenario: Existing
+- GIVEN the system
+- WHEN it runs
+- THEN it behaves
+`
+    await writeFile(join(specDir, 'specs', 'gatecap', 'spec.md'), existingSpec)
+
+    await artifactStore.createChange('gate fail change', 'quick', ['intent', 'implementation', 'verification'])
+    await markAllComplete(artifactStore, 'gate-fail-change', ['intent', 'implementation', 'verification'])
+    const deltaContent = `# gatecap (Delta)
+
+## ADDED: Requirement: New Behavior
+
+The system MUST gain new behavior only after gates pass.
+
+### Scenario: Gated
+- GIVEN a failing gate
+- WHEN finalize runs
+- THEN the spec is untouched
+`
+    await writeFile(join(specDir, 'changes', 'gate-fail-change', 'spec.md'), deltaContent)
+
+    const beforeBytes = await readFile(join(specDir, 'specs', 'gatecap', 'spec.md'))
+
+    const result = await gatedFinalizer.finalize('gate-fail-change')
+
+    expect(result.gatesPassed).toBe(false)
+    expect(result.archiveName).toBe('')
+
+    // Byte-identical: the gate failure aborted before any spec write.
+    const afterBytes = await readFile(join(specDir, 'specs', 'gatecap', 'spec.md'))
+    expect(afterBytes.equals(beforeBytes)).toBe(true)
+  })
+
+  it('retry after a fixed gate applies the merge exactly once', async () => {
+    const failingRegistry = new GateRegistry()
+    failingRegistry.register({
+      name: 'tests',
+      description: 'always-failing gate',
+      command: 'false',
+      timeout: 5000,
+      required: true,
+      on_failure: 'stop',
+    })
+
+    await mkdir(join(specDir, 'specs', 'retrycap'), { recursive: true })
+    const existingSpec = `# retrycap
+
+## Requirement: Existing Behavior
+
+The system MUST keep behaving.
+
+### Scenario: Existing
+- GIVEN the system
+- WHEN it runs
+- THEN it behaves
+`
+    await writeFile(join(specDir, 'specs', 'retrycap', 'spec.md'), existingSpec)
+
+    await artifactStore.createChange('gate retry change', 'quick', ['intent', 'implementation', 'verification'])
+    await markAllComplete(artifactStore, 'gate-retry-change', ['intent', 'implementation', 'verification'])
+    const deltaContent = `# retrycap (Delta)
+
+## ADDED: Requirement: Retry Behavior
+
+The system MUST apply this requirement exactly once across retries.
+
+### Scenario: Retried
+- GIVEN a fixed gate
+- WHEN finalize is retried
+- THEN the delta merges once
+`
+    await writeFile(join(specDir, 'changes', 'gate-retry-change', 'spec.md'), deltaContent)
+
+    // First run: gate fails, nothing merged.
+    const failResult = await new Finalizer(specDir, artifactStore, lockManager, failingRegistry, specDir)
+      .finalize('gate-retry-change')
+    expect(failResult.gatesPassed).toBe(false)
+
+    // Swap in a passing gate and retry.
+    const passingRegistry = new GateRegistry()
+    passingRegistry.register({
+      name: 'tests',
+      description: 'passing gate',
+      command: 'true',
+      timeout: 5000,
+      required: true,
+      on_failure: 'stop',
+    })
+    const retryResult = await new Finalizer(specDir, artifactStore, lockManager, passingRegistry, specDir)
+      .finalize('gate-retry-change')
+
+    expect(retryResult.gatesPassed).toBe(true)
+    expect(retryResult.archiveName).toMatch(/^\d{4}-\d{2}-\d{2}-gate-retry-change$/)
+
+    const content = await readFile(join(specDir, 'specs', 'retrycap', 'spec.md'), 'utf-8')
+    const headers = content.match(/^## Requirement: Retry Behavior$/gm) ?? []
+    expect(headers.length).toBe(1)
   })
 
   describe('doc generation gating', () => {
@@ -147,6 +319,7 @@ describe('Finalizer', () => {
         projectRoot,
       )
       await scopedArtifactStore.createChange('docs default test', 'quick', ['intent', 'implementation', 'verification'])
+      await markAllComplete(scopedArtifactStore, 'docs-default-test', ['intent', 'implementation', 'verification'])
 
       const result = await finalizer.finalize('docs-default-test')
 
@@ -172,6 +345,7 @@ describe('Finalizer', () => {
         projectRoot,
       )
       await scopedArtifactStore.createChange('docs manual test', 'quick', ['intent', 'implementation', 'verification'])
+      await markAllComplete(scopedArtifactStore, 'docs-manual-test', ['intent', 'implementation', 'verification'])
 
       const result = await finalizer.finalize('docs-manual-test')
 
@@ -194,6 +368,7 @@ describe('Finalizer', () => {
         projectRoot,
       )
       await scopedArtifactStore.createChange('docs error test', 'quick', ['intent', 'implementation', 'verification'])
+      await markAllComplete(scopedArtifactStore, 'docs-error-test', ['intent', 'implementation', 'verification'])
 
       const result = await finalizer.finalize('docs-error-test')
 
@@ -217,6 +392,7 @@ describe('Finalizer', () => {
         projectRoot,
       )
       await scopedArtifactStore.createChange('endlessly verifies docs', 'quick', ['intent', 'implementation', 'verification'])
+      await markAllComplete(scopedArtifactStore, 'endlessly-verifies-docs', ['intent', 'implementation', 'verification'])
 
       const result = await finalizer.finalize('endlessly-verifies-docs')
 

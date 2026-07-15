@@ -55,6 +55,49 @@ export function registerFinalizeCommand(program: Command): void {
 
         const result = await finalizer.finalize(name, options.dryRun)
 
+        // Post-run checks in pipeline order: incomplete artifacts (exit 3) →
+        // spec conflict (exit 2) → gate failure (exit 1). Conflict is checked
+        // before gates because a conflict abort forces gatesPassed: false with
+        // an empty gate list — checking gates first misreported conflicts as
+        // "Quality gates failed".
+
+        // Incomplete artifacts
+        if (result.incompleteArtifacts && result.incompleteArtifacts.length > 0) {
+          if (json) {
+            outputJson({
+              status: 'incomplete_artifacts',
+              change: name,
+              incomplete: result.incompleteArtifacts,
+              message: 'Complete all required artifacts before finalizing',
+            })
+          } else {
+            console.error(color('Cannot finalize: required artifacts are not complete:', 31))
+            for (const a of result.incompleteArtifacts) {
+              console.error(`  ${a.id}: ${a.status}`)
+            }
+            console.error('\nComplete each artifact and retry.')
+          }
+          process.exit(3)
+        }
+
+        // Spec conflict
+        if (result.specMerge.status === 'conflict') {
+          if (json) {
+            outputJson({
+              status: 'conflict',
+              conflicts: result.specMerge.conflicts,
+              message: 'Resolve conflicts before finalizing',
+            })
+          } else {
+            console.error(color('Spec merge conflicts detected:', 31))
+            for (const c of result.specMerge.conflicts) {
+              console.error(`  ${c.capability}/${c.requirementId}: ${c.reason}`)
+            }
+            console.error('\nResolve conflicts and retry.')
+          }
+          process.exit(2)
+        }
+
         // Gate failure
         if (!result.gatesPassed) {
           if (json) {
@@ -94,24 +137,6 @@ export function registerFinalizeCommand(program: Command): void {
             console.error('\nFix failures and retry.')
           }
           process.exit(1)
-        }
-
-        // Spec conflict
-        if (result.specMerge.status === 'conflict') {
-          if (json) {
-            outputJson({
-              status: 'conflict',
-              conflicts: result.specMerge.conflicts,
-              message: 'Resolve conflicts before finalizing',
-            })
-          } else {
-            console.error(color('Spec merge conflicts detected:', 31))
-            for (const c of result.specMerge.conflicts) {
-              console.error(`  ${c.capability}/${c.requirementId}: ${c.reason}`)
-            }
-            console.error('\nResolve conflicts and retry.')
-          }
-          process.exit(2)
         }
 
         if (json) {

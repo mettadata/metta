@@ -11,6 +11,7 @@ import { readFile } from 'node:fs/promises'
 import { toSlug } from '../../util/slug.js'
 import { scoreFromIntentImpact, scoreFromSummaryFiles, isScorePresent, renderBanner } from '../../complexity/index.js'
 import { parseTasks, markTaskComplete } from '../../execution/batch-planner.js'
+import { SpecTargetError } from '../../finalize/spec-merger.js'
 import type { ArtifactStatus } from '../../schemas/change-metadata.js'
 
 const TIER_RANK: Record<string, number> = {
@@ -55,6 +56,28 @@ async function stampArtifactCompleted(
       `Warning: failed to record completion timestamp for ${artifactId}: ${getErrorMessage(err)}\n`,
     )
   }
+}
+
+// Confirmation marker for a delta spec that deliberately creates a net-new
+// capability. Must occupy the first non-blank line after the delta's H1.
+const NEW_CAPABILITY_MARKER = /^<!--\s*new-capability\s*-->\s*$/
+
+/**
+ * Scan the raw delta content for the `<!-- new-capability -->` marker: find
+ * the first line starting with `#`, then test the next non-blank line against
+ * the marker regex. Deliberately operates on raw lines, never on
+ * `parseDeltaSpec`'s AST — remark's HTML-comment nodes fall through the delta
+ * parser untouched, so a parsed-structure check would never see the marker.
+ */
+function hasNewCapabilityMarker(raw: string): boolean {
+  const lines = raw.split('\n')
+  const h1Index = lines.findIndex(line => line.startsWith('#'))
+  if (h1Index === -1) return false
+  for (let i = h1Index + 1; i < lines.length; i++) {
+    if (lines[i].trim() === '') continue
+    return NEW_CAPABILITY_MARKER.test(lines[i])
+  }
+  return false
 }
 
 const MIN_CONTENT_BYTES = 200
@@ -162,6 +185,22 @@ export function registerCompleteCommand(program: Command): void {
             const capabilityName = toSlug(deltaSpec.title.replace(/\s*\(Delta\)\s*$/, ''))
             const capSpecPath = join(ctx.projectRoot, 'spec', 'specs', capabilityName, 'spec.md')
             const capExists = existsSync(capSpecPath)
+            // Capability-target refusal gate: an H1 that still resolves to the
+            // change's own slug, with no existing capability of that name,
+            // must be explicitly confirmed as net-new via the marker —
+            // otherwise every finalize lands its deltas in a fresh
+            // change-slug-named capability by accident. Throws before
+            // markArtifact, so no file or folder is created.
+            if (
+              capabilityName === toSlug(changeName) &&
+              !capExists &&
+              !hasNewCapabilityMarker(deltaContent)
+            ) {
+              throw new SpecTargetError(
+                `Delta spec's merge target '${capabilityName}' matches this change's own slug and no such capability exists yet. ` +
+                `Add '<!-- new-capability -->' directly under the H1 to confirm creating a new capability, or change the H1 to name an existing capability (see 'existing_specs' in the spec-authoring instructions).`,
+              )
+            }
             for (const delta of deltaSpec.deltas) {
               if ((delta.operation === 'MODIFIED' || delta.operation === 'REMOVED' || delta.operation === 'RENAMED') && !capExists) {
                 const suggestion = delta.operation === 'MODIFIED'

@@ -1,3 +1,5 @@
+import { readdir } from 'node:fs/promises'
+import { join } from 'node:path'
 import { ContextEngine, type LoadedContext } from './context-engine.js'
 import { TemplateEngine, type TemplateContext } from '../templates/template-engine.js'
 import type { WorkflowArtifact } from '../schemas/workflow-definition.js'
@@ -89,6 +91,16 @@ export class InstructionGenerator {
       budget.dropped_optionals = context.droppedOptionals
     }
 
+    // Surface existing capability slugs to spec authors only, so the delta's
+    // H1 can target a real capability instead of defaulting to the change's
+    // own slug. Every other artifact type leaves existing_specs undefined.
+    const instructionContext: InstructionOutput['context'] = {
+      project: this.extractProjectContext(context),
+    }
+    if (params.artifact.type === 'spec') {
+      instructionContext.existing_specs = await this.listExistingCapabilities(params.specDir)
+    }
+
     return {
       artifact: params.artifact.id,
       change: params.changeName,
@@ -101,9 +113,7 @@ export class InstructionGenerator {
         rules: params.agent.rules ?? [],
       },
       template,
-      context: {
-        project: this.extractProjectContext(context),
-      },
+      context: instructionContext,
       output_path: `spec/changes/${params.changeName}/${params.artifact.generates}`,
       next_steps: params.nextSteps,
       gates: params.artifact.gates,
@@ -115,5 +125,22 @@ export class InstructionGenerator {
   private extractProjectContext(context: LoadedContext): string | undefined {
     const projectFile = context.files.find(f => f.path.endsWith('project.md'))
     return projectFile?.content
+  }
+
+  /**
+   * List existing capability slugs — the directory names under
+   * `<specDir>/specs/`. Returns a sorted array; returns `[]` when the specs
+   * directory doesn't exist (ENOENT) or on any other read error.
+   */
+  private async listExistingCapabilities(specDir: string): Promise<string[]> {
+    try {
+      const entries = await readdir(join(specDir, 'specs'), { withFileTypes: true })
+      return entries
+        .filter(e => e.isDirectory())
+        .map(e => e.name)
+        .sort()
+    } catch {
+      return []
+    }
   }
 }

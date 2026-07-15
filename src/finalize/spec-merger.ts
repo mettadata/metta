@@ -4,6 +4,20 @@ import { StateStore } from '../state/state-store.js'
 import { toSlug } from '../util/slug.js'
 import { join } from 'node:path'
 
+/**
+ * Raised when a delta spec's merge target cannot be accepted — e.g. the H1
+ * resolves to the change's own slug, no such capability exists, and the
+ * author has not confirmed a net-new capability with the
+ * `<!-- new-capability -->` marker. Co-located with the merge-target domain
+ * logic; thrown by `metta complete spec` before any write happens.
+ */
+export class SpecTargetError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'SpecTargetError'
+  }
+}
+
 export interface MergeConflict {
   capability: string
   requirementId: string
@@ -16,6 +30,14 @@ export interface MergeResult {
   status: 'clean' | 'conflict'
   merged: string[]
   conflicts: MergeConflict[]
+  /**
+   * ADDED deltas whose requirement name already exists in the target
+   * capability spec — skipped as no-ops instead of appended (idempotent
+   * re-merge). Entries are `${capability}/${requirementId}`. Note: dry-run
+   * merges do not apply deltas, so they may report an entry under `merged`
+   * that resolves to a no-op on the real write.
+   */
+  noops?: string[]
 }
 
 export class SpecMerger {
@@ -32,6 +54,7 @@ export class SpecMerger {
     const state = new StateStore(this.specDir)
     const merged: string[] = []
     const conflicts: MergeConflict[] = []
+    const noops: string[] = []
 
     // Find delta specs in the change
     const changeDir = join('changes', changeName)
@@ -97,9 +120,13 @@ export class SpecMerger {
 
       // Clean merge
       if (!dryRun) {
-        const conflict = await this.applyDelta(state, capabilityName, delta)
-        if (conflict) {
-          conflicts.push(conflict)
+        const outcome = await this.applyDelta(state, capabilityName, delta)
+        if (outcome === 'noop') {
+          noops.push(`${capabilityName}/${delta.requirement.id}`)
+          continue
+        }
+        if (outcome) {
+          conflicts.push(outcome)
           continue
         }
       }
@@ -110,6 +137,7 @@ export class SpecMerger {
       status: conflicts.length > 0 ? 'conflict' : 'clean',
       merged,
       conflicts,
+      noops,
     }
   }
 
@@ -133,18 +161,24 @@ export class SpecMerger {
    * Apply a single delta (ADDED/MODIFIED/RENAMED/REMOVED) to a capability spec on disk.
    * Returns null on success. Returns a MergeConflict when MODIFIED/RENAMED/REMOVED
    * targets a requirement that does not exist — caller MUST record the conflict and
-   * skip recording the capability as merged. Idempotent: applying the same delta to
-   * already-applied content produces byte-identical output.
+   * skip recording the capability as merged. Returns the string 'noop' when an ADDED
+   * delta's requirement name already exists in the target spec — the file is not
+   * rewritten and the lock is not updated, making repeated ADDED merges idempotent.
+   * MODIFIED/RENAMED/REMOVED re-application produces byte-identical output.
    */
   private async applyDelta(
     state: StateStore,
     capability: string,
     delta: ParsedDelta,
-  ): Promise<MergeConflict | null> {
+  ): Promise<MergeConflict | null | 'noop'> {
     const specPath = join('specs', capability, 'spec.md')
     let content = await state.readRaw(specPath)
 
     if (delta.operation === 'ADDED') {
+      const { sections } = splitRequirements(content)
+      if (sections.has(delta.requirement.name)) {
+        return 'noop'
+      }
       content += `\n\n## Requirement: ${delta.requirement.name}\n\n${delta.requirement.text}\n\n${
         delta.requirement.scenarios.map(s =>
           `### Scenario: ${s.name}\n${s.steps.map(step => `- ${step}`).join('\n')}`
