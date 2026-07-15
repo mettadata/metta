@@ -103,6 +103,67 @@ describe('finalize-lock', () => {
     await expect(acquireFinalizeLock(projectRoot, CHANGE)).resolves.toBeTypeOf('function')
   })
 
+  describe('acquire mtime fallback for EPERM-ambiguous owners', () => {
+    const OLD_MTIME_SECONDS = (Date.now() - 5 * 60_000) / 1000
+    const AMBIGUOUS_PID = 54321
+
+    function writeLock(pid: number): void {
+      mkdirSync(join(projectRoot, '.metta', 'locks'), { recursive: true })
+      writeFileSync(
+        lockPath,
+        JSON.stringify({ pid, startedAt: new Date().toISOString(), change: CHANGE }),
+        'utf8',
+      )
+    }
+
+    function mockKillEperm(): void {
+      vi.spyOn(process, 'kill').mockImplementation(() => {
+        const err = new Error('operation not permitted') as NodeJS.ErrnoException
+        err.code = 'EPERM'
+        throw err
+      })
+    }
+
+    afterEach(() => {
+      vi.restoreAllMocks()
+    })
+
+    it('reclaims an EPERM-ambiguous lock whose mtime exceeds the staleness threshold', async () => {
+      writeLock(AMBIGUOUS_PID)
+      utimesSync(lockPath, OLD_MTIME_SECONDS, OLD_MTIME_SECONDS)
+      mockKillEperm()
+
+      await expect(acquireFinalizeLock(projectRoot, CHANGE)).resolves.toBeTypeOf('function')
+
+      const parsed = JSON.parse(readFileSync(lockPath, 'utf8'))
+      expect(parsed.pid).toBe(process.pid)
+    })
+
+    it('throws FinalizeLockError for an EPERM-ambiguous lock with a fresh mtime', async () => {
+      writeLock(AMBIGUOUS_PID)
+      // Fresh mtime: just written, not backdated.
+      mockKillEperm()
+
+      const err = await acquireFinalizeLock(projectRoot, CHANGE).catch((e) => e)
+      expect(err).toBeInstanceOf(FinalizeLockError)
+      expect(err.pid).toBe(AMBIGUOUS_PID)
+
+      // The original lock is untouched.
+      const parsed = JSON.parse(readFileSync(lockPath, 'utf8'))
+      expect(parsed.pid).toBe(AMBIGUOUS_PID)
+    })
+
+    it('still reclaims a dead-pid lock regardless of mtime age', async () => {
+      writeLock(DEAD_PID)
+      utimesSync(lockPath, OLD_MTIME_SECONDS, OLD_MTIME_SECONDS)
+
+      await expect(acquireFinalizeLock(projectRoot, CHANGE)).resolves.toBeTypeOf('function')
+
+      const parsed = JSON.parse(readFileSync(lockPath, 'utf8'))
+      expect(parsed.pid).toBe(process.pid)
+    })
+  })
+
   it('release removes the lock file', async () => {
     const release = await acquireFinalizeLock(projectRoot, CHANGE)
     expect(existsSync(lockPath)).toBe(true)

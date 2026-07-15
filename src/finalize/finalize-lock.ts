@@ -101,8 +101,12 @@ export async function checkFinalizeLockStale(
 /**
  * Acquire a per-change finalize lock under `.metta/locks/finalize-<change>.lock`.
  *
- * If a lock already exists, parses validly, and its PID is alive, throws
- * {@link FinalizeLockError}. A missing, corrupt, or stale-PID lock is reclaimed.
+ * Staleness is delegated to {@link checkFinalizeLockStale} so acquisition and
+ * read-only reporting (`metta status` / `metta next`) can never diverge: a lock
+ * those commands report as stale (`dead-pid` or `mtime-expired`) is reclaimed
+ * here, and only a non-stale lock (confirmed-live owner, or an EPERM-ambiguous
+ * owner with a fresh mtime) throws {@link FinalizeLockError}. A missing or
+ * corrupt lock is likewise reclaimed.
  *
  * Cleanup is registered on `process.once('exit', ...)` because `finalize.ts`
  * calls `process.exit()` on several branches — a finally-only release would
@@ -122,10 +126,13 @@ export async function acquireFinalizeLock(
   try {
     const raw = await readFile(lockPath, 'utf8')
     const existing = FinalizeLockSchema.parse(JSON.parse(raw))
-    if (isPidAlive(existing.pid)) {
+    const { stale } = await checkFinalizeLockStale(projectRoot, change)
+    if (!stale) {
+      // Confirmed-live owner, or EPERM-ambiguous owner with a fresh mtime.
       throw new FinalizeLockError(change, existing.pid, lockPath)
     }
-    // Dead PID → stale lock, fall through to reclaim.
+    // Stale (dead-pid or mtime-expired) → reclaim: remove before rewriting.
+    await unlink(lockPath).catch(() => {})
   } catch (err) {
     // Never swallow a real lock conflict.
     if (err instanceof FinalizeLockError) throw err
