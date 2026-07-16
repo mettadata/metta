@@ -30,7 +30,7 @@ _metta() {
     'install:Install Metta into a project'
     'propose:Start a new change (standard workflow)'
     'quick:Quick mode — small changes'
-    'auto:Full lifecycle loop'
+    'auto:Print guidance for starting a change with metta propose'
     'plan:Build planning artifacts'
     'execute:Run implementation'
     'verify:Verify against spec'

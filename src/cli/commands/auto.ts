@@ -1,50 +1,44 @@
 import { Command } from 'commander'
-import { createCliContext, outputJson, getErrorMessage } from '../helpers.js'
+import { outputJson, getErrorMessage } from '../helpers.js'
+
+const autoDescription = [
+  'Prints guidance for starting a change with `metta propose`. This command',
+  'does not run an automated propose→plan→execute→verify→ship loop; use the',
+  'individual lifecycle skills (`metta-propose`, `metta-plan`, `metta-execute`,',
+  '`metta-verify`, `metta-ship`) or `/metta-auto` for the full loop, in an',
+  'AI-orchestrated session.',
+].join('\n')
 
 export function registerAutoCommand(program: Command): void {
   program
     .command('auto')
-    .description('Full lifecycle loop — discover, build, verify, ship')
+    .description(autoDescription)
     .argument('<description>', 'Description of what to build')
-    .option('--workflow <name>', 'Workflow to use', 'standard')
-    .option('--max-cycles <n>', 'Maximum iteration cycles', '10')
-    .option('--resume', 'Resume interrupted auto run')
-    .option('--from <phase>', 'Start from a specific phase')
+    .option('--workflow <name>', 'workflow tier to mention in guidance', 'standard')
+    .option('--max-cycles <n>', 'unused by this command; retained for output compatibility', '10')
     .action(async (description, options) => {
       const json = program.opts().json
-      const ctx = createCliContext()
 
       try {
-        if (options.resume) {
-          // Check for existing auto state
-          const stateExists = await ctx.stateStore.exists('state.yaml')
-          if (!stateExists) throw new Error('No auto state to resume. Start a new auto run.')
-
-          if (json) {
-            outputJson({ status: 'resuming', message: 'Auto mode resumed' })
-          } else {
-            console.log('Resuming auto mode...')
-          }
-          return
-        }
-
         const maxCycles = parseInt(options.maxCycles)
 
         if (json) {
           outputJson({
-            status: 'started',
+            status: 'guidance',
             description,
             workflow: options.workflow,
             max_cycles: maxCycles,
-            message: 'Auto mode started. Discovery phase is interactive.',
+            message: 'This command does not run the lifecycle loop. Run metta propose to start the change.',
           })
         } else {
-          console.log(`Auto mode: ${description}`)
+          console.log(`Auto: ${description}`)
           console.log(`  Workflow: ${options.workflow}`)
-          console.log(`  Max cycles: ${maxCycles}`)
           console.log('')
-          console.log('Phase 0: Discovery (interactive)')
-          console.log('  Run metta propose to begin discovery.')
+          console.log('This command does not run an automated propose→plan→execute→verify→ship loop.')
+          console.log(`Run metta propose "${description}" to start this change, then use the`)
+          console.log('individual lifecycle skills (metta-propose, metta-plan, metta-execute,')
+          console.log('metta-verify, metta-ship) or /metta-auto for the full loop, in an')
+          console.log('AI-orchestrated session.')
         }
       } catch (err) {
         const message = getErrorMessage(err)

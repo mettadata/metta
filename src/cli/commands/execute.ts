@@ -6,7 +6,6 @@ export function registerExecuteCommand(program: Command): void {
     .command('execute')
     .description('Run implementation')
     .argument('[change]', 'Change name')
-    .option('--resume', 'Resume from last checkpoint')
     .option('--change <name>', 'Change name (alternative to positional)')
     .action(async (changeName, options) => {
       changeName = changeName ?? options.change
@@ -22,15 +21,11 @@ export function registerExecuteCommand(program: Command): void {
             change: name,
             workflow: metadata.workflow,
             status: metadata.status,
-            resume: options.resume ?? false,
             message: 'Execution state tracked. Use metta instructions to get task guidance.',
           })
         } else {
           console.log(`Execute: ${name}`)
           console.log(`  Status: ${metadata.status}`)
-          if (options.resume) {
-            console.log('  Resuming from last checkpoint...')
-          }
         }
       } catch (err) {
         const message = getErrorMessage(err)
