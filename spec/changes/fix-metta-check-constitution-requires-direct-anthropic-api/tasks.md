@@ -222,6 +222,25 @@ grep -n "metta-constitution-checker" .claude/skills/metta-check-constitution/SKI
 
 ---
 
+### 3.1b Update the metta-plan skill's constitution-check call site to the three-step flow
+
+**Files:**
+- `.claude/skills/metta-plan/SKILL.md`
+- `src/templates/skills/metta-plan/SKILL.md`
+
+**Action:** metta-plan's step 4 (line ~21 in the deployed copy) directly Bash-invokes `metta check-constitution --change <name> --json` and keys its halt/proceed behavior on exit 4 — after this change that invocation becomes pure contract emission and always exits 0, silently disabling the plan-phase constitution gate (planner-flagged regression, orchestrator-approved scope addition). Replace that step's instructions with the same emit → spawn `metta-constitution-checker` subagent → `--record <verdict-file>` three-step sequence used by the rewritten metta-check-constitution skill (task 3.1), keeping metta-plan's existing exit-0/exit-4 handling semantics against the RECORD invocation's exit code. Apply identically to both copies (byte-identity).
+
+**Verify:**
+```
+diff .claude/skills/metta-plan/SKILL.md src/templates/skills/metta-plan/SKILL.md
+grep -n "record" .claude/skills/metta-plan/SKILL.md
+npx vitest run tests/cli-skills.test.ts tests/template-deploy-sync.test.ts
+```
+
+**Done:** metta-plan's constitution-check step drives emit/spawn/record; no bare `metta check-constitution --change <name> --json` invocation treated as a verdict remains in either copy; byte-identity tests pass.
+
+---
+
 ### 3.2 Update `spec/project.md` Stack section and regenerate `CLAUDE.md`
 
 **Files:**
