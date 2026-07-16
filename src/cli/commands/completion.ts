@@ -65,7 +65,7 @@ compdef _metta ${name}`)
 complete -c ${name} -n "__fish_use_subcommand" -a install -d "Install Metta into a project"
 complete -c ${name} -n "__fish_use_subcommand" -a propose -d "Start a new change"
 complete -c ${name} -n "__fish_use_subcommand" -a quick -d "Quick mode"
-complete -c ${name} -n "__fish_use_subcommand" -a auto -d "Full lifecycle loop"
+complete -c ${name} -n "__fish_use_subcommand" -a auto -d "Print guidance for starting a change with metta propose"
 complete -c ${name} -n "__fish_use_subcommand" -a plan -d "Build planning artifacts"
 complete -c ${name} -n "__fish_use_subcommand" -a execute -d "Run implementation"
 complete -c ${name} -n "__fish_use_subcommand" -a verify -d "Verify against spec"
