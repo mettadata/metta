@@ -5,6 +5,7 @@ demos/
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
 .metta/logs/
+.metta/scratch/
 
 # Vendored reference projects — exclude their dependency manifests from the
 # dependency graph so Dependabot does not raise alerts for code we don't ship.

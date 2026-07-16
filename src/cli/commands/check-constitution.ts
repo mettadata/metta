@@ -1,16 +1,18 @@
 import { Command } from 'commander'
-import { writeFile, mkdir } from 'node:fs/promises'
+import { writeFile, mkdir, readFile } from 'node:fs/promises'
 import { join, dirname } from 'node:path'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { createCliContext, outputJson, getErrorMessage } from '../helpers.js'
 import {
-  checkConstitution,
+  buildCheckContract,
+  recordVerdict,
+  VerdictValidationError,
   isBlockingViolation,
   type AnnotatedViolation,
   type CheckResult,
 } from '../../constitution/checker.js'
-import { AnthropicProvider } from '../../providers/anthropic-provider.js'
+import { ViolationListSchema, type ViolationList } from '../../schemas/violation.js'
 import { assertSafeSlug } from '../../util/slug.js'
 
 const execAsync = promisify(execFile)
@@ -86,20 +88,65 @@ export function registerCheckConstitutionCommand(program: Command): void {
     .command('check-constitution')
     .description("Check a change spec.md against the project constitution")
     .option('--change <name>', 'Change name')
-    .action(async (options: { change?: string }) => {
+    .option('--record <file>', 'Path to a verdict JSON file to validate and persist')
+    .action(async (options: { change?: string; record?: string }) => {
       const json = program.opts().json
       const ctx = createCliContext()
 
       try {
         const changeName = await resolveChangeName(ctx, options.change)
         assertSafeSlug(changeName, 'change name')
-        const provider = new AnthropicProvider({ apiKeyEnv: 'ANTHROPIC_API_KEY' })
 
-        const result = await checkConstitution({
-          provider,
-          projectRoot: ctx.projectRoot,
-          changeName,
-        })
+        if (!options.record) {
+          // Emission mode: produce the check contract for the skill/subagent.
+          const contract = await buildCheckContract(ctx.projectRoot, changeName)
+          const outputPath = join('.metta', 'scratch', changeName, 'verdict.json')
+
+          if (json) {
+            outputJson({
+              articles: contract.articles,
+              spec_path: contract.specPath,
+              spec_content: contract.specContent,
+              verdict_schema:
+                'expected shape: {"violations": [{article, severity: critical|major|minor, evidence, suggestion}]}',
+              instructions: contract.instructions,
+              output_path: outputPath,
+            })
+          } else {
+            const articleCount =
+              contract.articles.conventions.length + contract.articles.offLimits.length
+            console.log(`Check contract for change '${changeName}':`)
+            console.log(
+              `  Articles: ${articleCount} (${contract.articles.conventions.length} conventions, ${contract.articles.offLimits.length} off-limits)`,
+            )
+            console.log(`  Spec: ${contract.specPath}`)
+            console.log(
+              `Record a verdict with: metta check-constitution --change ${changeName} --record <verdict-file>`,
+            )
+          }
+
+          process.exit(0)
+        }
+
+        // Recording mode: validate and persist a subagent-produced verdict.
+        let parsed: unknown
+        try {
+          parsed = JSON.parse(await readFile(options.record, 'utf8'))
+        } catch (err) {
+          throw new VerdictValidationError(
+            `invalid verdict JSON in ${options.record}: ${getErrorMessage(err)}`,
+          )
+        }
+
+        const verdictResult = ViolationListSchema.safeParse(parsed)
+        if (!verdictResult.success) {
+          throw new VerdictValidationError(
+            `verdict file ${options.record} does not match the expected schema: ${verdictResult.error.message}`,
+          )
+        }
+        const verdict: ViolationList = verdictResult.data
+
+        const result = await recordVerdict(verdict, ctx.projectRoot, changeName)
 
         const specRelPath = join('spec', 'changes', changeName, 'spec.md')
         const specAbsPath = join(ctx.projectRoot, specRelPath)
@@ -139,9 +186,13 @@ export function registerCheckConstitutionCommand(program: Command): void {
         process.exit(result.blocking ? 4 : 0)
       } catch (err) {
         const message = getErrorMessage(err)
+        const errType =
+          err instanceof VerdictValidationError
+            ? 'verdict_validation_error'
+            : 'check_constitution_error'
         if (json) {
           outputJson({
-            error: { code: 4, type: 'check_constitution_error', message },
+            error: { code: 4, type: errType, message },
           })
         } else {
           console.error(`check-constitution failed: ${message}`)
