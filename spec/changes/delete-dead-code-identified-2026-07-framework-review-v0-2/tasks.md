@@ -12,7 +12,7 @@ Full-sweep verification (all stories)                             -> 5.1
 
 ## Batch 1: US-1 — execution-engine island deleted, live task parsing relocated
 
-### 1.1 Split batch-planner, delete execution/ island, retire execution-engine spec
+### 1.1 [x] Split batch-planner, delete execution/ island, retire execution-engine spec
 
 - **Files:**
   - Delete: `src/execution/execution-engine.ts`, `src/execution/worktree-manager.ts`, `src/execution/fan-out.ts`, `src/execution/batch-planner.ts`
