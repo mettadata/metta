@@ -1,5 +1,6 @@
 import { Command } from 'commander'
 import { createCliContext, outputJson } from '../helpers.js'
+import { loadGatesWithOverrides } from '../../gates/gate-registry.js'
 
 export function registerGateCommand(program: Command): void {
   const gate = program
@@ -14,7 +15,7 @@ export function registerGateCommand(program: Command): void {
       const json = program.opts().json
       const ctx = createCliContext()
       const builtinGates = new URL('../../templates/gates', import.meta.url).pathname
-      await ctx.gateRegistry.loadFromDirectory(builtinGates)
+      await loadGatesWithOverrides(ctx.gateRegistry, ctx.projectRoot, builtinGates)
 
       const result = await ctx.gateRegistry.run(name, ctx.projectRoot)
       if (json) {
@@ -34,7 +35,7 @@ export function registerGateCommand(program: Command): void {
       const json = program.opts().json
       const ctx = createCliContext()
       const builtinGates = new URL('../../templates/gates', import.meta.url).pathname
-      await ctx.gateRegistry.loadFromDirectory(builtinGates)
+      await loadGatesWithOverrides(ctx.gateRegistry, ctx.projectRoot, builtinGates)
       const gates = ctx.gateRegistry.list()
       if (json) {
         outputJson({ gates })
@@ -53,7 +54,7 @@ export function registerGateCommand(program: Command): void {
       const json = program.opts().json
       const ctx = createCliContext()
       const builtinGates = new URL('../../templates/gates', import.meta.url).pathname
-      await ctx.gateRegistry.loadFromDirectory(builtinGates)
+      await loadGatesWithOverrides(ctx.gateRegistry, ctx.projectRoot, builtinGates)
       const g = ctx.gateRegistry.get(name)
       if (!g) {
         if (json) { outputJson({ error: { code: 4, type: 'not_found', message: `Gate '${name}' not found` } }) } else { console.error(`Gate '${name}' not found`) }

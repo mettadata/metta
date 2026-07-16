@@ -1000,11 +1000,11 @@ describe('AgentDefinitionSchema', () => {
     expect(result.success).toBe(false)
   })
 
-  it('rejects when capabilities is missing', () => {
+  it('accepts when capabilities is missing (optional dead field)', () => {
     const result = AgentDefinitionSchema.safeParse({
       name: 'test', persona: 'You are a test.', tools: ['Read'], context_budget: 1000,
     })
-    expect(result.success).toBe(false)
+    expect(result.success).toBe(true)
   })
 
   it('rejects when context_budget is zero or negative', () => {

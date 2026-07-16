@@ -21,6 +21,8 @@ export interface WorkflowGraph {
   buildOrder: string[]
 }
 
+const WORKFLOW_ALIASES: Record<string, string> = { trivial: 'quick' }
+
 export class WorkflowEngine {
   private workflows = new Map<string, WorkflowGraph>()
 
@@ -35,7 +37,7 @@ export class WorkflowEngine {
 
     for (const searchPath of searchPaths) {
       try {
-        const filePath = join(searchPath, `${name}.yaml`)
+        const filePath = join(searchPath, `${WORKFLOW_ALIASES[name] ?? name}.yaml`)
         const content = await readFile(filePath, 'utf-8')
         const raw = YAML.parse(content)
         definition = WorkflowDefinitionSchema.parse(raw)

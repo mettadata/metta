@@ -23,7 +23,7 @@ describe('verification artifact contract agreement', () => {
     expect(template).toContain('Save this file as `summary.md` in the change directory.')
   })
 
-  it.each(['trivial.yaml', 'quick.yaml', 'standard.yaml'])(
+  it.each(['quick.yaml', 'standard.yaml'])(
     "%s declares generates: summary.md for its verification artifact, matching the template's instruction",
     async (workflowFile) => {
       const raw = await readFile(join(WORKFLOWS_DIR, workflowFile), 'utf8')

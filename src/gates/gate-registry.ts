@@ -6,6 +6,22 @@ import { GateDefinitionSchema, type GateDefinition } from '../schemas/gate-defin
 import type { GateResult } from '../schemas/gate-result.js'
 import { getErrorMessage } from '../util/errors.js'
 
+/**
+ * Load gates in override order: built-ins first, then project-local
+ * `.metta/gates/` definitions. `register` is a Map.set, so a project-local
+ * gate with the same name replaces the built-in — projects can drop
+ * `.metta/gates/tests.yaml` with `command: cargo test` (etc.) to make gate
+ * running language-agnostic.
+ */
+export async function loadGatesWithOverrides(
+  registry: GateRegistry,
+  projectRoot: string,
+  builtinDir: string,
+): Promise<void> {
+  await registry.loadFromDirectory(builtinDir)
+  await registry.loadFromDirectory(join(projectRoot, '.metta', 'gates'))
+}
+
 export class GateRegistry {
   private gates = new Map<string, GateDefinition>()
 

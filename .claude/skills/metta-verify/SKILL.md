@@ -12,7 +12,6 @@ You are the **orchestrator** for verification. Spawn a verifier subagent.
 
 1. `metta verify --json --change <name>` → runs gates, returns results
 2. **Spawn a metta-verifier agent** (subagent_type: "metta-verifier") with:
-   - Persona: "You are a verification engineer focused on spec compliance."
    - The spec from `spec/changes/<change>/spec.md`
    - The gate results
    - Task: check each Given/When/Then scenario against tests and code

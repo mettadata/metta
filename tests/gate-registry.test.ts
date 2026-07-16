@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { GateRegistry } from '../src/gates/gate-registry.js'
+import { GateRegistry, loadGatesWithOverrides } from '../src/gates/gate-registry.js'
 import type { GateDefinition } from '../src/schemas/gate-definition.js'
 
 describe('GateRegistry', () => {
@@ -366,6 +366,58 @@ describe('GateRegistry', () => {
     it('loadFromDirectory on non-existent path is silent', async () => {
       const r = new GateRegistry()
       await expect(r.loadFromDirectory(join(tempDir, 'does-not-exist'))).resolves.toBeUndefined()
+    })
+
+    it('loadGatesWithOverrides loads built-ins then project-local overrides (second pass wins)', async () => {
+      const { mkdir, writeFile } = await import('node:fs/promises')
+      const builtinDir = join(tempDir, 'builtin')
+      const projectRoot = join(tempDir, 'project')
+      await mkdir(builtinDir)
+      await mkdir(join(projectRoot, '.metta', 'gates'), { recursive: true })
+
+      await writeFile(join(builtinDir, 'tests.yaml'), [
+        'name: tests',
+        'description: Run tests',
+        'command: npm test',
+        'timeout: 120000',
+        'required: true',
+        'on_failure: stop',
+      ].join('\n'))
+      await writeFile(join(projectRoot, '.metta', 'gates', 'tests.yaml'), [
+        'name: tests',
+        'description: Run Rust tests',
+        'command: cargo test',
+        'timeout: 120000',
+        'required: true',
+        'on_failure: stop',
+      ].join('\n'))
+
+      const r = new GateRegistry()
+      await loadGatesWithOverrides(r, projectRoot, builtinDir)
+
+      expect(r.get('tests')?.command).toBe('cargo test')
+    })
+
+    it('loadGatesWithOverrides keeps built-ins when the project has no .metta/gates dir', async () => {
+      const { mkdir, writeFile } = await import('node:fs/promises')
+      const builtinDir = join(tempDir, 'builtin')
+      const projectRoot = join(tempDir, 'project')
+      await mkdir(builtinDir)
+      await mkdir(projectRoot)
+
+      await writeFile(join(builtinDir, 'tests.yaml'), [
+        'name: tests',
+        'description: Run tests',
+        'command: npm test',
+        'timeout: 120000',
+        'required: true',
+        'on_failure: stop',
+      ].join('\n'))
+
+      const r = new GateRegistry()
+      await loadGatesWithOverrides(r, projectRoot, builtinDir)
+
+      expect(r.get('tests')?.command).toBe('npm test')
     })
   })
 })

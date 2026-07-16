@@ -1,5 +1,6 @@
 import { Command } from 'commander'
 import { createCliContext, outputJson, getErrorMessage } from '../helpers.js'
+import { loadGatesWithOverrides } from '../../gates/gate-registry.js'
 import { MergeSafetyPipeline } from '../../ship/merge-safety.js'
 
 export function registerShipCommand(program: Command): void {
@@ -32,7 +33,7 @@ export function registerShipCommand(program: Command): void {
         }
 
         const builtinGates = new URL('../../templates/gates', import.meta.url).pathname
-        await ctx.gateRegistry.loadFromDirectory(builtinGates)
+        await loadGatesWithOverrides(ctx.gateRegistry, ctx.projectRoot, builtinGates)
 
         const pipeline = new MergeSafetyPipeline(ctx.projectRoot, ctx.gateRegistry)
         const result = await pipeline.run(sourceBranch, targetBranch, options.dryRun)
