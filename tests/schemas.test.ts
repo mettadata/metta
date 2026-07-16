@@ -940,22 +940,6 @@ describe('WorkflowDefinitionSchema', () => {
     expect(result.success).toBe(true)
   })
 
-  it('validates workflow with extends and overrides', () => {
-    const data = {
-      name: 'extended',
-      version: 1,
-      extends: 'standard',
-      artifacts: [
-        { id: 'domain-research', type: 'domain-research', template: 'dr.md', generates: 'dr.md', requires: [], agents: ['researcher'], gates: [] },
-      ],
-      overrides: [
-        { id: 'intent', requires: ['domain-research'] },
-      ],
-    }
-    const result = WorkflowDefinitionSchema.safeParse(data)
-    expect(result.success).toBe(true)
-  })
-
   it('rejects when version is zero or negative', () => {
     const result = WorkflowDefinitionSchema.safeParse({
       name: 'test', version: 0, artifacts: [],
@@ -975,14 +959,6 @@ describe('WorkflowDefinitionSchema', () => {
     const result = WorkflowDefinitionSchema.safeParse({
       name: 'test', version: 1,
       artifacts: [{ id: 'a', type: 'a', template: 'a.md', generates: 'a.md', requires: [], agents: [], gates: [], extra: true }],
-    })
-    expect(result.success).toBe(false)
-  })
-
-  it('rejects unknown fields on WorkflowOverrideSchema (.strict())', () => {
-    const result = WorkflowDefinitionSchema.safeParse({
-      name: 'test', version: 1, artifacts: [],
-      overrides: [{ id: 'a', unknown_field: true }],
     })
     expect(result.success).toBe(false)
   })

@@ -49,12 +49,6 @@ export class WorkflowEngine {
       throw new Error(`Workflow '${name}' not found in: ${searchPaths.join(', ')}`)
     }
 
-    // Handle extends
-    if (definition.extends) {
-      const base = await this.loadWorkflow(definition.extends, searchPaths)
-      definition = this.mergeWorkflows(base, definition)
-    }
-
     const buildOrder = this.topologicalSort(definition.artifacts)
     const graph: WorkflowGraph = {
       name: definition.name,
@@ -100,30 +94,6 @@ export class WorkflowEngine {
       artifact,
       status: statuses[artifact.id] ?? 'pending',
     }))
-  }
-
-  /**
-   * Validates that all artifact `requires` references resolve to known artifact IDs.
-   *
-   * Note: For graphs produced by the engine (via loadWorkflow or loadWorkflowFromDefinition),
-   * topologicalSort already enforces this constraint at load time and will throw on dangling
-   * references. This method provides defensive validation for graphs assembled externally --
-   * for example, after deserialization from state files or manual construction -- where the
-   * load-time check was bypassed.
-   */
-  validate(graph: WorkflowGraph): { valid: boolean; errors: string[] } {
-    const errors: string[] = []
-    const artifactIds = new Set(graph.artifacts.map(a => a.id))
-
-    for (const artifact of graph.artifacts) {
-      for (const dep of artifact.requires) {
-        if (!artifactIds.has(dep)) {
-          errors.push(`Artifact '${artifact.id}' depends on unknown artifact '${dep}'`)
-        }
-      }
-    }
-
-    return { valid: errors.length === 0, errors }
   }
 
   private topologicalSort(artifacts: WorkflowArtifact[]): string[] {
@@ -182,40 +152,5 @@ export class WorkflowEngine {
     }
 
     return result
-  }
-
-  private mergeWorkflows(
-    base: WorkflowGraph,
-    extension: WorkflowDefinition,
-  ): WorkflowDefinition {
-    const artifacts = [...base.artifacts]
-
-    // Add new artifacts from extension
-    for (const newArtifact of extension.artifacts) {
-      const existingIdx = artifacts.findIndex(a => a.id === newArtifact.id)
-      if (existingIdx >= 0) {
-        artifacts[existingIdx] = newArtifact
-      } else {
-        artifacts.push(newArtifact)
-      }
-    }
-
-    // Apply overrides
-    if (extension.overrides) {
-      for (const override of extension.overrides) {
-        const artifact = artifacts.find(a => a.id === override.id)
-        if (artifact) {
-          if (override.requires) artifact.requires = override.requires
-          if (override.agents) artifact.agents = override.agents
-          if (override.gates) artifact.gates = override.gates
-        }
-      }
-    }
-
-    return {
-      name: extension.name,
-      version: extension.version,
-      artifacts,
-    }
   }
 }
