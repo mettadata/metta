@@ -1,0 +1,36 @@
+version: 6
+hash: sha256:3ddc46663d98
+updated: 2026-07-16T08:06:59.539Z
+status: draft
+source: change
+requirements:
+  - id: persona-text-is-derived-at-runtime-from-the-agent-definition
+    hash: sha256:a7feaaec8da1
+    scenarios:
+      - editing-an-agent-definition-file-changes-the-emitted-persona
+      - no-persona-string-literals-remain-in-the-instruction-generating-source
+  - id: every-referenced-agent-name-resolves-to-an-existing-agent-definition
+    hash: sha256:d1c532abe46b
+    scenarios:
+      - all-agent-references-across-shipped-workflows-resolve
+      - a-newly-introduced-agent-reference-without-a-definition-file-is-detectable
+  - id: agent-resolution-failure-fails-loudly-never-silently-substitutes
+    hash: sha256:099cc88ca623
+    scenarios:
+      - unresolvable-agent-name-produces-a-named-error-instead-of-a-fallback-persona
+      - a-resolvable-agent-name-never-triggers-the-failure-path
+  - id: agent-aliases-are-explicit-and-resolve-to-the-real-agent-s-identity
+    hash: sha256:f041fdc5a5c5
+    scenarios:
+      - a-declared-alias-resolves-to-its-mapped-agent-s-own-persona
+      - an-undeclared-name-is-never-treated-as-an-implicit-alias
+  - id: emitted-instructions-contract-carries-complete-agent-identity
+    hash: sha256:494dc6851e06
+    scenarios:
+      - instructions-output-includes-name-persona-and-tools-sourced-from-the-same-definition
+      - a-tool-list-change-in-the-agent-definition-is-reflected-in-the-next-generation
+  - id: source-and-deployed-agent-definitions-remain-byte-identical
+    hash: sha256:370184bfc301
+    scenarios:
+      - source-and-deployed-agent-definitions-match-after-an-edit
+      - a-divergence-between-source-and-deployed-copies-is-detectable
