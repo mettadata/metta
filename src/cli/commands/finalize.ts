@@ -4,6 +4,7 @@ import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { createCliContext, outputJson, color, getErrorMessage } from '../helpers.js'
 import { Finalizer } from '../../finalize/finalizer.js'
+import { loadGatesWithOverrides } from '../../gates/gate-registry.js'
 import { WorkflowEngine } from '../../workflow/workflow-engine.js'
 import { acquireFinalizeLock, FinalizeLockError } from '../../finalize/finalize-lock.js'
 
@@ -32,12 +33,8 @@ export function registerFinalizeCommand(program: Command): void {
         await acquireFinalizeLock(ctx.projectRoot, name)
 
         // Load gates — built-ins first, then project-local overrides.
-        // Gates registered in the second pass replace any built-in of the same
-        // name, so projects can drop `.metta/gates/tests.yaml` with
-        // `command: cargo test` (etc.) to make finalize language-agnostic.
         const builtinGates = new URL('../../templates/gates', import.meta.url).pathname
-        await ctx.gateRegistry.loadFromDirectory(builtinGates)
-        await ctx.gateRegistry.loadFromDirectory(join(ctx.projectRoot, '.metta', 'gates'))
+        await loadGatesWithOverrides(ctx.gateRegistry, ctx.projectRoot, builtinGates)
 
         // Resolve workflow templates using the same relative-depth pattern as gates.
         const workflowEngine = new WorkflowEngine()

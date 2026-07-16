@@ -1,5 +1,6 @@
 import { Command } from 'commander'
 import { createCliContext, outputJson, color, getErrorMessage } from '../helpers.js'
+import { loadGatesWithOverrides } from '../../gates/gate-registry.js'
 
 export function registerVerifyCommand(program: Command): void {
   program
@@ -21,7 +22,7 @@ export function registerVerifyCommand(program: Command): void {
 
         // Run all configured gates
         const builtinGates = new URL('../../templates/gates', import.meta.url).pathname
-        await ctx.gateRegistry.loadFromDirectory(builtinGates)
+        await loadGatesWithOverrides(ctx.gateRegistry, ctx.projectRoot, builtinGates)
         const gateNames = ctx.gateRegistry.list().map(g => g.name)
         const results = await ctx.gateRegistry.runAll(gateNames, ctx.projectRoot)
 
