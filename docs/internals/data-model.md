@@ -131,8 +131,7 @@ The transient runtime envelope, distinct from the durable per-change `.metta.yam
 | Field | Type | Notes |
 |-------|------|-------|
 | `schema_version` | `int > 0` | State file format version (currently `1`). |
-| `execution` | `ExecutionState?` | Active execution-engine state. |
-| `auto` | `AutoState?` | Active `--auto` loop state (`AutoStateSchema`, `auto-state.ts`): `description`, `started`, `max_cycles`, `current_cycle`, `cycles[]`. |
+| `execution` | `ExecutionState?` | Active execution state. |
 
 ### WorkflowDefinition — workflow templates
 
@@ -143,11 +142,9 @@ Defines which artifacts a change produces, in what order, and which agents/gates
 | `name` | `string` | Workflow identifier (recorded into `ChangeMetadata.workflow`). |
 | `description` | `string?` | Human description. |
 | `version` | `int > 0` | Definition version. |
-| `extends` | `string?` | Base workflow this one specializes. |
 | `artifacts` | `WorkflowArtifact[]` | Ordered artifact pipeline (see below). |
-| `overrides` | `WorkflowOverride[]?` | Per-artifact overrides applied on top of the base. |
 
-`WorkflowArtifact` = `{ id, type, template, generates, requires: string[], agents: string[], gates: string[] }`. `generates` is the output filename written into `changes/<slug>/`; `requires` lists prerequisite artifact IDs. `WorkflowOverride` = `{ id, requires?, agents?, gates? }`.
+`WorkflowArtifact` = `{ id, type, template, generates, requires: string[], agents: string[], gates: string[] }`. `generates` is the output filename written into `changes/<slug>/`; `requires` lists prerequisite artifact IDs.
 
 ### GateDefinition — gate templates
 

@@ -3,7 +3,7 @@
 **Source:** `src/workflow/workflow-engine.ts`
 **Schema:** `src/schemas/workflow-definition.ts`, `src/schemas/change-metadata.ts`
 **Templates:** `src/templates/workflows/`
-**Tests:** `tests/workflow-engine.test.ts` (20 tests)
+**Tests:** `tests/workflow-engine.test.ts` (14 tests)
 **RFC 2119 Keywords:** MUST, MUST NOT, SHOULD, MAY
 
 ---
@@ -39,20 +39,7 @@ A workflow definition MUST conform to:
 | `name` | `string` | Yes | Unique workflow name |
 | `version` | `integer > 0` | Yes | Schema version |
 | `description` | `string` | No | Human-readable purpose |
-| `extends` | `string` | No | Name of a base workflow to inherit from |
 | `artifacts` | `WorkflowArtifact[]` | Yes | Ordered or unordered list of artifacts |
-| `overrides` | `WorkflowOverride[]` | No | Per-artifact field patches applied after inheritance |
-
-### 2.3 WorkflowOverride
-
-An override entry MAY patch `requires`, `agents`, or `gates` on an existing artifact from the base workflow. All fields are optional; unset fields MUST NOT be modified.
-
-| Field | Type | Required |
-|-------|------|----------|
-| `id` | `string` | Yes |
-| `requires` | `string[]` | No |
-| `agents` | `string[]` | No |
-| `gates` | `string[]` | No |
 
 ### 2.4 WorkflowGraph
 
@@ -89,10 +76,8 @@ The engine MUST:
 3. Parse the file content with `YAML.parse` and validate against `WorkflowDefinitionSchema` using Zod.
 4. Stop at the first path that succeeds (does not throw).
 5. If no path yields a valid file, throw `Error` with message: `Workflow '<name>' not found in: <paths joined by ', '>`.
-6. If the definition includes an `extends` field, recursively load the named base workflow using the same `searchPaths` before proceeding.
-7. Merge the base workflow and the current definition via `mergeWorkflows`.
-8. Run `topologicalSort` on the final artifact list.
-9. Cache and return the resulting `WorkflowGraph`.
+6. Run `topologicalSort` on the artifact list.
+7. Cache and return the resulting `WorkflowGraph`.
 
 ### 3.3 `loadWorkflowFromDefinition(definition)`
 
@@ -104,7 +89,7 @@ The engine MUST:
 2. Construct and cache a `WorkflowGraph` keyed by `definition.name`.
 3. Return the graph synchronously.
 
-This method MUST NOT perform file I/O or inheritance resolution. It is the preferred entry point for in-memory workflow construction (e.g. in tests).
+This method MUST NOT perform file I/O. It is the preferred entry point for in-memory workflow construction (e.g. in tests).
 
 ### 3.4 `getNext(graph, statuses)`
 
@@ -132,18 +117,6 @@ An artifact absent from `statuses` MUST be treated as `'pending'` — it is elig
 The engine MUST return one entry per artifact in `graph.artifacts`, in artifact list order.
 
 For each artifact, the status MUST be `statuses[artifact.id]` if present, or `'pending'` if absent.
-
-### 3.6 `validate(graph)`
-
-**Signature:** `validate(graph: WorkflowGraph): { valid: boolean; errors: string[] }`
-
-The engine MUST inspect every artifact's `requires` array and verify that each referenced ID exists in `graph.artifacts`.
-
-- If all references are satisfied, `valid` MUST be `true` and `errors` MUST be an empty array.
-- For each dangling reference, an error string MUST be appended: `"Artifact '<id>' depends on unknown artifact '<dep>'"`.
-- `valid` MUST be `false` when `errors.length > 0`.
-
-> **Note:** Because `topologicalSort` already throws on unknown dependencies at load time, `validate` can only surface errors for graphs constructed by bypassing the engine's load methods — for example, `WorkflowGraph` objects assembled from deserialized state files or in tests that construct the graph struct directly.
 
 ---
 
@@ -189,28 +162,6 @@ The engine MUST detect cycles using the residual artifact set after Kahn's algor
 - The error message MUST be: `"Cycle detected in workflow: <ids joined by ' → '>"`.
 
 The `cyclePath` represents the set of nodes that could not be sorted, not necessarily the minimal cycle. Callers SHOULD NOT assume this list is a minimal cycle path.
-
----
-
-## 6. Workflow Inheritance (`extends`)
-
-When a workflow definition includes `extends: <base-name>`, the engine MUST:
-
-1. Recursively load the base workflow (which may itself extend another workflow).
-2. Apply `mergeWorkflows(base, extension)` to produce the merged definition.
-
-### 6.1 Merge Semantics
-
-1. Start with a copy of the base workflow's `artifacts` array.
-2. For each artifact in the extension's `artifacts`:
-   - If an artifact with the same `id` already exists in the base list, **replace** it entirely.
-   - If no artifact with that `id` exists, **append** the new artifact.
-3. Apply each entry in `extension.overrides` (if present):
-   - Locate the artifact by `id` in the merged list.
-   - If found, patch only the fields present in the override (`requires`, `agents`, `gates`). Fields absent from the override MUST NOT be modified.
-   - If not found, the override MUST be silently ignored.
-4. The merged definition's `name` and `version` MUST come from the extension (child), not the base.
-5. The merged definition MUST NOT carry forward `extends` or `overrides` fields (it is a flattened definition).
 
 ---
 
@@ -264,7 +215,7 @@ Note: `ux-spec` requires `design` but is NOT listed in `implementation`'s `requi
 
 ## 8. Scenarios (Given/When/Then)
 
-The following scenarios correspond directly to the 20 tests in `tests/workflow-engine.test.ts`.
+The following scenarios correspond directly to the 14 tests in `tests/workflow-engine.test.ts`.
 
 ### Topological Sort
 
@@ -347,21 +298,6 @@ The following scenarios correspond directly to the 20 tests in `tests/workflow-e
 **When** `getStatus` is called
 **Then** `a.status` MUST be `'pending'`
 
-### validate
-
-#### S-12: Returns valid for well-formed graph
-
-**Given** a loaded graph where all `requires` reference existing artifact IDs
-**When** `validate` is called
-**Then** `result.valid` MUST be `true` and `result.errors` MUST be `[]`
-
-#### S-13: Detects dangling references in externally-assembled graph
-
-**Given** a `WorkflowGraph` constructed directly (bypassing `loadWorkflowFromDefinition`) where artifact `b` has `requires: ['x']` and `x` is not in the artifact list
-**When** `validate` is called
-**Then** `result.valid` MUST be `false`
-**And** `result.errors` MUST contain `"Artifact 'b' depends on unknown artifact 'x'"`
-
 ### Workflow Loading from YAML
 
 #### S-14: Loads built-in workflows from templates directory
@@ -389,41 +325,6 @@ The following scenarios correspond directly to the 20 tests in `tests/workflow-e
 **Given** a non-existent workflow name
 **When** `loadWorkflow('nonexistent', ['/tmp'])` is called
 **Then** the returned promise MUST reject with an error
-
-### Workflow Inheritance (extends/overrides)
-
-#### S-17: Extends a base workflow with a new artifact
-
-**Given** a base workflow with artifacts `[a, b (requires a)]`
-**And** a child workflow extending base with new artifact `[c (requires b)]`
-**When** `loadWorkflow('child', searchPaths)` is called
-**Then** `graph.name` MUST be `'child'`
-**And** `graph.artifacts` MUST contain all three artifacts `[a, b, c]`
-**And** `graph.buildOrder` MUST equal `['a', 'b', 'c']`
-
-#### S-18: Overrides an artifact requires field
-
-**Given** a base workflow with `b` requiring `a`
-**And** a child workflow with an override `{ id: 'b', requires: [] }`
-**When** `loadWorkflow('child', searchPaths)` is called
-**Then** artifact `b` in the merged graph MUST have `requires: []`
-**And** all other fields of `b` (`agents`, `gates`, etc.) MUST remain unchanged
-
-#### S-19: Overrides an artifact agents field
-
-**Given** a base workflow with artifact `a` having `agents: ['default']` and `gates: ['review']`
-**And** a child workflow with an override `{ id: 'a', agents: ['specialist', 'reviewer'] }`
-**When** `loadWorkflow('child', searchPaths)` is called
-**Then** artifact `a` MUST have `agents: ['specialist', 'reviewer']`
-**And** `a.gates` MUST remain `['review']` (unmentioned fields are not overwritten)
-
-#### S-20: Silently ignores overrides for unknown artifact IDs
-
-**Given** a base workflow with only artifact `a`
-**And** a child workflow with an override targeting `{ id: 'nonexistent', agents: ['x'] }`
-**When** `loadWorkflow('child', searchPaths)` is called
-**Then** the resulting graph MUST contain only artifact `a` with its original field values
-**And** no error MUST be thrown
 
 ---
 

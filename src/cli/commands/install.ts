@@ -5,7 +5,6 @@ import { existsSync } from 'node:fs'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { createCliContext, outputJson, getErrorMessage, askYesNo } from '../helpers.js'
-import { claudeCodeAdapter } from '../../delivery/claude-code-adapter.js'
 import { installCommands } from '../../delivery/command-installer.js'
 import { setProjectField } from '../../config/config-writer.js'
 
@@ -312,13 +311,13 @@ Banned patterns and forbidden operations.
         // Claude Code
         if (existsSync(join(root, '.claude')) || existsSync(join(root, 'CLAUDE.md'))) {
           detectedTools.push('Claude Code')
-          const installed = await installCommands(claudeCodeAdapter, root)
+          const installed = await installCommands(root)
           installedCommands.push(...installed)
         } else {
           // Create .claude dir and install by default since it's v0.1 Claude Code only
           await mkdir(join(root, '.claude'), { recursive: true })
           detectedTools.push('Claude Code')
-          const installed = await installCommands(claudeCodeAdapter, root)
+          const installed = await installCommands(root)
           installedCommands.push(...installed)
         }
 

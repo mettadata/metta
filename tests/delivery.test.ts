@@ -2,21 +2,23 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { mkdtemp, rm, readFile, readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { claudeCodeAdapter } from '../src/delivery/claude-code-adapter.js'
+import {
+  skillsDir,
+  commandsDir,
+  contextFile,
+  formatSkill,
+  formatContext,
+  questionCapability,
+} from '../src/delivery/claude-code-adapter.js'
 import { installCommands } from '../src/delivery/command-installer.js'
 import { workflowPrimerLong, workflowPrimerShort } from '../src/delivery/workflow-primer.js'
 import type { SkillContent, ProjectContext } from '../src/delivery/tool-adapter.js'
 
 describe('Claude Code Adapter', () => {
-  it('has correct id and name', () => {
-    expect(claudeCodeAdapter.id).toBe('claude-code')
-    expect(claudeCodeAdapter.name).toBe('Claude Code')
-  })
-
   it('returns correct directories', () => {
-    expect(claudeCodeAdapter.skillsDir('/project')).toBe('/project/.claude/skills')
-    expect(claudeCodeAdapter.commandsDir('/project')).toBe('/project/.claude/commands')
-    expect(claudeCodeAdapter.contextFile('/project')).toBe('/project/CLAUDE.md')
+    expect(skillsDir('/project')).toBe('/project/.claude/skills')
+    expect(commandsDir('/project')).toBe('/project/.claude/commands')
+    expect(contextFile('/project')).toBe('/project/CLAUDE.md')
   })
 
   it('formats a skill with YAML frontmatter', () => {
@@ -27,7 +29,7 @@ describe('Claude Code Adapter', () => {
       allowedTools: ['Read', 'Write', 'Bash'],
       body: 'You are starting a new change.',
     }
-    const formatted = claudeCodeAdapter.formatSkill(skill)
+    const formatted = formatSkill(skill)
     expect(formatted).toContain('---')
     expect(formatted).toContain('name: metta:propose')
     expect(formatted).toContain('description: Start a new change')
@@ -45,7 +47,7 @@ describe('Claude Code Adapter', () => {
         { capability: 'auth', requirements: 4, status: 'approved' },
       ],
     }
-    const formatted = claudeCodeAdapter.formatContext(context)
+    const formatted = formatContext(context)
     expect(formatted).toContain('<!-- metta:project-start')
     expect(formatted).toContain('<!-- metta:project-end -->')
     expect(formatted).toContain('**My Shop**')
@@ -60,7 +62,7 @@ describe('Claude Code Adapter', () => {
   })
 
   it('reports question capability', () => {
-    const cap = claudeCodeAdapter.questionCapability()
+    const cap = questionCapability()
     expect(cap.tool).toBe('AskUserQuestion')
     expect(cap.supportsOptions).toBe(true)
     expect(cap.supportsMultiSelect).toBe(true)
@@ -112,7 +114,7 @@ describe('installCommands', () => {
   })
 
   it('copies skill template files to project', async () => {
-    const installed = await installCommands(claudeCodeAdapter, tempDir)
+    const installed = await installCommands(tempDir)
     expect(installed.length).toBeGreaterThanOrEqual(8)
     expect(installed).toContain('metta:quick')
     expect(installed).toContain('metta:propose')

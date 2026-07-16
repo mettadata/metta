@@ -18,8 +18,7 @@ A **workflow** is an ordered DAG of **artifacts**. Each artifact declares:
 
 ### Engine semantics
 
-- **Loading.** `loadWorkflow(name, searchPaths)` walks each search path, reads `<name>.yaml`, parses with `yaml`, and validates with `WorkflowDefinitionSchema` (a strict Zod object). Results are cached per engine instance.
-- **Inheritance.** A workflow may declare `extends: <base>` and an `overrides:` array. Child artifacts are appended (or replace same-id base artifacts) and overrides patch `requires`, `agents`, `gates` on existing artifacts. None of the four built-in workflows use `extends`; they are fully specified.
+- **Loading.** `loadWorkflow(name, searchPaths)` walks each search path, reads `<name>.yaml`, parses with `yaml`, and validates with `WorkflowDefinitionSchema` (a strict Zod object). Results are cached per engine instance. Every workflow is fully specified — each YAML lists all of its artifacts directly.
 - **Build order.** `topologicalSort` throws on unknown `requires:` references and on cycles (`WorkflowCycleError`). Tie-breaking is alphabetical — the ready set is sorted before being handed out so ordering is deterministic.
 - **Readiness.** `getNext(graph, statuses)` returns every artifact with status `pending` or `ready` whose every dependency has status `complete` or `skipped`. Statuses are drawn from `ArtifactStatusSchema` (`src/schemas/change-metadata.ts`): `pending | ready | in_progress | complete | failed | skipped`.
 - **Gates run after authoring.** The workflow YAML only names gates. Gate definitions live elsewhere (see `gates.md`). The engine is not responsible for executing them; it reports which gates apply per artifact.
@@ -296,7 +295,6 @@ The shape each workflow YAML must match is `WorkflowDefinitionSchema` in `src/sc
 name: <string>                 # workflow name (matches filename stem)
 description: <string>          # optional
 version: <positive integer>    # schema version
-extends: <string>              # optional — inherit from another workflow
 artifacts:
   - id: <string>               # stable identifier
     type: <string>             # artifact category (intent, spec, design, ...)
@@ -305,14 +303,9 @@ artifacts:
     requires: [<id>, ...]      # upstream artifact IDs
     agents: [<name>, ...]      # agent personas that author this artifact
     gates: [<id>, ...]         # gate IDs to run after authoring
-overrides:                     # optional — only meaningful with `extends:`
-  - id: <string>
-    requires: [...]            # optional override
-    agents: [...]              # optional override
-    gates: [...]               # optional override
 ```
 
-All object shapes are `.strict()` Zod — unknown keys will fail to load. The four built-in workflows do not use `extends` or `overrides`; they list every artifact directly.
+All object shapes are `.strict()` Zod — unknown keys will fail to load.
 
 ## Selection heuristics
 

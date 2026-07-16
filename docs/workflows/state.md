@@ -111,14 +111,12 @@ Transient state scoped to the current workstation. **Git-ignored** (declared in 
 {
   schema_version: number,
   execution?: ExecutionStateSchema,
-  auto?: AutoStateSchema,
 }
 ```
 
 - `execution` — when `/metta-execute` is running, records the active `change`, `started` timestamp, `batches` (ordered `ExecutionBatch` entries each holding `tasks` with per-task status, commit SHA, worktree path, gate map, and `deviations` per the four-rule system), and top-level `deviations`. See `ExecutionStateSchema` in `src/schemas/execution-state.ts`.
-- `auto` — when `/metta-auto` is driving the full loop, records `description`, `started`, `max_cycles`, `current_cycle`, and per-cycle `AutoCycle` entries (phase, artifacts, `batches_run`, optional verification counts). See `AutoStateSchema` in `src/schemas/auto-state.ts`.
 
-- **Authored by**: `/metta-execute`, `/metta-auto`.
+- **Authored by**: `/metta-execute`.
 - **Read by**: the same commands on resume; `/metta-status` and `/metta-progress` may surface fields for display.
 - **Deleted by**: never automatically — commands overwrite or clear sections at transition points.
 

@@ -28,11 +28,10 @@ reading first.
 | state | `src/state/` | `state-store.ts` | Generic schema-validated YAML reader/writer with stale-lock handling (`StateStore`). The lowest-level I/O primitive every store builds on. |
 | config | `src/config/` | `config-loader.ts` | Loads + deep-merges project / user `metta.yaml` config (`ConfigLoader`); `config-writer.ts` and `repair-config.ts` mutate and heal it. |
 | providers | `src/providers/` | `provider.ts` | `AIProvider` interface (`generateText` / `generateObject` / `streamText`); `anthropic-provider.ts` is the Anthropic SDK implementation. |
-| workflow | `src/workflow/` | `workflow-engine.ts` | Loads workflow YAML, resolves `extends`, topologically sorts artifact dependencies into a `buildOrder`, detects cycles (`WorkflowEngine`). |
+| workflow | `src/workflow/` | `workflow-engine.ts` | Loads workflow YAML, topologically sorts artifact dependencies into a `buildOrder`, detects cycles (`WorkflowEngine`). |
 | artifacts | `src/artifacts/` | `artifact-store.ts` | Creates changes (slug + metadata), tracks per-artifact status (`pending`/`ready`/`in_progress`/`complete`/`failed`/`skipped`), promotes the workflow forward, archives on finalize (`ArtifactStore`). |
 | specs | `src/specs/` | `spec-parser.ts`, `spec-lock-manager.ts` | Markdown spec + delta-spec parsing (remark), requirement hashing, and the `spec.lock` version ledger (`SpecLockManager`) used for merge conflict detection. |
 | context | `src/context/` | `context-engine.ts` | Resolves per-artifact context manifests, loads + token-budgets files (`ContextEngine`); `token-counter.ts` counts, `instruction-generator.ts` renders instruction-mode prompts. |
-| execution | `src/execution/` | `execution-engine.ts` | Runs task batches sequentially or in parallel git worktrees (`ExecutionEngine`); `batch-planner.ts` (pure batching), `worktree-manager.ts` (git I/O), `fan-out.ts` (multi-perspective parallel work). |
 | gates | `src/gates/` | `gate-registry.ts` | Loads gate definitions from YAML and runs their shell commands with timeout/process-group kill (`GateRegistry`). The quality enforcement layer. |
 | finalize | `src/finalize/` | `finalizer.ts` | Orchestrates finalize: spec-merge → gates → docs → archive (`Finalizer`); `spec-merger.ts` (pure delta merge + conflict detection), `finalize-lock.ts` (PID-aware concurrency lock). |
 | ship | `src/ship/` | `merge-safety.ts` | Defense-in-depth merge to main: snapshot tag, pre-merge gates, conflict detection, recorded steps (`MergeSafetyResult`). |
@@ -121,9 +120,9 @@ each step.
    subagent authors the artifact, gates declared on that artifact run via the
    `GateRegistry` (`src/gates/gate-registry.ts`), and `ArtifactStore` promotes the
    status to `complete` and advances `current_artifact`. Implementation tasks are
-   parsed from `tasks.md` (`src/planning/tasks-md-parser.ts`) and run by the
-   `ExecutionEngine` (`src/execution/execution-engine.ts`) — sequentially or across
-   parallel git worktrees (`WorktreeManager`), batched by `batch-planner.ts`.
+   parsed from `tasks.md` (`src/planning/tasks-md-parser.ts`,
+   `src/planning/batch-planner.ts`) and executed by executor subagents in
+   instruction mode.
 
 3. **Finalize** — `metta finalize` runs `Finalizer.finalize`
    (`src/finalize/finalizer.ts`) under a PID-aware `finalize-lock.ts`. It:
@@ -143,9 +142,11 @@ each step.
    silently loses committed work.
 
 Two convenience entry points wrap this: `metta quick` skips the planning artifacts
-for small changes, and `metta auto` drives the whole discover→build→verify→ship
-loop. In AI-orchestrated sessions these are invoked via the matching `metta-*`
-**skill**, never the raw CLI (see [guard-hooks.md](./guard-hooks.md)).
+for small changes, and the `/metta-auto` skill drives the whole
+discover→build→verify→ship loop (the `metta auto` CLI command itself only prints
+guidance for `metta propose`). In AI-orchestrated sessions these are invoked via
+the matching `metta-*` **skill**, never the raw CLI (see
+[guard-hooks.md](./guard-hooks.md)).
 
 ---
 
@@ -160,8 +161,8 @@ testable) from the **imperative shell** (filesystem, git, child processes).
   merged result, the *decision* is pure.
 - `WorkflowEngine`'s topological sort + cycle detection
   (`WorkflowCycleError`) is a pure graph operation over parsed YAML.
-- `batch-planner.ts` (`planBatches`) and `parallel-wave-computer.ts` compute
-  execution batches/waves from task dependencies with zero side effects.
+- `parallel-wave-computer.ts` computes execution waves from task dependencies
+  with zero side effects.
 - `discovery-gate.ts` (`checkDiscoveryCompleteness`), `complexity/scorer.ts`, and
   `stories/story-validator.ts` are pure predicates over text/structured input.
 
@@ -170,7 +171,7 @@ testable) from the **imperative shell** (filesystem, git, child processes).
   it validates against a Zod schema on **both** read and write and manages
   lock files.
 - `GateRegistry` spawns shell commands (process groups, timeouts).
-- `WorktreeManager` and `merge-safety.ts` shell out to git.
+- `merge-safety.ts` shells out to git.
 - `ConfigLoader`, the `*Store` classes, and `DocGenerator` read/write files.
 
 When adding logic, keep the decision pure and push the read/write to a store.

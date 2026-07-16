@@ -11,14 +11,12 @@ import {
   DeviationSchema,
   ExecutionTaskSchema,
   ExecutionBatchSchema,
-  AutoStateSchema,
   ProjectConfigSchema,
   GateResultSchema,
   GateFailureSchema,
   WorkflowDefinitionSchema,
   AgentDefinitionSchema,
   GateDefinitionSchema,
-  PluginManifestSchema,
   StateFileSchema,
   ViolationSchema,
   ViolationListSchema,
@@ -744,79 +742,6 @@ describe('ExecutionStateSchema', () => {
   })
 })
 
-describe('AutoStateSchema', () => {
-  const validAutoState = {
-    description: 'build payment system',
-    started: '2026-04-04T12:00:00Z',
-    max_cycles: 10,
-    current_cycle: 2,
-    cycles: [
-      {
-        id: 1,
-        phase: 'complete',
-        artifacts: ['intent', 'spec', 'design', 'tasks'],
-        batches_run: 3,
-        verification: {
-          total_scenarios: 14,
-          passing: 11,
-          failing: 3,
-          gaps: ['MFA challenge timeout'],
-        },
-      },
-    ],
-  }
-
-  it('validates auto mode state', () => {
-    const result = AutoStateSchema.safeParse(validAutoState)
-    expect(result.success).toBe(true)
-  })
-
-  it('rejects when description is missing', () => {
-    const { description, ...data } = validAutoState
-    const result = AutoStateSchema.safeParse(data)
-    expect(result.success).toBe(false)
-  })
-
-  it('rejects when started is not a valid datetime', () => {
-    const result = AutoStateSchema.safeParse({ ...validAutoState, started: 'yesterday' })
-    expect(result.success).toBe(false)
-  })
-
-  it('rejects when max_cycles is zero', () => {
-    const result = AutoStateSchema.safeParse({ ...validAutoState, max_cycles: 0 })
-    expect(result.success).toBe(false)
-  })
-
-  it('rejects when max_cycles is negative', () => {
-    const result = AutoStateSchema.safeParse({ ...validAutoState, max_cycles: -1 })
-    expect(result.success).toBe(false)
-  })
-
-  it('rejects when current_cycle is zero', () => {
-    const result = AutoStateSchema.safeParse({ ...validAutoState, current_cycle: 0 })
-    expect(result.success).toBe(false)
-  })
-
-  it('rejects when a cycle batches_run is negative', () => {
-    const result = AutoStateSchema.safeParse({
-      ...validAutoState,
-      cycles: [{ id: 1, phase: 'complete', artifacts: [], batches_run: -1 }],
-    })
-    expect(result.success).toBe(false)
-  })
-
-  it('rejects when verification.failing is negative', () => {
-    const result = AutoStateSchema.safeParse({
-      ...validAutoState,
-      cycles: [{
-        id: 1, phase: 'complete', artifacts: [], batches_run: 0,
-        verification: { total_scenarios: 5, passing: 5, failing: -1, gaps: [] },
-      }],
-    })
-    expect(result.success).toBe(false)
-  })
-})
-
 describe('ProjectConfigSchema', () => {
   it('validates a minimal config', () => {
     const data = {
@@ -1015,22 +940,6 @@ describe('WorkflowDefinitionSchema', () => {
     expect(result.success).toBe(true)
   })
 
-  it('validates workflow with extends and overrides', () => {
-    const data = {
-      name: 'extended',
-      version: 1,
-      extends: 'standard',
-      artifacts: [
-        { id: 'domain-research', type: 'domain-research', template: 'dr.md', generates: 'dr.md', requires: [], agents: ['researcher'], gates: [] },
-      ],
-      overrides: [
-        { id: 'intent', requires: ['domain-research'] },
-      ],
-    }
-    const result = WorkflowDefinitionSchema.safeParse(data)
-    expect(result.success).toBe(true)
-  })
-
   it('rejects when version is zero or negative', () => {
     const result = WorkflowDefinitionSchema.safeParse({
       name: 'test', version: 0, artifacts: [],
@@ -1050,14 +959,6 @@ describe('WorkflowDefinitionSchema', () => {
     const result = WorkflowDefinitionSchema.safeParse({
       name: 'test', version: 1,
       artifacts: [{ id: 'a', type: 'a', template: 'a.md', generates: 'a.md', requires: [], agents: [], gates: [], extra: true }],
-    })
-    expect(result.success).toBe(false)
-  })
-
-  it('rejects unknown fields on WorkflowOverrideSchema (.strict())', () => {
-    const result = WorkflowDefinitionSchema.safeParse({
-      name: 'test', version: 1, artifacts: [],
-      overrides: [{ id: 'a', unknown_field: true }],
     })
     expect(result.success).toBe(false)
   })
@@ -1171,41 +1072,6 @@ describe('GateDefinitionSchema', () => {
     const result = GateDefinitionSchema.safeParse({
       name: 'tests', description: 'desc', command: 'npm test', timeout: 0,
     })
-    expect(result.success).toBe(false)
-  })
-})
-
-describe('PluginManifestSchema', () => {
-  it('validates a plugin manifest', () => {
-    const data = {
-      type: 'gate',
-      name: 'quality-gates',
-      version: '1.0.0',
-      description: 'Additional quality gates',
-    }
-    const result = PluginManifestSchema.safeParse(data)
-    expect(result.success).toBe(true)
-  })
-
-  it('rejects invalid name format', () => {
-    const data = {
-      type: 'gate',
-      name: 'Invalid Name',
-      version: '1.0.0',
-      description: 'Bad name',
-    }
-    const result = PluginManifestSchema.safeParse(data)
-    expect(result.success).toBe(false)
-  })
-
-  it('rejects invalid version format', () => {
-    const data = {
-      type: 'gate',
-      name: 'my-gate',
-      version: 'v1',
-      description: 'Bad version',
-    }
-    const result = PluginManifestSchema.safeParse(data)
     expect(result.success).toBe(false)
   })
 })
