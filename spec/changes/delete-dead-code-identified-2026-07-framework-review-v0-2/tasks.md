@@ -38,7 +38,7 @@ Full-sweep verification (all stories)                             -> 5.1
 
 ## Batch 2: US-2 — ToolAdapter interface indirection removed
 
-### 2.1 Remove ToolAdapter interface, de-genericize command-installer
+### 2.1 [x] Remove ToolAdapter interface, de-genericize command-installer
 
 - **Files:**
   - Edit: `src/delivery/tool-adapter.ts` (delete the `ToolAdapter` interface only; keep `SkillContent`, `CommandContent`, `ProjectContext`, `QuestionCapability` unmodified)
@@ -56,7 +56,7 @@ Full-sweep verification (all stories)                             -> 5.1
 
 ## Batch 3: US-3 + US-4 — dead schemas removed, CLI surface tells the truth
 
-### 3.1 Delete dead schemas and StateFileSchema.auto field
+### 3.1 [x] Delete dead schemas and StateFileSchema.auto field
 
 - **Files:**
   - Delete: `src/schemas/plugin-manifest.ts`, `src/schemas/auto-state.ts`
@@ -71,7 +71,7 @@ Full-sweep verification (all stories)                             -> 5.1
   - `npx tsc --noEmit`
 - **Done:** `src/schemas/plugin-manifest.ts` and `src/schemas/auto-state.ts` no longer exist; `StateFileSchema` has no `auto` field and remains `.strict()`; the schema barrel no longer exports either deleted module; `npx vitest run` and `npx tsc --noEmit` pass.
 
-### 3.2 CLI surface tells the truth — remove --resume, rewrite metta auto
+### 3.2 [x] CLI surface tells the truth — remove --resume, rewrite metta auto
 
 - **Files:**
   - Edit: `src/cli/commands/execute.ts` (remove `--resume` option, its `resume` field in JSON output, and the `"Resuming from last checkpoint..."` console line)
