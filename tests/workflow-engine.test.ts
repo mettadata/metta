@@ -236,5 +236,23 @@ describe('WorkflowEngine', () => {
       const engine = new WorkflowEngine()
       await expect(engine.loadWorkflow('nonexistent', ['/tmp'])).rejects.toThrow()
     })
+
+    it("resolves 'trivial' as an alias to the quick workflow's graph", async () => {
+      const searchPaths = [new URL('../src/templates/workflows', import.meta.url).pathname]
+
+      const trivial = await new WorkflowEngine().loadWorkflow('trivial', searchPaths)
+      const quick = await new WorkflowEngine().loadWorkflow('quick', searchPaths)
+
+      expect(trivial.artifacts).toEqual(quick.artifacts)
+      expect(trivial.buildOrder).toEqual(quick.buildOrder)
+    })
+
+    it('still throws the unchanged not-found error for unknown non-alias names', async () => {
+      const engine = new WorkflowEngine()
+      const searchPaths = [new URL('../src/templates/workflows', import.meta.url).pathname]
+      await expect(engine.loadWorkflow('bogus', searchPaths)).rejects.toThrow(
+        "Workflow 'bogus' not found",
+      )
+    })
   })
 })
