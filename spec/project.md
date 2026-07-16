@@ -13,9 +13,9 @@
   - Zod — schema validation on every state read/write
   - Vitest — unit testing
   - remark-parse + unified — markdown spec parsing
-  - Anthropic SDK — AI provider integration
 - **Persistence:** Filesystem-based — `.metta/` YAML state files, `spec/` spec store, git as the transaction log
 - **Toolchain:** `tsc` for build, `npm` for package management (tsx is not currently part of the dev loop)
+- **AI execution model:** All AI-driven work runs inside the Claude Code session via skills and subagents (instruction mode); no direct hosted-model provider API calls anywhere in the codebase.
 
 <!-- source: https://dev.to/chengyixu/the-complete-guide-to-building-developer-cli-tools-in-2026-a96 -->
 

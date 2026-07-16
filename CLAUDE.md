@@ -5,7 +5,7 @@
 
 **metta** -- **metta** is a composable, spec-driven development framework for AI-native software engineering. It is a CLI / developer tool that orchestrates the full change lifecycle — propose → plan → execute → verify → finalize → ship — for internal developers adopting metta on their own projects. The framework works with any AI coding tool via instruction mode: metta manages state and specs while the AI tool executes the work.
 
-Stack: **Language:** TypeScript (strict mode, ES2022 target), **Runtime:** Node.js >= 22 (ESM only), **Frameworks & libraries:**, - Commander.js — CLI argument parsing, - Zod — schema validation on every state read/write, - Vitest — unit testing, - remark-parse + unified — markdown spec parsing, - Anthropic SDK — AI provider integration, **Persistence:** Filesystem-based — `.metta/` YAML state files, `spec/` spec store, git as the transaction log, **Toolchain:** `tsc` for build, `npm` for package management (tsx is not currently part of the dev loop)
+Stack: **Language:** TypeScript (strict mode, ES2022 target), **Runtime:** Node.js >= 22 (ESM only), **Frameworks & libraries:**, - Commander.js — CLI argument parsing, - Zod — schema validation on every state read/write, - Vitest — unit testing, - remark-parse + unified — markdown spec parsing, **Persistence:** Filesystem-based — `.metta/` YAML state files, `spec/` spec store, git as the transaction log, **Toolchain:** `tsc` for build, `npm` for package management (tsx is not currently part of the dev loop), **AI execution model:** All AI-driven work runs inside the Claude Code session via skills and subagents (instruction mode); no direct hosted-model provider API calls anywhere in the codebase.
 <!-- metta:project-end -->
 
 <!-- metta:conventions-start source:spec/project.md -->
@@ -98,7 +98,6 @@ Cite the source URL when presenting findings so the user can verify the answer.
 | config-loader | 59 |
 | config-writer | 38 |
 | context-engine | 72 |
-| execution-engine | 49 |
 | finalize-ship | 49 |
 | fix-issues-command | 78 |
 | gate-runner | 10 |
@@ -109,7 +108,7 @@ Cite the source URL when presenting findings so the user can verify the answer.
 | spec-model | 26 |
 | state-store | 73 |
 | user-stories | 84 |
-| workflow-engine | 69 |
+| workflow-engine | 45 |
 | workflow-parallelism-discipline | 37 |
 <!-- metta:specs-end -->
 
