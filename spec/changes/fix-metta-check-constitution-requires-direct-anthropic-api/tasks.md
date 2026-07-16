@@ -31,7 +31,7 @@ User Story -> Task mapping (stories.md):
 In `src/constitution/checker.ts`:
 - Delete `import type { AIProvider } from '../providers/provider.js'` (line 4).
 - Delete the `CheckerOptions` interface entirely (lines 24-28). It is replaced by primitive parameters on the two new functions below — do not keep a slimmed-down version, it has no remaining caller.
-- Keep `SYSTEM_PROMPT` (lines 30-50), `formatArticles` (52-62), `buildUserPrompt` (64-81) **unchanged in content** — they become the contract's text fields, not an LLM prompt.
+- Keep `formatArticles` (52-62) and `buildUserPrompt` (64-81) **unchanged in content** — they become the contract's text fields, not an LLM prompt. MOVE `SYSTEM_PROMPT`'s text (lines 30-50) out of TypeScript into a new external template file `src/templates/artifacts/constitution-check-instructions.md` (copied to dist/ at build time like every template family; constitution-check finding — agent-facing instruction content must not live as a TS string literal). `buildCheckContract` reads it from the templates dir at runtime (resolve relative to the module like template-engine/instruction-generator do) and returns it as the `instructions` field. Delete the `SYSTEM_PROMPT` constant.
 - Add:
   ```ts
   export interface CheckContract {
