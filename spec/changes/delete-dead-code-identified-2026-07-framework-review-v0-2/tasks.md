@@ -91,7 +91,7 @@ Full-sweep verification (all stories)                             -> 5.1
 
 ## Batch 4: US-5 — workflow-engine speculative machinery deleted
 
-### 4.1 Delete mergeWorkflows/extends/overrides/validate() from workflow engine
+### 4.1 [x] Delete mergeWorkflows/extends/overrides/validate() from workflow engine
 
 - **Files:**
   - Edit: `src/workflow/workflow-engine.ts` (delete `mergeWorkflows`, the `extends`-handling branch in `loadWorkflow`, and `WorkflowEngine.validate()`)
@@ -105,7 +105,7 @@ Full-sweep verification (all stories)                             -> 5.1
   - For each of `src/templates/workflows/full.yaml`, `quick.yaml`, `standard.yaml`, `trivial.yaml`: confirm it loads, validates, and topologically sorts without error (exercised via the relevant `tests/workflow-engine.test.ts` YAML-loading cases already run above)
 - **Done:** `mergeWorkflows`, the `extends`-handling branch, `WorkflowEngine.validate()`, and the `extends`/`overrides` schema fields no longer exist anywhere in `src/`; dangling-reference enforcement lives solely in `topologicalSort`; all four shipped workflow YAMLs still load and topo-sort successfully; `npx vitest run` and `npx tsc --noEmit` pass.
 
-### 4.2 Edit workflow-engine spec.md in place and hand-authored docs
+### 4.2 [x] Edit workflow-engine spec.md in place and hand-authored docs
 
 - **Files:**
   - Edit: `spec/specs/workflow-engine/spec.md` (remove section 2.2's `extends`/`overrides` fields, section 2.3 `WorkflowOverride`, section 3.6 `validate()`, section 6 Workflow Inheritance, and scenarios S-13, S-17–S-20; leave sections 1, 2 minus 2.2/2.3, 4, 5, 7–9 and scenarios S-01–S-12 minus S-13, S-14–S-16 unchanged)
@@ -124,7 +124,7 @@ Full-sweep verification (all stories)                             -> 5.1
 
 ## Batch 5: Full sweep verification
 
-### 5.1 Full suite, build, and line-count delta report
+### 5.1 [x] Full suite, build, and line-count delta report
 
 - **Files:** None (verification only; no source edits)
 - **Action:** Run the complete verification suite across the whole tree to confirm all five deletion areas landed cleanly together with no cross-batch regression, then produce a line-count delta report comparing the current tree against the branch base commit.
