@@ -1,4 +1,5 @@
 export * from './schemas/index.js'
+export * from './agents/index.js'
 export * from './state/state-store.js'
 export * from './config/config-loader.js'
 export * from './workflow/workflow-engine.js'
