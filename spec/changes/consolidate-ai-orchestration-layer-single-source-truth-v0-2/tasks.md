@@ -20,7 +20,7 @@ User story -> Task mapping (stories.md):
 
 ## Batch 1: Agent registry core
 
-### 1.1 Agent-definition loader module + real specifier agent
+### 1.1 [x] Agent-definition loader module + real specifier agent
 
 **Files:**
 - `src/agents/agent-registry.ts` (new)
@@ -57,7 +57,7 @@ Both commands must exit 0.
 
 ---
 
-### 1.2 Agent registry unit tests
+### 1.2 [x] Agent registry unit tests
 
 **Files:**
 - `tests/agent-registry.test.ts` (new)
@@ -81,7 +81,7 @@ npx vitest run tests/agent-registry.test.ts
 
 ## Batch 2: Wire instructions command to the registry
 
-### 2.1 Delete BUILTIN_AGENTS and agentTypeMap, resolve via agent-registry
+### 2.1 [x] Delete BUILTIN_AGENTS and agentTypeMap, resolve via agent-registry
 
 **Files:**
 - `src/cli/commands/instructions.ts`
@@ -106,7 +106,7 @@ The `grep` must produce no matches (exit 1).
 
 ---
 
-### 2.2 CLI-level proof: persona matches the agent file, unresolved agent fails loudly
+### 2.2 [x] CLI-level proof: persona matches the agent file, unresolved agent fails loudly
 
 **Files:**
 - `tests/instructions-stamps-timings.test.ts` (existing — extend, or add adjacent `tests/instructions-agent-registry.test.ts` if a cleaner fixture setup is warranted)
