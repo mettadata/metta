@@ -2,19 +2,24 @@ import { Command } from 'commander'
 import { join } from 'node:path'
 import { createCliContext, outputJson, agentBanner, getErrorMessage } from '../helpers.js'
 import { renderBanner } from '../../complexity/index.js'
-import type { AgentDefinition } from '../../schemas/agent-definition.js'
+import { loadAgentDefinition, AgentResolutionError } from '../../agents/index.js'
 
-const BUILTIN_AGENTS: Record<string, AgentDefinition> = {
-  proposer: { name: 'proposer', persona: 'You are a product-minded engineer focused on clear problem definition.', capabilities: ['propose', 'intent'], tools: ['Read', 'Grep', 'Glob'], context_budget: 20000 },
-  specifier: { name: 'specifier', persona: 'You are a requirements engineer focused on completeness and testability.', capabilities: ['spec', 'requirements', 'scenarios'], tools: ['Read', 'Grep', 'Glob'], context_budget: 40000 },
-  product: { name: 'product', persona: 'You are a product-thinking engineer translating engineering intent into user stories.', capabilities: ['stories', 'user-stories'], tools: ['Read', 'Write'], context_budget: 20000 },
-  researcher: { name: 'researcher', persona: 'You are a technical researcher focused on evaluating implementation approaches.', capabilities: ['research', 'analysis'], tools: ['Read', 'Grep', 'Glob', 'Bash'], context_budget: 60000 },
-  architect: { name: 'architect', persona: 'You are a senior systems architect focused on simplicity and maintainability.', capabilities: ['design', 'review', 'adr', 'architecture'], tools: ['Read', 'Grep', 'Glob', 'Bash'], context_budget: 80000 },
-  planner: { name: 'planner', persona: 'You are a task planner focused on decomposition and dependency ordering.', capabilities: ['tasks', 'decomposition'], tools: ['Read', 'Grep', 'Glob'], context_budget: 40000 },
-  executor: { name: 'executor', persona: 'You are an implementation engineer. Write clean, tested code.', capabilities: ['implementation', 'code'], tools: ['Read', 'Write', 'Edit', 'Bash', 'Grep', 'Glob'], context_budget: 10000 },
-  verifier: { name: 'verifier', persona: 'You are a verification engineer focused on spec compliance.', capabilities: ['verification', 'testing'], tools: ['Read', 'Bash', 'Grep', 'Glob'], context_budget: 50000 },
-  reviewer: { name: 'reviewer', persona: 'You are a senior code reviewer focused on quality, security, and correctness.', capabilities: ['code-review', 'quality'], tools: ['Read', 'Write', 'Bash', 'Grep', 'Glob'], context_budget: 60000 },
+// Context-budget tuning numbers per agent short name. These have no
+// frontmatter counterpart in the agent definition files — they are loader
+// budgets, not agent identity — so they stay here as a standalone literal
+// (values carried over unchanged from the deleted builtin agent map).
+const AGENT_CONTEXT_BUDGETS: Record<string, number> = {
+  proposer: 20000,
+  specifier: 40000,
+  product: 20000,
+  researcher: 60000,
+  architect: 80000,
+  planner: 40000,
+  executor: 10000,
+  verifier: 50000,
+  reviewer: 60000,
 }
+const DEFAULT_CONTEXT_BUDGET = 10000
 
 export function registerInstructionsCommand(program: Command): void {
   program
@@ -47,7 +52,11 @@ export function registerInstructionsCommand(program: Command): void {
         if (!artifact) throw new Error(`Artifact '${artifactId}' not found in workflow '${metadata.workflow}'`)
 
         const agentName = artifact.agents[0] ?? 'executor'
-        const agent = BUILTIN_AGENTS[agentName] ?? BUILTIN_AGENTS.executor
+        // Resolves the agent definition file at runtime — the single source
+        // of truth for name/persona/tools. An unresolvable agent name throws
+        // AgentResolutionError, which propagates to the catch below (exit 4);
+        // there is no silent fallback agent.
+        const agent = await loadAgentDefinition(agentName, artifactId)
 
         const changePath = join(ctx.projectRoot, 'spec', 'changes', changeName)
         const specDir = join(ctx.projectRoot, 'spec')
@@ -59,7 +68,10 @@ export function registerInstructionsCommand(program: Command): void {
           workflow: metadata.workflow,
           status: metadata.artifacts[artifactId] ?? 'pending',
           specDir,
-          agent,
+          agent: {
+            ...agent,
+            context_budget: AGENT_CONTEXT_BUDGETS[agentName] ?? DEFAULT_CONTEXT_BUDGET,
+          },
           nextSteps: [
             `Create the ${artifactId} artifact following the template`,
             'Run `metta status --json` to confirm completion',
@@ -118,14 +130,9 @@ export function registerInstructionsCommand(program: Command): void {
           }
         }
 
-        // Map agent name to metta agent type for subagent spawning
-        const agentTypeMap: Record<string, string> = {
-          proposer: 'metta-proposer', specifier: 'metta-proposer',
-          product: 'metta-product',
-          researcher: 'metta-researcher', architect: 'metta-architect',
-          planner: 'metta-planner', executor: 'metta-executor', reviewer: 'metta-reviewer', verifier: 'metta-verifier',
-        }
-        const mettaAgent = agentTypeMap[agentName] ?? 'metta-executor'
+        // The metta agent type for subagent spawning is the resolved agent's
+        // real frontmatter name — no separate mapping table.
+        const mettaAgent = output.agent.name
 
         // Always print colored banner to stderr
         process.stderr.write(agentBanner(output.agent.name, `${artifactId} → ${mettaAgent}`) + '\n')
