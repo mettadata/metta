@@ -20,7 +20,7 @@ User Story -> Task mapping (stories.md):
 
 ## Batch 1: Split `checker.ts`, add the `--record` CLI mode, rewrite the two test files that exercise the old provider-based API
 
-### 1.1 Split `checkConstitution` into `buildCheckContract`/`recordVerdict`; add `--record` to the CLI
+### 1.1 [x] Split `checkConstitution` into `buildCheckContract`/`recordVerdict`; add `--record` to the CLI
 
 **Files:**
 - `src/constitution/checker.ts`
@@ -94,7 +94,7 @@ Both invocations run with `ANTHROPIC_API_KEY` explicitly absent from the child p
 
 ---
 
-### 1.2 Rewrite `tests/constitution-checker.test.ts` against `buildCheckContract`/`recordVerdict`
+### 1.2 [x] Rewrite `tests/constitution-checker.test.ts` against `buildCheckContract`/`recordVerdict`
 
 **Files:**
 - `tests/constitution-checker.test.ts`
@@ -121,7 +121,7 @@ grep -n "AIProvider\|ProviderError\|mockProvider" tests/constitution-checker.tes
 
 ---
 
-### 1.3 Rewrite the `metta check-constitution` block in `tests/cli-issue-backlog.test.ts`
+### 1.3 [x] Rewrite the `metta check-constitution` block in `tests/cli-issue-backlog.test.ts`
 
 **Files:**
 - `tests/cli-issue-backlog.test.ts`
