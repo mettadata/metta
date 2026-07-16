@@ -152,7 +152,7 @@ npm test
 
 ## Batch 2: Delete the provider abstraction and its dependency
 
-### 2.1 Delete `src/providers/`, `tests/provider.test.ts`, the barrel exports, and `@anthropic-ai/sdk`
+### 2.1 [x] Delete `src/providers/`, `tests/provider.test.ts`, the barrel exports, and `@anthropic-ai/sdk`
 
 **Files:**
 - `src/providers/provider.ts` (delete)
@@ -189,7 +189,7 @@ npm test
 
 ## Batch 3: Rewrite the skill for the two-step flow; update the constitution and regenerate `CLAUDE.md`
 
-### 3.1 Rewrite `metta-check-constitution` SKILL.md (template + deployed copy) for the emit/spawn/record flow
+### 3.1 [x] Rewrite `metta-check-constitution` SKILL.md (template + deployed copy) for the emit/spawn/record flow
 
 **Files:**
 - `.claude/skills/metta-check-constitution/SKILL.md`
@@ -222,7 +222,7 @@ grep -n "metta-constitution-checker" .claude/skills/metta-check-constitution/SKI
 
 ---
 
-### 3.1b Update the metta-plan skill's constitution-check call site to the three-step flow
+### 3.1b [x] Update the metta-plan skill's constitution-check call site to the three-step flow
 
 **Files:**
 - `.claude/skills/metta-plan/SKILL.md`
@@ -241,7 +241,7 @@ npx vitest run tests/cli-skills.test.ts tests/template-deploy-sync.test.ts
 
 ---
 
-### 3.2 Update `spec/project.md` Stack section and regenerate `CLAUDE.md`
+### 3.2 [x] Update `spec/project.md` Stack section and regenerate `CLAUDE.md`
 
 **Files:**
 - `spec/project.md`
@@ -270,7 +270,7 @@ git status --short spec/project.md CLAUDE.md
 
 ## Batch 4: Full sweep
 
-### 4.1 Full gate sweep and final zero-reference proof
+### 4.1 [x] Full gate sweep and final zero-reference proof
 
 **Files:** none (verification-only).
 
