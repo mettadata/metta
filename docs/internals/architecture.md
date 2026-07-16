@@ -28,7 +28,7 @@ reading first.
 | state | `src/state/` | `state-store.ts` | Generic schema-validated YAML reader/writer with stale-lock handling (`StateStore`). The lowest-level I/O primitive every store builds on. |
 | config | `src/config/` | `config-loader.ts` | Loads + deep-merges project / user `metta.yaml` config (`ConfigLoader`); `config-writer.ts` and `repair-config.ts` mutate and heal it. |
 | providers | `src/providers/` | `provider.ts` | `AIProvider` interface (`generateText` / `generateObject` / `streamText`); `anthropic-provider.ts` is the Anthropic SDK implementation. |
-| workflow | `src/workflow/` | `workflow-engine.ts` | Loads workflow YAML, resolves `extends`, topologically sorts artifact dependencies into a `buildOrder`, detects cycles (`WorkflowEngine`). |
+| workflow | `src/workflow/` | `workflow-engine.ts` | Loads workflow YAML, topologically sorts artifact dependencies into a `buildOrder`, detects cycles (`WorkflowEngine`). |
 | artifacts | `src/artifacts/` | `artifact-store.ts` | Creates changes (slug + metadata), tracks per-artifact status (`pending`/`ready`/`in_progress`/`complete`/`failed`/`skipped`), promotes the workflow forward, archives on finalize (`ArtifactStore`). |
 | specs | `src/specs/` | `spec-parser.ts`, `spec-lock-manager.ts` | Markdown spec + delta-spec parsing (remark), requirement hashing, and the `spec.lock` version ledger (`SpecLockManager`) used for merge conflict detection. |
 | context | `src/context/` | `context-engine.ts` | Resolves per-artifact context manifests, loads + token-budgets files (`ContextEngine`); `token-counter.ts` counts, `instruction-generator.ts` renders instruction-mode prompts. |

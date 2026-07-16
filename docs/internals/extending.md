@@ -162,7 +162,7 @@ A workflow tier defines the ordered artifact pipeline (intent → spec → … �
 
 Validated by `WorkflowDefinitionSchema` (`src/schemas/workflow-definition.ts`), `.strict()`:
 
-Top level: `name` (string), `version` (positive int), optional `description`, optional `extends` (name of a base workflow), `artifacts[]`, optional `overrides[]`.
+Top level: `name` (string), `version` (positive int), optional `description`, `artifacts[]`.
 
 Each entry in `artifacts[]`:
 
@@ -175,8 +175,6 @@ Each entry in `artifacts[]`:
 | `requires` | string[] | Ids of upstream artifacts — defines the DAG / build order |
 | `agents` | string[] | Subagent personas that author this artifact (e.g. `proposer`) |
 | `gates` | string[] | Gate names run for this artifact (see section 2) |
-
-`overrides[]` (used with `extends`) re-specify a subset of `requires`/`agents`/`gates` for a given `id`.
 
 ### Minimal example
 
@@ -218,7 +216,6 @@ The `requires` edges define the dependency DAG; the engine derives the build ord
   ```
 
   (See `src/cli/commands/propose.ts`.) First match wins, so `.metta/workflows/<name>.yaml` overrides a built-in of the same name.
-- `extends` lets a tier inherit a base workflow's artifacts and apply `overrides`.
 - The resolved graph exposes `buildOrder`; `metta propose --stop-after <id>` validates against it (only planning-phase ids, never `implementation`/`verification`).
 
 ### Checklist
