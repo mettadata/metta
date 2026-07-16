@@ -1,0 +1,47 @@
+version: 7
+hash: sha256:a0d79a0a7a2a
+updated: 2026-07-16T05:22:01.160Z
+status: draft
+source: change
+requirements:
+  - id: contract-emission-without-api-credentials
+    hash: sha256:84df73f12958
+    scenarios:
+      - contract-emitted-with-no-credential-present
+      - machine-readable-contract-via-json
+      - nonexistent-change-fails-with-a-clear-error-not-an-auth-error
+  - id: no-direct-ai-provider-invocation
+    hash: sha256:59f3c8c28712
+    scenarios:
+      - no-provider-client-is-constructed-during-contract-emission
+      - no-provider-client-is-constructed-during-verdict-recording
+      - full-check-runs-end-to-end-with-no-credential-in-the-environment
+  - id: verdict-schema-validation
+    hash: sha256:0e4e6941aa34
+    scenarios:
+      - malformed-verdict-is-rejected-without-persisting-anything
+      - unparseable-verdict-input-is-rejected
+      - well-formed-empty-verdict-passes-validation
+  - id: verdict-recording-and-blocking-violation-exit-semantics
+    hash: sha256:f8f29d1a2fab
+    scenarios:
+      - verdict-with-no-blocking-violations-exits-0
+      - critical-violation-is-always-blocking
+      - unjustified-major-violation-is-blocking
+      - justified-major-violation-is-not-blocking
+  - id: violations-report-format-and-location-preserved
+    hash: sha256:3fe1b8af8992
+    scenarios:
+      - clean-verdict-produces-the-no-violations-report
+      - violations-report-renders-each-violation-with-its-fields
+  - id: skill-driven-two-step-check-flow
+    hash: sha256:1360fafe93aa
+    scenarios:
+      - skill-completes-a-full-check-with-no-manual-workaround
+      - skill-surfaces-a-blocking-result-rather-than-masking-it
+      - skill-template-and-deployed-copy-stay-byte-identical
+  - id: idempotent-re-check-replaces-the-prior-verdict
+    hash: sha256:47b51fa40711
+    scenarios:
+      - re-running-the-check-overwrites-the-prior-report
+      - re-running-with-an-unchanged-clean-verdict-still-overwrites

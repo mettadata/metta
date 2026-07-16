@@ -29,7 +29,6 @@
   "keywords": ["spec-driven", "ai", "development", "framework"],
   "license": "MIT",
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.39.0",
     "commander": "^13.1.0",
     "remark-parse": "^11.0.0",
     "unified": "^11.0.5",

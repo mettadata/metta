@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { mkdtemp, rm, mkdir, writeFile } from 'node:fs/promises'
+import { mkdtemp, rm, mkdir, writeFile, readFile } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { runCli, execAsync, CLI_PATH } from './helpers/cli.js'
@@ -304,13 +305,43 @@ describe("CLI: issue / fix-issue / backlog / branch-safety / check-constitution"
       }
     }
 
+    const PROJECT_MD = [
+      '# Project',
+      '',
+      '## Conventions',
+      '',
+      '- Validate all state and config with Zod schemas',
+      '',
+      '## Off-Limits',
+      '',
+      '- No singletons',
+      '- No `--force` pushes',
+      '',
+    ].join('\n')
+
+    async function createChangeFixture(slug: string): Promise<void> {
+      await mkdir(join(tempDir, 'spec', 'changes', slug), { recursive: true })
+      await writeFile(join(tempDir, 'spec', 'project.md'), PROJECT_MD, 'utf8')
+      await writeFile(
+        join(tempDir, 'spec', 'changes', slug, 'spec.md'),
+        '# Spec\n\n## Overview\nFixture change for check-constitution.\n',
+        'utf8',
+      )
+    }
+
+    function envWithoutApiKey(): NodeJS.ProcessEnv {
+      const env: NodeJS.ProcessEnv = {}
+      for (const [k, v] of Object.entries(process.env)) {
+        if (k !== 'ANTHROPIC_API_KEY' && v !== undefined) env[k] = v
+      }
+      return env
+    }
+
     it('errors with exit 4 on missing change', async () => {
       await runCli(['install', '--git-init'], tempDir)
-      const env = { ...process.env, ANTHROPIC_API_KEY: 'sk-test-fake' }
-      const { stdout, code } = await runCliWithEnv(
+      const { stdout, code } = await runCli(
         ['--json', 'check-constitution', '--change', 'does-not-exist'],
         tempDir,
-        env,
       )
       expect(code).toBe(4)
       const data = JSON.parse(stdout)
@@ -319,22 +350,85 @@ describe("CLI: issue / fix-issue / backlog / branch-safety / check-constitution"
       expect(data.error.message.length).toBeGreaterThan(0)
     })
 
-    it('errors with exit 4 when no ANTHROPIC_API_KEY is set', async () => {
+    it('emits the check contract with no ANTHROPIC_API_KEY set (emission mode)', async () => {
       await runCli(['install', '--git-init'], tempDir)
-      await runCli(['propose', 'check constitution probe'], tempDir)
-      const env: NodeJS.ProcessEnv = {}
-      for (const [k, v] of Object.entries(process.env)) {
-        if (k !== 'ANTHROPIC_API_KEY' && v !== undefined) env[k] = v
-      }
+      await createChangeFixture('probe-change')
       const { stdout, code } = await runCliWithEnv(
-        ['--json', 'check-constitution'],
+        ['--json', 'check-constitution', '--change', 'probe-change'],
         tempDir,
-        env,
+        envWithoutApiKey(),
+      )
+      expect(code).toBe(0)
+      const data = JSON.parse(stdout)
+      expect(data.articles.conventions).toEqual([
+        'Validate all state and config with Zod schemas',
+      ])
+      expect(data.articles.offLimits).toEqual(['No singletons', 'No `--force` pushes'])
+      expect(data.spec_path).toContain(join('spec', 'changes', 'probe-change', 'spec.md'))
+      expect(data.spec_content).toContain('Fixture change for check-constitution.')
+      expect(data.verdict_schema).toContain('violations')
+      expect(data.instructions.length).toBeGreaterThan(0)
+      expect(data.output_path).toBe(join('.metta', 'scratch', 'probe-change', 'verdict.json'))
+    })
+
+    it('records a clean verdict and exits 0', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await createChangeFixture('probe-change')
+      const verdictFile = join(tempDir, 'verdict.json')
+      await writeFile(verdictFile, '{"violations":[]}', 'utf8')
+      const { stdout, code } = await runCli(
+        ['--json', 'check-constitution', '--change', 'probe-change', '--record', verdictFile],
+        tempDir,
+      )
+      expect(code).toBe(0)
+      const data = JSON.parse(stdout)
+      expect(data.violations_path).toBeTruthy()
+      const md = await readFile(join(tempDir, data.violations_path), 'utf8')
+      expect(md).toContain('No violations found.')
+    })
+
+    it('records a blocking verdict and exits 4', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await createChangeFixture('probe-change')
+      const verdictFile = join(tempDir, 'verdict.json')
+      await writeFile(
+        verdictFile,
+        JSON.stringify({
+          violations: [
+            {
+              article: 'No singletons',
+              severity: 'critical',
+              evidence: 'shared singleton across modules',
+              suggestion: 'inject the dependency',
+            },
+          ],
+        }),
+        'utf8',
+      )
+      const { stdout, code } = await runCli(
+        ['--json', 'check-constitution', '--change', 'probe-change', '--record', verdictFile],
+        tempDir,
       )
       expect(code).toBe(4)
       const data = JSON.parse(stdout)
-      expect(data.error.code).toBe(4)
-      expect(data.error.type).toBe('check_constitution_error')
+      expect(data.blocking).toBe(true)
+      const md = await readFile(join(tempDir, data.violations_path), 'utf8')
+      expect(md).toContain('BLOCKING')
+    })
+
+    it('rejects malformed verdict JSON with exit 4 and does not write violations.md', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await createChangeFixture('malformed-change')
+      const verdictFile = join(tempDir, 'verdict.json')
+      await writeFile(verdictFile, 'this is not JSON at all', 'utf8')
+      const { stdout, code } = await runCli(
+        ['--json', 'check-constitution', '--change', 'malformed-change', '--record', verdictFile],
+        tempDir,
+      )
+      expect(code).toBe(4)
+      const data = JSON.parse(stdout)
+      expect(data.error.type).toBe('verdict_validation_error')
+      expect(existsSync(join(tempDir, 'spec/changes/malformed-change/violations.md'))).toBe(false)
     })
 
     it('--help shows the command description', async () => {
@@ -343,6 +437,7 @@ describe("CLI: issue / fix-issue / backlog / branch-safety / check-constitution"
       expect(stdout).toContain('check-constitution')
       expect(stdout.toLowerCase()).toContain('constitution')
       expect(stdout).toContain('--change')
+      expect(stdout).toContain('--record')
     })
 
     it('is registered in the main help listing', async () => {
