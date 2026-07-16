@@ -1,0 +1,15 @@
+finalized_at: 2026-07-16T00:08:19.278Z
+all_passed: true
+results:
+  - gate: tests
+    status: pass
+    duration_ms: 273330
+  - gate: lint
+    status: pass
+    duration_ms: 5096
+  - gate: typecheck
+    status: pass
+    duration_ms: 5443
+  - gate: build
+    status: pass
+    duration_ms: 6148
