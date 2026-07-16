@@ -19,7 +19,7 @@ Full-sweep verification (all stories)                             -> 5.1
   - Create: `src/planning/batch-planner.ts` (new file — `parseTasks`, `markTaskComplete`, `TaskDefinition` moved verbatim from the deleted `src/execution/batch-planner.ts`; `planBatches`, `BatchPlan`, `detectOverlaps`, `OverlapReport`, `getCompletedTasks` do NOT travel — they are deleted with the old file, out of scope per `research.md`)
   - Edit: `src/planning/index.ts` (add `export * from './batch-planner.js'`)
   - Edit: `src/cli/commands/complete.ts` (change import from `'../../execution/batch-planner.js'` to `'../../planning/index.js'`, importing `parseTasks`/`markTaskComplete` from there)
-  - Edit: `src/index.ts` (remove lines exporting `./execution/batch-planner.js`, `./execution/execution-engine.js`, `./execution/worktree-manager.js`, `./execution/fan-out.js`)
+  - Edit: `src/index.ts` (remove lines exporting `./execution/batch-planner.js`, `./execution/execution-engine.js`, `./execution/worktree-manager.js`, `./execution/fan-out.js`; ADD `export * from './planning/index.js'` so the relocated live exports stay reachable from the root barrel — constitution-check finding)
   - Delete: `tests/execution-engine.test.ts`, `tests/worktree-manager.test.ts`
   - Edit: `tests/batch-planner.test.ts` — remove the `describe('planBatches', ...)` block; keep `describe('parseTasks', ...)` and `markTaskComplete` cases, update their import path to `../src/planning/batch-planner.js` (or `../src/planning/index.js`)
   - Move: `git mv spec/specs/execution-engine spec/archive/2026-07-16-delete-dead-code-execution-engine-retirement`
