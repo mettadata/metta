@@ -10,7 +10,7 @@ import { parseSpec, parseDeltaSpec } from '../../specs/spec-parser.js'
 import { readFile } from 'node:fs/promises'
 import { toSlug } from '../../util/slug.js'
 import { scoreFromIntentImpact, scoreFromSummaryFiles, isScorePresent, renderBanner } from '../../complexity/index.js'
-import { parseTasks, markTaskComplete } from '../../execution/batch-planner.js'
+import { parseTasks, markTaskComplete } from '../../planning/index.js'
 import { SpecTargetError } from '../../finalize/spec-merger.js'
 import type { ArtifactStatus } from '../../schemas/change-metadata.js'
 
