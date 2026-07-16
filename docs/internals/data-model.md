@@ -131,8 +131,7 @@ The transient runtime envelope, distinct from the durable per-change `.metta.yam
 | Field | Type | Notes |
 |-------|------|-------|
 | `schema_version` | `int > 0` | State file format version (currently `1`). |
-| `execution` | `ExecutionState?` | Active execution-engine state. |
-| `auto` | `AutoState?` | Active `--auto` loop state (`AutoStateSchema`, `auto-state.ts`): `description`, `started`, `max_cycles`, `current_cycle`, `cycles[]`. |
+| `execution` | `ExecutionState?` | Active execution state. |
 
 ### WorkflowDefinition — workflow templates
 
