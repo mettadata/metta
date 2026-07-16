@@ -41,6 +41,7 @@ Implement `agent-registry.ts` per design.md's "Agent-definition loader" section:
   - `tools` = regex-extracted `tools:` frontmatter array (single-line array literal, e.g. `tools: [Read, Grep, Glob]`), parsed into `string[]`.
   - `persona` = remark-parsed (`remark-parse` + `unified`, per `constitution-parser.ts:56-96`) markdown content between the closing `---` and the first heading node, rendered to a plain-text string.
   - If the resulting `persona` is empty or whitespace-only after trimming, throw `AgentResolutionError(shortName, artifactId)` — never emit a blank persona (design.md Risks & Mitigations).
+  - Before returning, validate the assembled object with a Zod parse (constitution-check finding): use `AgentDefinitionSchema` from `src/schemas/agent-definition.ts` if its shape fits the `{name, persona, tools}` result (or a dedicated `AgentFrontmatterSchema` subset co-located in that schema file if it doesn't), wrapping any ZodError in `AgentResolutionError` — mirrors the WorkflowEngine precedent of Zod-validating parsed template content.
 - Create `src/templates/agents/metta-specifier.md` using the exact frontmatter/body given in design.md's "`metta-specifier.md`" section (name, description, `model: sonnet`, `tools: [Read, Grep, Glob]`, `color: red`, persona paragraph, `## Your Role`, `## Rules`).
 - Copy it byte-for-byte to `.claude/agents/metta-specifier.md`.
 - In `src/schemas/agent-definition.ts`, change `capabilities: z.array(z.string())` to `capabilities: z.array(z.string()).optional()`.
