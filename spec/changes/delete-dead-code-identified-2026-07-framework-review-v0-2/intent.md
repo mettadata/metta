@@ -1,0 +1,52 @@
+# delete-dead-code-identified-2026-07-framework-review-v0-2
+
+## Problem
+
+The 2026-07 framework review (v0.2, step 4a) identified roughly 1,200 lines of aspirational scaffolding in the metta codebase that is wired to nothing: modules, interfaces, schema definitions, and CLI options that exist in `src/` but have zero non-test callers on any live code path. A follow-up discovery pass on 2026-07-16 re-verified the review's findings against current code (import graphs, grep for callers, and manual trace of the live `metta execute`/`metta auto` command handlers) and confirmed five categories of dead or misleading surface area:
+
+1. `src/execution/` is a self-contained island — `ExecutionEngine`, `WorktreeManager`, and the fan-out helper are imported only by the `src/index.ts` barrel and by their own unit tests. The live `metta execute` command (`src/cli/commands/execute.ts`) never touches `ExecutionEngine`.
+2. `src/delivery/tool-adapter.ts` defines a `ToolAdapter` interface with exactly one implementation, `claudeCodeAdapter`. `command-installer.ts` is generically parameterized over an adapter type that will never have a second implementation, adding indirection with no payoff.
+3. `src/schemas/plugin-manifest.ts` has zero importers outside its own barrel export and `tests/schemas.test.ts`. `src/schemas/auto-state.ts` is referenced by `src/schemas/state-file.ts` (via `auto: AutoStateSchema.optional()`), but nothing in the codebase ever writes or reads the `.auto` state field — the schema wiring is itself dead weight with no live producer or consumer.
+4. `metta auto` and the `metta execute --resume` option are decorative: `auto.ts`'s action only prints guidance text ("Run metta propose to begin discovery") and its `--resume` path only checks whether `state.yaml` exists before printing; `execute --resume` only prints "Resuming from last checkpoint..." with no actual checkpoint logic behind it. No skill template invokes `metta auto`. Developers and AI orchestrators reading `--help` output are misled into believing these paths do something they do not.
+5. `WorkflowEngine.extends`/`overrides`/`mergeWorkflows` machinery and `WorkflowEngine.validate()` are unused: no shipped workflow YAML (`src/templates/workflows/{full,quick,standard,trivial}.yaml`, `.metta/workflows/`) uses `extends` or `overrides`, and `validate()` has zero `src/` callers — it duplicates enforcement that `topologicalSort` already performs and is exercised only by `tests/workflow-engine.test.ts`.
+
+Anyone reading the codebase to understand what metta actually does — new contributors, the AI orchestrators that drive metta's own lifecycle, and the framework review itself — pays a real comprehension tax for this dead code: it looks load-bearing, is exported from barrels, has its own test suites, and appears in `--help` text, but does not participate in any live behavior. This dead weight also makes future refactors riskier, since a change to `ExecutionEngine` or `ToolAdapter` looks like it could break something when it cannot.
+
+## Proposal
+
+Delete the ~1,200 lines of dead/aspirational code identified above and simplify the surface area it was wrapping, in five scoped items:
+
+1. **Delete the `src/execution/` engine island.** Remove `src/execution/execution-engine.ts`, `src/execution/worktree-manager.ts`, and `src/execution/fan-out.ts`, plus their dedicated test files (`tests/execution-engine.test.ts`, `tests/worktree-manager.test.ts`). Split `src/execution/batch-planner.ts`: delete `planBatches` (used only by the dead engine) and its test cases in `tests/batch-planner.test.ts`; move the still-live `parseTasks`/`markTaskComplete` functions (used by `src/cli/commands/complete.ts`) into `src/planning/`, alongside `tasks-md-parser.ts`, and update their remaining test cases and import paths accordingly. `src/planning/parallel-wave-computer.ts` is confirmed live (used by `tasks-md-parser.ts`, exported via `src/planning/index.ts`) and is explicitly retained, untouched.
+2. **Remove the `ToolAdapter` interface indirection in `src/delivery/`.** Delete the `ToolAdapter` interface from `tool-adapter.ts` and export the Claude Code functions from `claude-code-adapter.ts` directly. Simplify `command-installer.ts` to drop the generic adapter-type parameterization and call the Claude Code functions directly. Preserve the `SkillContent`/`ProjectContext` content types currently defined in `tool-adapter.ts` (used by `tests/delivery.test.ts` and by live callers) — only the interface indirection is removed, not the shared content types.
+3. **Delete dead schemas.** Remove `src/schemas/plugin-manifest.ts` and its barrel export, and delete its cases from `tests/schemas.test.ts`. Remove `src/schemas/auto-state.ts` and, in the same change, remove the `auto` field from `StateFileSchema` in `src/schemas/state-file.ts` — since nothing writes or reads `.auto` state, removing both the schema and the field it backs is a single atomic, behavior-preserving deletion (not a partial one that would leave a dangling optional field with no schema).
+4. **Make the CLI surface honest.** Rewrite the `metta auto` command's action and help text so it accurately describes itself as a pointer command (its current behavior — printing guidance to run `metta propose`) rather than implying it drives an automated lifecycle loop; the command is not removed, only its framing corrected. Remove the `--resume` option entirely from `metta execute` since it has no backing implementation.
+5. **Delete `WorkflowEngine` extends/overrides machinery.** Remove `mergeWorkflows`, the `extends`-handling branch in `loadWorkflow`, and the `extends`/`overrides` fields from `src/schemas/workflow-definition.ts`. Delete `WorkflowEngine.validate()` and its test cases in `tests/workflow-engine.test.ts`, since `topologicalSort` already enforces dangling-reference checks on every load.
+
+As part of this change, retire `spec/specs/execution-engine/spec.md`, which specs the code being deleted in item 1 — the planning phase for this change will finalize the retirement mechanics (move to `spec/archive/` vs. delete) per the framework's existing spec-retirement convention.
+
+**Constraints (apply to every item above):**
+- This is a pure deletion/simplification change — no behavior changes to any live code path.
+- Every deletion is preceded by a verified zero-non-test-importer check (import-graph or grep confirmation that nothing outside test files references the code being removed).
+- Barrel exports in `src/index.ts` are updated to remove references to deleted modules.
+- The full test suite, `tsc`, and the build are green after each batch of deletions — this change is executed and verified incrementally, not as one giant diff.
+
+## Impact
+
+- **`src/index.ts` barrel exports** lose `ExecutionEngine`, `WorktreeManager`, the fan-out helper, `planBatches`, `ToolAdapter`, `mergeWorkflows`, `WorkflowEngine.validate`, and the plugin-manifest/auto-state schema exports. Any external code importing these symbols directly from the package root would break — none is known to exist inside this repository, and this is confirmed per-symbol before each deletion.
+- **`src/planning/` gains** `parseTasks` and `markTaskComplete`, relocated from `src/execution/batch-planner.ts`, with `src/cli/commands/complete.ts` updated to import from the new location.
+- **`src/delivery/command-installer.ts`** loses its generic adapter-type parameter; its function signature narrows to operate directly against the Claude Code adapter functions. Any test or call site that constructed a custom/mock `ToolAdapter` must be updated to call the concrete functions instead.
+- **`src/schemas/state-file.ts`** (a `.strict()` Zod schema) drops the `auto` field. Since no code path ever populates `.auto` in `state.yaml`, no existing state file on disk or in tests is expected to contain that field; this is verified as part of implementation, not assumed.
+- **CLI help text** for `metta auto` changes to describe it as a pointer to `metta propose`, and `metta execute --help` no longer lists `--resume`. Any documentation or skill instructions that mention `--resume` or describe `metta auto` as running a full lifecycle must be corrected to match.
+- **Workflow YAML authoring** loses the (unused) ability to declare `extends`/`overrides` in a workflow definition file; since no shipped or user workflow uses these fields today, no existing workflow file requires migration.
+- **Test suites** shrink: `tests/execution-engine.test.ts` and `tests/worktree-manager.test.ts` are deleted outright; `tests/batch-planner.test.ts`, `tests/schemas.test.ts`, `tests/delivery.test.ts`, and `tests/workflow-engine.test.ts` lose the cases covering deleted behavior while keeping cases for retained behavior.
+- **`spec/specs/execution-engine/spec.md`** is retired (moved or archived per the planning phase's decision) since it specs code that no longer exists after item 1.
+- **Documentation** (`docs/api.md`, `docs/architecture.md`) that references `ExecutionEngine`, `WorktreeManager`, `ToolAdapter`, or the removed CLI options requires a follow-on doc regeneration to stay accurate; this is normal end-of-change doc sync, not a separate scoped task.
+
+## Out of Scope
+
+- **The `providers/` abstraction and Anthropic SDK removal.** This is tracked as a separate change (framework review step 4b) and is explicitly blocked on the `check-constitution` instruction-mode rework landing first. No `providers/`-related code is touched by this change.
+- **`CLAUDE.md` workflow-section edits.** This change does not modify the "Metta Workflow" section of the project's `CLAUDE.md`, even though it changes CLI behavior described there in passing; any such edits are handled separately.
+- **Adding new functionality.** No new commands, flags, schemas, or engine capabilities are introduced — this change is deletion and simplification only.
+- **Renaming or restructuring `src/delivery/` beyond removing the `ToolAdapter` interface.** The module layout, file names, and remaining exports of `src/delivery/` are otherwise left as-is.
+- **Changing the `metta auto` or `metta execute` command names, or removing them from the CLI.** `metta auto` is corrected in framing, not deleted; `metta execute` keeps all options except the decorative `--resume`.
+- **Re-litigating the spec-retirement convention itself.** This change applies the existing convention to `spec/specs/execution-engine/spec.md`; it does not define or change how spec retirement works generally.
