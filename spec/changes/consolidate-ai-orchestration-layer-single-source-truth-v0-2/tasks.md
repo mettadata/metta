@@ -131,7 +131,7 @@ npm run build && npm test
 
 ## Batch 3: Trivial/quick workflow dedupe
 
-### 3.1 Delete trivial.yaml, add WORKFLOW_ALIASES to loadWorkflow
+### 3.1 [x] Delete trivial.yaml, add WORKFLOW_ALIASES to loadWorkflow
 
 **Files:**
 - `src/workflow/workflow-engine.ts`
@@ -162,7 +162,7 @@ The `find` must print nothing after `npm run build` regenerates `dist/`.
 
 ## Batch 4: Gate override loading
 
-### 4.1 Extract loadGatesWithOverrides and wire the 5 call sites
+### 4.1 [x] Extract loadGatesWithOverrides and wire the 5 call sites
 
 **Files:**
 - `src/gates/gate-registry.ts`
@@ -199,7 +199,7 @@ The `grep` must show zero remaining direct `loadFromDirectory` calls in those 4 
 
 ---
 
-### 4.2 Tests: helper unit test + CLI-level non-JS override proof
+### 4.2 [x] Tests: helper unit test + CLI-level non-JS override proof
 
 **Files:**
 - `tests/gate-registry.test.ts`
@@ -221,7 +221,7 @@ npm run build && npm test
 
 ## Batch 5: Skill inline-persona sync
 
-### 5.1 Apply design.md's per-file skill verdicts
+### 5.1 [x] Apply design.md's per-file skill verdicts
 
 **Files:**
 - `src/templates/skills/metta-verify/SKILL.md`
@@ -246,7 +246,7 @@ The `diff` must exit 0; the `grep` must produce no matches (exit 1).
 
 ## Batch 6: Full sweep and grep proof
 
-### 6.1 Repo-wide verification sweep
+### 6.1 [x] Repo-wide verification sweep
 
 **Files:**
 - None (verification-only batch; no source edits expected — if the sweep finds a residual literal or byte-mismatch, fix it in the owning file from the batch above rather than introducing a new file)
