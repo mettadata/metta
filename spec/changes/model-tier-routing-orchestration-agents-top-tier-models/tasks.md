@@ -211,7 +211,7 @@ gains exactly one record per non-inherit executor resolution and none otherwise.
 
 ## Batch 3: Escalation CLI and metric
 
-### 3.1 `metta model-escalation record` CLI command
+### 3.1 [x] `metta model-escalation record` CLI command
 
 **Files:**
 - `src/cli/commands/model-escalation.ts` (new)
@@ -275,7 +275,7 @@ Rung-discrimination requirement structurally (there is no code path in this comm
 
 ---
 
-### 3.2 Escalation-rate metric in `metta progress`
+### 3.2 [x] Escalation-rate metric in `metta progress`
 
 **Files:**
 - `src/util/ceremony-metrics.ts`
