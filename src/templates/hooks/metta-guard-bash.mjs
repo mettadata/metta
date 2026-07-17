@@ -106,9 +106,30 @@ function isTrustedSkillCaller(event) {
   return typeof event.agent_type === 'string' && event.agent_type.startsWith('metta-');
 }
 
+// Read + structurally validate the Tier-2 session credential minted by
+// .claude/hooks/metta-session-mint.mjs at <cwd>/.metta/scratch/skill-session.token.
+// Returns null on any I/O or parse error, AND on any shape mismatch (token must be a
+// non-empty string, skill a string, subcommands an array of strings, mintedAt/ttlMs
+// finite numbers) — so a valid-JSON-wrong-shape file fails closed as missing-credential
+// and this helper never throws inside the offender predicate.
+function readSessionToken(cwd) {
+  try {
+    const tokenPath = join(cwd ?? process.cwd(), '.metta', 'scratch', 'skill-session.token');
+    const tok = JSON.parse(readFileSync(tokenPath, 'utf8'));
+    if (typeof tok !== 'object' || tok === null || Array.isArray(tok)) return null;
+    if (typeof tok.token !== 'string' || tok.token.length === 0) return null;
+    if (typeof tok.skill !== 'string') return null;
+    if (!Array.isArray(tok.subcommands) || !tok.subcommands.every((s) => typeof s === 'string')) return null;
+    if (!Number.isFinite(tok.mintedAt) || !Number.isFinite(tok.ttlMs)) return null;
+    return tok;
+  } catch {
+    return null;
+  }
+}
+
 // Append one JSON line to <cwd>/.metta/logs/guard-bypass.log. Swallows all I/O errors so
 // audit-log failures never break the hook's primary enforcement path.
-function appendAuditLog(event, verdict, inv, reason) {
+function appendAuditLog(event, verdict, inv, reason, tier = null) {
   try {
     const cwd = event.cwd ?? process.cwd();
     const logPath = join(cwd, '.metta', 'logs', 'guard-bypass.log');
@@ -120,6 +141,7 @@ function appendAuditLog(event, verdict, inv, reason) {
       agent_type: event.agent_type ?? null,
       skill_bypass: Boolean(inv.skillBypass),
       reason,
+      tier,
       event_keys: Object.keys(event),
     };
     mkdirSync(dirname(logPath), { recursive: true });
@@ -143,7 +165,7 @@ async function main() {
   // rejected outright, regardless of the command string (see the Synchronous
   // completion rule in .claude/agents/metta-skill-host.md).
   if (event.tool_input?.run_in_background === true && isTrustedSkillCaller(event)) {
-    appendAuditLog(event, 'block', { sub: null, third: null }, 'background-bash-from-fork');
+    appendAuditLog(event, 'block', { sub: null, third: null }, 'background-bash-from-fork', 'fork');
     process.stderr.write(
       `metta-guard-bash: Blocked Bash run_in_background from a forked metta agent (${event.agent_type}).\n` +
       `Forked skills MUST NOT end their turn with background work in flight — see the ` +
@@ -157,24 +179,48 @@ async function main() {
   const command = event.tool_input?.command ?? '';
   const invocations = tokenize(command);
 
-  // Find the first invocation that is not allowed. For SKILL_ENFORCED_SUBCOMMANDS the call
-  // must carry BOTH the inline METTA_SKILL=1 bypass AND a trusted metta-* agent_type; for
-  // every other blocked subcommand the existing inline-bypass behavior is preserved.
+  // Find the first invocation that is not allowed. For SKILL_ENFORCED_SUBCOMMANDS (Tier 1)
+  // the call must carry BOTH the inline METTA_SKILL=1 bypass AND a trusted metta-* agent_type;
+  // every other blocked subcommand (Tier 2) is authorized by a verified fork caller identity
+  // OR a valid session credential. The Tier-2 rejection reason (if any) is threaded through
+  // tier2Reason to the verdict block below; Tier-2 acceptances are collected for audit logging.
+  let tier2Reason = null;
+  const tier2Accepted = [];
   const offender = invocations.find((inv) => {
     if (classify(inv) === 'allow') return false; // never an offender
-    // Enforced skill subcommands require BOTH inline bypass AND trusted agent_type
+    // Tier 1, unchanged: enforced skill subcommands require BOTH inline bypass AND trusted agent_type
     if (SKILL_ENFORCED_SUBCOMMANDS.has(inv.sub)) {
       return !(inv.skillBypass && isTrustedSkillCaller(event));
     }
-    // Non-enforced subcommands: today's behavior — inline bypass is enough
-    return !inv.skillBypass;
+    // Tier 2: fork body calling a Tier-2 sub from inside a Tier-1 skill's own body
+    if (isTrustedSkillCaller(event)) {
+      tier2Accepted.push(inv);
+      return false;
+    }
+    // REMOVE-AFTER-SHIP: legacy inline METTA_SKILL=1 prefix, dual-accepted only during this
+    // change's own migration window (see design.md Ordering Constraint). Deleted in the final
+    // implementation task once the Tier-2 token path is test-proven.
+    if (inv.skillBypass) return false;
+    const tok = readSessionToken(event.cwd);
+    if (!tok) { tier2Reason = 'missing-credential'; return true; }
+    if (Date.now() - tok.mintedAt >= tok.ttlMs) { tier2Reason = 'credential-expired'; return true; }
+    const key = inv.third ? `${inv.sub}:${inv.third}` : inv.sub;
+    if (!tok.subcommands.includes(key)) { tier2Reason = 'subcommand-not-in-scope'; return true; }
+    tier2Accepted.push(inv);
+    return false;
   });
 
   if (!offender) {
-    // No offender — but still log any observed inline bypass on a non-enforced subcommand
-    // so the audit trail reflects every skill-bypass use.
+    // Log every Tier-2 acceptance (verified fork caller or valid session token) so the
+    // audit trail records each session-tier authorization.
+    for (const inv of tier2Accepted) {
+      appendAuditLog(event, 'allow', inv, 'session-credential-verified', 'session');
+    }
+    // Transition window only (removed with the legacy fallback above): still log any
+    // observed inline bypass on a non-enforced subcommand so the audit trail reflects
+    // every legacy skill-bypass use.
     const firstBypassInv = invocations.find(
-      (inv) => inv.skillBypass && !SKILL_ENFORCED_SUBCOMMANDS.has(inv.sub) && classify(inv) !== 'allow',
+      (inv) => inv.skillBypass && !SKILL_ENFORCED_SUBCOMMANDS.has(inv.sub) && classify(inv) !== 'allow' && !isTrustedSkillCaller(event),
     );
     if (firstBypassInv) {
       appendAuditLog(event, 'allow_with_bypass', firstBypassInv, 'non-enforced inline bypass');
@@ -189,7 +235,7 @@ async function main() {
   // This is the new enforcement path: inline METTA_SKILL=1 alone is no longer sufficient.
   if (SKILL_ENFORCED_SUBCOMMANDS.has(offender.sub)) {
     const skillHint = SKILL_HINT_MAP.get(offender.sub) ?? '/metta-<skill>';
-    appendAuditLog(event, 'block', offender, 'skill-enforced subcommand without trusted agent_type');
+    appendAuditLog(event, 'block', offender, 'skill-enforced subcommand without trusted agent_type', 'fork');
     process.stderr.write(
       `metta-guard-bash: Blocked skill-enforced subcommand '${subDisplay}' from AI orchestrator session.\n` +
       `Use the matching skill via the Skill tool: ${skillHint}\n` +
@@ -200,22 +246,25 @@ async function main() {
   }
 
   if (verdict === 'unknown') {
-    appendAuditLog(event, 'block', offender, 'unknown');
+    appendAuditLog(event, 'block', offender, 'unknown', null);
     process.stderr.write(
       `metta-guard-bash: Blocked unknown metta subcommand '${offender.sub}' in '${subDisplay}'.\n` +
       `Update the allowlist in metta-guard-bash.mjs if this is a legitimate read-only command.\n` +
-      `If this is a skill-internal CLI call, prefix with METTA_SKILL=1.\n` +
+      `Skill-internal lifecycle calls are authorized by the session credential minted when the\n` +
+      `matching /metta-<skill> skill is invoked — use the Skill tool entry point, not the CLI.\n` +
       `Emergency bypass: disable this hook in .claude/settings.local.json.\n`
     );
     process.exit(2);
   }
 
-  // verdict === 'block'
-  appendAuditLog(event, 'block', offender, 'block');
+  // verdict === 'block' — Tier-2 rejections carry their threaded reason and session tier;
+  // any other path defaults to the generic 'block' reason with no tier.
+  appendAuditLog(event, 'block', offender, tier2Reason ?? 'block', tier2Reason ? 'session' : null);
   process.stderr.write(
     `metta-guard-bash: Blocked direct CLI call '${subDisplay}' from AI orchestrator session.\n` +
     `Use the matching /metta-<skill> skill via the Skill tool; see CLAUDE.md for the mapping.\n` +
-    `If this is a skill-internal CLI call, prefix with METTA_SKILL=1.\n` +
+    `Skill-internal lifecycle calls are authorized by the session credential the skill's entry\n` +
+    `point mints at .metta/scratch/skill-session.token — never by inline command text.\n` +
     `Emergency bypass: disable this hook in .claude/settings.local.json.\n`
   );
   process.exit(2);
