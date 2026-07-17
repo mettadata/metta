@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach, afterAll } from 'vitest'
 import { spawnSync } from 'node:child_process'
 import { join } from 'node:path'
 import { readFile } from 'node:fs/promises'
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 
 // metta-guard-bash PreToolUse hook integration tests.
@@ -34,7 +34,8 @@ function runHook(
   opts: { env?: NodeJS.ProcessEnv; rawStdin?: string; cwd?: string } = {},
 ): { code: number; stderr: string } {
   const env = { ...process.env, ...(opts.env ?? {}) }
-  // Ensure METTA_SKILL is not inherited unless the test opts in.
+  // The retired METTA_SKILL env bypass is ignored by the hook; strip any inherited value
+  // anyway so tests only see it when they explicitly opt in (to prove it is inert).
   if (!('METTA_SKILL' in (opts.env ?? {}))) {
     delete env.METTA_SKILL
   }
@@ -164,36 +165,41 @@ describe('metta-guard-bash hook', { timeout: 30_000 }, () => {
         expect(code).toBe(0)
       })
 
-      // ----- Bypass / env / chains -----
-      it('bypasses with METTA_SKILL=1 env on hook process for `metta propose "foo"` (exit 0)', () => {
+      it('allows `metta next --json` (read-only routing query, metta-next skill first call) (exit 0)', () => {
+        const { code } = runHook(hookPath, bashEvent('metta next --json'))
+        expect(code).toBe(0)
+      })
+
+      // ----- Retired legacy bypass / env prefixes / chains -----
+      it('ignores METTA_SKILL=1 env on the hook process — `metta propose "foo"` still blocked (exit 2)', () => {
         const { code } = runHook(hookPath, bashEvent('metta propose "foo"'), {
           env: { METTA_SKILL: '1' },
         })
-        expect(code).toBe(0)
+        expect(code).toBe(2)
       })
 
-      it('bypasses with inline env-var prefix `METTA_SKILL=1 metta propose "foo"` (exit 0)', () => {
+      it('allows bare `metta propose "foo"` from a trusted fork caller — agent identity alone (exit 0)', () => {
         const { code } = runHook(
           hookPath,
-          bashEvent('METTA_SKILL=1 metta propose "foo"', { agent_type: 'metta-skill-host' }),
+          bashEvent('metta propose "foo"', { agent_type: 'metta-skill-host' }),
         )
         expect(code).toBe(0)
       })
 
-      it('bypasses with multiple env prefixes `FOO=bar METTA_SKILL=1 metta propose` (exit 0)', () => {
+      it('consumes multiple env prefixes: `FOO=bar BAZ=qux metta propose` + trusted agent_type (exit 0)', () => {
         const { code } = runHook(
           hookPath,
-          bashEvent('FOO=bar METTA_SKILL=1 metta propose', { agent_type: 'metta-skill-host' }),
+          bashEvent('FOO=bar BAZ=qux metta propose', { agent_type: 'metta-skill-host' }),
         )
         expect(code).toBe(0)
       })
 
-      it('bypasses inline for two-word `METTA_SKILL=1 metta backlog add "foo"` (exit 0)', () => {
+      it('rejects inline prefix on two-word `METTA_SKILL=1 metta backlog add "foo"` — prefix credits nothing (exit 2)', () => {
         const { code } = runHook(hookPath, bashEvent('METTA_SKILL=1 metta backlog add "foo"'))
-        expect(code).toBe(0)
+        expect(code).toBe(2)
       })
 
-      it('inline bypass applies per-invocation: chain with unprefixed metta still blocks (exit 2)', () => {
+      it('chain with allowed and blocked invocations still blocks — inline prefix credits nothing (exit 2)', () => {
         const { code } = runHook(
           hookPath,
           bashEvent('METTA_SKILL=1 metta status && metta propose "foo"'),
@@ -241,7 +247,7 @@ describe('metta-guard-bash hook', { timeout: 30_000 }, () => {
           return dir
         }
 
-        // (a) Enforced subcommand + METTA_SKILL=1 + NO agent_type -> block
+        // (a) Enforced subcommand + legacy inline prefix + NO agent_type -> block (prefix credits nothing)
         it('blocks enforced subcommand with inline METTA_SKILL=1 but no agent_type (exit 2)', () => {
           const { code, stderr } = runHook(
             hookPath,
@@ -249,32 +255,42 @@ describe('metta-guard-bash hook', { timeout: 30_000 }, () => {
           )
           expect(code).toBe(2)
           expect(stderr).toContain('/metta-issue')
-          expect(stderr).toContain('Inline METTA_SKILL=1 prefix no longer bypasses')
+          expect(stderr).toContain('Inline command text never authorizes skill-enforced subcommands')
         })
 
-        // (b) Enforced subcommand + METTA_SKILL=1 + agent_type='metta-skill-host' -> allow
-        it('allows enforced subcommand with inline bypass + agent_type=metta-skill-host (exit 0)', () => {
+        // (b) Bare enforced subcommand + agent_type='metta-skill-host' -> allow (agent identity alone)
+        it('allows bare enforced subcommand with agent_type=metta-skill-host alone (exit 0)', () => {
           const { code } = runHook(
             hookPath,
-            bashEvent('METTA_SKILL=1 metta issue "hello"', { agent_type: 'metta-skill-host' }),
+            bashEvent('metta issue "hello"', { agent_type: 'metta-skill-host' }),
           )
           expect(code).toBe(0)
         })
 
-        // (c) Enforced subcommand + METTA_SKILL=1 + agent_type='metta-issue' -> allow
-        it('allows enforced subcommand with any metta-* agent_type prefix (exit 0)', () => {
+        // (b2) Tier-1 agent-identity-only accept for ship
+        it('allows bare `metta ship --change x` with agent_type=metta-skill-host (exit 0)', () => {
+          const { code, stderr } = runHook(
+            hookPath,
+            bashEvent('metta ship --change x', { agent_type: 'metta-skill-host' }),
+          )
+          expect(code).toBe(0)
+          expect(stderr).toBe('')
+        })
+
+        // (c) Bare enforced subcommand + agent_type='metta-issue' -> allow
+        it('allows bare enforced subcommand with any metta-* agent_type prefix (exit 0)', () => {
           const { code } = runHook(
             hookPath,
-            bashEvent('METTA_SKILL=1 metta issue "hello"', { agent_type: 'metta-issue' }),
+            bashEvent('metta issue "hello"', { agent_type: 'metta-issue' }),
           )
           expect(code).toBe(0)
         })
 
-        // (d) Enforced subcommand + METTA_SKILL=1 + agent_type='other-agent' -> block
-        it('blocks enforced subcommand with non-metta agent_type (exit 2)', () => {
+        // (d) Bare enforced subcommand + agent_type='other-agent' -> block
+        it('blocks bare enforced subcommand with non-metta agent_type (exit 2)', () => {
           const { code } = runHook(
             hookPath,
-            bashEvent('METTA_SKILL=1 metta issue "hello"', { agent_type: 'other-agent' }),
+            bashEvent('metta issue "hello"', { agent_type: 'other-agent' }),
           )
           expect(code).toBe(2)
         })
@@ -287,14 +303,17 @@ describe('metta-guard-bash hook', { timeout: 30_000 }, () => {
           // even when no inline bypass was attempted.
           expect(stderr).toContain('/metta-issue')
           expect(stderr).toContain(
-            'Inline METTA_SKILL=1 prefix no longer bypasses skill-enforced subcommands',
+            'Inline command text never authorizes skill-enforced subcommands',
           )
         })
 
-        // (f) Non-enforced subcommand + METTA_SKILL=1 + NO agent_type -> allow
-        it('allows non-enforced subcommand with inline METTA_SKILL=1 and no agent_type (exit 0)', () => {
-          const { code } = runHook(hookPath, bashEvent('METTA_SKILL=1 metta refresh'))
-          expect(code).toBe(0)
+        // (f) Non-enforced subcommand + legacy inline prefix + NO agent_type, no token -> block
+        it('blocks non-enforced subcommand with inline METTA_SKILL=1, no agent_type, no token (exit 2)', () => {
+          const cwd = makeTempCwd()
+          const { code } = runHook(hookPath, bashEvent('METTA_SKILL=1 metta refresh', { cwd }), {
+            cwd,
+          })
+          expect(code).toBe(2)
         })
 
         // (g) Allowed subcommand -> exit 0 and no audit log created
@@ -323,7 +342,6 @@ describe('metta-guard-bash hook', { timeout: 30_000 }, () => {
           expect(entry.verdict).toBe('block')
           expect(entry.subcommand).toBe('issue')
           expect(entry.agent_type).toBe(null)
-          expect(entry.skill_bypass).toBe(true)
           expect(typeof entry.reason).toBe('string')
           expect(Array.isArray(entry.event_keys)).toBe(true)
           expect(entry.event_keys.length).toBeGreaterThan(0)
@@ -334,21 +352,24 @@ describe('metta-guard-bash hook', { timeout: 30_000 }, () => {
           expect(parsed.toISOString()).toBe(entry.ts)
         })
 
-        // (i) Audit log on allow-with-bypass for non-enforced subcommand
-        it('writes an allow_with_bypass audit entry for non-enforced inline bypass', () => {
+        // (i) Legacy allow_with_bypass is fully retired: the inline prefix on a non-enforced
+        // subcommand is blocked as missing-credential and audit-logged on the session tier.
+        it('logs a session-tier block (not allow_with_bypass) for a non-enforced inline-prefix attempt', () => {
           const cwd = makeTempCwd()
           const { code } = runHook(hookPath, bashEvent('METTA_SKILL=1 metta refresh', { cwd }), {
             cwd,
           })
-          expect(code).toBe(0)
+          expect(code).toBe(2)
           const logPath = join(cwd, '.metta', 'logs', 'guard-bypass.log')
           expect(existsSync(logPath)).toBe(true)
           const raw = readFileSync(logPath, 'utf8')
           const lines = raw.split('\n').filter((l) => l.length > 0)
           expect(lines.length).toBe(1)
           const entry = JSON.parse(lines[0])
-          expect(entry.verdict).toBe('allow_with_bypass')
+          expect(entry.verdict).toBe('block')
           expect(entry.subcommand).toBe('refresh')
+          expect(entry.reason).toBe('missing-credential')
+          expect(entry.tier).toBe('session')
         })
       })
 
@@ -414,11 +435,11 @@ describe('metta-guard-bash hook', { timeout: 30_000 }, () => {
         })
 
         // (4a) Non-background Bash from a trusted metta agent -> existing classify pipeline
-        // is unchanged (enforced subcommand + inline bypass + trusted caller still allows).
+        // is unchanged (enforced subcommand + trusted caller identity still allows).
         it('leaves foreground classify behavior unchanged for trusted agents (exit 0)', () => {
           const { code } = runHook(
             hookPath,
-            bashEvent('METTA_SKILL=1 metta issue "hello"', { agent_type: 'metta-skill-host' }),
+            bashEvent('metta issue "hello"', { agent_type: 'metta-skill-host' }),
           )
           expect(code).toBe(0)
         })
@@ -427,7 +448,7 @@ describe('metta-guard-bash hook', { timeout: 30_000 }, () => {
         it('leaves classify behavior unchanged when run_in_background is false (exit 0)', () => {
           const { code } = runHook(
             hookPath,
-            bashEvent('METTA_SKILL=1 metta issue "hello"', {
+            bashEvent('metta issue "hello"', {
               agent_type: 'metta-skill-host',
               run_in_background: false,
             }),
@@ -459,6 +480,156 @@ describe('metta-guard-bash hook', { timeout: 30_000 }, () => {
           expect(entry.reason).toBe('background-bash-from-fork')
           expect(entry.agent_type).toBe('metta-skill-host')
           expect(entry.subcommand).toBe(null)
+        })
+      })
+
+      // ----- Tier-2 session-credential validation (skill-session token) -----
+      describe('Tier-2 session-credential validation', () => {
+        const TTL_MS = 300_000
+        const tempDirs: string[] = []
+        afterEach(() => {
+          while (tempDirs.length) {
+            const dir = tempDirs.pop()!
+            try {
+              rmSync(dir, { recursive: true, force: true })
+            } catch {
+              // best-effort cleanup
+            }
+          }
+        })
+        function makeTempCwd(): string {
+          const dir = mkdtempSync(join(tmpdir(), 'metta-guard-tier2-'))
+          tempDirs.push(dir)
+          return dir
+        }
+        function seedToken(
+          cwd: string,
+          overrides: Partial<{
+            token: string
+            skill: string
+            subcommands: string[]
+            mintedAt: number
+            ttlMs: number
+          }> = {},
+        ): void {
+          mkdirSync(join(cwd, '.metta', 'scratch'), { recursive: true })
+          const tok = {
+            token: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+            skill: 'metta-next',
+            subcommands: ['complete', 'finalize'],
+            mintedAt: Date.now(),
+            ttlMs: TTL_MS,
+            ...overrides,
+          }
+          writeFileSync(join(cwd, '.metta', 'scratch', 'skill-session.token'), JSON.stringify(tok), {
+            mode: 0o600,
+          })
+        }
+        function readAuditEntries(cwd: string): Array<Record<string, unknown>> {
+          const logPath = join(cwd, '.metta', 'logs', 'guard-bypass.log')
+          return readFileSync(logPath, 'utf8')
+            .split('\n')
+            .filter((l) => l.length > 0)
+            .map((l) => JSON.parse(l) as Record<string, unknown>)
+        }
+
+        it('allows a Tier-2 subcommand with a fresh, in-scope token (exit 0)', () => {
+          const cwd = makeTempCwd()
+          seedToken(cwd)
+          const { code, stderr } = runHook(hookPath, bashEvent('metta complete intent', { cwd }), {
+            cwd,
+          })
+          expect(code).toBe(0)
+          expect(stderr).toBe('')
+        })
+
+        it('logs every session-tier acceptance (tier=session, reason=session-credential-verified)', () => {
+          const cwd = makeTempCwd()
+          seedToken(cwd)
+          const { code } = runHook(hookPath, bashEvent('metta complete intent', { cwd }), { cwd })
+          expect(code).toBe(0)
+          const entries = readAuditEntries(cwd)
+          const last = entries[entries.length - 1]
+          expect(last.tier).toBe('session')
+          expect(last.reason).toBe('session-credential-verified')
+          expect(last.verdict).toBe('allow')
+          expect(last.subcommand).toBe('complete')
+        })
+
+        it('blocks with an expired token — audit reason credential-expired, tier session (exit 2)', () => {
+          const cwd = makeTempCwd()
+          seedToken(cwd, { mintedAt: Date.now() - TTL_MS - 1000 })
+          const { code, stderr } = runHook(hookPath, bashEvent('metta complete intent', { cwd }), {
+            cwd,
+          })
+          expect(code).toBe(2)
+          // The rejection must not credit the (expired) token as authorization.
+          expect(stderr).not.toContain('session-credential-verified')
+          const entries = readAuditEntries(cwd)
+          const last = entries[entries.length - 1]
+          expect(last.verdict).toBe('block')
+          expect(last.reason).toBe('credential-expired')
+          expect(last.tier).toBe('session')
+        })
+
+        it('blocks with no token file at all — audit reason missing-credential, tier session (exit 2)', () => {
+          const cwd = makeTempCwd()
+          const { code } = runHook(hookPath, bashEvent('metta complete intent', { cwd }), { cwd })
+          expect(code).toBe(2)
+          const entries = readAuditEntries(cwd)
+          const last = entries[entries.length - 1]
+          expect(last.verdict).toBe('block')
+          expect(last.reason).toBe('missing-credential')
+          expect(last.tier).toBe('session')
+        })
+
+        it('blocks an out-of-scope subcommand — token minted for metta-refresh cannot call finalize (exit 2)', () => {
+          const cwd = makeTempCwd()
+          seedToken(cwd, { skill: 'metta-refresh', subcommands: ['refresh'] })
+          const { code } = runHook(hookPath, bashEvent('metta finalize', { cwd }), { cwd })
+          expect(code).toBe(2)
+          const entries = readAuditEntries(cwd)
+          const last = entries[entries.length - 1]
+          expect(last.verdict).toBe('block')
+          expect(last.reason).toBe('subcommand-not-in-scope')
+          expect(last.tier).toBe('session')
+        })
+
+        it('scopes two-word forms via "<sub>:<third>" keys — backlog:add token allows metta backlog add (exit 0)', () => {
+          const cwd = makeTempCwd()
+          seedToken(cwd, {
+            skill: 'metta-backlog',
+            subcommands: ['backlog:add', 'backlog:done', 'backlog:promote'],
+          })
+          const { code } = runHook(hookPath, bashEvent('metta backlog add "foo"', { cwd }), { cwd })
+          expect(code).toBe(0)
+        })
+
+        it('accepts a fork body calling a Tier-2 sub without any token (trusted agent_type) (exit 0)', () => {
+          const cwd = makeTempCwd()
+          const { code } = runHook(
+            hookPath,
+            bashEvent('metta finalize', { agent_type: 'metta-skill-host', cwd }),
+            { cwd },
+          )
+          expect(code).toBe(0)
+        })
+
+        // Legacy branch deleted (task 4.1): the inline METTA_SKILL=1 prefix credits nothing.
+        // With no token and no trusted agent_type the call falls through to the token check
+        // and is rejected as missing-credential.
+        it('rejects legacy inline METTA_SKILL=1 metta finalize — no token, no agent_type (exit 2)', () => {
+          const cwd = makeTempCwd()
+          const { code, stderr } = runHook(hookPath, bashEvent('METTA_SKILL=1 metta finalize', { cwd }), {
+            cwd,
+          })
+          expect(code).toBe(2)
+          expect(stderr).not.toContain('session-credential-verified')
+          const entries = readAuditEntries(cwd)
+          const last = entries[entries.length - 1]
+          expect(last.verdict).toBe('block')
+          expect(last.reason).toBe('missing-credential')
+          expect(last.tier).toBe('session')
         })
       })
 

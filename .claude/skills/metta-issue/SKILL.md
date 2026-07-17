@@ -49,7 +49,7 @@ Log an issue to `spec/issues/` via the metta CLI, running a short root-cause ana
 
 7. **Write ticket.** Run:
    ```
-   printf '%s' "$BODY" | METTA_SKILL=1 metta issue "$TITLE" --severity <level>
+   printf '%s' "$BODY" | metta issue "$TITLE" --severity <level>
    ```
    The CLI auto-detects the piped stdin and uses `$BODY` as the issue body. The `$TITLE` argument becomes the issue title. After the CLI returns, echo the slug and path to the user (the CLI prints `Issue logged: <slug> (<severity>)` on success).
 

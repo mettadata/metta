@@ -21,7 +21,7 @@ You are the **orchestrator** for a quick change (intent → implementation → r
 
    > **Note on `--auto` scope:** The `--auto` flag now also auto-accepts adaptive routing recommendations (intent-time downscale/upscale and post-implementation upscale prompts) in addition to its existing discovery-loop short-circuit behavior.
 
-   Then run: `METTA_SKILL=1 metta quick "$ARGUMENTS" --json` → creates change on branch `metta/<change-name>`
+   Then run: `metta quick "$ARGUMENTS" --json` → creates change on branch `metta/<change-name>`
 
 2. **LIGHT DISCOVERY (mandatory — do NOT skip):**
    Before writing the intent, YOU (the orchestrator, not a subagent) MUST evaluate whether the change carries meaningful ambiguity BEFORE asking any questions.
@@ -52,7 +52,7 @@ You are the **orchestrator** for a quick change (intent → implementation → r
 3. **Spawn a metta-proposer agent** (subagent_type: "metta-proposer") for the intent:
    `metta instructions intent --json --change <name>` → get template + persona
    Subagent writes intent.md (Problem, Proposal, Impact, Out of Scope), commits it
-4. `METTA_SKILL=1 metta complete intent --json --change <name>` → advances to implementation
+4. `metta complete intent --json --change <name>` → advances to implementation
 5. **IMPLEMENTATION — MANDATORY PARALLEL EXECUTION:**
    **⚠️ DO NOT spawn a single metta-executor for all work. You MUST parse independent pieces and spawn per-piece.**
    a. Read the intent yourself — YOU the orchestrator, not a subagent
@@ -95,7 +95,7 @@ You are the **orchestrator** for a quick change (intent → implementation → r
       - Each executor prompt MUST include only the specific piece's details — NOT the entire intent.
       - You MUST wait for ALL executors to complete before writing the summary.
    d. After all executors complete, write `spec/changes/<change>/summary.md` and commit
-6. `METTA_SKILL=1 metta complete implementation --json --change <name>` → advances to verification
+6. `metta complete implementation --json --change <name>` → advances to verification
 7. **REVIEW — trivial-detection gate, then fan-out:**
 
    **Trivial-detection gate (first action):** Run `metta status --json --change <name>` and read `complexity_score.recommended_workflow` from the returned state. If it equals `'trivial'`, take the trivial path below; otherwise (including when `complexity_score` is absent) take the standard 3-reviewer path.
@@ -141,7 +141,7 @@ You are the **orchestrator** for a quick change (intent → implementation → r
    - Each writes their findings. Merge results into `spec/changes/<change>/review.md` and commit.
 
    **REVIEW-FIX LOOP (applies to both paths, repeat until clean):**
-   a. Run `METTA_SKILL=1 metta iteration record --phase review --change <name>`
+   a. Run `metta iteration record --phase review --change <name>`
    b. If critical issues found:
       - Parse each issue's file path from review.md
       - Group issues by file — independent files MUST be fixed in parallel (one metta-executor per file group, all spawned in the SAME orchestrator message)
@@ -187,15 +187,15 @@ You are the **orchestrator** for a quick change (intent → implementation → r
      Agent(subagent_type: "metta-verifier", ...intent traceability...)
    ```
 
-   - Before spawning verifier agents, run: `METTA_SKILL=1 metta iteration record --phase verify --change <name>`
+   - Before spawning verifier agents, run: `metta iteration record --phase verify --change <name>`
    - Agent 1 (subagent_type: "metta-verifier"): "Run `npm test` — report pass/fail count and any failures"
    - Agent 2 (subagent_type: "metta-verifier"): "Run `npx tsc --noEmit` and `npm run lint` — report any type or lint errors"
    - Agent 3 (subagent_type: "metta-verifier"): "Read intent.md and check each stated goal is implemented in the code — cite file:line evidence"
    - Merge results into `spec/changes/<change>/summary.md` and commit.
 
-   If any gate fails (either path): run `METTA_SKILL=1 metta iteration record --phase verify --change <name>` again, then spawn parallel metta-executors to fix (all fixes in ONE orchestrator message unless two fixes share a file path you have named in writing), then re-verify.
-9. `METTA_SKILL=1 metta complete verification --json --change <name>`
-10. `METTA_SKILL=1 metta finalize --json --change <name>` → runs gates, archives, merges specs
+   If any gate fails (either path): run `metta iteration record --phase verify --change <name>` again, then spawn parallel metta-executors to fix (all fixes in ONE orchestrator message unless two fixes share a file path you have named in writing), then re-verify.
+9. `metta complete verification --json --change <name>`
+10. `metta finalize --json --change <name>` → runs gates, archives, merges specs
 11. `git checkout main && git merge metta/<change-name> --no-ff -m "chore: merge <change-name>"`
 12. Report to user what was done
 

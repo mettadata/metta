@@ -18,6 +18,13 @@ const ENTRY_POINTS_BULLETS = [
   '- `/metta-fix-issues <slug>` — resolve a logged issue from `spec/issues/`',
 ]
 
+const TRUST_MODEL_BULLETS = [
+  'Skill authorization is enforced by the `metta-guard-bash` PreToolUse hook via a two-tier trust model:',
+  '- **Tier 1 (fork-tier)** — `propose`, `quick`, `auto`, `ship`, `issue`, `fix-issue`: authorized by the caller identity (`agent_type`) the Claude Code runtime attaches when a forked `metta-skill-host` subagent issues the Bash call. The runtime sets this field itself, so it cannot be forged from command text.',
+  '- **Tier 2 (session-tier)** — `complete`, `finalize`, `refresh`, `import`, `init`, `fix-gap`, plus the scoped two-word forms `backlog add/done/promote` and `changes abandon`: authorized by the session credential at `.metta/scratch/skill-session.token`, minted by `.claude/hooks/metta-session-mint.mjs` when the matching skill is invoked and rotated on a sliding TTL. The credential is a random server-minted value that never appears in any skill file, so it cannot be derived from reading skill instructions.',
+  '- **Emergency bypass (humans/CI)** — disable the guard hook in `.claude/settings.local.json`.',
+]
+
 export function workflowPrimerShort(): string[] {
   return [
     '### How to work',
@@ -26,6 +33,8 @@ export function workflowPrimerShort(): string[] {
     '',
     'Primary entry points:',
     ...ENTRY_POINTS_BULLETS,
+    '',
+    ...TRUST_MODEL_BULLETS,
     '',
     'Run `metta refresh` for the full command reference.',
   ]
@@ -39,6 +48,8 @@ export function workflowPrimerLong(): string[] {
     '',
     'Primary entry points:',
     ...ENTRY_POINTS_BULLETS,
+    '',
+    ...TRUST_MODEL_BULLETS,
     '',
     'Quick mode is the default routing decision for small, bounded changes (single-file edits, typo/text fixes, small self-contained utilities, bug fixes with an obvious localized cause). Choosing or keeping `--workflow standard` or `--workflow full` above the scored recommendation requires a recorded justification — the escalation record written to the change\'s `.metta.yaml`.',
     '',

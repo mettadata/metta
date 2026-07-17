@@ -3,6 +3,12 @@ name: metta:import
 description: Analyze existing code and generate specs with gap reports
 argument-hint: "<directory to import — use . for entire project>"
 allowed-tools: [Read, Write, Bash, Grep, Glob, Agent]
+hooks:
+  PreToolUse:
+    - matcher: Bash
+      hooks:
+        - type: command
+          command: .claude/hooks/metta-session-mint.mjs metta-import
 ---
 
 **IMPORTANT: When using the Agent tool, use metta agent types. Do NOT use gsd-executor or general-purpose.**
@@ -11,11 +17,12 @@ You are the **orchestrator** for importing existing code into metta specs.
 
 ## Steps
 
-1. `METTA_SKILL=1 metta import "$ARGUMENTS" --json` → returns scan path, modules list, and output paths
-2. Parse the response — check `mode` (parallel or single) and `modules` list
-3. **If modules > 1**: spawn one metta-researcher per module **in parallel** (single message)
+1. `metta status --json` → allow-listed warm-up call; lets the session-credential mint hook complete a prior Bash cycle before the import call (output can be ignored)
+2. `metta import "$ARGUMENTS" --json` → returns scan path, modules list, and output paths
+3. Parse the response — check `mode` (parallel or single) and `modules` list
+4. **If modules > 1**: spawn one metta-researcher per module **in parallel** (single message)
    **If single module**: spawn one metta-researcher for the whole path
-4. Each researcher agent must:
+5. Each researcher agent must:
    - Read all source files in their scan path
    - Identify logical capabilities (route groups, store modules, component groups)
    - For each capability, write `spec/specs/<capability>/spec.md`:
@@ -29,9 +36,9 @@ You are the **orchestrator** for importing existing code into metta specs.
      - Partially implemented → gap: partial
    - Write gap files to `spec/gaps/<slug>.md` for each mismatch
    - MUST NOT call `metta propose`, `metta quick`, or otherwise create a directory under `spec/changes/`. Import scans produce only `spec/specs/` and `spec/gaps/` outputs. If the researcher accidentally creates a `spec/changes/<name>/` directory, the subsequent `metta finalize` will fail with `Multiple active changes` and block the import.
-5. After all researchers complete, merge results and commit:
+6. After all researchers complete, merge results and commit:
    `git add spec/ && git commit -m "docs: import specs from <path>"`
-6. Report summary: specs generated, gaps found, test coverage
+7. Report summary: specs generated, gaps found, test coverage
 
 ## Example
 

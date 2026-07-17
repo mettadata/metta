@@ -30,15 +30,15 @@ For a given `<issue-slug>`:
 
    From the returned JSON, display the `## Symptom`, `## Root Cause Analysis` (including any `### Evidence` subsection), and `## Candidate Solutions` sections of the `description` field to the orchestrator. If one or more sections are absent (legacy shallow issue), display whatever body content is present and continue — do not error.
 
-2. **Propose** — `METTA_SKILL=1 metta propose "fix-<issue-slug>" --json` → creates change on branch `metta/<change-name>`
+2. **Propose** — `metta propose "fix-<issue-slug>" --json` → creates change on branch `metta/<change-name>`
 
 3. **Per-Artifact Loop** — For each planning artifact (intent, spec, design, tasks), spawn one subagent per artifact:
-   `metta instructions <artifact> --json --change <name>` → spawn agent → `METTA_SKILL=1 metta complete <artifact>`
+   `metta instructions <artifact> --json --change <name>` → spawn agent → `metta complete <artifact>`
    - Include the full issue details (from step 1) as context for every subagent
    - Discovery mode is always **batch** for fix-issues — the issue definition IS the discovery; do NOT run a separate discovery gate
    - For **research**: spawn 2-4 metta-researcher agents in parallel (one per approach). Each researcher MUST write to `spec/changes/<change>/research-<approach-slug>.md` (a short kebab-case slug per approach, e.g. `research-websockets.md`, `research-sse.md`, `research-polling.md`). Forbid `/tmp/` paths — per-approach output MUST be in-tree so the synthesis step can read it.
 
-4. **Synthesize research** — read all `spec/changes/<change>/research-*.md` files you just created, write a single consolidated `spec/changes/<change>/research.md` that summarizes each approach and ends with a recommendation, and git-commit it. Do NOT call `METTA_SKILL=1 metta complete research` until `spec/changes/<change>/research.md` exists on disk with real content.
+4. **Synthesize research** — read all `spec/changes/<change>/research-*.md` files you just created, write a single consolidated `spec/changes/<change>/research.md` that summarizes each approach and ends with a recommendation, and git-commit it. Do NOT call `metta complete research` until `spec/changes/<change>/research.md` exists on disk with real content.
 
 5. **Implementation — MANDATORY PARALLEL EXECUTION:**
    **Do NOT spawn a single metta-executor for all tasks. You MUST parse batches and spawn per-task.**
@@ -51,7 +51,7 @@ For a given `<issue-slug>`:
       - Each executor prompt: include ONLY that task's details (Files, Action, Verify, Done)
       - Wait for ALL executors in batch to complete before next batch
    d. After all batches: write summary.md and commit
-   e. `METTA_SKILL=1 metta complete implementation --json --change <name>`
+   e. `metta complete implementation --json --change <name>`
 
 6. **Review — spawn 3 metta-reviewer agents in parallel** (fan-out — single message):
    - Agent 1 (subagent_type: "metta-reviewer"): "**Correctness reviewer**"
@@ -60,7 +60,7 @@ For a given `<issue-slug>`:
    - Merge results into `spec/changes/<change>/review.md` and commit
 
 7. **Review-Fix Loop (repeat until clean):**
-   a. Run `METTA_SKILL=1 metta iteration record --phase review --change <name>`
+   a. Run `metta iteration record --phase review --change <name>`
    b. If any critical issues found:
       - Parse each issue's file path from review.md
       - Batch issues by file — independent files = parallel
@@ -71,18 +71,18 @@ For a given `<issue-slug>`:
    f. Max 3 iterations — if still failing after 3 rounds, stop and report to user
 
 8. **Verify — spawn 3 metta-verifier agents in parallel** (fan-out — single message):
-   - Before spawning verifier agents, run: `METTA_SKILL=1 metta iteration record --phase verify --change <name>`
+   - Before spawning verifier agents, run: `metta iteration record --phase verify --change <name>`
    - Agent 1 (subagent_type: "metta-verifier"): "Run `npm test` — report pass/fail count and failures"
    - Agent 2 (subagent_type: "metta-verifier"): "Run `npx tsc --noEmit` and `npm run lint` — report errors"
    - Agent 3 (subagent_type: "metta-verifier"): "Read spec.md, check each scenario has a passing test — cite evidence"
    - Merge results into summary.md and commit
-   - If any gate fails: run `METTA_SKILL=1 metta iteration record --phase verify --change <name>` again, then spawn parallel metta-executors to fix, then re-verify
+   - If any gate fails: run `metta iteration record --phase verify --change <name>` again, then spawn parallel metta-executors to fix, then re-verify
 
-9. **Finalize** — `METTA_SKILL=1 metta finalize --json --change <name>` → runs gates, archives, merges specs
+9. **Finalize** — `metta finalize --json --change <name>` → runs gates, archives, merges specs
 
 10. **Merge** — `git checkout main && git merge metta/<change-name> --no-ff -m "chore: merge <change-name>"`
 
-11. **Remove Issue** — `METTA_SKILL=1 metta fix-issue --remove-issue <issue-slug> --json` → archives issue to `spec/issues/resolved/` then removes from `spec/issues/`
+11. **Remove Issue** — `metta fix-issue --remove-issue <issue-slug> --json` → archives issue to `spec/issues/resolved/` then removes from `spec/issues/`
 
 ## --all Mode (batch processing)
 
@@ -90,7 +90,7 @@ For a given `<issue-slug>`:
 
 When `$ARGUMENTS` is `--all` (optionally with `--severity <level>`):
 
-1. Run `METTA_SKILL=1 metta fix-issue --all --json` (or `METTA_SKILL=1 metta fix-issue --all --severity critical --json` if user specified a severity filter) to get issues sorted by severity
+1. Run `metta fix-issue --all --json` (or `metta fix-issue --all --severity critical --json` if user specified a severity filter) to get issues sorted by severity
 2. **Batch issues by file overlap** — read each issue file to identify which source files it touches:
    a. For each issue, extract the file paths mentioned (Location, Files fields)
    b. Batch issues that touch the SAME files together (they must run sequentially)
@@ -100,7 +100,7 @@ When `$ARGUMENTS` is `--all` (optionally with `--severity <level>`):
    - Independent batches run simultaneously
    - Example: issues touching execution-engine.ts = Batch A, issues touching context-engine.ts = Batch B → spawn 2 executors in parallel
 4. After each batch completes:
-   - Run `METTA_SKILL=1 metta fix-issue --remove-issue <slug>` for each resolved issue in the batch
+   - Run `metta fix-issue --remove-issue <slug>` for each resolved issue in the batch
    - Log `[N/M] <slug>: resolved` or `[N/M] <slug>: failed at <phase>`
 5. **Continue until ALL issues are processed** — critical, major, AND minor. Never stop early.
    - If an issue fails: log it, skip it, continue to the next
@@ -113,7 +113,7 @@ When `$ARGUMENTS` is `--all` (optionally with `--severity <level>`):
 ## Rules
 
 - Commit ownership: the orchestrator commits planning, review, and verification artifacts after each subagent returns. The executor subagent commits atomically per task during implementation. Planning-artifact subagents (proposer, researcher, architect, planner, product) write files only — they do not run git.
-- Every artifact MUST be followed by `METTA_SKILL=1 metta complete` to advance workflow
+- Every artifact MUST be followed by `metta complete` to advance workflow
 - Discovery mode is always **batch** for fix-issues — the issue definition provides all context
 - Do NOT skip review or verification — all 3 reviewers and 3 verifiers MUST run
 - Do NOT stop after verification — finalize + merge + remove-issue must happen

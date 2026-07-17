@@ -2,6 +2,12 @@
 name: metta:execute
 description: Run implementation for the active change
 allowed-tools: [Read, Write, Edit, Bash, Grep, Glob, Agent]
+hooks:
+  PreToolUse:
+    - matcher: Bash
+      hooks:
+        - type: command
+          command: .claude/hooks/metta-session-mint.mjs metta-execute
 ---
 
 **IMPORTANT: When using the Agent tool, use these metta agent types: metta-proposer, metta-researcher, metta-architect, metta-planner, metta-executor, metta-reviewer, metta-verifier, metta-discovery. Do NOT use gsd-executor or general-purpose.**
@@ -19,7 +25,7 @@ You are the **orchestrator** for implementation. Spawn executor subagents per ba
    c. If overlap exists → spawn tasks **sequentially** (one at a time)
    d. Wait for all tasks in batch to complete before starting next batch
 5. After all batches, write `spec/changes/<change>/summary.md`
-6. `METTA_SKILL=1 metta complete implementation --json --change <name>`
+6. `metta complete implementation --json --change <name>`
 
 ## Parallel Execution
 

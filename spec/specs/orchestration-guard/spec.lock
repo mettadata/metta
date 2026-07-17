@@ -1,0 +1,49 @@
+version: 8
+hash: sha256:228753089aa3
+updated: 2026-07-17T01:50:15.706Z
+status: draft
+source: change
+requirements:
+  - id: inline-command-text-tokens-never-authorize-a-blocked-subcommand
+    hash: sha256:1a3cfcd12e48
+    scenarios:
+      - a-bare-inline-token-with-no-external-signal-is-rejected
+      - no-code-path-treats-inline-command-text-as-sufficient-on-its-own
+  - id: fork-dispatched-subcommands-require-verified-caller-identity
+    hash: sha256:fd4f0be58b67
+    scenarios:
+      - fork-dispatched-subcommand-with-verified-caller-identity-is-accepted
+      - fork-dispatched-subcommand-without-verified-caller-identity-is-rejected
+  - id: main-session-lifecycle-subcommands-require-a-non-forgeable-session-credential
+    hash: sha256:f9deb2656d3f
+    scenarios:
+      - sanctioned-skill-driven-call-with-a-valid-credential-is-accepted
+      - expired-out-of-scope-or-malformed-credential-is-rejected
+      - credential-forgery-requires-an-audit-visible-act-outside-command-text
+      - no-credential-present-is-rejected-with-skill-guidance
+  - id: unrecognized-metta-subcommands-fail-closed
+    hash: sha256:73d3e3c648ff
+    scenarios:
+      - an-unrecognized-subcommand-is-blocked-not-silently-allowed
+      - a-newly-added-unknown-subcommand-does-not-silently-pass-until-classified
+  - id: every-rejection-and-every-tier-2-acceptance-is-recorded
+    hash: sha256:092b7f686ee9
+    scenarios:
+      - a-session-tier-rejection-is-recorded-with-tier-and-reason
+      - a-session-tier-acceptance-is-recorded
+      - a-fork-tier-rejection-is-recorded-with-tier-and-reason
+  - id: skill-contracts-reference-only-the-sanctioned-authorization-mechanism
+    hash: sha256:8f8ad071a0d3
+    scenarios:
+      - no-skill-contract-instructs-typing-a-self-authored-token
+      - a-newly-added-skill-contract-that-reintroduces-a-self-authored-token-is-a-detectable-violation
+  - id: forked-agents-are-blocked-from-running-background-bash
+    hash: sha256:9939093f567e
+    scenarios:
+      - background-bash-from-a-verified-fork-tier-caller-is-rejected
+      - background-bash-from-a-caller-without-verified-fork-identity-is-unaffected-by-this-rule
+  - id: the-trust-model-is-documented-where-operators-and-contributors-will-read-it
+    hash: sha256:470115ebb1ce
+    scenarios:
+      - header-documentation-describes-both-tiers-and-the-emergency-bypass
+      - generated-workflow-guidance-matches-the-documented-model

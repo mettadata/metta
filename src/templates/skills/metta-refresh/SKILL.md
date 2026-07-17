@@ -2,9 +2,15 @@
 name: metta:refresh
 description: Regenerate CLAUDE.md from project constitution and specs
 allowed-tools: [Read, Bash]
+hooks:
+  PreToolUse:
+    - matcher: Bash
+      hooks:
+        - type: command
+          command: .claude/hooks/metta-session-mint.mjs metta-refresh
 ---
 
-Run `METTA_SKILL=1 metta refresh` to regenerate CLAUDE.md from the project constitution (spec/project.md) and active specs (spec/specs/).
+First run `metta status --json` — an allow-listed call that gives the session-credential mint hook a completed Bash cycle before any lifecycle subcommand (the output can be ignored). Then run `metta refresh` to regenerate CLAUDE.md from the project constitution (spec/project.md) and active specs (spec/specs/).
 
 This updates all metta marker sections:
 - Project description and stack
@@ -13,13 +19,13 @@ This updates all metta marker sections:
 - Full command reference
 - Reference links
 
-Use `METTA_SKILL=1 metta refresh --dry-run` to preview changes without writing.
-Use `METTA_SKILL=1 metta refresh --json` for structured output.
+Use `metta refresh --dry-run` to preview changes without writing.
+Use `metta refresh --json` for structured output.
 
 ## Behavior
 
-After writing `CLAUDE.md`, `METTA_SKILL=1 metta refresh` automatically commits the regenerated file on your behalf using the commit message `chore(refresh): regenerate CLAUDE.md`. This prevents the regenerated file from silently contaminating subsequent unrelated commits.
+After writing `CLAUDE.md`, `metta refresh` automatically commits the regenerated file on your behalf using the commit message `chore(refresh): regenerate CLAUDE.md`. This prevents the regenerated file from silently contaminating subsequent unrelated commits.
 
 If the repository is not a git working tree, has uncommitted changes to unrelated files, or the regenerated content is identical to the working copy, the auto-commit is skipped and the reason is surfaced in the command output.
 
-Pass `--no-commit` to opt out of the auto-commit. This is the escape hatch for workflows that want to inspect the diff or stage `CLAUDE.md` as part of a larger commit. In that mode, `METTA_SKILL=1 metta refresh` writes the file and leaves staging and committing entirely up to you.
+Pass `--no-commit` to opt out of the auto-commit. This is the escape hatch for workflows that want to inspect the diff or stage `CLAUDE.md` as part of a larger commit. In that mode, `metta refresh` writes the file and leaves staging and committing entirely up to you.

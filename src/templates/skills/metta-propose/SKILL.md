@@ -51,10 +51,10 @@ Routing decision:
    - **Scope of `STOP_AFTER`:** when non-empty, this names a planning-phase artifact (e.g. `intent`, `stories`, `spec`, `research`, `design`, `tasks` for the standard workflow). The orchestrator MUST honor this boundary in Step 3 — see "Stop-after boundary check" there.
 
    Then run:
-   `METTA_SKILL=1 metta propose "<description>" --workflow <name> --stop-after <value> --json` (when both flags present)
-   `METTA_SKILL=1 metta propose "<description>" --workflow <name> --json` (only `--workflow` present)
-   `METTA_SKILL=1 metta propose "<description>" --stop-after <value> --json` (only `--stop-after` present)
-   `METTA_SKILL=1 metta propose "<description>" --json` (no flags — standard workflow, no stop-after)
+   `metta propose "<description>" --workflow <name> --stop-after <value> --json` (when both flags present)
+   `metta propose "<description>" --workflow <name> --json` (only `--workflow` present)
+   `metta propose "<description>" --stop-after <value> --json` (only `--stop-after` present)
+   `metta propose "<description>" --json` (no flags — standard workflow, no stop-after)
    → creates change on branch `metta/<change-name>`. The `--json` response includes `stop_after: <value>` (or `null` when absent) and the value is persisted on the change record.
 
 2. **DISCOVERY LOOP (mandatory — do NOT skip this step):**
@@ -91,7 +91,7 @@ Routing decision:
    **Final:** Pass ALL cumulative answers from every completed round to the proposer subagent as structured context for `intent.md`. Answers from later rounds supplement, not replace, earlier answers.
 
 3. For each **planning** artifact (intent, spec, stories, research, design, tasks) — spawn one subagent per artifact:
-   `metta instructions <artifact> --json --change <name>` → spawn agent → `METTA_SKILL=1 metta complete <artifact>`
+   `metta instructions <artifact> --json --change <name>` → spawn agent → `metta complete <artifact>`
 
    When a non-default `--workflow` is used, the artifact loop uses whatever sequence `metta propose` returned — `metta instructions <artifact> --json` provides the correct agent persona per stage. Note: as of this change, the `full` workflow references stage templates (`domain-research`, `architecture`, `ux-spec`) that do not yet exist in `src/templates/artifacts/`; running `--workflow full` will fail on the first missing template. Tracked as issue `full-workflow-references-missing-template-files-domain-resea` for a follow-up.
 
@@ -100,14 +100,14 @@ Routing decision:
 
    **Stop-after boundary check (mandatory after every `metta complete <artifact>` call in this loop):**
 
-   - After every successful `METTA_SKILL=1 metta complete <artifact> --json --change <name>`, check whether the just-completed artifact is the stop-after boundary.
+   - After every successful `metta complete <artifact> --json --change <name>`, check whether the just-completed artifact is the stop-after boundary.
    - The boundary is reached when EITHER of these is true:
      1. `STOP_AFTER` (set in Step 1) is non-empty AND equals the artifact id just passed to `metta complete`.
      2. The change record's persisted `stop_after` field (read via `metta status --json --change <name>`) is non-empty AND equals that artifact id. This second check provides robustness if `STOP_AFTER` was lost from local state for any reason; both checks should agree.
    - When the boundary is reached, the orchestrator MUST:
      a. NOT spawn any further planning subagent for the next artifact.
      b. NOT proceed to Step 4 (research synthesis), Step 5 (implementation), Step 6 (review), Step 7 (verification), or Step 8 (finalize/merge). All subsequent steps are skipped in their entirety.
-     c. NOT spawn any `metta-executor`, `metta-reviewer`, or `metta-verifier` agent. NOT call `METTA_SKILL=1 metta finalize` or `git merge`.
+     c. NOT spawn any `metta-executor`, `metta-reviewer`, or `metta-verifier` agent. NOT call `metta finalize` or `git merge`.
      d. Print exactly one handoff line, formatted EXACTLY as:
         ``Stopped after `<artifact>`. Run `<resume-command>` to <next-action>.``
         Resume-command mapping (use this lookup verbatim):
@@ -118,7 +118,7 @@ Routing decision:
 
    When the boundary is NOT reached (i.e. `STOP_AFTER` is empty, or the just-completed artifact is not the boundary), the orchestrator continues with the next artifact in the planning loop exactly as before.
 
-4. **Synthesize research** — read all `spec/changes/<change>/research-*.md` files you just created, write a single consolidated `spec/changes/<change>/research.md` that summarizes each approach and ends with a recommendation, and git-commit it. Do NOT call `METTA_SKILL=1 metta complete research` until `spec/changes/<change>/research.md` exists on disk with real content.
+4. **Synthesize research** — read all `spec/changes/<change>/research-*.md` files you just created, write a single consolidated `spec/changes/<change>/research.md` that summarizes each approach and ends with a recommendation, and git-commit it. Do NOT call `metta complete research` until `spec/changes/<change>/research.md` exists on disk with real content.
 
 5. **IMPLEMENTATION — MANDATORY PARALLEL EXECUTION:**
    **⚠️ DO NOT spawn a single metta-executor for all tasks. You MUST parse batches and spawn per-task.**
@@ -161,7 +161,7 @@ Routing decision:
       - Each executor prompt MUST include only the specific task details (Files, Action, Verify, Done) — NOT the entire tasks.md.
       - You MUST wait for ALL executors in the batch to complete before starting the next batch.
    d. After all batches: write summary.md and commit
-   e. `METTA_SKILL=1 metta complete implementation --json --change <name>`
+   e. `metta complete implementation --json --change <name>`
 
 6. **REVIEW** — **you MUST spawn all 3 metta-reviewer agents in a SINGLE orchestrator message** (fan-out — parallel, one message, three `Agent(...)` calls):
 
@@ -211,7 +211,7 @@ Routing decision:
    - Agent 3 (subagent_type: "metta-reviewer"): "You are a **quality reviewer**. Check dead code, naming, duplication, test gaps."
    - Merge results into `spec/changes/<change>/review.md` and commit.
    - **REVIEW-FIX LOOP (repeat until clean):**
-     a. Run `METTA_SKILL=1 metta iteration record --phase review --change <name>`
+     a. Run `metta iteration record --phase review --change <name>`
      b. If any critical issues found:
         - Parse each issue's file path from review.md
         - Group issues by file — independent files MUST be fixed in parallel (one metta-executor per file group, all spawned in the SAME orchestrator message)
@@ -263,14 +263,14 @@ Routing decision:
 
    If any file is missing or empty, re-spawn the affected verifier with a corrected prompt before merging into `summary.md`.
 
-   - Before spawning verifier agents, run: `METTA_SKILL=1 metta iteration record --phase verify --change <name>`
+   - Before spawning verifier agents, run: `metta iteration record --phase verify --change <name>`
    - Agent 1 (subagent_type: "metta-verifier"): "Run `npm test` — report pass/fail count and failures"
    - Agent 2 (subagent_type: "metta-verifier"): "Run `npx tsc --noEmit` and `npm run lint` — report errors"
    - Agent 3 (subagent_type: "metta-verifier"): "Read spec.md, check each Given/When/Then scenario has a passing test — cite evidence"
    - Merge results into summary.md and commit
-   - If any gate fails: run `METTA_SKILL=1 metta iteration record --phase verify --change <name>` again, then spawn parallel metta-executors to fix (all fixes in ONE orchestrator message unless two fixes share a file path you have named in writing), then re-verify
+   - If any gate fails: run `metta iteration record --phase verify --change <name>` again, then spawn parallel metta-executors to fix (all fixes in ONE orchestrator message unless two fixes share a file path you have named in writing), then re-verify
 8. When `all_complete: true`:
-   a. `METTA_SKILL=1 metta finalize --json --change <name>` → runs gates, archives, merges specs
+   a. `metta finalize --json --change <name>` → runs gates, archives, merges specs
    b. `git checkout main && git merge metta/<change-name> --no-ff -m "chore: merge <change-name>"`
 9. Report to user what was done
 
@@ -302,7 +302,7 @@ For each artifact, you act as the **orchestrator** — lean context, no implemen
    a. Identify 2-4 viable approaches from the spec (e.g. "WebSockets vs SSE vs polling")
    b. **Spawn one metta-researcher per approach in a single message.** Each researcher MUST write its findings to `spec/changes/<change>/research-<approach-slug>.md` (a short kebab-case slug per approach, e.g. `research-websockets.md`, `research-sse.md`, `research-polling.md`). Forbid `/tmp/` paths — per-approach output MUST be in-tree.
    c. Each researcher evaluates their approach's pros, cons, complexity, fit with existing code
-   d. **Synthesize research** — read all `spec/changes/<change>/research-*.md` files you just created, write a single consolidated `spec/changes/<change>/research.md` that summarizes each approach and ends with a recommendation, and git-commit it. Do NOT call `METTA_SKILL=1 metta complete research` until `spec/changes/<change>/research.md` exists on disk with real content.
+   d. **Synthesize research** — read all `spec/changes/<change>/research-*.md` files you just created, write a single consolidated `spec/changes/<change>/research.md` that summarizes each approach and ends with a recommendation, and git-commit it. Do NOT call `metta complete research` until `spec/changes/<change>/research.md` exists on disk with real content.
 
    **For implementation: DO NOT spawn one big executor.** Instead:
    a. Read `spec/changes/<change>/tasks.md` yourself
@@ -312,7 +312,7 @@ For each artifact, you act as the **orchestrator** — lean context, no implemen
    e. Overlap → spawn tasks sequentially
    f. Wait for batch to complete before starting next batch
 3. When the subagent completes:
-   `METTA_SKILL=1 metta complete <artifact> --json --change <name>`
+   `metta complete <artifact> --json --change <name>`
    → Returns: next artifact to build, or all_complete: true
 4. Repeat with next artifact
 
