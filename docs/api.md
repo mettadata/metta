@@ -696,14 +696,64 @@ Scenarios:
 ### Emitted Instructions Contract Carries Complete Agent Identity
 
 Scenarios:
-- Instructions output includes name, persona, and tools sourced from the same definition
+- Instructions output includes name, persona, tools, and model sourced consistently
 - A tool list change in the agent definition is reflected in the next generation
+- No models configuration yields inherit for every emitted model field
 
 ### Source And Deployed Agent Definitions Remain Byte-Identical
 
 Scenarios:
 - Source and deployed agent definitions match after an edit
 - A divergence between source and deployed copies is detectable
+
+### Planning Cohort Requires Top-Tier Model
+
+Scenarios:
+- Shipped planning-cohort agent definitions carry no downgraded model
+- Planning-cohort roles resolve to inherit under every configuration and tier
+- The configuration schema exposes no planning-cohort role key
+
+### Tier-Coupled Executor Routing
+
+Scenarios:
+- Quick-tier executor invocation resolves to the configured cheap-executor model
+- Standard-tier executor invocation resolves to inherit regardless of profile
+- A tier change since intent time is reflected at generation time
+
+### Safety-Net Immunity For Reviewer And Verifier
+
+Scenarios:
+- A configuration assigning a downgraded model to reviewer is rejected
+- A configuration assigning a downgraded model to verifier is rejected identically
+- Every shipped named profile resolves reviewer and verifier to top-tier
+
+### Rung-1 Model Escalation On STOP Or Verify-FAIL
+
+Scenarios:
+- An in-tier STOP report escalates the next run to top-tier
+- An in-tier verify-FAIL escalates the fix run to top-tier
+- A Rung-1 escalation is recorded in a durable audit record
+
+### Rung Discrimination Between Model And Workflow Escalation
+
+Scenarios:
+- A Rung-1 escalation leaves the workflow tier unchanged
+- Scope overflow routes to workflow escalation, not model escalation
+- A workflow-tier upscale brings planning artifacts to top-tier
+
+### Escalation-Rate Metric In Progress Reporting
+
+Scenarios:
+- Both output modes report a computed escalation rate
+- Zero escalations among recorded invocations reports as zero, not omitted
+- No recorded cheap-tier invocations renders an explicit no-data indicator
+
+### Model Vocabulary Validated At Config Load
+
+Scenarios:
+- A model value within the documented vocabulary validates successfully
+- A model value outside the documented vocabulary is rejected
+- A rejected configuration is never silently substituted
 
 ## upgrade-metta-issue-skill-run-short-debugging-session-before
 

@@ -41,7 +41,7 @@
 5 requirements
 
 ### instruction-contracts
-6 requirements
+13 requirements
 
 ### upgrade-metta-issue-skill-run-short-debugging-session-before
 7 requirements
