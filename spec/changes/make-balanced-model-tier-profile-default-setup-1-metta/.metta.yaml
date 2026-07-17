@@ -1,0 +1,16 @@
+workflow: quick
+created: 2026-07-17T06:54:29.553Z
+status: active
+current_artifact: intent
+base_versions: {}
+artifacts:
+  intent: ready
+  implementation: pending
+  verification: pending
+artifact_timings:
+  intent:
+    started: 2026-07-17T06:54:41.704Z
+artifact_tokens:
+  intent:
+    context: 813
+    budget: 20000
