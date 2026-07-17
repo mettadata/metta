@@ -265,7 +265,7 @@ Tier-1 suite still passes unmodified.
 
 ## Batch 3: Skill migration, config-loader cleanup, documentation
 
-### 3.1 Migrate all 15 SKILL.md pairs
+### 3.1 [x] Migrate all 15 SKILL.md pairs
 
 **Files:**
 - `.claude/skills/{metta-auto,metta-backlog,metta-execute,metta-fix-gap,metta-fix-issues,metta-import,metta-init,metta-issue,metta-next,metta-plan,metta-propose,metta-quick,metta-refresh,metta-ship,metta-verify}/SKILL.md`
@@ -323,7 +323,7 @@ byte-identical for all 15 skills.
 
 ---
 
-### 3.2 Remove the dead config-loader RESERVED entry
+### 3.2 [x] Remove the dead config-loader RESERVED entry
 
 **Files:**
 - `src/config/config-loader.ts`
@@ -358,7 +358,7 @@ the removal and passes; the codebase type-checks cleanly.
 
 ---
 
-### 3.3 Update guard-hook header, CLAUDE.md, and workflow-primer for the two-tier model
+### 3.3 [x] Update guard-hook header, CLAUDE.md, and workflow-primer for the two-tier model
 
 **Files:**
 - `.claude/hooks/metta-guard-bash.mjs`
