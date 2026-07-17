@@ -1,9 +1,11 @@
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { readdir } from 'node:fs/promises'
+import type { Dirent } from 'node:fs'
 import { join } from 'node:path'
 import { StateStore } from '../state/state-store.js'
 import { ChangeMetadataSchema } from '../schemas/change-metadata.js'
+import type { ArtifactStore } from '../artifacts/artifact-store.js'
 
 const execFileAsync = promisify(execFile)
 
@@ -86,4 +88,72 @@ export async function getArtifactsPerSmallChange(
   if (counts.length === 0) return null
   const mean = counts.reduce((a, b) => a + b, 0) / counts.length
   return { mean, sample_size: counts.length }
+}
+
+/**
+ * Model-escalation rate across all active and archived changes.
+ *
+ * Denominator (`total`): sum of `model_runs.length` — every recorded
+ * non-inherit executor resolution (stamped by `metta instructions` itself).
+ * Numerator (`escalated`): sum of `model_escalations.length` — Rung-1
+ * escalations recorded via `metta model-escalation record`.
+ *
+ * This metric only measures STOP/verify-FAIL-driven escalations; it makes
+ * no claim about cheap-executor output that produced neither a STOP report
+ * nor a verify FAIL.
+ *
+ * Always resolves; never throws. Returns `null` when `total === 0` (no
+ * cheap-tier invocations recorded at all — the explicit no-data case).
+ * `rate: 0` is a valid, distinct result when `escalated === 0` but
+ * `total > 0`. Archive entries with a missing or schema-invalid
+ * `.metta.yaml` are skipped rather than throwing.
+ */
+export async function getModelEscalationRate(
+  specDir: string,
+  artifactStore: ArtifactStore,
+): Promise<{ escalated: number; total: number; rate: number } | null> {
+  let escalated = 0
+  let total = 0
+
+  // Active changes.
+  let changeNames: string[] = []
+  try {
+    changeNames = await artifactStore.listChanges()
+  } catch {
+    // No active-changes directory — treat as zero active changes.
+  }
+  for (const name of changeNames) {
+    try {
+      const metadata = await artifactStore.getChange(name)
+      total += metadata.model_runs?.length ?? 0
+      escalated += metadata.model_escalations?.length ?? 0
+    } catch {
+      // Skip changes with a missing or schema-invalid .metta.yaml.
+    }
+  }
+
+  // Archived changes.
+  let entries: Dirent[]
+  try {
+    entries = await readdir(join(specDir, 'archive'), { withFileTypes: true })
+  } catch {
+    entries = []
+  }
+  const state = new StateStore(specDir)
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue
+    try {
+      const metadata = await state.read(
+        join('archive', entry.name, '.metta.yaml'),
+        ChangeMetadataSchema,
+      )
+      total += metadata.model_runs?.length ?? 0
+      escalated += metadata.model_escalations?.length ?? 0
+    } catch {
+      // Skip archive entries with a missing or schema-invalid .metta.yaml.
+    }
+  }
+
+  if (total === 0) return null
+  return { escalated, total, rate: escalated / total }
 }

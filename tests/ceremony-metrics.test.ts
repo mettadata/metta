@@ -3,7 +3,8 @@ import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { execFileSync } from 'node:child_process'
-import { getCeremonyCommitRatio, getArtifactsPerSmallChange } from '../src/util/ceremony-metrics.js'
+import { getCeremonyCommitRatio, getArtifactsPerSmallChange, getModelEscalationRate } from '../src/util/ceremony-metrics.js'
+import { ArtifactStore } from '../src/artifacts/artifact-store.js'
 
 function git(cwd: string, args: string[], env: NodeJS.ProcessEnv = {}): void {
   execFileSync('git', args, {
@@ -35,11 +36,12 @@ function writeArchiveMetadata(
   entryName: string,
   workflow: string,
   artifactIds: string[],
+  opts: { modelRuns?: number; modelEscalations?: number } = {},
 ): void {
   const dir = join(specDir, 'archive', entryName)
   mkdirSync(dir, { recursive: true })
   const artifacts = artifactIds.map(id => `  ${id}: complete`).join('\n')
-  const yaml = [
+  const lines = [
     `workflow: ${workflow}`,
     'created: 2026-07-01T10:00:00.000Z',
     'status: complete',
@@ -47,9 +49,31 @@ function writeArchiveMetadata(
     'base_versions: {}',
     'artifacts:',
     artifacts,
-    '',
-  ].join('\n')
-  writeFileSync(join(dir, '.metta.yaml'), yaml, 'utf8')
+  ]
+  if (opts.modelRuns) {
+    lines.push('model_runs:')
+    for (let i = 0; i < opts.modelRuns; i++) {
+      lines.push(
+        '  - task: implementation',
+        '    model: sonnet',
+        '    timestamp: 2026-07-01T11:00:00.000Z',
+      )
+    }
+  }
+  if (opts.modelEscalations) {
+    lines.push('model_escalations:')
+    for (let i = 0; i < opts.modelEscalations; i++) {
+      lines.push(
+        '  - task: implementation',
+        '    from_model: sonnet',
+        '    to_model: inherit',
+        '    trigger: stop_deviation',
+        '    timestamp: 2026-07-01T12:00:00.000Z',
+      )
+    }
+  }
+  lines.push('')
+  writeFileSync(join(dir, '.metta.yaml'), lines.join('\n'), 'utf8')
 }
 
 describe('ceremony-metrics', () => {
@@ -140,6 +164,72 @@ describe('ceremony-metrics', () => {
     it('returns null when the archive directory does not exist', async () => {
       const result = await getArtifactsPerSmallChange(tmp)
       expect(result).toBeNull()
+    })
+  })
+
+  describe('getModelEscalationRate', () => {
+    it('returns null when no active or archived change has any model_runs', async () => {
+      const store = new ArtifactStore(tmp)
+      await store.createChange('no runs', 'quick', ['intent'])
+      writeArchiveMetadata(tmp, '2026-07-01-archived-no-runs', 'quick', ['intent', 'implementation'])
+
+      const result = await getModelEscalationRate(tmp, store)
+      expect(result).toBeNull()
+    })
+
+    it('returns rate 0 (not null) for model_runs with zero model_escalations', async () => {
+      const store = new ArtifactStore(tmp)
+      await store.createChange('cheap runs', 'quick', ['intent'])
+      await store.updateChange('cheap-runs', {
+        model_runs: [
+          { task: 'implementation', model: 'sonnet', timestamp: '2026-07-01T11:00:00.000Z' },
+          { task: 'implementation', model: 'sonnet', timestamp: '2026-07-01T11:05:00.000Z' },
+        ],
+      })
+
+      const result = await getModelEscalationRate(tmp, store)
+      expect(result).toEqual({ escalated: 0, total: 2, rate: 0 })
+    })
+
+    it('sums a mix of active and archived changes into the correct rate', async () => {
+      const store = new ArtifactStore(tmp)
+      await store.createChange('active mix', 'quick', ['intent'])
+      await store.updateChange('active-mix', {
+        model_runs: [
+          { task: 'implementation', model: 'sonnet', timestamp: '2026-07-01T11:00:00.000Z' },
+        ],
+        model_escalations: [
+          {
+            task: 'implementation',
+            from_model: 'sonnet',
+            to_model: 'inherit',
+            trigger: 'verify_fail',
+            timestamp: '2026-07-01T12:00:00.000Z',
+          },
+        ],
+      })
+      writeArchiveMetadata(tmp, '2026-07-02-archived-mix', 'quick', ['intent', 'implementation'], {
+        modelRuns: 3,
+      })
+
+      const result = await getModelEscalationRate(tmp, store)
+      expect(result).toEqual({ escalated: 1, total: 4, rate: 1 / 4 })
+    })
+
+    it('skips archive entries with an invalid .metta.yaml instead of throwing', async () => {
+      const store = new ArtifactStore(tmp)
+      writeArchiveMetadata(tmp, '2026-07-01-valid', 'quick', ['intent', 'implementation'], {
+        modelRuns: 2,
+        modelEscalations: 1,
+      })
+      const badDir = join(tmp, 'archive', '2026-07-02-corrupt')
+      mkdirSync(badDir, { recursive: true })
+      writeFileSync(join(badDir, '.metta.yaml'), 'workflow: quick\nnot_a_real_field: true\n', 'utf8')
+      // Directory with no .metta.yaml at all.
+      mkdirSync(join(tmp, 'archive', '2026-07-03-empty-dir'), { recursive: true })
+
+      const result = await getModelEscalationRate(tmp, store)
+      expect(result).toEqual({ escalated: 1, total: 2, rate: 0.5 })
     })
   })
 })
