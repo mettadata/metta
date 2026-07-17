@@ -92,16 +92,30 @@ async function runCli(
 
 describe('metta-guard-bash integration', { timeout: 60_000 }, () => {
   describe('retired METTA_SKILL env bypass end-to-end', () => {
+    // Both events pin cwd to an empty temp dir: without it the hook resolves
+    // cwd to the repo root, where a live session token minted by an active
+    // skill would legitimately authorize Tier-2 subcommands and break the
+    // hermetic expectation here.
+    let tempDir: string
+    beforeEach(() => {
+      tempDir = mkdtempSync(join(tmpdir(), 'metta-guard-legacy-int-'))
+    })
+    afterEach(() => {
+      rmSync(tempDir, { recursive: true, force: true })
+    })
+
     it('blocks metta propose even with METTA_SKILL=1 set on the hook process (exit 2)', () => {
-      const { code } = runHook(bashEvent('metta propose "foo"'), {
+      const { code } = runHook(bashEvent('metta propose "foo"', { cwd: tempDir }), {
         env: { METTA_SKILL: '1' },
+        cwd: tempDir,
       })
       expect(code).toBe(2)
     })
 
     it('blocks metta finalize even with METTA_SKILL=1 set on the hook process (exit 2)', () => {
-      const { code } = runHook(bashEvent('metta finalize'), {
+      const { code } = runHook(bashEvent('metta finalize', { cwd: tempDir }), {
         env: { METTA_SKILL: '1' },
+        cwd: tempDir,
       })
       expect(code).toBe(2)
     })
