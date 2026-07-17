@@ -334,7 +334,7 @@ cheap-tier invocations have ever been recorded.
 
 ## Batch 4: Frontmatter cleanup and skill contracts
 
-### 4.1 Remove downgraded model pin from planning-cohort agent files
+### 4.1 [x] Remove downgraded model pin from planning-cohort agent files
 
 **Files:**
 - `src/templates/agents/metta-proposer.md`
@@ -371,7 +371,7 @@ deployed copy.
 
 ---
 
-### 4.2 Skill-contract model pass-through and escalation-recording wording
+### 4.2 [x] Skill-contract model pass-through and escalation-recording wording
 
 **Files:**
 - `src/templates/skills/metta-execute/SKILL.md`
@@ -422,7 +422,7 @@ against downgraded-model output; both skills' template/deployed pairs remain byt
 
 ## Batch 5: Full sweep and live proof
 
-### 5.1 End-to-end fixture proof and regression sweep
+### 5.1 [x] End-to-end fixture proof and regression sweep
 
 **Files:**
 - `tests/model-tier-routing-e2e.test.ts` (new)
