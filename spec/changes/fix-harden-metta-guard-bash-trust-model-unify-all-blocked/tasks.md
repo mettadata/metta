@@ -132,7 +132,11 @@ author)" section, step 2. Edit **both** copies identically (edit one, then `diff
 apply the same edit to both):
 
 1. Add a `readSessionToken(cwd)` helper: resolve `<cwd>/.metta/scratch/skill-session.token`, read +
-   `JSON.parse`, return `null` on any I/O or parse error (never throw).
+   `JSON.parse`, return `null` on any I/O or parse error (never throw). After a successful parse,
+   structurally validate the shape (constitution-check finding): `token` is a non-empty string,
+   `skill` is a string, `subcommands` is an array of strings, `mintedAt`/`ttlMs` are finite numbers —
+   any shape mismatch returns `null` so a valid-JSON-wrong-shape file fails closed as
+   `missing-credential`, never throws inside the offender predicate.
 2. Replace the `offender` predicate's non-enforced branch (`return !inv.skillBypass;` at line 170)
    with the Tier-2 branch from design.md's API Design section, **plus a temporarily-retained legacy
    fallback**, in this exact precedence order, each arm tagged inline:
