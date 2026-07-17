@@ -1,8 +1,16 @@
 #!/usr/bin/env node
-// PreToolUse Bash hook: block direct metta state-mutating CLI calls from AI orchestrator sessions.
-// Primary skill-initiated bypass: inline env-var prefix `METTA_SKILL=1 metta ...` in the command string.
-// Secondary bypass: process.env.METTA_SKILL === '1' (belt-and-suspenders).
-// Emergency bypass: disable hook in .claude/settings.local.json.
+// PreToolUse Bash hook: block direct metta state-mutating CLI calls from AI orchestrator
+// sessions. Authorization follows a two-tier trust model:
+// - Tier 1 (fork-tier): `propose`, `quick`, `auto`, `ship`, `issue`, `fix-issue` are
+//   authorized by `event.agent_type` — set by the Claude Code runtime when a forked
+//   `metta-skill-host` subagent fires the tool. Not forgeable from command text.
+// - Tier 2 (session-tier): main-session lifecycle subcommands (`complete`, `finalize`,
+//   `refresh`, `import`, `init`, `fix-gap`, plus the scoped two-word forms
+//   `backlog add/done/promote` and `changes abandon`) are authorized by the session
+//   credential at `.metta/scratch/skill-session.token`, minted by
+//   `.claude/hooks/metta-session-mint.mjs` when a Tier-2 skill is invoked and rotated on a
+//   sliding TTL. Not derivable from reading any skill file.
+// Emergency bypass (humans/CI): disable this hook in .claude/settings.local.json.
 
 import { readFileSync, appendFileSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -34,7 +42,7 @@ const BLOCKED_TWO_WORD = new Map([
   ['changes', new Set(['abandon'])],
 ]);
 
-// Subcommands that require BOTH inline METTA_SKILL=1 bypass AND a trusted agent_type
+// Subcommands that require BOTH the legacy inline skill-bypass marker AND a trusted agent_type
 // (caller identity set by the Claude Code runtime when a forked metta-* subagent fires the tool).
 const SKILL_ENFORCED_SUBCOMMANDS = new Set([
   'issue', 'fix-issue', 'propose', 'quick', 'auto', 'ship',
@@ -56,16 +64,19 @@ function readStdin() {
 
 function tokenize(command) {
   // Split on whitespace, follow && / ; / | chains, find all `metta` invocations.
-  // For each metta invocation, capture whether an inline env-var prefix included METTA_SKILL=1
-  // (this is the primary skill-initiated bypass mechanism; the hook process's own env does
-  // NOT see inline-prefixed vars — they apply to bash's future subprocess).
+  // For each metta invocation, capture whether an inline env-var prefix carried the legacy
+  // skill-bypass marker (skillBypass). Inline command text never authorizes a blocked
+  // subcommand on its own — Tier 1 pairs this input with a verified fork caller identity,
+  // and the Tier-2 legacy arm consuming it alone is tagged REMOVE-AFTER-SHIP below. (The
+  // hook process's own env does NOT see inline-prefixed vars — they apply to bash's future
+  // subprocess.)
   // Return array of { sub, third, skillBypass }.
   const results = [];
   const tokens = command.split(/\s+/).filter(Boolean);
   let i = 0;
   while (i < tokens.length) {
     let skillBypass = false;
-    // Consume env-var prefixes (FOO=BAR, METTA_SKILL=1, ...)
+    // Consume env-var prefixes (FOO=BAR, ...)
     while (i < tokens.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(tokens[i])) {
       if (tokens[i] === 'METTA_SKILL=1') skillBypass = true;
       i++;
@@ -180,7 +191,7 @@ async function main() {
   const invocations = tokenize(command);
 
   // Find the first invocation that is not allowed. For SKILL_ENFORCED_SUBCOMMANDS (Tier 1)
-  // the call must carry BOTH the inline METTA_SKILL=1 bypass AND a trusted metta-* agent_type;
+  // the call must carry BOTH the legacy inline skill-bypass marker AND a trusted metta-* agent_type;
   // every other blocked subcommand (Tier 2) is authorized by a verified fork caller identity
   // OR a valid session credential. The Tier-2 rejection reason (if any) is threaded through
   // tier2Reason to the verdict block below; Tier-2 acceptances are collected for audit logging.
@@ -238,14 +249,14 @@ async function main() {
   const subDisplay = `metta ${offender.sub ?? ''}${offender.third ? ' ' + offender.third : ''}`.trim();
 
   // Skill-enforced subcommand blocked because the caller lacks a trusted agent_type.
-  // This is the new enforcement path: inline METTA_SKILL=1 alone is no longer sufficient.
+  // Inline command text alone never authorizes a fork-tier subcommand.
   if (SKILL_ENFORCED_SUBCOMMANDS.has(offender.sub)) {
     const skillHint = SKILL_HINT_MAP.get(offender.sub) ?? '/metta-<skill>';
     appendAuditLog(event, 'block', offender, 'skill-enforced subcommand without trusted agent_type', 'fork');
     process.stderr.write(
       `metta-guard-bash: Blocked skill-enforced subcommand '${subDisplay}' from AI orchestrator session.\n` +
       `Use the matching skill via the Skill tool: ${skillHint}\n` +
-      `Inline METTA_SKILL=1 prefix no longer bypasses skill-enforced subcommands — use the Skill tool.\n` +
+      `Inline command text never authorizes skill-enforced subcommands — dispatch via the Skill tool.\n` +
       `Emergency bypass: disable this hook in .claude/settings.local.json.\n`
     );
     process.exit(2);
