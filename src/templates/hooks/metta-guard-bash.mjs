@@ -18,6 +18,7 @@ import { dirname, join } from 'node:path';
 // Explicit ALLOW list: known safe read-only single-subcommand forms.
 const ALLOWED_SUBCOMMANDS = new Set([
   'status', 'instructions', 'progress', 'doctor',
+  'next', // read-only routing query (`metta next --json`); first Bash call of the metta-next skill body
   'iteration', // counter-only instrumentation; skills call it during fan-out. Read-safe-ish; no state-mutating side effects beyond a per-change counter.
   'install', // intentional pass-through for human/CI-driven install (no matching skill yet)
 ]);
@@ -42,8 +43,9 @@ const BLOCKED_TWO_WORD = new Map([
   ['changes', new Set(['abandon'])],
 ]);
 
-// Subcommands that require BOTH the legacy inline skill-bypass marker AND a trusted agent_type
-// (caller identity set by the Claude Code runtime when a forked metta-* subagent fires the tool).
+// Subcommands that require a trusted agent_type (caller identity set by the Claude Code
+// runtime when a forked metta-* subagent fires the tool). Verified caller identity is the
+// sole Tier-1 check — inline command text never contributes authorization.
 const SKILL_ENFORCED_SUBCOMMANDS = new Set([
   'issue', 'fix-issue', 'propose', 'quick', 'auto', 'ship',
 ]);
@@ -64,25 +66,19 @@ function readStdin() {
 
 function tokenize(command) {
   // Split on whitespace, follow && / ; / | chains, find all `metta` invocations.
-  // For each metta invocation, capture whether an inline env-var prefix carried the legacy
-  // skill-bypass marker (skillBypass). Inline command text never authorizes a blocked
-  // subcommand on its own — Tier 1 pairs this input with a verified fork caller identity,
-  // and the Tier-2 legacy arm consuming it alone is tagged REMOVE-AFTER-SHIP below. (The
-  // hook process's own env does NOT see inline-prefixed vars — they apply to bash's future
-  // subprocess.)
-  // Return array of { sub, third, skillBypass }.
+  // Env-var prefixes (FOO=BAR ...) are consumed so the subcommand behind them is still
+  // detected; inline command text (including any env-var prefix) never carries
+  // authorization — Tier 1 trusts only the verified fork caller identity and Tier 2
+  // trusts only the minted session credential.
+  // Return array of { sub, third }.
   const results = [];
   const tokens = command.split(/\s+/).filter(Boolean);
   let i = 0;
   while (i < tokens.length) {
-    let skillBypass = false;
     // Consume env-var prefixes (FOO=BAR, ...)
-    while (i < tokens.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(tokens[i])) {
-      if (tokens[i] === 'METTA_SKILL=1') skillBypass = true;
-      i++;
-    }
+    while (i < tokens.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(tokens[i])) i++;
     if (tokens[i] === 'metta') {
-      results.push({ sub: tokens[i + 1], third: tokens[i + 2], skillBypass });
+      results.push({ sub: tokens[i + 1], third: tokens[i + 2] });
       // Skip the rest of this command's arguments up to the next chain separator
       // so words inside a quoted argument (e.g. a propose description that mentions
       // "metta finalize") are not misparsed as a second invocation.
@@ -150,7 +146,6 @@ function appendAuditLog(event, verdict, inv, reason, tier = null) {
       subcommand: inv.sub ?? null,
       third: inv.third ?? null,
       agent_type: event.agent_type ?? null,
-      skill_bypass: Boolean(inv.skillBypass),
       reason,
       tier,
       event_keys: Object.keys(event),
@@ -168,9 +163,6 @@ async function main() {
   let event;
   try { event = JSON.parse(raw); } catch { process.exit(0); }
   if (event.tool_name !== 'Bash') process.exit(0);
-
-  // Belt-and-suspenders: honor env-var bypass if set on the hook process itself.
-  if (process.env.METTA_SKILL === '1') process.exit(0);
 
   // Forked metta agents must complete all work synchronously — background Bash is
   // rejected outright, regardless of the command string (see the Synchronous
@@ -190,28 +182,24 @@ async function main() {
   const command = event.tool_input?.command ?? '';
   const invocations = tokenize(command);
 
-  // Find the first invocation that is not allowed. For SKILL_ENFORCED_SUBCOMMANDS (Tier 1)
-  // the call must carry BOTH the legacy inline skill-bypass marker AND a trusted metta-* agent_type;
-  // every other blocked subcommand (Tier 2) is authorized by a verified fork caller identity
-  // OR a valid session credential. The Tier-2 rejection reason (if any) is threaded through
-  // tier2Reason to the verdict block below; Tier-2 acceptances are collected for audit logging.
+  // Find the first invocation that is not allowed. SKILL_ENFORCED_SUBCOMMANDS (Tier 1) are
+  // authorized solely by a verified fork caller identity (isTrustedSkillCaller); every other
+  // blocked subcommand (Tier 2) is authorized by a verified fork caller identity OR a valid
+  // session credential. The Tier-2 rejection reason (if any) is threaded through tier2Reason
+  // to the verdict block below; Tier-2 acceptances are collected for audit logging.
   let tier2Reason = null;
   const tier2Accepted = [];
   const offender = invocations.find((inv) => {
     if (classify(inv) === 'allow') return false; // never an offender
-    // Tier 1, unchanged: enforced skill subcommands require BOTH inline bypass AND trusted agent_type
+    // Tier 1: enforced skill subcommands are authorized by trusted fork caller identity alone
     if (SKILL_ENFORCED_SUBCOMMANDS.has(inv.sub)) {
-      return !(inv.skillBypass && isTrustedSkillCaller(event));
+      return !isTrustedSkillCaller(event);
     }
     // Tier 2: fork body calling a Tier-2 sub from inside a Tier-1 skill's own body
     if (isTrustedSkillCaller(event)) {
       tier2Accepted.push(inv);
       return false;
     }
-    // REMOVE-AFTER-SHIP: legacy inline METTA_SKILL=1 prefix, dual-accepted only during this
-    // change's own migration window (see design.md Ordering Constraint). Deleted in the final
-    // implementation task once the Tier-2 token path is test-proven.
-    if (inv.skillBypass) return false;
     const tok = readSessionToken(event.cwd);
     if (!tok) { tier2Reason = 'missing-credential'; return true; }
     if (Date.now() - tok.mintedAt >= tok.ttlMs) { tier2Reason = 'credential-expired'; return true; }
@@ -232,15 +220,6 @@ async function main() {
     // audit trail records each session-tier authorization.
     for (const inv of tier2Accepted) {
       appendAuditLog(event, 'allow', inv, 'session-credential-verified', 'session');
-    }
-    // Transition window only (removed with the legacy fallback above): still log any
-    // observed inline bypass on a non-enforced subcommand so the audit trail reflects
-    // every legacy skill-bypass use.
-    const firstBypassInv = invocations.find(
-      (inv) => inv.skillBypass && !SKILL_ENFORCED_SUBCOMMANDS.has(inv.sub) && classify(inv) !== 'allow' && !isTrustedSkillCaller(event),
-    );
-    if (firstBypassInv) {
-      appendAuditLog(event, 'allow_with_bypass', firstBypassInv, 'non-enforced inline bypass');
     }
     process.exit(0);
   }
