@@ -1,7 +1,7 @@
 import { Command } from 'commander'
 import { readFile, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { autoCommitFile, createCliContext, outputJson, color } from '../helpers.js'
+import { autoCommitFile, createCliContext, outputJson, color, getPackageVersion } from '../helpers.js'
 import { repairProjectConfig } from '../../config/repair-config.js'
 
 export function registerDoctorCommand(program: Command): void {
@@ -93,7 +93,7 @@ export function registerDoctorCommand(program: Command): void {
       })
 
       // Framework version
-      checks.push({ check: 'Framework version', status: 'pass', detail: '0.1.0' })
+      checks.push({ check: 'Framework version', status: 'pass', detail: await getPackageVersion() })
 
       // .metta directory
       try {

@@ -229,8 +229,9 @@ const agentColorMap: Record<string, { code: number; icon: string }> = {
 }
 
 export function agentBanner(agentName: string, message: string): string {
-  const agent = agentColorMap[agentName] ?? { code: 36, icon: '🤖' }
-  const label = `metta-${agentName}`
+  const bareName = agentName.startsWith('metta-') ? agentName.slice('metta-'.length) : agentName
+  const agent = agentColorMap[bareName] ?? { code: 36, icon: '🤖' }
+  const label = `metta-${bareName}`
   return `${agent.icon} ${color(`[${label.toUpperCase()}]`, agent.code)} ${message}`
 }
 
