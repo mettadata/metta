@@ -26,4 +26,8 @@ You are the **orchestrator** for verification. Spawn a verifier subagent.
 3. `metta complete verification --json --change <name>`
 4. When all_complete: true, tell the user to run `/metta:ship` to finalize and merge
 
+## If any gate fails or the verifier reports FAIL
+
+Spawn a metta-executor to fix the failures, then re-verify from step 1. When the FAILing run's output was produced under a downgraded (non-`inherit`) model, before spawning the fix executor run `metta model-escalation record --task <id> --from <resolved-model> --to inherit --trigger verify_fail --change <name>`, then spawn the fix executor with the `model` parameter omitted (top-tier).
+
 After verification, the next step is always **finalize** (archive + spec merge), then **ship** (merge to main).

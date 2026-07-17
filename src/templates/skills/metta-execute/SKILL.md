@@ -45,6 +45,8 @@ Agent(subagent_type: "metta-executor", description: "Task 2.1: build auth API", 
 Agent(subagent_type: "metta-executor", description: "Task 2.2: build product API", prompt: "...")
 ```
 
+For **every** executor spawn (parallel or sequential, first run or re-run — not just the examples above): read `agent.model` from `metta instructions <id> --json`. If it is not `inherit`, pass it as `Agent(subagent_type: "metta-executor", model: "<value>", ...)`. If it is `inherit`, omit the `model` parameter.
+
 ## How to detect file overlap
 
 Read the **Files** field of each task in the batch. If any two tasks list the same file or directory prefix, they overlap. Example:
@@ -55,5 +57,7 @@ Read the **Files** field of each task in the batch. If any two tasks list the sa
 
 - Bug found → fix + separate commit: `fix(<change>): ...`
 - Missing utility → add + separate commit
-- Blocked (>10 lines to fix) → STOP, report back to orchestrator
+- Blocked (>10 lines to fix) → STOP, report back to orchestrator (orchestrator: see STOP handling below before re-invoking)
 - Design is wrong → STOP immediately, report back to orchestrator
+
+**STOP handling (orchestrator):** when an executor that ran under a non-`inherit` model reports STOP, before re-invoking the executor for the affected task run `metta model-escalation record --task <id> --from <resolved-model> --to inherit --trigger stop_deviation --change <name>`, then re-invoke the executor with the `model` parameter omitted (top-tier).
