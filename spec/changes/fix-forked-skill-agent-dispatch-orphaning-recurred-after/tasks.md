@@ -112,7 +112,7 @@ All tests pass; zero skipped.
 
 ## Batch 2: Frontmatter wiring + codified recovery protocol (Layer 3, US-3)
 
-### 2.1 Wire the hook into `metta-skill-host.md` frontmatter, add the recovery-protocol section, and add the one-line pointer to all six fork skills
+### 2.1 [x] Wire the hook into `metta-skill-host.md` frontmatter, add the recovery-protocol section, and add the one-line pointer to all six fork skills
 
 **Files:**
 - `src/templates/agents/metta-skill-host.md`
@@ -181,7 +181,7 @@ done
 
 ## Batch 3: Live experiment — `PostToolUse` timing for a backgrounded `Agent` dispatch (US-1 mechanism verification; SubagentStop-ledger Approach A is NOT built)
 
-### 3.1 Run the live `PostToolUse` timing experiment and record findings
+### 3.1 [x] Run the live `PostToolUse` timing experiment and record findings
 
 **Files:**
 - `spec/changes/fix-forked-skill-agent-dispatch-orphaning-recurred-after/experiment-posttooluse-timing.md` (new)
@@ -211,7 +211,7 @@ The findings file exists and contains an explicit `PASS` or `FAIL` verdict with 
 
 ## Batch 4: Full verification sweep
 
-### 4.1 Run the full test/build sweep and grep-based proofs
+### 4.1 [x] Run the full test/build sweep and grep-based proofs
 
 **Files:** none (verification-only; touches no source files)
 
