@@ -2,8 +2,10 @@ import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { ContextEngine, type LoadedContext } from './context-engine.js'
 import { TemplateEngine, type TemplateContext } from '../templates/template-engine.js'
+import { resolveAgentModel } from './model-resolver.js'
 import type { WorkflowArtifact } from '../schemas/workflow-definition.js'
 import type { AgentDefinition } from '../schemas/agent-definition.js'
+import type { ModelAlias, ModelsConfig } from '../schemas/project-config.js'
 
 export interface InstructionOutput {
   artifact: string
@@ -15,6 +17,7 @@ export interface InstructionOutput {
     persona: string
     tools: string[]
     rules: string[]
+    model: ModelAlias
   }
   template: string
   context: {
@@ -57,6 +60,8 @@ export class InstructionGenerator {
     agent: AgentDefinition
     nextSteps: string[]
     questions?: InstructionQuestion[]
+    modelsConfig?: ModelsConfig
+    escalated?: boolean
   }): Promise<InstructionOutput> {
     // Load context for this artifact
     const context = await this.contextEngine.resolve(
@@ -81,6 +86,16 @@ export class InstructionGenerator {
       if (typeof t === 'string') return t
       return Object.keys(t)[0]
     })
+
+    // Model tier routing: derive the role short name from the agent's
+    // frontmatter name by stripping the `metta-` prefix (matching the
+    // AGENT_CONTEXT_BUDGETS key convention in instructions.ts). A prior
+    // Rung-1 escalation for this artifact forces 'inherit' without ever
+    // consulting the resolver — the escalation ratchet is one-way.
+    const role = params.agent.name.replace(/^metta-/, '')
+    const model: ModelAlias = params.escalated
+      ? 'inherit'
+      : resolveAgentModel(role, params.workflow, params.modelsConfig)
 
     const budget: InstructionOutput['budget'] = {
       context_tokens: context.totalTokens,
@@ -111,6 +126,7 @@ export class InstructionGenerator {
         persona: params.agent.persona,
         tools,
         rules: params.agent.rules ?? [],
+        model,
       },
       template,
       context: instructionContext,

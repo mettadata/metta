@@ -61,6 +61,28 @@ export function registerInstructionsCommand(program: Command): void {
         const changePath = join(ctx.projectRoot, 'spec', 'changes', changeName)
         const specDir = join(ctx.projectRoot, 'spec')
 
+        // Single config load, reused by both model resolution and the
+        // verification-context injection below.
+        const cfg = await ctx.configLoader.load()
+
+        // Precedence note (informational only): when both a named profile
+        // and an explicit executor map are set, the explicit map wins
+        // per-tier-key and the profile fills the rest. Never a validation
+        // error, never blocking.
+        if (cfg.models?.profile && cfg.models.executor) {
+          const tiers = ['trivial', 'quick'] as const
+          const explicitKeys = tiers.filter(t => cfg.models?.executor?.[t] !== undefined)
+          const profileKeys = tiers.filter(t => cfg.models?.executor?.[t] === undefined)
+          process.stderr.write(
+            `Warning: models.profile and models.executor are both set — explicit executor map supplies [${explicitKeys.join(', ')}]; profile '${cfg.models.profile}' fills [${profileKeys.join(', ')}].\n`,
+          )
+        }
+
+        // Rung-1 escalation ratchet: once any model_escalations record
+        // exists for this artifact, every future generation resolves to
+        // 'inherit' — there is no un-escalation path.
+        const escalated = (metadata.model_escalations ?? []).some(r => r.task === artifactId)
+
         const output = await ctx.instructionGenerator.generate({
           artifact,
           changeName,
@@ -76,6 +98,8 @@ export function registerInstructionsCommand(program: Command): void {
             `Create the ${artifactId} artifact following the template`,
             'Run `metta status --json` to confirm completion',
           ],
+          modelsConfig: cfg.models,
+          escalated,
         })
 
         // Inject verification context for the verification artifact so the
@@ -85,7 +109,6 @@ export function registerInstructionsCommand(program: Command): void {
         // its first-run / legacy-project heuristics. ConfigParseError
         // propagates to the error boundary below.
         if (artifactId === 'verification') {
-          const cfg = await ctx.configLoader.load()
           const v = (cfg as Record<string, unknown>).verification as
             | { strategy?: string; instructions?: string }
             | undefined
@@ -119,10 +142,26 @@ export function registerInstructionsCommand(program: Command): void {
               context: output.budget.context_tokens,
               budget: output.budget.budget_tokens,
             }
-            await ctx.artifactStore.updateChange(changeName, {
+            const updates: Parameters<typeof ctx.artifactStore.updateChange>[1] = {
               artifact_timings: timings,
               artifact_tokens: tokens,
-            })
+            }
+            // Denominator integrity for the escalation-rate metric: every
+            // non-inherit executor resolution appends one model_runs record,
+            // written here in code (not orchestrator prose) alongside the
+            // existing timing/token stamps.
+            const role = output.agent.name.replace(/^metta-/, '')
+            if (output.agent.model !== 'inherit' && role === 'executor') {
+              updates.model_runs = [
+                ...(metadata.model_runs ?? []),
+                {
+                  task: artifactId,
+                  model: output.agent.model,
+                  timestamp: new Date().toISOString(),
+                },
+              ]
+            }
+            await ctx.artifactStore.updateChange(changeName, updates)
           } catch (err) {
             process.stderr.write(
               `Warning: failed to record instructions metrics for ${artifactId}: ${getErrorMessage(err)}\n`,
