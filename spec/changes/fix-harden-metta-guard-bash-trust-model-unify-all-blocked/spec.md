@@ -66,10 +66,15 @@ without a valid credential meeting all three properties MUST be rejected.
 - WHEN the guard evaluates the call
 - THEN the call is accepted
 
-### Scenario: Fabricated or expired credential is rejected
-- GIVEN a main-session lifecycle subcommand is invoked and the credential presented is either a value the orchestrator fabricated without going through the sanctioned issuance mechanism, or a previously valid credential that has since expired or been rotated away
+### Scenario: Expired, out-of-scope, or malformed credential is rejected
+- GIVEN a main-session lifecycle subcommand is invoked and the credential presented is expired past its bounded lifetime, names a subcommand scope that does not cover the invoked subcommand, or is structurally malformed
 - WHEN the guard evaluates the call
-- THEN the call is rejected, and the rejection reason distinguishes a credential mismatch from a missing credential
+- THEN the call is rejected, and the rejection reason distinguishes expiry and scope mismatch from a missing credential
+
+### Scenario: Credential forgery requires an audit-visible act outside command text
+- GIVEN the credential storage is a runtime-minted file that no skill definition or documentation discloses the value of
+- WHEN an orchestrator attempts to authorize a call without the sanctioned issuance mechanism
+- THEN the only route is deliberately writing a well-formed credential file — an act that is not expressible as command-prefix text, leaves the fabricated credential in the audit trail on use, and is equivalent in required capability to disabling the guard itself; this residual is documented as accepted in the capability's threat model
 
 ### Scenario: No credential present is rejected with skill guidance
 - GIVEN a main-session lifecycle subcommand is invoked with no session credential present at all
