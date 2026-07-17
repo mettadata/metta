@@ -1,0 +1,34 @@
+workflow: quick
+created: 2026-07-17T23:29:16.119Z
+status: active
+current_artifact: verification
+base_versions: {}
+artifacts:
+  intent: complete
+  implementation: complete
+  verification: complete
+complexity_score:
+  score: 2
+  signals:
+    file_count: 5
+  recommended_workflow: standard
+artifact_timings:
+  intent:
+    started: 2026-07-17T23:29:24.236Z
+    completed: 2026-07-17T23:31:08.752Z
+  implementation:
+    started: 2026-07-17T23:31:09.421Z
+    completed: 2026-07-17T23:40:57.809Z
+  verification:
+    completed: 2026-07-17T23:48:05.654Z
+artifact_tokens:
+  intent:
+    context: 813
+    budget: 20000
+  implementation:
+    context: 0
+    budget: 10000
+model_runs:
+  - task: implementation
+    model: sonnet
+    timestamp: 2026-07-17T23:31:09.422Z

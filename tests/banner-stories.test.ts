@@ -19,4 +19,16 @@ describe('agentBanner (stories/product regression)', () => {
     expect(out).toContain('[METTA-EXECUTOR]')
     expect(out).not.toContain('[METTA-METTA-')
   })
+
+  it('strips an already-prefixed name to avoid a double metta- prefix', () => {
+    const out = stripAnsi(agentBanner('metta-executor', 'implementation'))
+    expect(out).toContain('[METTA-EXECUTOR]')
+    expect(out).not.toContain('[METTA-METTA-')
+  })
+
+  it('renders the same output for bare and metta-prefixed input, including color/icon', () => {
+    const bare = agentBanner('executor', 'implementation')
+    const prefixed = agentBanner('metta-executor', 'implementation')
+    expect(prefixed).toBe(bare)
+  })
 })

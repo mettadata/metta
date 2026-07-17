@@ -119,6 +119,20 @@ describe("CLI: status / next / changes / doctor / gate / validate-stories", { ti
       const data = JSON.parse(stdout)
       expect(data.checks.length).toBeGreaterThan(0)
     })
+
+    it('reports the framework version from package.json', async () => {
+      const { readFile } = await import('node:fs/promises')
+      const pkg = JSON.parse(
+        await readFile(join(import.meta.dirname, '..', 'package.json'), 'utf8'),
+      ) as { version: string }
+      await runCli(['install', '--git-init'], tempDir)
+      const { stdout, code } = await runCli(['--json', 'doctor'], tempDir)
+      expect(code).toBe(0)
+      const data = JSON.parse(stdout)
+      const versionCheck = data.checks.find((c: { check: string }) => c.check === 'Framework version')
+      expect(versionCheck).toBeDefined()
+      expect(versionCheck.detail).toBe(pkg.version)
+    })
   })
 
 
