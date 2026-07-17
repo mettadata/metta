@@ -419,7 +419,7 @@ retired single-tier inline-prefix model.
 
 ## Batch 4: Delete the legacy branch (final implementation task)
 
-### 4.1 Remove the REMOVE-AFTER-SHIP legacy branch and flip its test coverage
+### 4.1 [x] Remove the REMOVE-AFTER-SHIP legacy branch and flip its test coverage
 
 **Files:**
 - `.claude/hooks/metta-guard-bash.mjs`
@@ -481,7 +481,7 @@ completely gone; `node --check` passes on both copies; the full repository has z
 
 ## Batch 5: Full verification sweep
 
-### 5.1 Full test/build sweep and live synthetic-event story proofs
+### 5.1 [x] Full test/build sweep and live synthetic-event story proofs
 
 **Files:** none (verification only; no source edits)
 
