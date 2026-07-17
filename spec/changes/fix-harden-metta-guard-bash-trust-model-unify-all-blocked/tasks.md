@@ -20,7 +20,7 @@ Requirement -> Task mapping (orchestration-guard spec requirements + user storie
 
 ## Batch 1: Mint hook (new, inert)
 
-### 1.1 Create the session-mint hook
+### 1.1 [x] Create the session-mint hook
 
 **Files:**
 - `.claude/hooks/metta-session-mint.mjs` (new)
@@ -75,7 +75,7 @@ functional effect on the running guard yet.
 
 ---
 
-### 1.2 Mint hook unit tests
+### 1.2 [x] Mint hook unit tests
 
 **Files:**
 - `tests/metta-session-mint.test.ts` (new)
@@ -120,7 +120,7 @@ behavior of `metta-session-mint.mjs`, and passes.
 
 ## Batch 2: Guard Tier-2 branch (dual-accept transition window)
 
-### 2.1 Add the Tier-2 branch to metta-guard-bash.mjs, dual-accepting legacy + token
+### 2.1 [x] Add the Tier-2 branch to metta-guard-bash.mjs, dual-accepting legacy + token
 
 **Files:**
 - `.claude/hooks/metta-guard-bash.mjs`
@@ -211,7 +211,7 @@ audit-logged with a `tier` field; `node --check` passes on both copies.
 
 ---
 
-### 2.2 Guard tests for the Tier-2 branch and legacy dual-accept window
+### 2.2 [x] Guard tests for the Tier-2 branch and legacy dual-accept window
 
 **Files:**
 - `tests/metta-guard-bash.test.ts`
