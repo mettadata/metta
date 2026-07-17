@@ -23,7 +23,7 @@ Requirement / user-story -> task map (see spec.md, research.md, design.md):
 
 ## Batch 1: New PreToolUse hook — `metta-guard-agent-dispatch.mjs`
 
-### 1.1 Create the `metta-guard-agent-dispatch.mjs` hook (template + deployed)
+### 1.1 [x] Create the `metta-guard-agent-dispatch.mjs` hook (template + deployed)
 
 **Files:**
 - `src/templates/hooks/metta-guard-agent-dispatch.mjs` (new)
@@ -80,7 +80,7 @@ First manual run MUST print `exit=2`; second MUST print `exit=0`. `diff` MUST pr
 
 ---
 
-### 1.2 Hook unit tests — `tests/metta-guard-agent-dispatch.test.ts`
+### 1.2 [x] Hook unit tests — `tests/metta-guard-agent-dispatch.test.ts`
 
 **Files:**
 - `tests/metta-guard-agent-dispatch.test.ts` (new)
