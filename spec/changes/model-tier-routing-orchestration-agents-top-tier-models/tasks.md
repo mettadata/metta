@@ -85,6 +85,7 @@ present.
 
 **Files:**
 - `src/context/model-resolver.ts` (new)
+- `src/index.ts` (add `export * from './context/model-resolver.js'` to the root barrel — constitution-check finding; all sibling context modules are barrel-exported)
 - `tests/model-resolver.test.ts` (new)
 
 **Action:**
