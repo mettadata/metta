@@ -33,6 +33,7 @@ import { registerCompletionCommand } from './commands/completion.js'
 import { registerUpdateCommand } from './commands/update.js'
 import { registerProgressCommand } from './commands/progress.js'
 import { registerIterationCommand } from './commands/iteration.js'
+import { registerModelEscalationCommand } from './commands/model-escalation.js'
 import { registerImportCommand } from './commands/import.js'
 import { registerGapsCommand } from './commands/gaps.js'
 import { registerFixGapCommand } from './commands/fix-gap.js'
@@ -83,6 +84,7 @@ registerCompletionCommand(program)
 registerUpdateCommand(program)
 registerProgressCommand(program)
 registerIterationCommand(program)
+registerModelEscalationCommand(program)
 registerImportCommand(program)
 registerGapsCommand(program)
 registerFixGapCommand(program)

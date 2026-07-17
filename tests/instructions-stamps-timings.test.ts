@@ -69,6 +69,10 @@ describe('metta instructions stamps timings + tokens', { timeout: 30000 }, () =>
 
     expect(meta.artifact_tokens?.intent?.context).toBe(payload.budget.context_tokens)
     expect(meta.artifact_tokens?.intent?.budget).toBe(payload.budget.budget_tokens)
+
+    // No models config and a non-executor artifact: the stamp block must not
+    // write a model_runs record.
+    expect(meta.model_runs).toBeUndefined()
   })
 
   it('does not overwrite artifact_timings[intent].started on re-invocation', async () => {

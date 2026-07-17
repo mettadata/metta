@@ -1,93 +1,16 @@
 # instruction-contracts
 
-## Requirement: Persona Text Is Derived At Runtime From The Agent Definition
+<!-- Rung-2 escalation behavior (workflow-tier upscale triggered by scope overflow) belongs to the
+     existing adaptive-workflow-tier-selection capability — its intent-time and post-implementation
+     upscale machinery is reused unmodified (single-target limitation, established pattern: one
+     capability owns tier classification and upscaling). Acceptance criteria for that behavior are
+     covered by this change's stories, not restated as instruction-contracts requirements here. The
+     escalation-rate metric requirement is authored in this file because the events it reports on
+     (model-escalation audit records) are artifacts emitted by this capability's instruction
+     generation, even though the metric's reporting surface (`metta progress`) also serves
+     adaptive-workflow-tier-selection's ceremony-commit-ratio metric. -->
 
-The persona text emitted for an agent MUST be derived at runtime by parsing the corresponding agent
-definition file's frontmatter and body — never read from a persona string literal declared in
-command or generator source code. Editing the persona text in an agent definition file MUST change
-what is emitted the next time instructions are generated for an artifact assigned to that agent,
-with no source-code edit required. A source rebuild that only re-copies template assets into the
-build output (with no logic change) MAY be required between editing the file and observing the new
-output, and is acceptable; a change to compiled application logic MUST NOT be required.
-
-### Scenario: Editing an agent definition file changes the emitted persona
-- GIVEN an agent definition file whose persona text is "You are a technical researcher focused on evaluating implementation approaches."
-- AND an artifact in the active workflow is assigned to that agent
-- WHEN the persona sentence in the agent definition file is edited to a new sentence and, if required, the build's template assets are re-copied with no TypeScript logic change
-- AND instructions are generated for that artifact
-- THEN the emitted persona text contains the new sentence and does not contain the original sentence
-
-### Scenario: No persona string literals remain in the instruction-generating source
-- GIVEN the source files responsible for resolving an agent's persona for instruction generation
-- WHEN those files are inspected for hardcoded persona sentences
-- THEN no persona text for any agent is found declared as a string literal in source code
-- AND every emitted persona traces to content read from an agent definition file at generation time
-
-
-## Requirement: Every Referenced Agent Name Resolves To An Existing Agent Definition
-
-Every agent name referenced by any artifact's agent assignment in a workflow definition MUST resolve
-to an existing agent definition file. This resolution MUST be verifiable independent of any single
-`metta instructions` invocation — i.e., it MUST be possible to enumerate every agent name referenced
-across all workflow definitions and confirm each one has a backing agent definition file, with no
-unresolved references left in the shipped workflow set.
-
-### Scenario: All agent references across shipped workflows resolve
-- GIVEN the full set of shipped workflow definitions
-- WHEN every artifact's agent assignment across every workflow is collected into a set of referenced agent names
-- THEN each referenced agent name has a corresponding agent definition file
-- AND the set contains no name without a backing definition file
-
-### Scenario: A newly introduced agent reference without a definition file is detectable
-- GIVEN a workflow definition edited to assign an artifact to an agent name with no corresponding agent definition file
-- WHEN the same enumeration check is run against that workflow
-- THEN the check reports the undefined agent name as unresolved
-
-
-## Requirement: Agent Resolution Failure Fails Loudly, Never Silently Substitutes
-
-When an artifact's assigned agent name has no corresponding agent definition, generating
-instructions for that artifact MUST fail with a typed, catchable error that names the missing agent
-and the artifact that referenced it. The system MUST NOT substitute a different agent's persona,
-capabilities, or tools in place of the unresolved one, and MUST NOT proceed to emit an instructions
-contract for that artifact.
-
-### Scenario: Unresolvable agent name produces a named error instead of a fallback persona
-- GIVEN an artifact in the active workflow assigned to an agent name that has no corresponding agent definition file
-- WHEN instructions are generated for that artifact
-- THEN generation fails with an error identifying the unresolved agent name and the artifact id
-- AND no instructions output containing another agent's persona is produced for that artifact
-
-### Scenario: A resolvable agent name never triggers the failure path
-- GIVEN an artifact assigned to an agent name that has a corresponding agent definition file
-- WHEN instructions are generated for that artifact
-- THEN generation succeeds and the emitted persona matches that agent's definition file
-- AND no resolution-failure error is raised
-
-
-## Requirement: Agent Aliases Are Explicit And Resolve To The Real Agent's Identity
-
-If an agent name used in a workflow definition is an alias for a different underlying agent
-definition (rather than a 1:1 name match), that alias MUST be declared through an explicit,
-inspectable mapping rather than inferred through fallback logic. The instructions contract emitted
-for an aliased agent name MUST carry the resolved agent's real name and persona — never a persona
-belonging to an unrelated agent under the alias's name, and never the alias name presented as if it
-were an independent agent identity when no such identity exists.
-
-### Scenario: A declared alias resolves to its mapped agent's own persona
-- GIVEN a workflow definition assigns an artifact to an agent name declared as an alias for a specific real agent definition
-- WHEN instructions are generated for that artifact
-- THEN the emitted agent name and persona match the real agent definition the alias is declared to point to
-- AND the emitted persona is that agent's own persona text, not a persona belonging to a different, unrelated agent
-
-### Scenario: An undeclared name is never treated as an implicit alias
-- GIVEN a workflow definition assigns an artifact to an agent name with no explicit alias declaration and no matching agent definition file
-- WHEN instructions are generated for that artifact
-- THEN the system does not silently treat the name as an alias for any other agent
-- AND the resolution-failure behavior applies instead
-
-
-## Requirement: Emitted Instructions Contract Carries Complete Agent Identity
+## MODIFIED: Requirement: Emitted Instructions Contract Carries Complete Agent Identity
 
 The instructions output for an artifact MUST include the resolved agent's name, persona, tools, and
 model. The `name`, `persona`, and `tools` fields MUST be sourced from that agent's definition file at
@@ -117,26 +40,8 @@ that agent has, and which model it MUST run under.
 - WHEN instructions are generated for artifacts assigned to agents in any role, at any workflow tier
 - THEN every emitted `model` field resolves to `inherit`
 
-## Requirement: Source And Deployed Agent Definitions Remain Byte-Identical
 
-For every agent definition file this capability sources persona, capability, and tool data from,
-the source template copy and its deployed copy MUST remain byte-identical after any change that
-touches either copy. A change that edits one copy without applying the identical edit to the other
-MUST be detectable as a divergence.
-
-### Scenario: Source and deployed agent definitions match after an edit
-- GIVEN an agent definition file has a source template copy and a deployed copy
-- WHEN either copy is edited as part of a change
-- AND the corresponding edit is applied to the other copy
-- THEN a byte-for-byte comparison of the two copies reports no difference
-
-### Scenario: A divergence between source and deployed copies is detectable
-- GIVEN an agent definition file's source template copy is edited without applying the same edit to its deployed copy
-- WHEN a byte-for-byte comparison of the two copies is run
-- THEN the comparison reports a difference between the two files
-
-
-## Requirement: Planning Cohort Requires Top-Tier Model
+## ADDED: Requirement: Planning Cohort Requires Top-Tier Model
 
 Every agent in the planning cohort — proposer, specifier, product, researcher, architect, and
 planner — MUST run at the session's inherited model or better. No agent definition file MAY pin a
@@ -164,7 +69,7 @@ planning-cohort agent to resolve to a downgraded model.
 - THEN it contains only the executor role and the reviewer and verifier roles, and no planning-cohort role name is present
 
 
-## Requirement: Tier-Coupled Executor Routing
+## ADDED: Requirement: Tier-Coupled Executor Routing
 
 When the active change's current workflow tier is `trivial` or `quick`, an eligible executor-role
 invocation MAY resolve to the profile's designated cheap-executor model, provided the project's
@@ -190,7 +95,7 @@ earlier point in the change's lifecycle.
 - THEN the emitted `model` field resolves to inherit/top-tier, reflecting the current tier rather than the tier recorded at intent time
 
 
-## Requirement: Safety-Net Immunity For Reviewer And Verifier
+## ADDED: Requirement: Safety-Net Immunity For Reviewer And Verifier
 
 The `models` configuration schema MUST make it structurally impossible for any profile or explicit
 role map to assign a non-inherit, non-top-tier model to the reviewer or verifier role: loading a
@@ -216,7 +121,7 @@ reviewer and verifier to inherit/top-tier.
 - THEN the reviewer and verifier roles resolve to inherit/top-tier in every one of them
 
 
-## Requirement: Rung-1 Model Escalation On STOP Or Verify-FAIL
+## ADDED: Requirement: Rung-1 Model Escalation On STOP Or Verify-FAIL
 
 When an executor invocation running under a downgraded model produces a STOP/deviation report, or a
 subsequent verification run FAILs against output produced under a downgraded model, and the change's
@@ -241,7 +146,7 @@ from-model, the to-model, and the triggering signal (STOP/deviation report or ve
 - THEN the persisted audit record carries the task/fix identifier, the from-model, the to-model, and the triggering signal, and remains retrievable after the recording process ends
 
 
-## Requirement: Rung Discrimination Between Model And Workflow Escalation
+## ADDED: Requirement: Rung Discrimination Between Model And Workflow Escalation
 
 Model escalation (Rung 1) MUST NOT by itself change a change's workflow tier classification. A
 scope-overflow signal — the change's file count exceeding its current workflow tier's boundary —
@@ -267,7 +172,7 @@ change's obligations MUST be re-evaluated against the new tier.
 - THEN the emitted `model` field resolves to inherit/top-tier
 
 
-## Requirement: Escalation-Rate Metric In Progress Reporting
+## ADDED: Requirement: Escalation-Rate Metric In Progress Reporting
 
 `metta progress` MUST compute and report an escalation rate: the proportion of cheap-tier executor
 invocations recorded in the model-escalation audit records that were subsequently escalated to
@@ -296,7 +201,7 @@ that produced neither a STOP/deviation report nor a verify-FAIL.
 - THEN the metric renders an explicit no-data indicator rather than a numeric zero
 
 
-## Requirement: Model Vocabulary Validated At Config Load
+## ADDED: Requirement: Model Vocabulary Validated At Config Load
 
 Every model value in a `models` configuration document — whether inside a named profile or an
 explicit per-role/per-tier map — MUST be validated at config load time against the runtime's

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { ModelAliasEnum } from './project-config.js'
 
 export const ArtifactStatusSchema = z.enum([
   'pending',
@@ -53,6 +54,24 @@ export const EscalationSchema = z.object({
 
 export type Escalation = z.infer<typeof EscalationSchema>
 
+export const ModelEscalationSchema = z.object({
+  task: z.string().min(1),
+  from_model: ModelAliasEnum,
+  to_model: ModelAliasEnum,
+  trigger: z.enum(['stop_deviation', 'verify_fail']),
+  timestamp: z.string().datetime(),
+}).strict()
+
+export type ModelEscalation = z.infer<typeof ModelEscalationSchema>
+
+export const ModelRunSchema = z.object({
+  task: z.string().min(1),
+  model: ModelAliasEnum,
+  timestamp: z.string().datetime(),
+}).strict()
+
+export type ModelRun = z.infer<typeof ModelRunSchema>
+
 export const ChangeMetadataSchema = z.object({
   workflow: z.string(),
   created: z.string().datetime(),
@@ -70,6 +89,8 @@ export const ChangeMetadataSchema = z.object({
   verify_iterations: z.number().int().nonnegative().optional(),
   stop_after: z.string().optional(),
   escalation: EscalationSchema.optional(),
+  model_escalations: z.array(ModelEscalationSchema).optional(),
+  model_runs: z.array(ModelRunSchema).optional(),
 }).strict()
 
 export type ChangeMetadata = z.infer<typeof ChangeMetadataSchema>

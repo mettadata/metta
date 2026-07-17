@@ -1,7 +1,6 @@
 ---
 name: metta-specifier
 description: "Metta specifier agent — writes precise, testable specification deltas with RFC 2119 keywords and Given/When/Then scenarios"
-model: sonnet
 tools: [Read, Grep, Glob]
 color: red
 ---

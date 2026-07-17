@@ -1,7 +1,6 @@
 ---
 name: metta-researcher
 description: "Metta researcher agent — explores implementation approaches, evaluates tradeoffs, produces technical artifacts"
-model: sonnet
 tools: [Read, Write, Grep, Glob, Bash, WebSearch, WebFetch]
 color: yellow
 ---

@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { createCliContext, outputJson, color, agentBanner, getErrorMessage } from '../helpers.js'
 import { formatDuration } from '../../util/duration.js'
 import { getGitLogTimings } from '../../util/git-log-timings.js'
-import { getCeremonyCommitRatio, getArtifactsPerSmallChange } from '../../util/ceremony-metrics.js'
+import { getCeremonyCommitRatio, getArtifactsPerSmallChange, getModelEscalationRate } from '../../util/ceremony-metrics.js'
 import type { ArtifactTiming, ArtifactTokens } from '../../schemas/change-metadata.js'
 
 export function registerProgressCommand(program: Command): void {
@@ -20,6 +20,12 @@ export function registerProgressCommand(program: Command): void {
         // no data; null must pass through verbatim, never coerced to 0.
         const ceremonyRatio = await getCeremonyCommitRatio(ctx.projectRoot)
         const artifactsPerSmall = await getArtifactsPerSmallChange(join(ctx.projectRoot, 'spec'))
+        // Measures only STOP/verify-FAIL-driven model escalations recorded
+        // via `metta model-escalation record`.
+        const modelEscalationRate = await getModelEscalationRate(
+          join(ctx.projectRoot, 'spec'),
+          ctx.artifactStore,
+        )
 
         // Active changes
         const activeNames = await ctx.artifactStore.listChanges()
@@ -89,6 +95,7 @@ export function registerProgressCommand(program: Command): void {
             },
             ceremony_commit_ratio: ceremonyRatio,
             artifacts_per_small_change: artifactsPerSmall,
+            model_escalation_rate: modelEscalationRate,
           })
           return
         }
@@ -171,6 +178,12 @@ export function registerProgressCommand(program: Command): void {
           console.log(`  Artifacts per small change: ${artifactsPerSmall.mean.toFixed(1)} (avg over ${artifactsPerSmall.sample_size} quick/trivial changes)`)
         } else {
           console.log('  Artifacts per small change: no data')
+        }
+        if (modelEscalationRate !== null) {
+          const escPct = Math.round(modelEscalationRate.rate * 100)
+          console.log(`  Model escalation rate: ${escPct}% (${modelEscalationRate.escalated}/${modelEscalationRate.total} cheap-tier runs escalated)`)
+        } else {
+          console.log('  Model escalation rate: no data')
         }
 
       } catch (err) {

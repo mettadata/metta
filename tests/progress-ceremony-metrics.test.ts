@@ -9,11 +9,12 @@ async function writeArchiveMetadata(
   entryName: string,
   workflow: string,
   artifactIds: string[],
+  opts: { modelRuns?: number; modelEscalations?: number } = {},
 ): Promise<void> {
   const dir = join(tempDir, 'spec', 'archive', entryName)
   await mkdir(dir, { recursive: true })
   const artifacts = artifactIds.map(id => `  ${id}: complete`).join('\n')
-  const yaml = [
+  const lines = [
     `workflow: ${workflow}`,
     'created: 2026-07-01T10:00:00.000Z',
     'status: complete',
@@ -21,9 +22,31 @@ async function writeArchiveMetadata(
     'base_versions: {}',
     'artifacts:',
     artifacts,
-    '',
-  ].join('\n')
-  await writeFile(join(dir, '.metta.yaml'), yaml, 'utf8')
+  ]
+  if (opts.modelRuns) {
+    lines.push('model_runs:')
+    for (let i = 0; i < opts.modelRuns; i++) {
+      lines.push(
+        '  - task: implementation',
+        '    model: sonnet',
+        '    timestamp: 2026-07-01T11:00:00.000Z',
+      )
+    }
+  }
+  if (opts.modelEscalations) {
+    lines.push('model_escalations:')
+    for (let i = 0; i < opts.modelEscalations; i++) {
+      lines.push(
+        '  - task: implementation',
+        '    from_model: sonnet',
+        '    to_model: inherit',
+        '    trigger: stop_deviation',
+        '    timestamp: 2026-07-01T12:00:00.000Z',
+      )
+    }
+  }
+  lines.push('')
+  await writeFile(join(dir, '.metta.yaml'), lines.join('\n'), 'utf8')
 }
 
 describe('CLI: progress ceremony metrics', { timeout: 60000 }, () => {
@@ -51,6 +74,22 @@ describe('CLI: progress ceremony metrics', { timeout: 60000 }, () => {
     // No archived quick/trivial changes — null passthrough, never 0.
     expect('artifacts_per_small_change' in data).toBe(true)
     expect(data.artifacts_per_small_change).toBeNull()
+    // No model_runs recorded anywhere — explicit no-data null, never 0.
+    expect('model_escalation_rate' in data).toBe(true)
+    expect(data.model_escalation_rate).toBeNull()
+  })
+
+  it('--json reports model_escalation_rate over recorded model_runs and model_escalations', async () => {
+    await runCli(['install', '--git-init'], tempDir)
+    await writeArchiveMetadata(tempDir, '2026-07-01-cheap-runs', 'quick', ['intent', 'implementation'], {
+      modelRuns: 4,
+      modelEscalations: 1,
+    })
+
+    const { stdout, code } = await runCli(['--json', 'progress'], tempDir)
+    expect(code).toBe(0)
+    const data = JSON.parse(stdout)
+    expect(data.model_escalation_rate).toEqual({ escalated: 1, total: 4, rate: 0.25 })
   })
 
   it('--json reports mean/sample_size over archived quick/trivial changes', async () => {
@@ -81,6 +120,20 @@ describe('CLI: progress ceremony metrics', { timeout: 60000 }, () => {
     expect(code).toBe(0)
     expect(stdout).toMatch(/Ceremony commits: \d+% \(\d+\/\d+ chore\/docs\)/)
     expect(stdout).toContain('Artifacts per small change: no data')
+    expect(stdout).toContain('Model escalation rate: no data')
+  })
+
+  it('human output renders the numeric model escalation rate when model_runs exist', async () => {
+    await runCli(['install', '--git-init'], tempDir)
+    await writeArchiveMetadata(tempDir, '2026-07-01-cheap-runs', 'quick', ['intent', 'implementation'], {
+      modelRuns: 4,
+      modelEscalations: 1,
+    })
+
+    const { stdout, code } = await runCli(['progress'], tempDir)
+    expect(code).toBe(0)
+    expect(stdout).toContain('Model escalation rate: 25% (1/4 cheap-tier runs escalated)')
+    expect(stdout).not.toContain('Model escalation rate: no data')
   })
 
   it('human output renders the artifacts average and no-data ceremony wording', async () => {
