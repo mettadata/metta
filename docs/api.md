@@ -797,6 +797,34 @@ Scenarios:
 - Header documentation describes both tiers and the emergency bypass
 - Generated workflow guidance matches the documented model
 
+### Fork Dispatch Completion Guarantee
+
+Scenarios:
+- Enforcement fires when a fork attempts to end its turn with a pending dispatch
+- A fork whose dispatched work is complete ends its turn normally
+- Non-fork callers are unaffected by this guarantee
+
+### Truthful Fork Results
+
+Scenarios:
+- A terminal fork result never narrates in-progress work under enforcement
+- The enforcement reason instructs the fork to wait rather than return early
+- The skill-host contract treats in-progress narration as a non-terminal, failed result
+
+### Residual Orphaning Recovery Protocol Is Codified in Every Fork Contract
+
+Scenarios:
+- Contract inspection finds the recovery protocol in every fork contract
+- The protocol explicitly forbids duplicate dispatch of in-flight work
+- Fresh work is only dispatched after the orphan is confirmed dead or complete
+
+### Fork-Dispatch Enforcement Events Are Recorded
+
+Scenarios:
+- A blocked turn-end is recorded with tier and reason
+- A rejected async dispatch shape is recorded with tier and reason
+- A recovery-protocol invocation is discernible from recorded evidence
+
 ## fix-metta-propose-has-no-flag-stop-after-planning-artifacts
 
 ### `metta propose` MUST accept a `--stop-after <artifact>` option

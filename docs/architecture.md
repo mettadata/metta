@@ -47,7 +47,7 @@
 7 requirements
 
 ### orchestration-guard
-8 requirements
+12 requirements
 
 ### fix-metta-propose-has-no-flag-stop-after-planning-artifacts
 8 requirements
