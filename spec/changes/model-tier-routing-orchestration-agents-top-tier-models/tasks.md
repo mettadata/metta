@@ -23,7 +23,7 @@ Requirement -> Task mapping (instruction-contracts spec requirements + user stor
 
 ## Batch 1: Schemas and pure resolver
 
-### 1.1 Config and escalation-audit schemas
+### 1.1 [x] Config and escalation-audit schemas
 
 **Files:**
 - `src/schemas/project-config.ts`
@@ -81,7 +81,7 @@ present.
 
 ---
 
-### 1.2 Pure model-resolution function
+### 1.2 [x] Pure model-resolution function
 
 **Files:**
 - `src/context/model-resolver.ts` (new)
