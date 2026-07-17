@@ -2,6 +2,12 @@
 name: metta:init
 description: Initialize Metta in a project with interactive discovery
 allowed-tools: [Read, Write, Bash, Grep, Glob, Agent, AskUserQuestion, WebSearch, WebFetch]
+hooks:
+  PreToolUse:
+    - matcher: Bash
+      hooks:
+        - type: command
+          command: .claude/hooks/metta-session-mint.mjs metta-init
 ---
 
 **IMPORTANT: When using the Agent tool, use these metta agent types: metta-proposer, metta-researcher, metta-architect, metta-planner, metta-executor, metta-reviewer, metta-verifier, metta-discovery. Do NOT use gsd-executor or general-purpose.**
@@ -10,10 +16,12 @@ You are the **orchestrator** for Metta project initialization.
 
 ## Steps
 
-1. `METTA_SKILL=1 metta init --json` → scaffolds directories, installs skills, returns discovery instructions.
+1. `metta status --json` → allow-listed warm-up call; lets the session-credential mint hook complete a prior Bash cycle before the init call. An error from this command is fine in an uninitialized project — the completed Bash cycle itself is what primes the credential.
+
+2. `metta init --json` → scaffolds directories, installs skills, returns discovery instructions.
    Parse the `discovery` object from the JSON response.
 
-2. **DISCOVERY LOOP (mandatory — do NOT skip this step):**
+3. **DISCOVERY LOOP (mandatory — do NOT skip this step):**
    Before spawning `metta-discovery`, YOU (the orchestrator) MUST run iterative discovery to
    collect project identity, stack, and conventions via `AskUserQuestion`. Do not guess.
 
@@ -118,7 +126,7 @@ You are the **orchestrator** for Metta project initialization.
 
    Resolved: all questions. Proceeding to metta-discovery subagent.
 
-3. **Build `<DISCOVERY_ANSWERS>`** from all collected answers. Empty elements for rounds
+4. **Build `<DISCOVERY_ANSWERS>`** from all collected answers. Empty elements for rounds
    skipped via early exit. Append `<CITATIONS>` when WebSearch was used in R2 or R3.
    Do NOT write any file to disk at this step (REQ-23).
 
@@ -153,7 +161,7 @@ You are the **orchestrator** for Metta project initialization.
    </DISCOVERY_ANSWERS>
    ```
 
-4. **Spawn a metta-discovery agent** (subagent_type: "metta-discovery") with:
+5. **Spawn a metta-discovery agent** (subagent_type: "metta-discovery") with:
    - The agent persona from `discovery.agent.persona`
    - The mode (`discovery.mode`: brownfield or greenfield)
    - The detected stack/dirs from `discovery.detected` (brownfield only)
@@ -176,11 +184,11 @@ You are the **orchestrator** for Metta project initialization.
    ```
    Do NOT write flat keys like `name:`, `description:`, `stack:` at the root level.
 
-5. After the discovery agent returns, run `METTA_SKILL=1 metta refresh --no-commit` via Bash to regenerate CLAUDE.md from the written spec/project.md without triggering the command's auto-commit, then stage and commit separately with the init-specific message:
+6. After the discovery agent returns, run `metta refresh --no-commit` via Bash to regenerate CLAUDE.md from the written spec/project.md without triggering the command's auto-commit, then stage and commit separately with the init-specific message:
    ```
-   METTA_SKILL=1 metta refresh --no-commit
+   metta refresh --no-commit
    git add CLAUDE.md && git commit -m "chore: generate CLAUDE.md from discovery"
    ```
    If refresh or commit fails, warn the user but continue.
 
-6. Report to user what was generated
+7. Report to user what was generated

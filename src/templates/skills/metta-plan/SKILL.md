@@ -2,6 +2,12 @@
 name: metta:plan
 description: Build planning artifacts for the active change
 allowed-tools: [Read, Write, Grep, Glob, Bash, Agent]
+hooks:
+  PreToolUse:
+    - matcher: Bash
+      hooks:
+        - type: command
+          command: .claude/hooks/metta-session-mint.mjs metta-plan
 ---
 
 **IMPORTANT: When using the Agent tool, use these metta agent types: metta-proposer (intent/spec), metta-researcher (research), metta-architect (design), metta-planner (tasks), metta-executor (implementation), metta-verifier (verification), metta-discovery (init). Do NOT use gsd-executor or general-purpose.**
@@ -15,7 +21,7 @@ You are the **orchestrator** for building planning artifacts. Spawn subagents fo
    a. `metta instructions <artifact> --json --change <name>` → get template + persona
    b. **Spawn a subagent** with the right metta agent type based on the artifact (research→metta-researcher, design→metta-architect, tasks→metta-planner), the agent persona, template, and output_path
    c. Subagent writes the artifact file with real content, then git commits
-   d. `METTA_SKILL=1 metta complete <artifact> --json --change <name>` → returns next artifact
+   d. `metta complete <artifact> --json --change <name>` → returns next artifact
 3. Continue until all planning artifacts are complete
 4. **Run constitution check (emit → spawn → record):**
    After all planning artifacts are committed:
