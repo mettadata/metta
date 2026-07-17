@@ -1,6 +1,6 @@
-version: 8
-hash: sha256:228753089aa3
-updated: 2026-07-17T01:50:15.706Z
+version: 12
+hash: sha256:0457acadb439
+updated: 2026-07-17T03:21:21.413Z
 status: draft
 source: change
 requirements:
@@ -47,3 +47,27 @@ requirements:
     scenarios:
       - header-documentation-describes-both-tiers-and-the-emergency-bypass
       - generated-workflow-guidance-matches-the-documented-model
+  - id: fork-dispatch-completion-guarantee
+    hash: sha256:029b61076b30
+    scenarios:
+      - enforcement-fires-when-a-fork-attempts-to-end-its-turn-with-a-pending-dispatch
+      - a-fork-whose-dispatched-work-is-complete-ends-its-turn-normally
+      - non-fork-callers-are-unaffected-by-this-guarantee
+  - id: truthful-fork-results
+    hash: sha256:42ee80fa954f
+    scenarios:
+      - a-terminal-fork-result-never-narrates-in-progress-work-under-enforcement
+      - the-enforcement-reason-instructs-the-fork-to-wait-rather-than-return-early
+      - the-skill-host-contract-treats-in-progress-narration-as-a-non-terminal-failed-result
+  - id: residual-orphaning-recovery-protocol-is-codified-in-every-fork-contract
+    hash: sha256:939b6c3a535f
+    scenarios:
+      - contract-inspection-finds-the-recovery-protocol-in-every-fork-contract
+      - the-protocol-explicitly-forbids-duplicate-dispatch-of-in-flight-work
+      - fresh-work-is-only-dispatched-after-the-orphan-is-confirmed-dead-or-complete
+  - id: fork-dispatch-enforcement-events-are-recorded
+    hash: sha256:1ac269390a6d
+    scenarios:
+      - a-blocked-turn-end-is-recorded-with-tier-and-reason
+      - a-rejected-async-dispatch-shape-is-recorded-with-tier-and-reason
+      - a-recovery-protocol-invocation-is-discernible-from-recorded-evidence

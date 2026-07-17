@@ -212,4 +212,5 @@ You are the **orchestrator** for a quick change (intent → implementation → r
 
 - MUST write all files to disk — not just describe them
 - Commit ownership: the orchestrator commits planning, review, and verification artifacts after each subagent returns. The executor subagent commits atomically per task during implementation. Planning-artifact subagents (proposer, researcher, architect, planner, product) write files only — they do not run git.
+- If a dispatched step appears orphaned, follow the residual orphaning recovery protocol in metta-skill-host.md.
 - If the change turns out to be complex, tell the user to use `/metta:propose` instead

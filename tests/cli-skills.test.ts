@@ -16,9 +16,13 @@ describe("CLI: skill & agent template byte-identity", { timeout: 30000 }, () => 
   })
 
   describe('metta --version', () => {
-    it('prints version', async () => {
+    it('prints the version from package.json', async () => {
+      const { readFile } = await import('node:fs/promises')
+      const pkg = JSON.parse(
+        await readFile(join(import.meta.dirname, '..', 'package.json'), 'utf8'),
+      ) as { version: string }
       const { stdout } = await runCli(['--version'], tempDir)
-      expect(stdout.trim()).toBe('0.1.0')
+      expect(stdout.trim()).toBe(pkg.version)
     })
   })
 
