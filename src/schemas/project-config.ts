@@ -64,6 +64,26 @@ export const VerificationConfigSchema = z.object({
 
 export type VerificationConfig = z.infer<typeof VerificationConfigSchema>
 
+export const ModelAliasEnum = z.enum(['sonnet', 'opus', 'haiku', 'fable', 'inherit'])
+
+export type ModelAlias = z.infer<typeof ModelAliasEnum>
+
+export const ModelProfileEnum = z.enum(['quality', 'balanced', 'budget'])
+
+export type ModelProfile = z.infer<typeof ModelProfileEnum>
+
+export const ModelsConfigSchema = z.object({
+  profile: ModelProfileEnum.optional(),
+  executor: z.object({
+    trivial: ModelAliasEnum.optional(),
+    quick: ModelAliasEnum.optional(),
+  }).strict().optional(),
+  reviewer: z.literal('inherit').optional(),
+  verifier: z.literal('inherit').optional(),
+}).strict().optional()
+
+export type ModelsConfig = NonNullable<z.infer<typeof ModelsConfigSchema>>
+
 export const ProjectConfigSchema = z.object({
   project: ProjectInfoSchema.optional(),
   defaults: z.object({
@@ -82,6 +102,7 @@ export const ProjectConfigSchema = z.object({
     log_retention_days: z.number().int().positive().default(30),
   }).strict().optional(),
   verification: VerificationConfigSchema.optional(),
+  models: ModelsConfigSchema,
 }).strict()
 
 export type ProjectConfig = z.infer<typeof ProjectConfigSchema>

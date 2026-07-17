@@ -23,6 +23,8 @@ import {
   SeveritySchema,
   VerificationConfigSchema,
   VerificationStrategyEnum,
+  ModelAliasEnum,
+  ModelsConfigSchema,
 } from '../src/schemas/index.js'
 import type { ComplexityScore } from '../src/schemas/index.js'
 
@@ -368,6 +370,83 @@ describe('ChangeMetadataSchema', () => {
         justification: '',
         timestamp: '2026-07-14T12:00:00Z',
       },
+    }
+    const result = ChangeMetadataSchema.safeParse(data)
+    expect(result.success).toBe(false)
+  })
+
+  it('parses legacy metadata with no model_escalations/model_runs keys unchanged', () => {
+    const data = {
+      workflow: 'standard',
+      created: '2026-07-14T12:00:00Z',
+      status: 'active',
+      current_artifact: 'spec',
+      base_versions: {},
+      artifacts: {},
+    }
+    const result = ChangeMetadataSchema.safeParse(data)
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.model_escalations).toBeUndefined()
+      expect(result.data.model_runs).toBeUndefined()
+    }
+  })
+
+  it('parses populated model_escalations and model_runs arrays and round-trips them', () => {
+    const modelEscalations = [
+      {
+        task: 'implementation',
+        from_model: 'sonnet' as const,
+        to_model: 'inherit' as const,
+        trigger: 'stop_deviation' as const,
+        timestamp: '2026-07-14T12:00:00Z',
+      },
+      {
+        task: 'implementation',
+        from_model: 'haiku' as const,
+        to_model: 'inherit' as const,
+        trigger: 'verify_fail' as const,
+        timestamp: '2026-07-14T13:00:00Z',
+      },
+    ]
+    const modelRuns = [
+      { task: 'implementation', model: 'sonnet' as const, timestamp: '2026-07-14T11:00:00Z' },
+    ]
+    const data = {
+      workflow: 'quick',
+      created: '2026-07-14T12:00:00Z',
+      status: 'active',
+      current_artifact: 'implementation',
+      base_versions: {},
+      artifacts: {},
+      model_escalations: modelEscalations,
+      model_runs: modelRuns,
+    }
+    const result = ChangeMetadataSchema.safeParse(data)
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.model_escalations).toEqual(modelEscalations)
+      expect(result.data.model_runs).toEqual(modelRuns)
+    }
+  })
+
+  it('rejects a model_escalations record with an out-of-vocabulary trigger', () => {
+    const data = {
+      workflow: 'quick',
+      created: '2026-07-14T12:00:00Z',
+      status: 'active',
+      current_artifact: 'implementation',
+      base_versions: {},
+      artifacts: {},
+      model_escalations: [
+        {
+          task: 'implementation',
+          from_model: 'sonnet',
+          to_model: 'inherit',
+          trigger: 'gut_feeling',
+          timestamp: '2026-07-14T12:00:00Z',
+        },
+      ],
     }
     const result = ChangeMetadataSchema.safeParse(data)
     expect(result.success).toBe(false)
@@ -874,6 +953,94 @@ describe('ProjectConfigSchema', () => {
       generate_on: 'finalize',
       types: ['architecture', 'api', 'changelog', 'getting-started'],
     })
+  })
+
+  it('ModelAliasEnum accepts all five documented model aliases', () => {
+    for (const alias of ['sonnet', 'opus', 'haiku', 'fable', 'inherit']) {
+      expect(ModelAliasEnum.safeParse(alias).success).toBe(true)
+    }
+  })
+
+  it('rejects an out-of-vocabulary model alias with a typed error naming the field', () => {
+    const result = ProjectConfigSchema.safeParse({
+      models: { executor: { trivial: 'gpt-4o' } },
+    })
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      const issue = result.error.issues.find(
+        (i) => i.path.join('.') === 'models.executor.trivial'
+      )
+      expect(issue).toBeDefined()
+      expect(issue?.code).toBe('invalid_enum_value')
+    }
+  })
+
+  it('accepts an absent models key with no behavior change to the rest of the config', () => {
+    const result = ProjectConfigSchema.safeParse({ project: { name: 'My App' } })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.models).toBeUndefined()
+      expect(result.data.docs).toEqual({
+        output: './docs',
+        generate_on: 'finalize',
+        types: ['architecture', 'api', 'changelog', 'getting-started'],
+      })
+    }
+  })
+
+  it('rejects models.reviewer values other than the literal inherit with issue path models.reviewer', () => {
+    const result = ProjectConfigSchema.safeParse({
+      models: { reviewer: 'haiku' },
+    })
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      const issue = result.error.issues.find((i) => i.path.join('.') === 'models.reviewer')
+      expect(issue).toBeDefined()
+    }
+  })
+
+  it('rejects models.verifier values other than the literal inherit with issue path models.verifier', () => {
+    const result = ProjectConfigSchema.safeParse({
+      models: { verifier: 'sonnet' },
+    })
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      const issue = result.error.issues.find((i) => i.path.join('.') === 'models.verifier')
+      expect(issue).toBeDefined()
+    }
+  })
+
+  it('accepts the literal inherit for models.reviewer and models.verifier', () => {
+    const result = ProjectConfigSchema.safeParse({
+      models: { reviewer: 'inherit', verifier: 'inherit' },
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('accepts every named profile value (quality, balanced, budget)', () => {
+    for (const profile of ['quality', 'balanced', 'budget']) {
+      const result = ProjectConfigSchema.safeParse({ models: { profile } })
+      expect(result.success).toBe(true)
+    }
+  })
+
+  it('rejects an unknown profile value', () => {
+    const result = ProjectConfigSchema.safeParse({ models: { profile: 'premium' } })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects planning-cohort role names as models keys (.strict())', () => {
+    for (const role of ['proposer', 'specifier', 'product', 'researcher', 'architect', 'planner']) {
+      const result = ModelsConfigSchema.safeParse({ [role]: 'sonnet' })
+      expect(result.success).toBe(false)
+    }
+  })
+
+  it('rejects unknown executor tier keys in models.executor (.strict())', () => {
+    const result = ProjectConfigSchema.safeParse({
+      models: { executor: { standard: 'haiku' } },
+    })
+    expect(result.success).toBe(false)
   })
 })
 
