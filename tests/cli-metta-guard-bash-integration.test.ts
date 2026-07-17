@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { spawnSync, execFile } from 'node:child_process'
 import { mkdtemp, rm, readFile } from 'node:fs/promises'
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { promisify } from 'node:util'
@@ -210,6 +210,116 @@ describe('metta-guard-bash integration', { timeout: 60_000 }, () => {
         (e) => e.verdict === 'block' && e.agent_type === 'metta-skill-host',
       )
       expect(blockEntriesForTrusted.length).toBe(0)
+    })
+  })
+
+  describe('Tier-2 session-credential validation end-to-end', () => {
+    const TTL_MS = 300_000
+    let tempDir: string
+
+    beforeEach(() => {
+      tempDir = mkdtempSync(join(tmpdir(), 'metta-guard-tier2-int-'))
+    })
+
+    afterEach(() => {
+      rmSync(tempDir, { recursive: true, force: true })
+    })
+
+    function seedToken(
+      overrides: Partial<{
+        token: string
+        skill: string
+        subcommands: string[]
+        mintedAt: number
+        ttlMs: number
+      }> = {},
+    ): void {
+      mkdirSync(join(tempDir, '.metta', 'scratch'), { recursive: true })
+      const tok = {
+        token: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+        skill: 'metta-next',
+        subcommands: ['complete', 'finalize'],
+        mintedAt: Date.now(),
+        ttlMs: TTL_MS,
+        ...overrides,
+      }
+      writeFileSync(
+        join(tempDir, '.metta', 'scratch', 'skill-session.token'),
+        JSON.stringify(tok),
+        { mode: 0o600 },
+      )
+    }
+
+    function readAuditEntries(): Array<Record<string, unknown>> {
+      const logPath = join(tempDir, '.metta', 'logs', 'guard-bypass.log')
+      return readFileSync(logPath, 'utf8')
+        .split('\n')
+        .filter((l) => l.trim().length > 0)
+        .map((l) => JSON.parse(l) as Record<string, unknown>)
+    }
+
+    it('allows metta finalize with a fresh in-scope token and logs the session-tier acceptance', () => {
+      seedToken()
+      const { code, stderr } = runHook(bashEvent('metta finalize', { cwd: tempDir }), {
+        cwd: tempDir,
+      })
+      expect(code).toBe(0)
+      expect(stderr).toBe('')
+      const entries = readAuditEntries()
+      const last = entries[entries.length - 1]
+      expect(last.tier).toBe('session')
+      expect(last.reason).toBe('session-credential-verified')
+      expect(last.verdict).toBe('allow')
+    })
+
+    it('blocks metta finalize with no token file — reason missing-credential, tier session', () => {
+      const { code, stderr } = runHook(bashEvent('metta finalize', { cwd: tempDir }), {
+        cwd: tempDir,
+      })
+      expect(code).toBe(2)
+      expect(stderr).toContain('/metta-')
+      const entries = readAuditEntries()
+      const last = entries[entries.length - 1]
+      expect(last.verdict).toBe('block')
+      expect(last.reason).toBe('missing-credential')
+      expect(last.tier).toBe('session')
+    })
+
+    it('blocks metta finalize with an expired token — reason credential-expired, tier session', () => {
+      seedToken({ mintedAt: Date.now() - TTL_MS - 1000 })
+      const { code } = runHook(bashEvent('metta finalize', { cwd: tempDir }), { cwd: tempDir })
+      expect(code).toBe(2)
+      const entries = readAuditEntries()
+      const last = entries[entries.length - 1]
+      expect(last.reason).toBe('credential-expired')
+      expect(last.tier).toBe('session')
+    })
+
+    it('blocks an out-of-scope subcommand — metta-refresh token cannot authorize metta finalize', () => {
+      seedToken({ skill: 'metta-refresh', subcommands: ['refresh'] })
+      const { code } = runHook(bashEvent('metta finalize', { cwd: tempDir }), { cwd: tempDir })
+      expect(code).toBe(2)
+      const entries = readAuditEntries()
+      const last = entries[entries.length - 1]
+      expect(last.reason).toBe('subcommand-not-in-scope')
+      expect(last.tier).toBe('session')
+    })
+
+    it('accepts a fork body calling a Tier-2 sub with no token (trusted agent_type)', () => {
+      const { code } = runHook(
+        bashEvent('metta finalize', { agent_type: 'metta-skill-host', cwd: tempDir }),
+        { cwd: tempDir },
+      )
+      expect(code).toBe(0)
+    })
+
+    // REMOVE-AFTER-SHIP window coverage: task 4.1 flips this assertion to exit 2
+    // (reason missing-credential) when the legacy METTA_SKILL=1 branch is deleted.
+    it('legacy inline METTA_SKILL=1 metta finalize is still accepted during the dual-accept window', () => {
+      const { code } = runHook(bashEvent('METTA_SKILL=1 metta finalize', { cwd: tempDir }), {
+        cwd: tempDir,
+      })
+      expect(code).toBe(0)
     })
   })
 
