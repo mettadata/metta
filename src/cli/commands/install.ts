@@ -243,6 +243,10 @@ export function registerInstallCommand(program: Command): void {
   name: "${root.split('/').pop()}"
   description: ""
   stack: ""
+models:
+  # Model-tier routing: planning/review always top-tier; executors on
+  # trivial/quick changes run sonnet. Alternatives: quality (all top-tier), budget (haiku/sonnet).
+  profile: balanced
 `
         await writeFile(join(root, '.metta', 'config.yaml'), configContent, { flag: 'wx' }).catch(() => {
           // Config already exists

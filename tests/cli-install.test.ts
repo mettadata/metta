@@ -2,7 +2,9 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { mkdtemp, rm, mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
+import { parse } from 'yaml'
 import { runCli, execAsync, CLI_PATH } from './helpers/cli.js'
+import { ProjectConfigSchema } from '../src/schemas/project-config.js'
 
 describe("CLI: install / init / stack detection", { timeout: 30000 }, () => {
   let tempDir: string
@@ -70,6 +72,34 @@ describe("CLI: install / init / stack detection", { timeout: 30000 }, () => {
     it('human-mode output directs user to metta init', async () => {
       const { stdout } = await runCli(['install', '--git-init'], tempDir)
       expect(stdout).toContain('metta init')
+    })
+
+    it('scaffolds a schema-valid config.yaml with models.profile balanced', async () => {
+      const { code } = await runCli(['install', '--git-init'], tempDir)
+      expect(code).toBe(0)
+      const { readFile } = await import('node:fs/promises')
+      const configRaw = await readFile(join(tempDir, '.metta', 'config.yaml'), 'utf8')
+      const parsed = parse(configRaw)
+      expect(parsed.models).toEqual({ profile: 'balanced' })
+      // The scaffolded content must validate against the config schema.
+      const result = ProjectConfigSchema.safeParse(parsed)
+      expect(result.success).toBe(true)
+    })
+
+    it('re-install preserves a user-edited config.yaml (wx flag — no overwrite, no duplicate models block)', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      const { readFile, writeFile } = await import('node:fs/promises')
+      const configPath = join(tempDir, '.metta', 'config.yaml')
+      const edited = 'project:\n  name: "edited-by-user"\nmodels:\n  profile: quality\n'
+      await writeFile(configPath, edited, 'utf8')
+      const { code } = await runCli(['install'], tempDir)
+      expect(code).toBe(0)
+      const after = await readFile(configPath, 'utf8')
+      expect(after).toContain('name: "edited-by-user"')
+      expect(after).toContain('profile: quality')
+      expect(after).not.toContain('profile: balanced')
+      const modelsLines = after.split('\n').filter(l => /^models:/.test(l))
+      expect(modelsLines).toHaveLength(1)
     })
 
     it('is idempotent on an already-installed project', async () => {

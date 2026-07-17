@@ -3,3 +3,7 @@ project:
   description: "A composable, spec-driven development framework for AI-native
     software engineering."
   stacks: [ js ]
+models:
+  # Model-tier routing: planning/review always top-tier; executors on
+  # trivial/quick changes run sonnet. Alternatives: quality (all top-tier), budget (haiku/sonnet).
+  profile: balanced
