@@ -12,6 +12,13 @@ NOT be able to silently end its turn with a dispatched child still in flight. Th
 only to verified fork-tier callers; it MUST NOT constrain `Agent` dispatches issued by callers that
 do not carry a verified fork-tier caller identity.
 
+The mechanical control's detection is scoped to the dispatch shapes the runtime documents at ship
+time: if the runtime's dispatch-shape surface drifts such that a backgrounding request is no longer
+recognizable, the control MAY pass the dispatch through (fail-open) rather than reject all
+dispatches, PROVIDED the pass-through leaves an audit-log record of the unrecognized shape and the
+residual recovery protocol (below) remains in force as the documented backstop for any orphaning
+that results.
+
 ### Scenario: Enforcement fires when a fork attempts to end its turn with a pending dispatch
 - GIVEN a forked skill-host subagent has dispatched an `Agent` child that has not yet returned
 - WHEN the fork attempts to end its turn (or, under a forced-synchronous mechanism, attempts a dispatch shape that would detach the child before it completes)
