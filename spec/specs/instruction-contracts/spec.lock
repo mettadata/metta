@@ -1,6 +1,6 @@
-version: 6
-hash: sha256:3ddc46663d98
-updated: 2026-07-16T08:06:59.539Z
+version: 14
+hash: sha256:2599fda5b988
+updated: 2026-07-17T06:07:42.309Z
 status: draft
 source: change
 requirements:
@@ -25,12 +25,55 @@ requirements:
       - a-declared-alias-resolves-to-its-mapped-agent-s-own-persona
       - an-undeclared-name-is-never-treated-as-an-implicit-alias
   - id: emitted-instructions-contract-carries-complete-agent-identity
-    hash: sha256:494dc6851e06
+    hash: sha256:8aa97e1d6b3c
     scenarios:
-      - instructions-output-includes-name-persona-and-tools-sourced-from-the-same-definition
+      - instructions-output-includes-name-persona-tools-and-model-sourced-consistently
       - a-tool-list-change-in-the-agent-definition-is-reflected-in-the-next-generation
+      - no-models-configuration-yields-inherit-for-every-emitted-model-field
   - id: source-and-deployed-agent-definitions-remain-byte-identical
     hash: sha256:370184bfc301
     scenarios:
       - source-and-deployed-agent-definitions-match-after-an-edit
       - a-divergence-between-source-and-deployed-copies-is-detectable
+  - id: planning-cohort-requires-top-tier-model
+    hash: sha256:7acbc9611214
+    scenarios:
+      - shipped-planning-cohort-agent-definitions-carry-no-downgraded-model
+      - planning-cohort-roles-resolve-to-inherit-under-every-configuration-and-tier
+      - the-configuration-schema-exposes-no-planning-cohort-role-key
+  - id: tier-coupled-executor-routing
+    hash: sha256:373eb8a840fd
+    scenarios:
+      - quick-tier-executor-invocation-resolves-to-the-configured-cheap-executor-model
+      - standard-tier-executor-invocation-resolves-to-inherit-regardless-of-profile
+      - a-tier-change-since-intent-time-is-reflected-at-generation-time
+  - id: safety-net-immunity-for-reviewer-and-verifier
+    hash: sha256:01691d08b9ec
+    scenarios:
+      - a-configuration-assigning-a-downgraded-model-to-reviewer-is-rejected
+      - a-configuration-assigning-a-downgraded-model-to-verifier-is-rejected-identically
+      - every-shipped-named-profile-resolves-reviewer-and-verifier-to-top-tier
+  - id: rung-1-model-escalation-on-stop-or-verify-fail
+    hash: sha256:78c2dfa93c88
+    scenarios:
+      - an-in-tier-stop-report-escalates-the-next-run-to-top-tier
+      - an-in-tier-verify-fail-escalates-the-fix-run-to-top-tier
+      - a-rung-1-escalation-is-recorded-in-a-durable-audit-record
+  - id: rung-discrimination-between-model-and-workflow-escalation
+    hash: sha256:82cfdc09124f
+    scenarios:
+      - a-rung-1-escalation-leaves-the-workflow-tier-unchanged
+      - scope-overflow-routes-to-workflow-escalation-not-model-escalation
+      - a-workflow-tier-upscale-brings-planning-artifacts-to-top-tier
+  - id: escalation-rate-metric-in-progress-reporting
+    hash: sha256:d6225f8a7083
+    scenarios:
+      - both-output-modes-report-a-computed-escalation-rate
+      - zero-escalations-among-recorded-invocations-reports-as-zero-not-omitted
+      - no-recorded-cheap-tier-invocations-renders-an-explicit-no-data-indicator
+  - id: model-vocabulary-validated-at-config-load
+    hash: sha256:6c089c89e483
+    scenarios:
+      - a-model-value-within-the-documented-vocabulary-validates-successfully
+      - a-model-value-outside-the-documented-vocabulary-is-rejected
+      - a-rejected-configuration-is-never-silently-substituted
