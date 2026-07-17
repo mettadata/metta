@@ -135,7 +135,7 @@ non-`'inherit'` value for any role except `executor`, and never returns a non-`'
 
 ## Batch 2: Emission, ratchet, and denominator
 
-### 2.1 Wire model emission, escalation ratchet, and model_runs into instruction generation
+### 2.1 [x] Wire model emission, escalation ratchet, and model_runs into instruction generation
 
 **Files:**
 - `src/context/instruction-generator.ts`
