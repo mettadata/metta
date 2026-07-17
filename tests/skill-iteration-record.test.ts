@@ -33,23 +33,17 @@ describe('skill templates call `metta iteration record`', () => {
         content.includes('metta iteration record --phase verify'),
         `${skill} is missing the verify iteration record line`,
       ).toBe(true)
-      // The line MUST be prefixed with METTA_SKILL=1.
-      expect(content).toMatch(
-        /METTA_SKILL=1 metta iteration record --phase review/,
-      )
-      expect(content).toMatch(
-        /METTA_SKILL=1 metta iteration record --phase verify/,
-      )
+      // The retired inline METTA_SKILL=1 prefix MUST NOT reappear — authorization
+      // now comes from the two-tier trust model (fork caller identity or the
+      // session credential), never from inline command text.
+      expect(content).not.toMatch(/METTA_SKILL=1/)
     })
   }
 
   it('metta-quick/SKILL.md invokes iteration record for both review and verify', async () => {
     const content = await read('metta-quick')
-    expect(content).toMatch(
-      /METTA_SKILL=1 metta iteration record --phase review/,
-    )
-    expect(content).toMatch(
-      /METTA_SKILL=1 metta iteration record --phase verify/,
-    )
+    expect(content).toMatch(/metta iteration record --phase review/)
+    expect(content).toMatch(/metta iteration record --phase verify/)
+    expect(content).not.toMatch(/METTA_SKILL=1/)
   })
 })
