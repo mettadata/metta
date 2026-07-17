@@ -302,6 +302,54 @@ cleanup:
   log_retention_days: 30
 ```
 
+### `models`
+
+Model-tier routing for agent roles. Planning-cohort roles (proposer, specifier,
+product, researcher, architect, planner) and the **reviewer and verifier always
+run on the session's inherited (top-tier) model** regardless of this section —
+only the executor on `trivial`- and `quick`-tier changes can be routed to a
+cheaper model. Removing the `models` block entirely means every role resolves
+to `inherit` (the pre-existing default behavior).
+
+| Field | Type | Default | Meaning |
+|-------|------|---------|---------|
+| `profile` | enum: `quality`, `balanced`, `budget` | — | Named routing profile for trivial/quick executors (see table below). |
+| `executor.trivial` | enum: `sonnet`, `opus`, `haiku`, `fable`, `inherit` | — | Explicit model for executors on trivial-tier changes. |
+| `executor.quick` | enum: `sonnet`, `opus`, `haiku`, `fable`, `inherit` | — | Explicit model for executors on quick-tier changes. |
+| `reviewer` | literal: `inherit` | — | Documentation-only; the reviewer is always `inherit`. |
+| `verifier` | literal: `inherit` | — | Documentation-only; the verifier is always `inherit`. |
+
+The three profiles route trivial/quick executors as follows:
+
+| Profile | Executor on `trivial` | Executor on `quick` | Planning / review / verify |
+|---------|----------------------|--------------------|-----------------------------|
+| `quality` | inherit | inherit | inherit |
+| `balanced` | sonnet | sonnet | inherit |
+| `budget` | haiku | sonnet | inherit |
+
+**Precedence:** an explicit `executor.trivial` / `executor.quick` entry wins
+over the named `profile`'s expansion for that tier key. Standard-tier and
+higher changes always run executors at `inherit`, whatever this section says.
+
+`metta install` scaffolds new projects with `profile: balanced`:
+
+```yaml
+models:
+  # Model-tier routing: planning/review always top-tier; executors on
+  # trivial/quick changes run sonnet. Alternatives: quality (all top-tier), budget (haiku/sonnet).
+  profile: balanced
+```
+
+Example with an explicit executor override (trivial routed to haiku, quick
+falling back to the balanced profile's sonnet):
+
+```yaml
+models:
+  profile: balanced
+  executor:
+    trivial: haiku
+```
+
 ---
 
 ## Custom gates
