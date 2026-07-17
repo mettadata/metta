@@ -12,10 +12,11 @@ import { promisify } from 'node:util'
 // PreToolUse event JSON on stdin) and exercise the hook <-> install wiring
 // seam end-to-end. Unit-level coverage of the classifier lives in
 // tests/metta-guard-bash.test.ts; this file focuses on:
-//   1. METTA_SKILL=1 bypass works when the hook is spawned as a child process
-//      with the env var set.
-//   2. Direct metta CLI calls (no METTA_SKILL env) are blocked with exit 2 and
-//      a stderr message pointing to the matching skill.
+//   1. The retired METTA_SKILL mechanisms (hook-process env var and inline
+//      command prefix) credit nothing — Tier-1 calls are authorized by the
+//      verified fork caller identity (event.agent_type) alone.
+//   2. Direct metta CLI calls (no trusted caller, no session credential) are
+//      blocked with exit 2 and a stderr message pointing to the matching skill.
 //   3. `metta install` wires the hook into .claude/settings.json exactly once
 //      (idempotent across repeated installs).
 //
@@ -41,9 +42,9 @@ function runHook(
   opts: { env?: NodeJS.ProcessEnv; cwd?: string } = {},
 ): { code: number; stderr: string; stdout: string } {
   const env = { ...process.env, ...(opts.env ?? {}) }
-  // Ensure METTA_SKILL is not inherited from the outer test process env unless
-  // the test explicitly opts in. Vitest runs can be invoked with METTA_SKILL=1
-  // in the parent shell, which would silently mask "blocked" assertions.
+  // The retired METTA_SKILL env bypass is ignored by the hook; strip any value
+  // inherited from the outer test process unless the test explicitly opts in
+  // (tests opt in only to prove the retired variable is inert).
   if (!('METTA_SKILL' in (opts.env ?? {}))) {
     delete env.METTA_SKILL
   }
@@ -90,43 +91,41 @@ async function runCli(
 }
 
 describe('metta-guard-bash integration', { timeout: 60_000 }, () => {
-  describe('skill bypass end-to-end', () => {
-    it('exits 0 with no stderr when METTA_SKILL=1 is set (metta propose)', () => {
-      const { code, stderr } = runHook(bashEvent('metta propose "foo"'), {
+  describe('retired METTA_SKILL env bypass end-to-end', () => {
+    it('blocks metta propose even with METTA_SKILL=1 set on the hook process (exit 2)', () => {
+      const { code } = runHook(bashEvent('metta propose "foo"'), {
         env: { METTA_SKILL: '1' },
       })
+      expect(code).toBe(2)
+    })
+
+    it('blocks metta finalize even with METTA_SKILL=1 set on the hook process (exit 2)', () => {
+      const { code } = runHook(bashEvent('metta finalize'), {
+        env: { METTA_SKILL: '1' },
+      })
+      expect(code).toBe(2)
+    })
+  })
+
+  describe('Tier-1 agent-identity-only authorization end-to-end', () => {
+    it('allows bare metta propose from agent_type=metta-skill-host (exit 0)', () => {
+      const { code, stderr } = runHook(
+        bashEvent('metta propose "foo"', { agent_type: 'metta-skill-host' }),
+      )
       expect(code).toBe(0)
       expect(stderr).toBe('')
     })
 
-    it('exits 0 with no stderr when METTA_SKILL=1 is set (metta complete intent)', () => {
-      const { code, stderr } = runHook(bashEvent('metta complete intent'), {
-        env: { METTA_SKILL: '1' },
-      })
+    it('allows bare metta ship --change x from agent_type=metta-skill-host (exit 0)', () => {
+      const { code, stderr } = runHook(
+        bashEvent('metta ship --change x', { agent_type: 'metta-skill-host' }),
+      )
       expect(code).toBe(0)
       expect(stderr).toBe('')
     })
 
-    it('exits 0 with no stderr when METTA_SKILL=1 is set (metta finalize)', () => {
-      const { code, stderr } = runHook(bashEvent('metta finalize'), {
-        env: { METTA_SKILL: '1' },
-      })
-      expect(code).toBe(0)
-      expect(stderr).toBe('')
-    })
-
-    it('exits 0 with no stderr when METTA_SKILL=1 is set (metta issue)', () => {
-      const { code, stderr } = runHook(bashEvent('metta issue "x"'), {
-        env: { METTA_SKILL: '1' },
-      })
-      expect(code).toBe(0)
-      expect(stderr).toBe('')
-    })
-
-    it('exits 0 with no stderr when METTA_SKILL=1 is set (metta quick)', () => {
-      const { code, stderr } = runHook(bashEvent('metta quick "tweak"'), {
-        env: { METTA_SKILL: '1' },
-      })
+    it('allows metta next --json without any credential (read-only allowlist) (exit 0)', () => {
+      const { code, stderr } = runHook(bashEvent('metta next --json'))
       expect(code).toBe(0)
       expect(stderr).toBe('')
     })
@@ -164,7 +163,7 @@ describe('metta-guard-bash integration', { timeout: 60_000 }, () => {
 
     it('allows subagent dispatch when event carries agent_type=metta-skill-host — exit 0', () => {
       const { code } = runHook(
-        bashEvent('METTA_SKILL=1 metta issue "test"', {
+        bashEvent('metta issue "test"', {
           agent_type: 'metta-skill-host',
           cwd: tempDir,
         }),
@@ -175,15 +174,16 @@ describe('metta-guard-bash integration', { timeout: 60_000 }, () => {
 
     it('audit log records block verdict for orchestrator attempt and no block verdict for subagent attempt', () => {
       // (a) Orchestrator attempt — no agent_type, should block and log verdict=block.
+      // The legacy inline prefix credits nothing.
       const blocked = runHook(
         bashEvent('METTA_SKILL=1 metta issue "test"', { cwd: tempDir }),
         { cwd: tempDir },
       )
       expect(blocked.code).toBe(2)
 
-      // (b) Subagent attempt — trusted agent_type, should allow.
+      // (b) Subagent attempt — trusted agent_type alone authorizes the bare call.
       const allowed = runHook(
-        bashEvent('METTA_SKILL=1 metta issue "test"', {
+        bashEvent('metta issue "test"', {
           agent_type: 'metta-skill-host',
           cwd: tempDir,
         }),
@@ -313,13 +313,19 @@ describe('metta-guard-bash integration', { timeout: 60_000 }, () => {
       expect(code).toBe(0)
     })
 
-    // REMOVE-AFTER-SHIP window coverage: task 4.1 flips this assertion to exit 2
-    // (reason missing-credential) when the legacy METTA_SKILL=1 branch is deleted.
-    it('legacy inline METTA_SKILL=1 metta finalize is still accepted during the dual-accept window', () => {
-      const { code } = runHook(bashEvent('METTA_SKILL=1 metta finalize', { cwd: tempDir }), {
+    // Legacy branch deleted (task 4.1): the inline METTA_SKILL=1 prefix credits nothing —
+    // with no token and no trusted agent_type the call is rejected as missing-credential.
+    it('rejects legacy inline METTA_SKILL=1 metta finalize — exit 2, reason missing-credential', () => {
+      const { code, stderr } = runHook(bashEvent('METTA_SKILL=1 metta finalize', { cwd: tempDir }), {
         cwd: tempDir,
       })
-      expect(code).toBe(0)
+      expect(code).toBe(2)
+      expect(stderr).not.toContain('session-credential-verified')
+      const entries = readAuditEntries()
+      const last = entries[entries.length - 1]
+      expect(last.verdict).toBe('block')
+      expect(last.reason).toBe('missing-credential')
+      expect(last.tier).toBe('session')
     })
   })
 
@@ -380,7 +386,7 @@ describe('metta-guard-bash integration', { timeout: 60_000 }, () => {
 
     it('foreground calls from trusted agents keep existing classify behavior — exit 0', () => {
       const { code } = runHook(
-        bashEvent('METTA_SKILL=1 metta issue "test"', {
+        bashEvent('metta issue "test"', {
           agent_type: 'metta-skill-host',
           cwd: tempDir,
         }),
