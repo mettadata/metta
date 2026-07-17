@@ -279,6 +279,7 @@ Routing decision:
 - Do NOT skip verification — a metta-verifier agent MUST run gates and confirm spec compliance
 - Do NOT stop after the last artifact — finalize + merge must happen
 - If metta finalize fails gates, spawn a metta-executor to fix, then retry
+- If a dispatched step appears orphaned, follow the residual orphaning recovery protocol in metta-skill-host.md.
 
 ## Agent Execution Pattern
 

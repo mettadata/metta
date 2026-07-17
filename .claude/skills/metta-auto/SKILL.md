@@ -88,4 +88,5 @@ You are the **orchestrator** for the full Metta lifecycle. Spawn subagents for e
 - Ask discovery questions BEFORE writing spec — don't guess requirements
 - Commit ownership: the orchestrator commits planning, review, and verification artifacts after each subagent returns. The executor subagent commits atomically per task during implementation. Planning-artifact subagents (proposer, researcher, architect, planner, product) write files only — they do not run git.
 - Every artifact MUST be followed by `metta complete` to advance workflow
+- If a dispatched step appears orphaned, follow the residual orphaning recovery protocol in metta-skill-host.md.
 - Deviation Rule 4: design is wrong → STOP, tell user

@@ -60,3 +60,4 @@ Log an issue to `spec/issues/` via the metta CLI, running a short root-cause ana
 - Always fall back via step 6 if RCA fails — never leave an issue unlogged.
 - Never rewrite or read back `spec/issues/*.md` from this skill; the CLI owns that file.
 - MUST NOT read files matching `.env*`, `*.pem`, `*.key`, `id_rsa*`, `credentials*`, or any file under a directory literally named `secrets/` during RCA. If the symptom appears to require such a file, state so in the `## Root Cause Analysis` section by name without citing contents.
+- If a dispatched step appears orphaned, follow the residual orphaning recovery protocol in metta-skill-host.md.

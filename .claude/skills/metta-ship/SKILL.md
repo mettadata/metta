@@ -24,3 +24,4 @@ Two-step process: **finalize** (archive + merge specs on branch) then **ship** (
 - Ship merges the feature branch back to main
 - If spec conflicts are found, do NOT proceed — tell the user
 - Do not force-push or skip any steps
+- If a dispatched step appears orphaned, follow the residual orphaning recovery protocol in metta-skill-host.md.

@@ -118,4 +118,5 @@ When `$ARGUMENTS` is `--all` (optionally with `--severity <level>`):
 - Do NOT skip review or verification — all 3 reviewers and 3 verifiers MUST run
 - Do NOT stop after verification — finalize + merge + remove-issue must happen
 - If metta finalize fails gates, spawn a metta-executor to fix, then retry
+- If a dispatched step appears orphaned, follow the residual orphaning recovery protocol in metta-skill-host.md.
 - Deviation Rule 4: design is wrong → STOP, tell user
