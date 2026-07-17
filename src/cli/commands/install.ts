@@ -1,5 +1,5 @@
 import { Command } from 'commander'
-import { mkdir, writeFile, readFile, copyFile, chmod } from 'node:fs/promises'
+import { mkdir, writeFile, readFile, copyFile, chmod, readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { execFile } from 'node:child_process'
@@ -25,16 +25,36 @@ async function readSettingsJson(settingsPath: string): Promise<Record<string, un
   }
 }
 
-async function installMettaGuardHook(root: string): Promise<void> {
+/**
+ * Copy every file in `src/templates/hooks/` into `<root>/.claude/hooks/`,
+ * preserving executable bits. Enumerating the templates directory (rather
+ * than hardcoding filenames) guarantees any hook added to the templates dir
+ * ships with zero installer changes — mirrors the readdir-driven pattern in
+ * `src/delivery/command-installer.ts`. Copies unconditionally overwrite
+ * (hooks are metta-owned assets, same as skills/agents), so re-running
+ * install repairs a project that is missing hooks added since its last
+ * install.
+ */
+async function installMettaHooks(root: string): Promise<string[]> {
   const hookDir = join(root, '.claude', 'hooks')
-  const hookPath = join(hookDir, 'metta-guard-edit.mjs')
-  const settingsPath = join(root, '.claude', 'settings.json')
-
-  const templateHook = new URL('../../templates/hooks/metta-guard-edit.mjs', import.meta.url).pathname
+  const templatesHooksDir = new URL('../../templates/hooks/', import.meta.url).pathname
   await mkdir(hookDir, { recursive: true })
-  await copyFile(templateHook, hookPath)
-  await chmod(hookPath, 0o755)
 
+  const entries = await readdir(templatesHooksDir, { withFileTypes: true })
+  const installed: string[] = []
+  for (const entry of entries) {
+    if (!entry.isFile()) continue
+    const src = join(templatesHooksDir, entry.name)
+    const dest = join(hookDir, entry.name)
+    await copyFile(src, dest)
+    await chmod(dest, 0o755)
+    installed.push(entry.name)
+  }
+  return installed
+}
+
+async function registerGuardEditHook(root: string): Promise<void> {
+  const settingsPath = join(root, '.claude', 'settings.json')
   const settings = await readSettingsJson(settingsPath)
 
   const rawHooks = settings.hooks
@@ -58,16 +78,8 @@ async function installMettaGuardHook(root: string): Promise<void> {
   }
 }
 
-async function installMettaBashGuardHook(root: string): Promise<void> {
-  const hookDir = join(root, '.claude', 'hooks')
-  const hookPath = join(hookDir, 'metta-guard-bash.mjs')
+async function registerGuardBashHook(root: string): Promise<void> {
   const settingsPath = join(root, '.claude', 'settings.json')
-
-  const templateHook = new URL('../../templates/hooks/metta-guard-bash.mjs', import.meta.url).pathname
-  await mkdir(hookDir, { recursive: true })
-  await copyFile(templateHook, hookPath)
-  await chmod(hookPath, 0o755)
-
   const settings = await readSettingsJson(settingsPath)
 
   const rawHooks = settings.hooks
@@ -325,24 +337,41 @@ Banned patterns and forbidden operations.
           installedCommands.push(...installed)
         }
 
-        // Install Claude Code PreToolUse guard hook + settings.json entry
-        let guardInstalled = false
+        // Install every Claude Code hook from src/templates/hooks/ (readdir-driven —
+        // any hook added to the templates dir is deployed with zero installer changes).
+        let hooksInstalled: string[] = []
         try {
-          await installMettaGuardHook(root)
-          guardInstalled = true
+          hooksInstalled = await installMettaHooks(root)
         } catch (err) {
           const message = getErrorMessage(err)
-          console.error(`Warning: failed to install metta-guard hook — ${message}`)
+          console.error(`Warning: failed to install metta hooks — ${message}`)
         }
 
-        // Install Claude Code PreToolUse Bash guard hook + settings.json entry
+        // Register the PreToolUse guard hook + settings.json entry. Only
+        // metta-guard-edit and metta-guard-bash are settings-registered;
+        // metta-session-mint and metta-guard-agent-dispatch are
+        // frontmatter-scoped by design and must not be registered here.
+        let guardInstalled = false
+        if (hooksInstalled.includes('metta-guard-edit.mjs')) {
+          try {
+            await registerGuardEditHook(root)
+            guardInstalled = true
+          } catch (err) {
+            const message = getErrorMessage(err)
+            console.error(`Warning: failed to register metta-guard hook — ${message}`)
+          }
+        }
+
+        // Register the PreToolUse Bash guard hook + settings.json entry
         let bashGuardInstalled = false
-        try {
-          await installMettaBashGuardHook(root)
-          bashGuardInstalled = true
-        } catch (err) {
-          const message = getErrorMessage(err)
-          console.error(`Warning: failed to install metta-guard-bash hook — ${message}`)
+        if (hooksInstalled.includes('metta-guard-bash.mjs')) {
+          try {
+            await registerGuardBashHook(root)
+            bashGuardInstalled = true
+          } catch (err) {
+            const message = getErrorMessage(err)
+            console.error(`Warning: failed to register metta-guard-bash hook — ${message}`)
+          }
         }
 
         // Install Claude Code statusline
@@ -378,6 +407,7 @@ Banned patterns and forbidden operations.
             constitution: 'spec/project.md',
             detected_tools: detectedTools,
             installed_commands: installedCommands,
+            hooks_installed: hooksInstalled,
             guard_hook_installed: guardInstalled,
             bash_guard_hook_installed: bashGuardInstalled,
             statusline_installed: statuslineInstalled,
@@ -401,6 +431,9 @@ Banned patterns and forbidden operations.
           if (detectedTools.length > 0) {
             console.log(`  Detected: ${detectedTools.join(', ')}`)
             console.log(`  Installed: ${installedCommands.length} slash commands`)
+          }
+          if (hooksInstalled.length > 0) {
+            console.log(`  Installed: ${hooksInstalled.length} hook${hooksInstalled.length > 1 ? 's' : ''} (.claude/hooks/)`)
           }
           if (guardInstalled) {
             console.log('  Installed: PreToolUse guard hook (.claude/hooks/metta-guard-edit.mjs)')

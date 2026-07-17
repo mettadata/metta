@@ -234,6 +234,35 @@ describe("CLI: install / init / stack detection", { timeout: 30000 }, () => {
       const template = await readFile(templatePath)
       expect(installed.equals(template)).toBe(true)
     })
+
+    it('inventory completeness: installed .claude/hooks/ exactly matches src/templates/hooks/, byte-identical and executable', async () => {
+      const { readFile, readdir, stat } = await import('node:fs/promises')
+      await runCli(['install', '--git-init'], tempDir)
+
+      const templatesDir = join(import.meta.dirname, '..', 'src', 'templates', 'hooks')
+      const templateEntries = await readdir(templatesDir, { withFileTypes: true })
+      const templateFiles = templateEntries.filter((e) => e.isFile()).map((e) => e.name).sort()
+
+      const installedDir = join(tempDir, '.claude', 'hooks')
+      const installedEntries = await readdir(installedDir, { withFileTypes: true })
+      const installedFiles = installedEntries.filter((e) => e.isFile()).map((e) => e.name).sort()
+
+      // Every template hook (including hooks with no settings.json registration,
+      // like metta-session-mint.mjs and metta-guard-agent-dispatch.mjs) must be
+      // present — and nothing else.
+      expect(installedFiles).toEqual(templateFiles)
+      expect(templateFiles).toContain('metta-session-mint.mjs')
+      expect(templateFiles).toContain('metta-guard-agent-dispatch.mjs')
+
+      for (const file of templateFiles) {
+        const templateContent = await readFile(join(templatesDir, file))
+        const installedContent = await readFile(join(installedDir, file))
+        expect(installedContent.equals(templateContent)).toBe(true)
+
+        const installedStat = await stat(join(installedDir, file))
+        expect(installedStat.mode & 0o111).not.toBe(0)
+      }
+    })
   })
 
 
