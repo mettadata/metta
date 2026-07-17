@@ -204,7 +204,13 @@ async function main() {
     const tok = readSessionToken(event.cwd);
     if (!tok) { tier2Reason = 'missing-credential'; return true; }
     if (Date.now() - tok.mintedAt >= tok.ttlMs) { tier2Reason = 'credential-expired'; return true; }
-    const key = inv.third ? `${inv.sub}:${inv.third}` : inv.sub;
+    // Scope key: two-word blocked forms (e.g. `backlog add`) are keyed "<sub>:<third>";
+    // single-word blocked subcommands keep their bare name even when followed by an
+    // argument (e.g. `complete intent` -> key "complete"), mirroring classify().
+    const blockedTwo = BLOCKED_TWO_WORD.get(inv.sub);
+    const key = blockedTwo && inv.third && blockedTwo.has(inv.third)
+      ? `${inv.sub}:${inv.third}`
+      : inv.sub;
     if (!tok.subcommands.includes(key)) { tier2Reason = 'subcommand-not-in-scope'; return true; }
     tier2Accepted.push(inv);
     return false;
