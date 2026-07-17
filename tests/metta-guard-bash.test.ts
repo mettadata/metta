@@ -249,7 +249,7 @@ describe('metta-guard-bash hook', { timeout: 30_000 }, () => {
           )
           expect(code).toBe(2)
           expect(stderr).toContain('/metta-issue')
-          expect(stderr).toContain('Inline METTA_SKILL=1 prefix no longer bypasses')
+          expect(stderr).toContain('Inline command text never authorizes skill-enforced subcommands')
         })
 
         // (b) Enforced subcommand + METTA_SKILL=1 + agent_type='metta-skill-host' -> allow
@@ -287,7 +287,7 @@ describe('metta-guard-bash hook', { timeout: 30_000 }, () => {
           // even when no inline bypass was attempted.
           expect(stderr).toContain('/metta-issue')
           expect(stderr).toContain(
-            'Inline METTA_SKILL=1 prefix no longer bypasses skill-enforced subcommands',
+            'Inline command text never authorizes skill-enforced subcommands',
           )
         })
 
