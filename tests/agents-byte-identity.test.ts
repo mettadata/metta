@@ -14,4 +14,15 @@ describe('agent template frontmatter', () => {
     expect(content).toMatch(/name:\s*metta-product/)
     expect(content).toMatch(/tools:.*Read.*Write/)
   })
+
+  it.each([
+    'src/templates/agents/metta-verifier.md',
+    '.claude/agents/metta-verifier.md',
+  ])('%s contains the workflow-artifact Write exemption line', async (relativePath) => {
+    const content = await readFile(join(REPO_ROOT, relativePath), 'utf8')
+    expect(content).toContain(
+      'any general prohibition on writing report/summary/findings .md files does NOT apply to the `generates:` artifact',
+    )
+    expect(content).toContain('You MUST write it with the Write tool; do not fall back to shell heredocs.')
+  })
 })

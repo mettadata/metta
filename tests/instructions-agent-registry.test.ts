@@ -197,7 +197,7 @@ describe('metta instructions sources agent identity from agent files', { timeout
     expect(payload.agent.persona).toContain(
       'requirements engineer focused on completeness and testability',
     )
-    expect(payload.agent.tools).toEqual(['Read', 'Grep', 'Glob'])
+    expect(payload.agent.tools).toEqual(['Read', 'Write', 'Grep', 'Glob'])
     expect(payload.agent.model).toBe('inherit')
   })
 
