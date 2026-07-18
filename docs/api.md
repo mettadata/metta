@@ -187,7 +187,7 @@ Scenarios:
 Scenarios:
 - Abandon appends suffix
 
-## custom-claude-statusline-conte
+## claude-statusline
 
 ### Statusline script stdin contract
 
@@ -333,7 +333,7 @@ Scenarios:
 
 ## ConfigLoader — Specification
 
-## harden-metta-config-yaml-lifecycle-across-three-related-bugs
+## config-writer
 
 ### Shared setProjectField config-writer helper
 
@@ -504,7 +504,7 @@ Scenarios:
 - Following instructions lets completion succeed
 - Finalize completeness gate passes without manual patching
 
-## spec:-metta-fix-issues-cli-command-m
+## fix-issues-command
 
 ### fix-issue-cli-command
 
@@ -599,7 +599,7 @@ Scenarios:
 - command appears in --help output
 - registerFixIssueCommand is called in index.ts
 
-## fix-gate-infrastructure-bundle
+## gate-runner
 
 ### Gate execution MUST honor all three `on_failure` policies uniformly
 
@@ -629,7 +629,7 @@ Scenarios:
 Scenarios:
 - test suite asserts each on_failure branch
 
-## split-metta-install-metta-init
+## install-init
 
 ### init-command-drives-discovery
 
@@ -755,7 +755,7 @@ Scenarios:
 - A model value outside the documented vocabulary is rejected
 - A rejected configuration is never silently substituted
 
-## upgrade-metta-issue-skill-run-short-debugging-session-before
+## issue-logging
 
 ### Metta-issue skill performs root cause analysis before writing the ticket
 
@@ -875,7 +875,7 @@ Scenarios:
 - A rejected async dispatch shape is recorded with tier and reason
 - A recovery-protocol invocation is discernible from recorded evidence
 
-## fix-metta-propose-has-no-flag-stop-after-planning-artifacts
+## propose-stop-after
 
 ### `metta propose` MUST accept a `--stop-after <artifact>` option
 
@@ -965,7 +965,7 @@ Scenarios:
 
 ## StateStore — Specification
 
-## user-story-layer-for-spec-format-(t5)
+## user-stories
 
 ### Stories Artifact Phase in Standard Workflow
 

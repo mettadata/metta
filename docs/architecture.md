@@ -13,13 +13,13 @@
 ### Artifact Store
 6 requirements
 
-### custom-claude-statusline-conte
+### claude-statusline
 18 requirements
 
 ### ConfigLoader — Specification
 0 requirements
 
-### harden-metta-config-yaml-lifecycle-across-three-related-bugs
+### config-writer
 8 requirements
 
 ### constitution-check
@@ -31,25 +31,25 @@
 ### Finalize and Ship
 10 requirements
 
-### spec:-metta-fix-issues-cli-command-m
+### fix-issues-command
 12 requirements
 
-### fix-gate-infrastructure-bundle
+### gate-runner
 4 requirements
 
-### split-metta-install-metta-init
+### install-init
 5 requirements
 
 ### instruction-contracts
 13 requirements
 
-### upgrade-metta-issue-skill-run-short-debugging-session-before
+### issue-logging
 7 requirements
 
 ### orchestration-guard
 12 requirements
 
-### fix-metta-propose-has-no-flag-stop-after-planning-artifacts
+### propose-stop-after
 8 requirements
 
 ### Schemas Specification
@@ -61,7 +61,7 @@
 ### StateStore — Specification
 0 requirements
 
-### user-story-layer-for-spec-format-(t5)
+### user-stories
 14 requirements
 
 ### WorkflowEngine — Specification
