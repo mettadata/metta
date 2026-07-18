@@ -1,4 +1,4 @@
-# fix-metta-propose-has-no-flag-stop-after-planning-artifacts
+# propose-stop-after
 
 ## Requirement: `metta propose` MUST accept a `--stop-after <artifact>` option
 

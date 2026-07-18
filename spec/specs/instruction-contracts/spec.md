@@ -122,7 +122,9 @@ that agent has, and which model it MUST run under.
 For every agent definition file this capability sources persona, capability, and tool data from,
 the source template copy and its deployed copy MUST remain byte-identical after any change that
 touches either copy. A change that edits one copy without applying the identical edit to the other
-MUST be detectable as a divergence.
+MUST be detectable as a divergence. Metta's shipped templates directory is the canonical
+generation-time source of agent identity; byte-identity with the project's deployed
+`.claude/agents/` copies is the invariant that keeps the two equivalent.
 
 ### Scenario: Source and deployed agent definitions match after an edit
 - GIVEN an agent definition file has a source template copy and a deployed copy

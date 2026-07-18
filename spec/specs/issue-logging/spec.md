@@ -1,4 +1,4 @@
-# upgrade-metta-issue-skill-run-short-debugging-session-before
+# issue-logging
 
 ## Requirement: Metta-issue skill performs root cause analysis before writing the ticket
 

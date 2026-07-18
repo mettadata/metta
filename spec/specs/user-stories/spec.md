@@ -1,4 +1,4 @@
-# user-story-layer-for-spec-format-(t5)
+# user-stories
 
 ## Requirement: Stories Artifact Phase in Standard Workflow
 
