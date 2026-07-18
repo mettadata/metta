@@ -1,8 +1,12 @@
 import { Command } from 'commander'
 import { join } from 'node:path'
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
 import { createCliContext, outputJson, agentBanner, getErrorMessage } from '../helpers.js'
 import { renderBanner } from '../../complexity/index.js'
 import { loadAgentDefinition, AgentResolutionError } from '../../agents/index.js'
+
+const execAsync = promisify(execFile)
 
 // Context-budget tuning numbers per agent short name. These have no
 // frontmatter counterpart in the agent definition files — they are loader
@@ -166,6 +170,32 @@ export function registerInstructionsCommand(program: Command): void {
             process.stderr.write(
               `Warning: failed to record instructions metrics for ${artifactId}: ${getErrorMessage(err)}\n`,
             )
+          }
+
+          // Durability fix: the metrics stamp above lands in the working
+          // tree only, where routine executor git hygiene (`git checkout
+          // -- .`, `git stash`, `git restore`) run before an atomic commit
+          // can silently erase it — proven by RCA in
+          // spec/issues/a-metadata-write-path-drops-the-model-runs-array-between.md.
+          // Auto-commit just the change's .metta.yaml, mirroring the
+          // guarded `git add` + `git diff --cached --quiet` pattern
+          // complete.ts uses at its own auto-commit. Gated on git.enabled;
+          // never throws — emission MUST NOT break because of this.
+          if (cfg.git?.enabled !== false) {
+            try {
+              const mettaYamlPath = join('spec', 'changes', changeName, '.metta.yaml')
+              await execAsync('git', ['add', mettaYamlPath], { cwd: ctx.projectRoot })
+              await execAsync('git', ['diff', '--cached', '--quiet', '--', mettaYamlPath], { cwd: ctx.projectRoot }).catch(async () => {
+                await execAsync(
+                  'git',
+                  ['commit', '-m', `chore(${changeName}): record instruction emission`, '--', mettaYamlPath],
+                  { cwd: ctx.projectRoot },
+                )
+              })
+            } catch {
+              // Git not available or nothing to commit — the stamp block
+              // stays best-effort end to end.
+            }
           }
         }
 
