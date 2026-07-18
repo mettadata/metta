@@ -3,7 +3,7 @@
 // This script mints (and slide-rotates) the non-forgeable session token at
 // <cwd>/.metta/scratch/skill-session.token that the validating half, metta-guard-bash.mjs,
 // checks before allowing main-session lifecycle subcommands (complete, finalize, refresh,
-// import, init, fix-gap, scoped backlog forms). The skill slug argument on this script's
+// import, init, fix-gap, verify, scoped backlog forms). The skill slug argument on this script's
 // command line is a static, ship-time-authored string baked into each Tier-2 skill's
 // frontmatter — it is never sourced from event data and is not orchestrator-controlled.
 // This hook never blocks a tool call: it only mints, swallows all errors, and exits 0.
@@ -19,7 +19,7 @@ const SKILL_SCOPES = {
   'metta-next': ['complete', 'finalize'],
   'metta-plan': ['complete'],
   'metta-execute': ['complete'],
-  'metta-verify': ['complete'],
+  'metta-verify': ['verify', 'complete'],
   'metta-refresh': ['refresh'],
   'metta-import': ['import'],
   'metta-init': ['init', 'refresh'],

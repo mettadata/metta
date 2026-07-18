@@ -165,6 +165,51 @@ describe('metta-guard-bash hook', { timeout: 30_000 }, () => {
         expect(code).toBe(0)
       })
 
+      it('allows `metta gaps list` two-word without any credential (exit 0)', () => {
+        const { code } = runHook(hookPath, bashEvent('metta gaps list'))
+        expect(code).toBe(0)
+      })
+
+      it('allows `metta gaps show foo` two-word without any credential (exit 0)', () => {
+        const { code } = runHook(hookPath, bashEvent('metta gaps show foo'))
+        expect(code).toBe(0)
+      })
+
+      it('blocks `metta gaps remove foo` (unlisted, mutating — stays fail-closed) (exit 2)', () => {
+        const { code, stderr } = runHook(hookPath, bashEvent('metta gaps remove foo'))
+        expect(code).toBe(2)
+        expect(stderr).toContain('unknown metta subcommand')
+      })
+
+      it('blocks `metta verify --json` without any credential — Tier-2 missing-credential (exit 2)', () => {
+        const { code } = runHook(hookPath, bashEvent('metta verify --json'))
+        expect(code).toBe(2)
+      })
+
+      it('allows `metta verify --json` with a valid metta-verify-scoped session token (exit 0)', () => {
+        const dir = mkdtempSync(join(tmpdir(), 'metta-guard-verify-'))
+        try {
+          mkdirSync(join(dir, '.metta', 'scratch'), { recursive: true })
+          const tok = {
+            token: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+            skill: 'metta-verify',
+            subcommands: ['verify', 'complete'],
+            mintedAt: Date.now(),
+            ttlMs: 300000,
+          }
+          writeFileSync(join(dir, '.metta', 'scratch', 'skill-session.token'), JSON.stringify(tok), {
+            mode: 0o600,
+          })
+          const { code, stderr } = runHook(hookPath, bashEvent('metta verify --json', { cwd: dir }), {
+            cwd: dir,
+          })
+          expect(code).toBe(0)
+          expect(stderr).toBe('')
+        } finally {
+          rmSync(dir, { recursive: true, force: true })
+        }
+      })
+
       it('allows `metta next --json` (read-only routing query, metta-next skill first call) (exit 0)', () => {
         const { code } = runHook(hookPath, bashEvent('metta next --json'))
         expect(code).toBe(0)

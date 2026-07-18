@@ -5,7 +5,7 @@
 //   authorized by `event.agent_type` — set by the Claude Code runtime when a forked
 //   `metta-skill-host` subagent fires the tool. Not forgeable from command text.
 // - Tier 2 (session-tier): main-session lifecycle subcommands (`complete`, `finalize`,
-//   `refresh`, `import`, `init`, `fix-gap`, plus the scoped two-word forms
+//   `refresh`, `import`, `init`, `fix-gap`, `verify`, plus the scoped two-word forms
 //   `backlog add/done/promote` and `changes abandon`) are authorized by the session
 //   credential at `.metta/scratch/skill-session.token`, minted by
 //   `.claude/hooks/metta-session-mint.mjs` when a Tier-2 skill is invoked and rotated on a
@@ -30,12 +30,19 @@ const ALLOWED_TWO_WORD = new Map([
   ['gate', new Set(['list'])],
   ['changes', new Set(['list'])],
   ['backlog', new Set(['list', 'show'])],
+  // `gaps list` / `gaps show` are pure queries over spec/gaps/ with no state-mutating
+  // side effects, matching the issues/changes/backlog read-only pattern above.
+  // `gaps remove` is deliberately NOT listed here — it mutates state and stays fail-closed.
+  ['gaps', new Set(['list', 'show'])],
 ]);
 
 // Explicit BLOCK list: state-mutating single-subcommand forms.
 const BLOCKED_SUBCOMMANDS = new Set([
   'propose', 'quick', 'auto', 'complete', 'finalize', 'ship',
   'issue', 'fix-issue', 'fix-gap', 'refresh', 'import', 'init',
+  // `verify` runs gates (executes commands) — not read-only, so it is credential-gated
+  // as Tier 2 rather than allow-listed.
+  'verify',
 ]);
 
 // Explicit BLOCK list for two-word mutating forms.
