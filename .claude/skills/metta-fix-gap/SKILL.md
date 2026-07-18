@@ -32,7 +32,7 @@ For a given `<gap-slug>`:
 
 1. **Validate** — `metta gaps show <gap-slug> --json` → confirm gap exists and is open. If not found, report error and stop.
 
-2. **Propose** — `metta propose "fix gap: <gap-slug> — <gap-summary>" --json` → creates change on branch `metta/<change-name>`
+2. **Propose** — Invoke the `/metta-propose` skill via the Skill tool with the description `fix gap: <gap-slug> — <gap-summary>` → creates change on branch `metta/<change-name>`. Do NOT call `metta propose` directly: `propose` is a Tier-1 fork-enforced subcommand authorized solely by a verified fork caller identity, and metta-fix-gap runs as a Tier-2 session-credentialed skill that can never supply one. Routing through the Skill tool dispatches into `/metta-propose`'s own forked execution (`context: fork`, `agent: metta-skill-host`), which carries the trusted `agent_type` the guard requires. Note the returned change name for the steps below.
 
 3. **Per-Artifact Loop** — For each planning artifact (intent, spec, design, tasks), spawn one subagent per artifact:
    `metta instructions <artifact> --json --change <name>` → spawn agent → `metta complete <artifact>`

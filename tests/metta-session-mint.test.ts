@@ -23,7 +23,7 @@ const EXPECTED_SCOPES: Record<string, string[]> = {
   'metta-next': ['complete', 'finalize'],
   'metta-plan': ['complete'],
   'metta-execute': ['complete'],
-  'metta-verify': ['complete'],
+  'metta-verify': ['verify', 'complete'],
   'metta-refresh': ['refresh'],
   'metta-import': ['import'],
   'metta-init': ['init', 'refresh'],

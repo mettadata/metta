@@ -51,6 +51,25 @@ describe("CLI: skill & agent template byte-identity", { timeout: 30000 }, () => 
     })
   })
 
+  describe('metta-fix-gap skill propose step', () => {
+    it('template and deployed copy route propose through the Skill tool, not a bare `metta propose` CLI call, and are byte-identical', async () => {
+      const { readFile } = await import('node:fs/promises')
+      const templatePath = join(import.meta.dirname, '..', 'src', 'templates', 'skills', 'metta-fix-gap', 'SKILL.md')
+      const deployedPath = join(import.meta.dirname, '..', '.claude', 'skills', 'metta-fix-gap', 'SKILL.md')
+      const template = await readFile(templatePath, 'utf8')
+      const deployed = await readFile(deployedPath, 'utf8')
+      for (const content of [template, deployed]) {
+        expect(content).toContain('/metta-propose')
+        expect(content).toContain('Skill tool')
+        // The bare CLI invocation `metta propose "..."` must not reappear — fix-gap is a
+        // Tier-2 session-credentialed skill and can never authorize the Tier-1
+        // fork-enforced `propose` subcommand via inline command text.
+        expect(content).not.toMatch(/`metta propose /)
+      }
+      expect(template).toBe(deployed)
+    })
+  })
+
 
   describe('init flow — CLAUDE.md generation', () => {
     it('runRefresh creates CLAUDE.md populated from spec/project.md', async () => {
