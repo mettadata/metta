@@ -4,14 +4,15 @@ import { join } from 'node:path'
 import { createCliContext, outputJson, color, agentBanner, getErrorMessage } from '../helpers.js'
 import { formatDuration } from '../../util/duration.js'
 import { getGitLogTimings } from '../../util/git-log-timings.js'
-import { getCeremonyCommitRatio, getArtifactsPerSmallChange, getModelEscalationRate } from '../../util/ceremony-metrics.js'
+import { getCeremonyCommitRatio, getArtifactsPerSmallChange, getModelEscalationRate, getLatestTag } from '../../util/ceremony-metrics.js'
 import type { ArtifactTiming, ArtifactTokens } from '../../schemas/change-metadata.js'
 
 export function registerProgressCommand(program: Command): void {
   program
     .command('progress')
     .description('Show project-level progress across all changes')
-    .action(async () => {
+    .option('--ceremony-since <ref>', 'Override the ceremony-ratio window ref (default: latest git tag)')
+    .action(async (options) => {
       const json = program.opts().json
       const ctx = createCliContext()
 
@@ -19,6 +20,25 @@ export function registerProgressCommand(program: Command): void {
         // Ceremony metrics — each helper never throws and returns null on
         // no data; null must pass through verbatim, never coerced to 0.
         const ceremonyRatio = await getCeremonyCommitRatio(ctx.projectRoot)
+
+        // Windowed ceremony ratio — the v0.2 ceremony-reduction acceptance
+        // instrument. Default window ref is the latest git tag (best
+        // effort, null when tagless); `--ceremony-since` overrides it. An
+        // unresolvable ref (unknown tag/rev) yields a no-data windowed
+        // result, never a crash.
+        const ceremonySinceRef: string | null = options.ceremonySince ?? await getLatestTag(ctx.projectRoot)
+        const ceremonyRatioWindowedRaw = ceremonySinceRef !== null
+          ? await getCeremonyCommitRatio(ctx.projectRoot, ceremonySinceRef)
+          : null
+        const ceremonyRatioWindowed = ceremonyRatioWindowedRaw !== null
+          ? {
+              ref: ceremonySinceRef as string,
+              ceremony: ceremonyRatioWindowedRaw.ceremony,
+              total: ceremonyRatioWindowedRaw.total,
+              rate: ceremonyRatioWindowedRaw.ratio,
+            }
+          : null
+
         const artifactsPerSmall = await getArtifactsPerSmallChange(join(ctx.projectRoot, 'spec'))
         // Measures only STOP/verify-FAIL-driven model escalations recorded
         // via `metta model-escalation record`.
@@ -94,6 +114,7 @@ export function registerProgressCommand(program: Command): void {
               total: active.length + archived.length,
             },
             ceremony_commit_ratio: ceremonyRatio,
+            ceremony_commit_ratio_windowed: ceremonyRatioWindowed,
             artifacts_per_small_change: artifactsPerSmall,
             model_escalation_rate: modelEscalationRate,
           })
@@ -170,7 +191,23 @@ export function registerProgressCommand(program: Command): void {
         // Ceremony metrics — explicit no-data wording, never a bare 0.
         if (ceremonyRatio !== null) {
           const pct = Math.round(ceremonyRatio.ratio * 100)
-          console.log(`  Ceremony commits: ${pct}% (${ceremonyRatio.ceremony}/${ceremonyRatio.total} chore/docs)`)
+          // A window ref was attempted (default tag resolved, or
+          // `--ceremony-since` given) iff `ceremonySinceRef` is non-null.
+          // Only then does the all-time figure gain its "all-time" label
+          // and a trailing windowed segment — otherwise the line keeps
+          // its original all-time-only shape.
+          if (ceremonySinceRef !== null) {
+            let line = `  Ceremony commits: ${pct}% all-time (${ceremonyRatio.ceremony}/${ceremonyRatio.total})`
+            if (ceremonyRatioWindowed !== null) {
+              const wPct = Math.round(ceremonyRatioWindowed.rate * 100)
+              line += ` · ${wPct}% since ${ceremonyRatioWindowed.ref} (${ceremonyRatioWindowed.ceremony}/${ceremonyRatioWindowed.total})`
+            } else {
+              line += ` · since ${ceremonySinceRef}: no data`
+            }
+            console.log(line)
+          } else {
+            console.log(`  Ceremony commits: ${pct}% (${ceremonyRatio.ceremony}/${ceremonyRatio.total} chore/docs)`)
+          }
         } else {
           console.log('  Ceremony commits: no data')
         }
