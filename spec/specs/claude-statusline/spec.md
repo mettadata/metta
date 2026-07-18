@@ -1,4 +1,4 @@
-# custom-claude-statusline-conte
+# claude-statusline
 
 ## Requirement: Statusline script stdin contract
 

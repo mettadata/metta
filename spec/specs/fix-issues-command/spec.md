@@ -1,4 +1,4 @@
-# spec:-metta-fix-issues-cli-command-m
+# fix-issues-command
 
 ## Requirement: fix-issue-cli-command
 

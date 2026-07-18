@@ -17,8 +17,6 @@
 - **Toolchain:** `tsc` for build, `npm` for package management (tsx is not currently part of the dev loop)
 - **AI execution model:** All AI-driven work runs inside the Claude Code session via skills and subagents (instruction mode); no direct hosted-model provider API calls anywhere in the codebase.
 
-<!-- source: https://dev.to/chengyixu/the-complete-guide-to-building-developer-cli-tools-in-2026-a96 -->
-
 ## Conventions
 
 - Classes for stateful modules; interfaces for contracts
@@ -31,9 +29,6 @@
 - Template files (YAML workflows, gates, artifacts, skills, agents) are copied to `dist/` at build time — never inlined as string literals
 - Functional core, imperative shell: pure logic in modules, I/O at the edges
 - Maintain near 1:1 test-to-source file ratio
-
-<!-- source: https://github.com/google/gts -->
-<!-- source: https://typescript-eslint.io/getting-started/ -->
 
 ## Architectural Constraints
 

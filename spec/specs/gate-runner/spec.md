@@ -1,4 +1,4 @@
-# fix-gate-infrastructure-bundle
+# gate-runner
 
 ## Requirement: Gate execution MUST honor all three `on_failure` policies uniformly
 

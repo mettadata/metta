@@ -191,12 +191,12 @@ intent → implementation → verification
 | `implementation` | `execution` | `[executor]` | `[tests, lint, typecheck]` |
 | `verification` | `verification` | `[verifier]` | `[uat]` |
 
-#### `standard` (7 artifacts)
+#### `standard` (8 artifacts)
 
 Linear pipeline for medium-complexity features:
 
 ```
-intent → spec → research → design → tasks → implementation → verification
+intent → stories → spec → research → design → tasks → implementation → verification
 ```
 
 #### `full` (10 artifacts)
@@ -307,7 +307,7 @@ The following scenarios correspond directly to the 14 tests in `tests/workflow-e
 **Then** a graph with 3 artifacts MUST be returned and `graph.name` MUST be `'quick'`
 
 **When** `loadWorkflow('standard', searchPaths)` is called
-**Then** a graph with 7 artifacts MUST be returned
+**Then** a graph with 8 artifacts MUST be returned
 
 **When** `loadWorkflow('full', searchPaths)` is called
 **Then** a graph with 10 artifacts MUST be returned

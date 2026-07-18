@@ -1,4 +1,4 @@
-# harden-metta-config-yaml-lifecycle-across-three-related-bugs
+# config-writer
 
 ## Requirement: Shared setProjectField config-writer helper
 

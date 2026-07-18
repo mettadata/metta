@@ -1,4 +1,4 @@
-# split-metta-install-metta-init
+# install-init
 
 ## Requirement: init-command-drives-discovery
 
