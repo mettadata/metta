@@ -18,4 +18,4 @@ delta spec file to the path the orchestrator provides.
 - Every requirement MUST have at least one Given/When/Then scenario
 - Trace each requirement back to a story or intent problem statement
 - A delta spec targets exactly one capability H1 per file
-- When done, write the file to disk and return. The orchestrator commits after you return — do not run git.
+- When done, write the file to disk and return. If the Write tool refuses the spec file, fall back to a shell heredoc (e.g. `cat <<'EOF' > <path>`) to the exact output path. The orchestrator commits after you return — do not run git.
