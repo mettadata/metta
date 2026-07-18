@@ -14,4 +14,16 @@ describe('agent template frontmatter', () => {
     expect(content).toMatch(/name:\s*metta-product/)
     expect(content).toMatch(/tools:.*Read.*Write/)
   })
+
+  it.each([
+    'src/templates/agents/metta-verifier.md',
+    '.claude/agents/metta-verifier.md',
+  ])('%s contains the honest artifact-write contract line', async (relativePath) => {
+    const content = await readFile(join(REPO_ROOT, relativePath), 'utf8')
+    expect(content).toContain('ATTEMPT the Write tool first.')
+    expect(content).toContain(
+      'When Write is refused, fall back to writing the artifact via a shell heredoc',
+    )
+    expect(content).toContain('Never skip the artifact and never relocate it')
+  })
 })

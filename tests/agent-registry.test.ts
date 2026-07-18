@@ -36,6 +36,11 @@ describe('loadAgentDefinition', () => {
       expect(agent.tools).toContain('Write')
       expect(agent.tools).toContain('Bash')
     })
+
+    it('sources tools from frontmatter (specifier has Write)', async () => {
+      const agent = await loadAgentDefinition('specifier', 'spec', REAL_TEMPLATE_DIR)
+      expect(agent.tools).toContain('Write')
+    })
   })
 
   describe('resolution failure', () => {
