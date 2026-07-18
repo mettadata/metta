@@ -146,4 +146,86 @@ describe('CLI: progress ceremony metrics', { timeout: 60000 }, () => {
     expect(stdout).toContain('Ceremony commits: no data')
     expect(stdout).toContain('Artifacts per small change: 2.5 (avg over 2 quick/trivial changes)')
   })
+
+  it('--json and human output include the windowed ceremony ratio when a tag is present', async () => {
+    await runCli(['install', '--git-init'], tempDir)
+    await execAsync('git', ['tag', 'v1.0.0'], { cwd: tempDir })
+    await execAsync('git', ['commit', '--allow-empty', '-m', 'chore: post-tag ceremony'], { cwd: tempDir })
+    await execAsync('git', ['commit', '--allow-empty', '-m', 'feat: post-tag functional'], { cwd: tempDir })
+
+    const { stdout: jsonStdout, code: jsonCode } = await runCli(['--json', 'progress'], tempDir)
+    expect(jsonCode).toBe(0)
+    const data = JSON.parse(jsonStdout)
+    expect(data.ceremony_commit_ratio).not.toBeNull()
+    expect(data.ceremony_commit_ratio_windowed).toEqual({
+      ref: 'v1.0.0',
+      ceremony: 1,
+      total: 2,
+      rate: 0.5,
+    })
+
+    const { stdout, code } = await runCli(['progress'], tempDir)
+    expect(code).toBe(0)
+    expect(stdout).toMatch(/Ceremony commits: \d+% all-time \(\d+\/\d+\) · 50% since v1\.0\.0 \(1\/2\)/)
+  })
+
+  it('--json and human output omit the windowed ceremony ratio when no tag exists and no override is given', async () => {
+    await runCli(['install', '--git-init'], tempDir)
+
+    const { stdout: jsonStdout, code: jsonCode } = await runCli(['--json', 'progress'], tempDir)
+    expect(jsonCode).toBe(0)
+    const data = JSON.parse(jsonStdout)
+    expect('ceremony_commit_ratio_windowed' in data).toBe(true)
+    expect(data.ceremony_commit_ratio_windowed).toBeNull()
+
+    const { stdout, code } = await runCli(['progress'], tempDir)
+    expect(code).toBe(0)
+    // Current all-time-only format preserved — no "all-time" label, no "since".
+    expect(stdout).toMatch(/Ceremony commits: \d+% \(\d+\/\d+ chore\/docs\)/)
+    expect(stdout).not.toContain('all-time')
+    expect(stdout).not.toContain('since')
+  })
+
+  it('--ceremony-since overrides the default window ref', async () => {
+    await runCli(['install', '--git-init'], tempDir)
+    await execAsync('git', ['tag', 'v1.0.0'], { cwd: tempDir })
+    await execAsync('git', ['commit', '--allow-empty', '-m', 'chore: a'], { cwd: tempDir })
+    await execAsync('git', ['tag', 'v2.0.0'], { cwd: tempDir })
+    await execAsync('git', ['commit', '--allow-empty', '-m', 'feat: b'], { cwd: tempDir })
+
+    const { stdout: jsonStdout, code: jsonCode } = await runCli(
+      ['--json', 'progress', '--ceremony-since', 'v1.0.0'],
+      tempDir,
+    )
+    expect(jsonCode).toBe(0)
+    const data = JSON.parse(jsonStdout)
+    expect(data.ceremony_commit_ratio_windowed).toEqual({
+      ref: 'v1.0.0',
+      ceremony: 1,
+      total: 2,
+      rate: 0.5,
+    })
+
+    const { stdout, code } = await runCli(['progress', '--ceremony-since', 'v1.0.0'], tempDir)
+    expect(code).toBe(0)
+    expect(stdout).toContain('since v1.0.0 (1/2)')
+  })
+
+  it('--ceremony-since with an unknown ref reports no data, names the ref, and exits 0', async () => {
+    await runCli(['install', '--git-init'], tempDir)
+
+    const { stdout: jsonStdout, code: jsonCode } = await runCli(
+      ['--json', 'progress', '--ceremony-since', 'nonexistent-ref'],
+      tempDir,
+    )
+    expect(jsonCode).toBe(0)
+    const data = JSON.parse(jsonStdout)
+    expect(data.ceremony_commit_ratio_windowed).toBeNull()
+    // The all-time figure must still be reported normally.
+    expect(data.ceremony_commit_ratio).not.toBeNull()
+
+    const { stdout, code } = await runCli(['progress', '--ceremony-since', 'nonexistent-ref'], tempDir)
+    expect(code).toBe(0)
+    expect(stdout).toContain('since nonexistent-ref: no data')
+  })
 })

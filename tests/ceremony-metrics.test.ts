@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { execFileSync } from 'node:child_process'
-import { getCeremonyCommitRatio, getArtifactsPerSmallChange, getModelEscalationRate } from '../src/util/ceremony-metrics.js'
+import { getCeremonyCommitRatio, getArtifactsPerSmallChange, getModelEscalationRate, getLatestTag } from '../src/util/ceremony-metrics.js'
 import { ArtifactStore } from '../src/artifacts/artifact-store.js'
 
 function git(cwd: string, args: string[], env: NodeJS.ProcessEnv = {}): void {
@@ -128,6 +128,66 @@ describe('ceremony-metrics', () => {
       initRepo(tmp)
       const result = await getCeremonyCommitRatio(tmp)
       expect(result).toBeNull()
+    })
+
+    it('windows the count via <ref>..HEAD when sinceRef is a tag placed mid-history', async () => {
+      initRepo(tmp)
+      emptyCommit(tmp, 'feat: add a thing')
+      emptyCommit(tmp, 'chore: tidy up')
+      git(tmp, ['tag', 'v1.0.0'])
+      emptyCommit(tmp, 'docs(readme): update usage')
+      emptyCommit(tmp, 'fix(core): squash a bug')
+      emptyCommit(tmp, 'chore: post-tag ceremony')
+
+      const allTime = await getCeremonyCommitRatio(tmp)
+      expect(allTime).toEqual({ ceremony: 3, total: 5, ratio: 3 / 5 })
+
+      const windowed = await getCeremonyCommitRatio(tmp, 'v1.0.0')
+      expect(windowed).toEqual({ ceremony: 2, total: 3, ratio: 2 / 3 })
+    })
+
+    it('returns null when sinceRef does not resolve (invalid ref)', async () => {
+      initRepo(tmp)
+      emptyCommit(tmp, 'feat: add a thing')
+      emptyCommit(tmp, 'chore: tidy up')
+
+      const result = await getCeremonyCommitRatio(tmp, 'no-such-ref')
+      expect(result).toBeNull()
+    })
+
+    it('returns zeros (not null) for a legitimately empty window (tag at HEAD)', async () => {
+      initRepo(tmp)
+      emptyCommit(tmp, 'feat: add a thing')
+      emptyCommit(tmp, 'chore: tidy up')
+      git(tmp, ['tag', 'v1.0.0'])
+
+      const result = await getCeremonyCommitRatio(tmp, 'v1.0.0')
+      expect(result).toEqual({ ceremony: 0, total: 0, ratio: 0 })
+    })
+  })
+
+  describe('getLatestTag', () => {
+    it('resolves the most recent tag reachable from HEAD', async () => {
+      initRepo(tmp)
+      emptyCommit(tmp, 'feat: first')
+      git(tmp, ['tag', 'v1.0.0'])
+      emptyCommit(tmp, 'feat: second')
+
+      const tag = await getLatestTag(tmp)
+      expect(tag).toBe('v1.0.0')
+    })
+
+    it('returns null when the repo has no tags', async () => {
+      initRepo(tmp)
+      emptyCommit(tmp, 'feat: first')
+
+      const tag = await getLatestTag(tmp)
+      expect(tag).toBeNull()
+    })
+
+    it('returns null when the directory is not a git repo', async () => {
+      const tag = await getLatestTag(tmp)
+      expect(tag).toBeNull()
     })
   })
 

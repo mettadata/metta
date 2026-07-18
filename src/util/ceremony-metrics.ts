@@ -20,28 +20,57 @@ const execFileAsync = promisify(execFile)
 const CEREMONY_SUBJECT = /^(chore|docs)(\(.+\))?:/
 
 /**
- * Compute the ceremony-commit ratio across the entire repo history at
- * `projectRoot` via one `git log --format=%s` pass (no path filter).
+ * Compute the ceremony-commit ratio at `projectRoot` via one
+ * `git log --format=%s` pass (no path filter).
+ *
+ * When `sinceRef` is omitted, the pass covers the entire repo history
+ * (`git log --format=%s`). When provided, it is windowed to
+ * `git log <sinceRef>..HEAD --format=%s` — every commit reachable from
+ * `HEAD` but not from `sinceRef`.
  *
  * Always resolves; never throws. Returns `null` only when the `git log`
- * call itself fails (e.g. not a git repo, or a repo with no commits).
- * A successful run over zero subjects returns `{ ceremony: 0, total: 0,
- * ratio: 0 }` — never conflated with `null`.
+ * call itself fails (e.g. not a git repo, a repo with no commits, or —
+ * for a windowed call — a `sinceRef` that does not resolve). A
+ * successful run over zero subjects (including a legitimately empty
+ * window, such as a ref that already points at `HEAD`) returns
+ * `{ ceremony: 0, total: 0, ratio: 0 }` — never conflated with `null`.
  */
 export async function getCeremonyCommitRatio(
   projectRoot: string,
+  sinceRef?: string,
 ): Promise<{ ceremony: number; total: number; ratio: number } | null> {
   try {
-    const { stdout } = await execFileAsync(
-      'git',
-      ['log', '--format=%s'],
-      { cwd: projectRoot },
-    )
+    const range = sinceRef ? `${sinceRef}..HEAD` : undefined
+    const args = range ? ['log', range, '--format=%s'] : ['log', '--format=%s']
+    const { stdout } = await execFileAsync('git', args, { cwd: projectRoot })
     const subjects = stdout.split('\n').map(l => l.trim()).filter(l => l.length > 0)
     const ceremony = subjects.filter(s => CEREMONY_SUBJECT.test(s)).length
     const total = subjects.length
     const ratio = total === 0 ? 0 : ceremony / total
     return { ceremony, total, ratio }
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Resolve the most recent version tag reachable from `HEAD` at
+ * `projectRoot` via `git describe --tags --abbrev=0`, for use as the
+ * default ceremony-ratio window ref.
+ *
+ * Always resolves; never throws. Returns `null` when the repo has no
+ * tags (or git is otherwise unavailable) — the caller's no-window case,
+ * not an error.
+ */
+export async function getLatestTag(projectRoot: string): Promise<string | null> {
+  try {
+    const { stdout } = await execFileAsync(
+      'git',
+      ['describe', '--tags', '--abbrev=0'],
+      { cwd: projectRoot },
+    )
+    const tag = stdout.trim()
+    return tag.length > 0 ? tag : null
   } catch {
     return null
   }
