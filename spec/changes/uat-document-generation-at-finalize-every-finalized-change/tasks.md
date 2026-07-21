@@ -6,7 +6,7 @@ Note on batch shape: the generator's unit tests render through the real template
 
 ## Batch 1 (no dependencies)
 
-- [ ] **Task 1.1: UatConfigSchema and config-loader coverage**
+- [x] **Task 1.1: UatConfigSchema and config-loader coverage**
   - **Files**: `src/schemas/project-config.ts`, `tests/config-loader.test.ts`
   - **Action**: In `src/schemas/project-config.ts`, add after `DocsConfigSchema` (currently line 39), per design.md §Components 5:
     ```ts
@@ -20,7 +20,7 @@ Note on batch shape: the generator's unit tests render through the real template
   - **Verify**: `npx vitest run tests/config-loader.test.ts` passes; `npx tsc --noEmit` clean; `npm test` fully green (no other test constructs `ProjectConfig` in a way that breaks — `.default({})` keeps existing fixtures valid).
   - **Done**: `UatConfigSchema` and `UatConfig` are exported from `src/schemas/project-config.ts`; `ProjectConfig.uat` is always present after parse; all four new config tests pass; existing config-loader tests unchanged and green. Covers spec requirement "UAT Configuration Toggle" (schema half: omitted-key default, strict rejection scenarios).
 
-- [ ] **Task 1.2: uat.md artifact template and template contract test**
+- [x] **Task 1.2: uat.md artifact template and template contract test**
   - **Files**: `src/templates/artifacts/uat.md` (new), `tests/uat-template-contract.test.ts` (new)
   - **Action**: Create `src/templates/artifacts/uat.md` with EXACTLY the content given in design.md §Components 4 — four placeholders (`{change_name}`, `{generated_date}`, `{source_tier}`, `{uat_steps}`), the `## Reporting failures` section directing readers to log a metta issue (`/metta-issue <description>`) referencing the file and step number and not to edit the document, and the `## Acceptance steps` heading above `{uat_steps}`. No build-script changes: `copy-templates` in `package.json` already copies `src/templates/artifacts` wholesale, and `tests/template-deploy-sync.test.ts` excludes the artifacts family (no registration needed). Create `tests/uat-template-contract.test.ts` modeled on `tests/verify-template-contract.test.ts`, asserting: (1) the template file contains all four single-brace placeholders; (2) it contains the `## Reporting failures` heading and the log-a-metta-issue instruction; (3) it contains no `{{` tokens; (4) a full-substitution round trip via `TemplateEngine.render('uat.md', ctx)` with all four keys supplied leaves none of the four placeholders in the output; (5) a grep guard: no file under `src/**/*.ts` contains the skeleton sentinel string `## Reporting failures` as a literal (template externality — prose must not migrate into code).
   - **Verify**: `npx vitest run tests/uat-template-contract.test.ts` passes; `npm run build` then check `dist/templates/artifacts/uat.md` exists and matches source; `npm test` green.
@@ -28,7 +28,7 @@ Note on batch shape: the generator's unit tests render through the real template
 
 ## Batch 2 (depends on Batch 1)
 
-- [ ] **Task 2.1: uat-generator module — tier ladder, assembly, annotation, determinism**
+- [x] **Task 2.1: uat-generator module — tier ladder, assembly, annotation, determinism**
   - **Depends on**: Task 1.2 (renders through `src/templates/artifacts/uat.md`)
   - **Files**: `src/finalize/uat-generator.ts` (new), `tests/uat-generator.test.ts` (new), `src/index.ts`
   - **Action**: Implement `src/finalize/uat-generator.ts` exactly per design.md §Components 1, §Data Model, and §API Design:
@@ -47,7 +47,7 @@ Note on batch shape: the generator's unit tests render through the real template
 
 ## Batch 3 (depends on Batch 2)
 
-- [ ] **Task 3.1: Finalizer Step 5b integration, FinalizeResult extension, finalizer tests**
+- [x] **Task 3.1: Finalizer Step 5b integration, FinalizeResult extension, finalizer tests**
   - **Depends on**: Task 2.1 (imports `generateUat`), Task 1.1 (reads `config.uat.enabled`)
   - **Files**: `src/finalize/finalizer.ts`, `tests/finalizer.test.ts`
   - **Action**: Per design.md §Components 2 and §Data Model:
@@ -61,7 +61,7 @@ Note on batch shape: the generator's unit tests render through the real template
 
 ## Batch 4 (depends on Batch 3)
 
-- [ ] **Task 4.1: CLI finalize output — uatPath in JSON and human modes**
+- [x] **Task 4.1: CLI finalize output — uatPath in JSON and human modes**
   - **Depends on**: Task 3.1 (reads `result.uatPath` / `result.uatError`)
   - **Files**: `src/cli/commands/finalize.ts`, `tests/cli-finalize.test.ts`
   - **Action**: Per design.md §Components 3 and §API Design: in the JSON success block add `uatPath: result.uatPath` (always present: string | null) and `...(result.uatError ? { uatWarning: result.uatError } : {})`; all pre-existing fields (`status`, `change`, `archive`, `gates`, `merged`) unchanged; the shared block means `dry_run` payloads carry `uatPath: null` — additive and acceptable. In human mode, in the non-dry-run success branch after the `Specs merged:` line: `if (result.uatPath) console.log(`  UAT script: ${result.uatPath}`)` and `if (result.uatError) console.error(color(`Warning: UAT generation failed: ${result.uatError}`, 33))` (yellow, stderr, exit status untouched). Touch NOTHING else: error JSON shapes (`incomplete_artifacts`, `conflict`, `gates_failed`, `finalize_locked`, `finalize_error`), all exit codes 1-5, the dry-run human branch, and the auto-commit block (which already commits the archive dir wholesale, sweeping UAT.md in). Extend `tests/cli-finalize.test.ts`: success JSON contains `uatPath` as a string pointing into the archive plus all pre-existing fields; `uat.enabled: false` config → `uatPath: null`, no `uatWarning`, no human `UAT script:` line; degraded run (e.g. template removed) → `uatWarning` present, payload remains the success shape, exit 0, human warning on stderr; each error payload byte-compatible with its pre-existing shape and free of `uatPath`.
