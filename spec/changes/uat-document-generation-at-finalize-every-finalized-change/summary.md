@@ -40,3 +40,13 @@ Every finalized change now produces a `UAT.md` — a deterministic, step-by-step
 | 2.1 uat-generator module | `f4483ea45` | Done |
 | 3.1 Finalizer Step 5b + FinalizeResult | `6d91edf49` | Done (noted deviation: inline `rm(force:true)` cleanup instead of out-of-scope `deleteIfExists`) |
 | 4.1 CLI output surfacing | `9a2abfc37` | Done |
+
+## Verification
+
+Three parallel verifiers — all gates PASS. Full reports: [verify/tests.md](verify/tests.md), [verify/tsc-lint.md](verify/tsc-lint.md), [verify/scenarios.md](verify/scenarios.md).
+
+| Gate | Result | Evidence |
+|---|---|---|
+| npm test | PASS | 90 files, 1525 tests, 0 failures (verify/tests.md) |
+| tsc --noEmit / lint / build | PASS | exit 0 on all; dist/templates/artifacts/uat.md byte-identical to src (verify/tsc-lint.md) |
+| Spec scenario traceability | PASS | all 26 scenarios across 9 ADDED requirements implemented and passing; 24 fully test-covered, 2 partial-by-inspection (error-shape byte-compat for 4 shapes, dist copy step) — details in verify/scenarios.md |
