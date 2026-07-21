@@ -8,6 +8,7 @@ import { SpecLockManager } from '../src/specs/spec-lock-manager.js'
 import { GateRegistry } from '../src/gates/gate-registry.js'
 import { WorkflowEngine } from '../src/workflow/workflow-engine.js'
 import { DocGenerator } from '../src/docs/doc-generator.js'
+import { TemplateEngine } from '../src/templates/template-engine.js'
 
 describe('Finalizer', () => {
   let specDir: string
@@ -53,6 +54,20 @@ describe('Finalizer', () => {
     // Change should be gone from active
     const changes = await artifactStore.listChanges()
     expect(changes).not.toContain('test-feature')
+  })
+
+  it('returns uatPath null and writes no UAT.md when constructed without a projectRoot', async () => {
+    await artifactStore.createChange('no root uat', 'quick', ['intent'])
+    await markAllComplete(artifactStore, 'no-root-uat', ['intent'])
+
+    const result = await finalizer.finalize('no-root-uat')
+
+    expect(result.archiveName).toMatch(/^\d{4}-\d{2}-\d{2}-no-root-uat$/)
+    expect(result.uatPath).toBeNull()
+    expect(result.uatError).toBeUndefined()
+
+    const archived = await readdir(join(specDir, 'archive', result.archiveName))
+    expect(archived).not.toContain('UAT.md')
   })
 
   it('supports dry-run', async () => {
@@ -403,6 +418,194 @@ The system MUST apply this requirement exactly once across retries.
       expect(content).toContain('Changelog')
       expect(content).toContain('2026-01-01')
       expect(content).toContain('prior')
+    })
+  })
+
+  describe('UAT generation (Step 5b)', () => {
+    let projectRoot: string
+    let scopedSpecDir: string
+    let scopedArtifactStore: ArtifactStore
+    let scopedLockManager: SpecLockManager
+    let scopedFinalizer: Finalizer
+
+    beforeEach(async () => {
+      projectRoot = await mkdtemp(join(tmpdir(), 'metta-final-uat-'))
+      scopedSpecDir = join(projectRoot, 'spec')
+      await mkdir(join(scopedSpecDir, 'specs'), { recursive: true })
+      await mkdir(join(scopedSpecDir, 'archive'), { recursive: true })
+      await mkdir(join(projectRoot, '.metta'), { recursive: true })
+      scopedArtifactStore = new ArtifactStore(scopedSpecDir)
+      scopedLockManager = new SpecLockManager(scopedSpecDir)
+      scopedFinalizer = new Finalizer(
+        scopedSpecDir,
+        scopedArtifactStore,
+        scopedLockManager,
+        undefined,
+        projectRoot,
+      )
+    })
+
+    afterEach(async () => {
+      vi.restoreAllMocks()
+      await rm(projectRoot, { recursive: true, force: true })
+    })
+
+    // docs.generate_on: manual keeps DocGenerator out of these tests so Step 7
+    // never interferes with the Step 5b assertions.
+    async function writeConfig(extra: string = ''): Promise<void> {
+      await writeFile(
+        join(projectRoot, '.metta', 'config.yaml'),
+        `project:\n  name: x\ndocs:\n  generate_on: manual\n${extra}`,
+      )
+    }
+
+    async function createCompleteChange(description: string, name: string): Promise<void> {
+      await scopedArtifactStore.createChange(description, 'quick', ['intent', 'implementation', 'verification'])
+      await markAllComplete(scopedArtifactStore, name, ['intent', 'implementation', 'verification'])
+    }
+
+    it('writes UAT.md pre-archive so the archive sweep carries it in', async () => {
+      await writeConfig() // uat omitted → enabled by schema default
+
+      await createCompleteChange('uat success test', 'uat-success-test')
+      const result = await scopedFinalizer.finalize('uat-success-test')
+
+      expect(result.archiveName).toMatch(/^\d{4}-\d{2}-\d{2}-uat-success-test$/)
+      expect(result.uatPath).toBe(join(scopedSpecDir, 'archive', result.archiveName, 'UAT.md'))
+      expect(result.uatError).toBeUndefined()
+
+      const uatContent = await readFile(result.uatPath!, 'utf-8')
+      expect(uatContent).toContain('# UAT: uat-success-test')
+      expect(uatContent).toContain('## Reporting failures')
+
+      // Nothing left behind under spec/changes/ (the move took the whole dir).
+      const remaining = await readdir(join(scopedSpecDir, 'changes')).catch(() => [] as string[])
+      expect(remaining).not.toContain('uat-success-test')
+    })
+
+    it('skips generation when uat.enabled is false', async () => {
+      await writeConfig('uat:\n  enabled: false\n')
+
+      await createCompleteChange('uat disabled test', 'uat-disabled-test')
+      const result = await scopedFinalizer.finalize('uat-disabled-test')
+
+      expect(result.archiveName).toMatch(/^\d{4}-\d{2}-\d{2}-uat-disabled-test$/)
+      expect(result.uatPath).toBeNull()
+      expect(result.uatError).toBeUndefined()
+
+      const archived = await readdir(join(scopedSpecDir, 'archive', result.archiveName))
+      expect(archived).not.toContain('UAT.md')
+    })
+
+    it('dry-run returns uatPath null and writes no UAT.md', async () => {
+      await writeConfig()
+
+      await createCompleteChange('uat dry run test', 'uat-dry-run-test')
+      const result = await scopedFinalizer.finalize('uat-dry-run-test', true)
+
+      expect(result.archiveName).toBe('(dry-run)')
+      expect(result.uatPath).toBeNull()
+      expect(result.uatError).toBeUndefined()
+
+      const changeFiles = await readdir(join(scopedSpecDir, 'changes', 'uat-dry-run-test'))
+      expect(changeFiles).not.toContain('UAT.md')
+    })
+
+    it('incomplete-artifacts abort returns uatPath null and leaves no stray UAT.md', async () => {
+      await writeConfig()
+
+      await scopedArtifactStore.createChange('uat incomplete test', 'quick', ['intent', 'implementation'])
+      await scopedArtifactStore.markArtifact('uat-incomplete-test', 'intent', 'complete')
+      // 'implementation' deliberately left incomplete.
+
+      const result = await scopedFinalizer.finalize('uat-incomplete-test')
+
+      expect(result.incompleteArtifacts).toBeDefined()
+      expect(result.archiveName).toBe('')
+      expect(result.uatPath).toBeNull()
+      expect(result.uatError).toBeUndefined()
+
+      const changeFiles = await readdir(join(scopedSpecDir, 'changes', 'uat-incomplete-test'))
+      expect(changeFiles).not.toContain('UAT.md')
+    })
+
+    it('merge-conflict abort returns uatPath null and leaves no stray UAT.md', async () => {
+      await writeConfig()
+
+      await createCompleteChange('uat conflict test', 'uat-conflict-test')
+      // MODIFIED targeting a capability that does not exist → dry-run merge conflict.
+      const deltaContent = `# missingcap (Delta)
+
+## MODIFIED: Requirement: Nonexistent Behavior
+
+The system MUST conflict on this delta.
+
+### Scenario: Conflicted
+- GIVEN a missing capability
+- WHEN finalize runs
+- THEN the merge conflicts
+`
+      await writeFile(join(scopedSpecDir, 'changes', 'uat-conflict-test', 'spec.md'), deltaContent)
+
+      const result = await scopedFinalizer.finalize('uat-conflict-test')
+
+      expect(result.specMerge.status).toBe('conflict')
+      expect(result.archiveName).toBe('')
+      expect(result.uatPath).toBeNull()
+      expect(result.uatError).toBeUndefined()
+
+      const changeFiles = await readdir(join(scopedSpecDir, 'changes', 'uat-conflict-test'))
+      expect(changeFiles).not.toContain('UAT.md')
+    })
+
+    it('gate-failure abort returns uatPath null and leaves no stray UAT.md', async () => {
+      await writeConfig()
+
+      const failingRegistry = new GateRegistry()
+      failingRegistry.register({
+        name: 'tests',
+        description: 'always-failing gate',
+        command: 'false',
+        timeout: 5000,
+        required: true,
+        on_failure: 'stop',
+      })
+      const gatedFinalizer = new Finalizer(
+        scopedSpecDir,
+        scopedArtifactStore,
+        scopedLockManager,
+        failingRegistry,
+        projectRoot,
+      )
+
+      await createCompleteChange('uat gate fail test', 'uat-gate-fail-test')
+      const result = await gatedFinalizer.finalize('uat-gate-fail-test')
+
+      expect(result.gatesPassed).toBe(false)
+      expect(result.archiveName).toBe('')
+      expect(result.uatPath).toBeNull()
+      expect(result.uatError).toBeUndefined()
+
+      const changeFiles = await readdir(join(scopedSpecDir, 'changes', 'uat-gate-fail-test'))
+      expect(changeFiles).not.toContain('UAT.md')
+    })
+
+    it('degrades when template rendering fails: finalize succeeds, uatError set, no UAT.md archived', async () => {
+      await writeConfig()
+
+      vi.spyOn(TemplateEngine.prototype, 'render')
+        .mockRejectedValue(new Error('synthetic template failure'))
+
+      await createCompleteChange('uat degraded test', 'uat-degraded-test')
+      const result = await scopedFinalizer.finalize('uat-degraded-test')
+
+      // Degradation never converts success to failure.
+      expect(result.archiveName).toMatch(/^\d{4}-\d{2}-\d{2}-uat-degraded-test$/)
+      expect(result.uatPath).toBeNull()
+      expect(result.uatError).toContain('synthetic template failure')
+
+      const archived = await readdir(join(scopedSpecDir, 'archive', result.archiveName))
+      expect(archived).not.toContain('UAT.md')
     })
   })
 })

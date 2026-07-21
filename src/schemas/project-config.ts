@@ -38,6 +38,12 @@ export const DocsConfigSchema = z.object({
 
 export type DocsConfig = z.infer<typeof DocsConfigSchema>
 
+export const UatConfigSchema = z.object({
+  enabled: z.boolean().default(true),
+}).strict()
+
+export type UatConfig = z.infer<typeof UatConfigSchema>
+
 export const AutoConfigSchema = z.object({
   max_cycles: z.number().int().positive().default(10),
   ship_on_success: z.boolean().default(false),
@@ -95,6 +101,7 @@ export const ProjectConfigSchema = z.object({
   gates: z.record(z.string(), GateConfigSchema).optional(),
   git: GitConfigSchema.optional(),
   docs: DocsConfigSchema.default({}),
+  uat: UatConfigSchema.default({}),
   auto: AutoConfigSchema.optional(),
   context_sections: z.array(z.string()).optional(),
   adapters: z.array(z.string()).optional(),

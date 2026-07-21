@@ -143,6 +143,8 @@ export function registerFinalizeCommand(program: Command): void {
             archive: result.archiveName,
             gates: result.gates,
             merged: result.specMerge.merged,
+            uatPath: result.uatPath,
+            ...(result.uatError ? { uatWarning: result.uatError } : {}),
           })
         } else {
           if (options.dryRun) {
@@ -167,6 +169,8 @@ export function registerFinalizeCommand(program: Command): void {
             console.log(`\n${color('Finalized:', 32)} ${name}`)
             console.log(`  Archived as: ${result.archiveName}`)
             console.log(`  Specs merged: ${result.specMerge.merged.join(', ') || 'none'}`)
+            if (result.uatPath) console.log(`  UAT script: ${result.uatPath}`)
+            if (result.uatError) console.error(color(`Warning: UAT generation failed: ${result.uatError}`, 33))
             console.log(`\nNext: merge branch to main or run metta ship`)
           }
         }

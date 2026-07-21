@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { mkdtemp, rm, readFile, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, rm, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { runCli } from './helpers/cli.js'
@@ -72,5 +72,165 @@ The system MUST do ghostly things.
     expect(code).toBe(3)
     expect(stderr).toContain('required artifacts are not complete')
     expect(stderr).toContain('intent')
+  })
+})
+
+describe('CLI: finalize UAT output', { timeout: 60000 }, () => {
+  let tempDir: string
+
+  beforeEach(async () => {
+    tempDir = await mkdtemp(join(tmpdir(), 'metta-cli-finalize-uat-'))
+  })
+
+  afterEach(async () => {
+    await rm(tempDir, { recursive: true, force: true })
+  })
+
+  async function markAllArtifactsComplete(changeName: string): Promise<void> {
+    const YAML = (await import('yaml')).default
+    const path = join(tempDir, 'spec', 'changes', changeName, '.metta.yaml')
+    const raw = await readFile(path, 'utf8')
+    const doc = YAML.parse(raw) as Record<string, unknown>
+    const artifacts = doc.artifacts as Record<string, string>
+    for (const id of Object.keys(artifacts)) {
+      artifacts[id] = 'complete'
+    }
+    await writeFile(path, YAML.stringify(doc, { lineWidth: 0 }), 'utf8')
+  }
+
+  // Project-local passing stubs override the built-in gates so finalize's
+  // Step 4 always passes fast in these fixtures.
+  async function stubAllGatesPassing(): Promise<void> {
+    await mkdir(join(tempDir, '.metta', 'gates'), { recursive: true })
+    const gateNames = ['tests', 'lint', 'typecheck', 'build', 'stories-valid']
+    for (const name of gateNames) {
+      const yaml = [
+        `name: ${name}`,
+        `description: passing stub for ${name}`,
+        'command: "true"',
+        'timeout: 10000',
+        'required: true',
+        'on_failure: stop',
+        '',
+      ].join('\n')
+      await writeFile(join(tempDir, '.metta', 'gates', `${name}.yaml`), yaml, 'utf8')
+    }
+  }
+
+  it('success: JSON payload carries uatPath into the archive plus all pre-existing fields; human mode prints the UAT script line', async () => {
+    await runCli(['install', '--git-init'], tempDir)
+    await runCli(['quick', 'uat success json'], tempDir)
+    await runCli(['quick', 'uat success human'], tempDir)
+    await markAllArtifactsComplete('uat-success-json')
+    await markAllArtifactsComplete('uat-success-human')
+    await stubAllGatesPassing()
+
+    const jsonRun = await runCli(['--json', 'finalize', 'uat-success-json'], tempDir)
+    expect(jsonRun.code).toBe(0)
+    const payload = JSON.parse(jsonRun.stdout) as Record<string, unknown>
+    // Pre-existing fields unchanged.
+    expect(payload.status).toBe('finalized')
+    expect(payload.change).toBe('uat-success-json')
+    expect(payload.archive).toMatch(/^\d{4}-\d{2}-\d{2}-uat-success-json$/)
+    expect(Array.isArray(payload.gates)).toBe(true)
+    expect(Array.isArray(payload.merged)).toBe(true)
+    // New field: uatPath is a string pointing into the archive.
+    expect(typeof payload.uatPath).toBe('string')
+    expect(payload.uatPath as string).toBe(
+      join(tempDir, 'spec', 'archive', payload.archive as string, 'UAT.md'),
+    )
+    const uatContent = await readFile(
+      join(tempDir, 'spec', 'archive', payload.archive as string, 'UAT.md'),
+      'utf8',
+    )
+    expect(uatContent).toContain('# UAT: uat-success-json')
+    // No warning key on a clean run.
+    expect('uatWarning' in payload).toBe(false)
+
+    const humanRun = await runCli(['finalize', 'uat-success-human'], tempDir)
+    expect(humanRun.code).toBe(0)
+    expect(humanRun.stdout).toContain('Finalized:')
+    expect(humanRun.stdout).toContain('UAT script: ')
+    expect(humanRun.stdout).toContain(join('spec', 'archive'))
+    expect(humanRun.stderr).not.toContain('Warning: UAT generation failed')
+  })
+
+  it('uat.enabled false: uatPath null, no uatWarning key, no human UAT script line', async () => {
+    await runCli(['install', '--git-init'], tempDir)
+    const configPath = join(tempDir, '.metta', 'config.yaml')
+    const config = await readFile(configPath, 'utf8')
+    await writeFile(configPath, `${config}uat:\n  enabled: false\n`, 'utf8')
+
+    await runCli(['quick', 'uat off json'], tempDir)
+    await runCli(['quick', 'uat off human'], tempDir)
+    await markAllArtifactsComplete('uat-off-json')
+    await markAllArtifactsComplete('uat-off-human')
+    await stubAllGatesPassing()
+
+    const jsonRun = await runCli(['--json', 'finalize', 'uat-off-json'], tempDir)
+    expect(jsonRun.code).toBe(0)
+    const payload = JSON.parse(jsonRun.stdout) as Record<string, unknown>
+    expect(payload.status).toBe('finalized')
+    expect(payload.uatPath).toBeNull()
+    expect('uatWarning' in payload).toBe(false)
+
+    const humanRun = await runCli(['finalize', 'uat-off-human'], tempDir)
+    expect(humanRun.code).toBe(0)
+    expect(humanRun.stdout).toContain('Finalized:')
+    expect(humanRun.stdout).not.toContain('UAT script:')
+    expect(humanRun.stderr).not.toContain('Warning: UAT generation failed')
+  })
+
+  it('degraded: uatWarning present with success shape and exit 0; human warning on stderr', async () => {
+    await runCli(['install', '--git-init'], tempDir)
+    await runCli(['quick', 'uat degraded json'], tempDir)
+    await runCli(['quick', 'uat degraded human'], tempDir)
+    await markAllArtifactsComplete('uat-degraded-json')
+    await markAllArtifactsComplete('uat-degraded-human')
+    await stubAllGatesPassing()
+
+    // Deterministic generation-failure injection: a directory squatting on the
+    // UAT.md path makes the generator's write step fail (EISDIR) while every
+    // other finalize step proceeds — the same write-adjacent degradation path
+    // tests/finalizer.test.ts triggers by mocking TemplateEngine.render
+    // (in-process mocks cannot reach the CLI subprocess).
+    await mkdir(join(tempDir, 'spec', 'changes', 'uat-degraded-json', 'UAT.md'))
+    await mkdir(join(tempDir, 'spec', 'changes', 'uat-degraded-human', 'UAT.md'))
+
+    const jsonRun = await runCli(['--json', 'finalize', 'uat-degraded-json'], tempDir)
+    expect(jsonRun.code).toBe(0)
+    const payload = JSON.parse(jsonRun.stdout) as Record<string, unknown>
+    // Success shape preserved.
+    expect(payload.status).toBe('finalized')
+    expect(payload.change).toBe('uat-degraded-json')
+    expect(payload.archive).toMatch(/^\d{4}-\d{2}-\d{2}-uat-degraded-json$/)
+    expect(Array.isArray(payload.gates)).toBe(true)
+    expect(Array.isArray(payload.merged)).toBe(true)
+    // Degradation surfaces as uatWarning with uatPath null.
+    expect(payload.uatPath).toBeNull()
+    expect(typeof payload.uatWarning).toBe('string')
+    expect(payload.uatWarning as string).toContain('EISDIR')
+
+    const humanRun = await runCli(['finalize', 'uat-degraded-human'], tempDir)
+    expect(humanRun.code).toBe(0)
+    expect(humanRun.stdout).toContain('Finalized:')
+    expect(humanRun.stdout).not.toContain('UAT script:')
+    expect(humanRun.stderr).toContain('Warning: UAT generation failed')
+  })
+
+  it('error payloads unchanged: incomplete artifacts exits 3 with the exact prior shape and no uatPath', async () => {
+    await runCli(['install', '--git-init'], tempDir)
+    await runCli(['quick', 'uat err shape'], tempDir)
+    // Artifacts left incomplete on purpose.
+
+    const { stdout, code } = await runCli(['--json', 'finalize', 'uat-err-shape'], tempDir)
+
+    expect(code).toBe(3)
+    const payload = JSON.parse(stdout) as Record<string, unknown>
+    expect(payload.status).toBe('incomplete_artifacts')
+    expect('uatPath' in payload).toBe(false)
+    expect('uatWarning' in payload).toBe(false)
+    // Byte-for-byte shape: exactly the pre-existing keys, nothing added.
+    expect(Object.keys(payload).sort()).toEqual(['change', 'incomplete', 'message', 'status'])
   })
 })

@@ -190,4 +190,49 @@ project:
     const loader = new ConfigLoader(projectDir)
     expect(loader.globalPath).toBe(join(homedir(), '.metta'))
   })
+
+  it('defaults uat to { enabled: true } when config omits uat', async () => {
+    await writeFile(join(projectDir, '.metta', 'config.yaml'), `
+project:
+  name: "No Uat Block"
+`)
+    const loader = new ConfigLoader(projectDir, globalDir)
+    const config = await loader.load()
+    expect(config.uat).toEqual({ enabled: true })
+  })
+
+  it('honors explicit uat.enabled: false', async () => {
+    await writeFile(join(projectDir, '.metta', 'config.yaml'), `
+project:
+  name: "Uat Disabled"
+uat:
+  enabled: false
+`)
+    const loader = new ConfigLoader(projectDir, globalDir)
+    const config = await loader.load()
+    expect(config.uat).toEqual({ enabled: false })
+  })
+
+  it('rejects unknown keys inside the uat block', async () => {
+    await writeFile(join(projectDir, '.metta', 'config.yaml'), `
+project:
+  name: "Uat Unknown Key"
+uat:
+  enabled: true
+  bogus: 1
+`)
+    const loader = new ConfigLoader(projectDir, globalDir)
+    await expect(loader.load()).rejects.toThrow(/unrecognized/i)
+  })
+
+  it('rejects non-boolean uat.enabled without coercion', async () => {
+    await writeFile(join(projectDir, '.metta', 'config.yaml'), `
+project:
+  name: "Uat Non Boolean"
+uat:
+  enabled: "yes"
+`)
+    const loader = new ConfigLoader(projectDir, globalDir)
+    await expect(loader.load()).rejects.toThrow(/boolean/i)
+  })
 })
