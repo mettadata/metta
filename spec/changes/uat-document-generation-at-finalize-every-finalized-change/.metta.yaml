@@ -21,7 +21,12 @@ artifact_timings:
   intent:
     started: 2026-07-21T02:07:32.077Z
     completed: 2026-07-21T02:29:26.241Z
+  stories:
+    started: 2026-07-21T02:29:36.807Z
 artifact_tokens:
   intent:
     context: 759
+    budget: 20000
+  stories:
+    context: 2765
     budget: 20000
