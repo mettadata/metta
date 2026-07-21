@@ -7,6 +7,7 @@ import type { GateResult } from '../schemas/gate-result.js'
 import { DocGenerator } from '../docs/doc-generator.js'
 import { WorkflowEngine } from '../workflow/workflow-engine.js'
 import type { ArtifactStatus } from '../schemas/change-metadata.js'
+import { getErrorMessage } from '../util/errors.js'
 
 export interface FinalizeResult {
   changeName: string
@@ -21,6 +22,13 @@ export interface FinalizeResult {
    * completeness-gate abort path — when present, no merge ran and no gates ran.
    */
   incompleteArtifacts?: Array<{ id: string; status: ArtifactStatus }>
+  /**
+   * Post-archive path to the generated UAT.md; null when generation was
+   * disabled, skipped (dry-run / abort paths / no projectRoot), or degraded.
+   */
+  uatPath: string | null
+  /** Set only when UAT generation failed and finalize degraded. */
+  uatError?: string
 }
 
 export class Finalizer {
@@ -75,6 +83,7 @@ export class Finalizer {
         docsGenerated: [],
         refreshed: false,
         incompleteArtifacts,
+        uatPath: null,
       }
     }
 
@@ -92,6 +101,7 @@ export class Finalizer {
         gatesPassed: false,
         docsGenerated: [],
         refreshed: false,
+        uatPath: null,
       }
     }
 
@@ -116,6 +126,7 @@ export class Finalizer {
           gatesPassed: false,
           docsGenerated: [],
           refreshed: false,
+          uatPath: null,
         }
       }
     }
@@ -131,6 +142,7 @@ export class Finalizer {
         gatesPassed,
         docsGenerated: [],
         refreshed: false,
+        uatPath: null,
       }
     }
 
@@ -146,11 +158,43 @@ export class Finalizer {
         gatesPassed,
         docsGenerated: [],
         refreshed: false,
+        uatPath: null,
+      }
+    }
+
+    // Step 5b: Generate UAT.md (pre-archive so the move sweeps it in)
+    let uatGenerated = false
+    let uatError: string | undefined
+    let configLoader: import('../config/config-loader.js').ConfigLoader | undefined
+    if (this.projectRoot) {
+      try {
+        const { ConfigLoader } = await import('../config/config-loader.js')
+        configLoader ??= new ConfigLoader(this.projectRoot)
+        const config = await configLoader.load()
+        if (config.uat.enabled) {
+          const { generateUat } = await import('./uat-generator.js')
+          const uatResult = await generateUat({
+            changeName,
+            changeDir: join(this.specDir, 'changes', changeName),
+            generatedAt: new Date().toISOString().slice(0, 10),
+            gates,
+            gatesPassed,
+          })
+          await this.artifactStore.writeArtifact(changeName, 'UAT.md', uatResult.markdown)
+          uatGenerated = true
+        }
+      } catch (err) {
+        uatError = getErrorMessage(err) // warn-and-continue; finalize proceeds
+        // Best-effort cleanup of a partially written UAT.md so a truncated
+        // file is never swept into the archive.
+        const { rm } = await import('node:fs/promises')
+        await rm(join(this.specDir, 'changes', changeName, 'UAT.md'), { force: true }).catch(() => {})
       }
     }
 
     // Step 6: Archive the change
     const archiveName = await this.artifactStore.archive(changeName)
+    const uatPath = uatGenerated ? join(this.specDir, 'archive', archiveName, 'UAT.md') : null
 
     // Step 6b: Write gate results to archive
     if (gates.length > 0) {
@@ -172,8 +216,11 @@ export class Finalizer {
     let docsGenerated: string[] = []
     if (this.projectRoot) {
       try {
-        const { ConfigLoader } = await import('../config/config-loader.js')
-        const configLoader = new ConfigLoader(this.projectRoot)
+        // Reuse the Step 5b loader instance when it exists (per-instance cache
+        // makes the second load() free); construct our own otherwise. The
+        // independent try/catch keeps doc-generation degradation independent
+        // of UAT degradation.
+        configLoader ??= new (await import('../config/config-loader.js')).ConfigLoader(this.projectRoot)
         const config = await configLoader.load()
         const docsConfig = config.docs
 
@@ -198,6 +245,8 @@ export class Finalizer {
       gatesPassed,
       docsGenerated,
       refreshed,
+      uatPath,
+      ...(uatError ? { uatError } : {}),
     }
   }
 }
