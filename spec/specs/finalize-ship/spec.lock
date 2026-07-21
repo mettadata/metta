@@ -1,6 +1,6 @@
-version: 9
-hash: sha256:3a38a27ad6b3
-updated: 2026-07-15T12:50:07.407Z
+version: 18
+hash: sha256:84393e4598a9
+updated: 2026-07-21T04:51:58.697Z
 status: draft
 source: change
 requirements:
@@ -61,3 +61,57 @@ requirements:
       - declared-contract-and-instructed-behavior-agree
       - following-instructions-lets-completion-succeed
       - finalize-completeness-gate-passes-without-manual-patching
+  - id: uat-script-generation-at-finalize
+    hash: sha256:5bc587a4992a
+    scenarios:
+      - successful-finalize-writes-uat-md-into-the-change-directory-before-archive
+      - archive-sweep-carries-uat-md-into-the-archive-directory
+      - generation-is-deterministic-with-no-ai-call
+  - id: no-stray-uat-on-failed-finalize-paths
+    hash: sha256:07d484bfe67c
+    scenarios:
+      - incomplete-artifacts-abort-before-uat-generation
+      - merge-conflict-aborts-before-uat-generation
+      - gate-failure-aborts-before-uat-generation
+      - dry-run-finalize-writes-no-uat-md
+  - id: uat-source-material-assembly
+    hash: sha256:0e7609be41d6
+    scenarios:
+      - stories-and-spec-scenarios-feed-the-generated-steps
+      - machine-verified-annotation-applied-when-derivable
+      - annotation-absent-when-not-derivable-without-error
+  - id: uat-document-format
+    hash: sha256:88e257b108aa
+    scenarios:
+      - header-is-self-describing-for-later-audit
+      - steps-are-numbered-story-grouped-and-checkable
+  - id: uat-tier-fallback-chain
+    hash: sha256:3b9255d8233a
+    scenarios:
+      - parsed-stories-produce-the-full-story-grouped-script
+      - sentinel-stories-fall-back-to-spec-scenarios
+      - no-stories-and-no-spec-scenarios-fall-back-to-intent-plus-summary
+      - generation-is-never-skipped-by-tier-when-enabled
+  - id: uat-configuration-toggle
+    hash: sha256:e62e60ce6f33
+    scenarios:
+      - disabled-toggle-skips-generation-cleanly
+      - omitted-uat-key-defaults-to-enabled
+      - invalid-uat-config-is-rejected-strictly
+  - id: uat-path-in-finalize-output
+    hash: sha256:8cdcb4cadbc4
+    scenarios:
+      - json-success-payload-carries-the-uat-path
+      - human-output-reports-the-uat-path
+      - disabled-generation-yields-null-path-and-no-human-line
+      - error-json-shapes-are-unchanged
+  - id: uat-template-externality
+    hash: sha256:061be3125f06
+    scenarios:
+      - rendering-goes-through-the-external-template
+      - template-ships-to-dist-via-the-existing-copy-step
+  - id: uat-generation-failure-degradation
+    hash: sha256:c6f8a114e976
+    scenarios:
+      - assembly-error-degrades-to-a-warning-finalize-still-succeeds
+      - degraded-run-reports-the-failure-in-output
