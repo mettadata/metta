@@ -504,6 +504,69 @@ Scenarios:
 - Following instructions lets completion succeed
 - Finalize completeness gate passes without manual patching
 
+### UAT Script Generation At Finalize
+
+Scenarios:
+- Successful finalize writes UAT.md into the change directory before archive
+- Archive sweep carries UAT.md into the archive directory
+- Generation is deterministic with no AI call
+
+### No Stray UAT On Failed Finalize Paths
+
+Scenarios:
+- Incomplete artifacts abort before UAT generation
+- Merge conflict aborts before UAT generation
+- Gate failure aborts before UAT generation
+- Dry-run finalize writes no UAT.md
+
+### UAT Source Material Assembly
+
+Scenarios:
+- Stories and spec scenarios feed the generated steps
+- Machine-verified annotation applied when derivable
+- Annotation absent when not derivable, without error
+
+### UAT Document Format
+
+Scenarios:
+- Header is self-describing for later audit
+- Steps are numbered, story-grouped, and checkable
+
+### UAT Tier Fallback Chain
+
+Scenarios:
+- Parsed stories produce the full story-grouped script
+- Sentinel stories fall back to spec scenarios
+- No stories and no spec scenarios fall back to intent plus summary
+- Generation is never skipped by tier when enabled
+
+### UAT Configuration Toggle
+
+Scenarios:
+- Disabled toggle skips generation cleanly
+- Omitted uat key defaults to enabled
+- Invalid uat config is rejected strictly
+
+### UAT Path In Finalize Output
+
+Scenarios:
+- JSON success payload carries the UAT path
+- Human output reports the UAT path
+- Disabled generation yields null path and no human line
+- Error JSON shapes are unchanged
+
+### UAT Template Externality
+
+Scenarios:
+- Rendering goes through the external template
+- Template ships to dist via the existing copy step
+
+### UAT Generation Failure Degradation
+
+Scenarios:
+- Assembly error degrades to a warning, finalize still succeeds
+- Degraded run reports the failure in output
+
 ## fix-issues-command
 
 ### fix-issue-cli-command
