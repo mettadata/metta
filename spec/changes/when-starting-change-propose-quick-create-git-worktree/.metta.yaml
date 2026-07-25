@@ -1,0 +1,21 @@
+workflow: standard
+created: 2026-07-25T07:19:35.361Z
+status: active
+current_artifact: intent
+base_versions: {}
+artifacts:
+  intent: ready
+  stories: pending
+  spec: pending
+  research: pending
+  design: pending
+  tasks: pending
+  implementation: pending
+  verification: pending
+artifact_timings:
+  intent:
+    started: 2026-07-25T07:21:04.112Z
+artifact_tokens:
+  intent:
+    context: 759
+    budget: 20000
