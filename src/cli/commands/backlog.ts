@@ -3,6 +3,7 @@ import { execFile } from 'node:child_process'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { assertOnMainBranch, autoCommitFile, createCliContext, outputJson, getErrorMessage } from '../helpers.js'
+import { buildPromoteHandoff } from '../promote-handoff.js'
 import { SLUG_RE } from '../../util/slug.js'
 
 const execAsync = promisify(execFile)
@@ -93,9 +94,9 @@ export function registerBacklogCommand(program: Command): void {
         const item = await ctx.backlogStore.show(slug)
         // Create a change from this backlog item
         if (json) {
-          outputJson({ promoted: slug, message: `Run: metta propose "${item.title}"` })
+          outputJson({ promoted: slug, message: `Run: ${buildPromoteHandoff(item)}` })
         } else {
-          console.log(`Promote '${slug}' by running: metta propose "${item.title}"`)
+          console.log(`Promote '${slug}' by running: ${buildPromoteHandoff(item)}`)
         }
       } catch {
         if (json) { outputJson({ error: { code: 4, type: 'not_found', message: `Item '${slug}' not found` } }) } else { console.error(`Item '${slug}' not found`) }
