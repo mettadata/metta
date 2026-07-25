@@ -27,6 +27,8 @@ artifact_timings:
   spec:
     started: 2026-07-25T07:07:31.755Z
     completed: 2026-07-25T07:10:10.682Z
+  research:
+    started: 2026-07-25T07:10:15.626Z
 artifact_tokens:
   intent:
     context: 759
@@ -37,3 +39,6 @@ artifact_tokens:
   spec:
     context: 5043
     budget: 40000
+  research:
+    context: 6166
+    budget: 60000
