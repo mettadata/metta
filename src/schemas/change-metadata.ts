@@ -88,6 +88,7 @@ export const ChangeMetadataSchema = z.object({
   review_iterations: z.number().int().nonnegative().optional(),
   verify_iterations: z.number().int().nonnegative().optional(),
   stop_after: z.string().optional(),
+  worktree: z.string().optional(),
   escalation: EscalationSchema.optional(),
   model_escalations: z.array(ModelEscalationSchema).optional(),
   model_runs: z.array(ModelRunSchema).optional(),

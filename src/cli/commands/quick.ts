@@ -1,10 +1,6 @@
 import { Command } from 'commander'
-import { join } from 'node:path'
-import { execFile } from 'node:child_process'
-import { promisify } from 'node:util'
 import { createCliContext, outputJson, getErrorMessage } from '../helpers.js'
-
-const execAsync = promisify(execFile)
+import { setupChangeWorktree, type WorktreeGitConfig } from '../../util/git-worktree.js'
 
 export function registerQuickCommand(program: Command): void {
   program
@@ -21,27 +17,35 @@ export function registerQuickCommand(program: Command): void {
         const builtinWorkflows = new URL('../../templates/workflows', import.meta.url).pathname
         const graph = await ctx.workflowEngine.loadWorkflow('quick', [builtinWorkflows])
 
+        // Config is only needed for the git section; an unreadable config must
+        // not fail quick (mirrors the historical swallow-and-continue behavior).
+        let gitConfig: WorktreeGitConfig | undefined
+        try {
+          gitConfig = (await ctx.configLoader.load()).git
+        } catch {
+          // Proceed with defaults
+        }
+
+        // Create the branch + worktree BEFORE writing any change state, so the
+        // change scaffolding lands inside the worktree and the main checkout
+        // never switches branches (falls back to in-place checkout on failure).
+        const changeName = ctx.artifactStore.deriveChangeName(description)
+        const gitSetup = await setupChangeWorktree(ctx.projectRoot, changeName, gitConfig)
+
+        // In worktree mode, change state is written inside the worktree.
+        const workCtx = gitSetup.worktree !== null ? createCliContext(gitSetup.worktree) : ctx
+
         const artifactIds = graph.buildOrder
-        const result = await ctx.artifactStore.createChange(
+        const result = await workCtx.artifactStore.createChange(
           description,
           'quick',
           artifactIds,
           {},
           autoAccept,
+          undefined,
+          undefined,
+          gitSetup.worktree ?? undefined,
         )
-
-        // Create worktree branch
-        const branchName = `metta/${result.name}`
-        let branchCreated = false
-        try {
-          const config = await ctx.configLoader.load()
-          if (config.git?.enabled !== false) {
-            await execAsync('git', ['checkout', '-b', branchName], { cwd: ctx.projectRoot })
-            branchCreated = true
-          }
-        } catch {
-          // Branch may already exist or git not available
-        }
 
         if (json) {
           outputJson({
@@ -49,11 +53,18 @@ export function registerQuickCommand(program: Command): void {
             workflow: 'quick',
             path: result.path,
             artifacts: artifactIds,
-            branch: branchCreated ? branchName : null,
+            branch: gitSetup.branch,
+            worktree: gitSetup.worktree,
           })
         } else {
           console.log(`Quick change created: ${result.name}`)
-          if (branchCreated) console.log(`  Branch: ${branchName}`)
+          if (gitSetup.branch !== null) console.log(`  Branch: ${gitSetup.branch}`)
+          if (gitSetup.worktree !== null) {
+            const note = gitSetup.mode === 'reused' ? ' (reusing existing worktree)' : ''
+            console.log(`  Worktree: ${gitSetup.worktree}${note}`)
+          } else if (gitSetup.mode === 'fallback') {
+            console.log(`  Worktree: none — fell back to in-place checkout (${gitSetup.fallbackReason})`)
+          }
           console.log(`  Artifacts: ${artifactIds.join(' → ')}`)
         }
       } catch (err) {

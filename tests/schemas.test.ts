@@ -25,6 +25,7 @@ import {
   VerificationStrategyEnum,
   ModelAliasEnum,
   ModelsConfigSchema,
+  GitConfigSchema,
 } from '../src/schemas/index.js'
 import type { ComplexityScore } from '../src/schemas/index.js'
 
@@ -1641,6 +1642,93 @@ describe('VerificationConfigSchema', () => {
       strategy: 'tests_only',
       foo: 'bar',
     })
+    expect(result.success).toBe(false)
+  })
+})
+
+describe('GitConfigSchema worktree sub-object', () => {
+  it('defaults worktree to enabled with .metta/worktrees when omitted (backward compat)', () => {
+    const result = GitConfigSchema.safeParse({})
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.worktree).toEqual({ enabled: true, dir: '.metta/worktrees' })
+    }
+  })
+
+  it('keeps existing git configs without worktree valid', () => {
+    const result = GitConfigSchema.safeParse({
+      enabled: true,
+      merge_strategy: 'ff-only',
+      pr_base: 'main',
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('fills inner defaults when worktree is partially specified', () => {
+    const result = GitConfigSchema.safeParse({ worktree: { enabled: false } })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.worktree.enabled).toBe(false)
+      expect(result.data.worktree.dir).toBe('.metta/worktrees')
+    }
+  })
+
+  it('accepts a custom worktree dir', () => {
+    const result = GitConfigSchema.safeParse({ worktree: { dir: '.wt' } })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.worktree.dir).toBe('.wt')
+      expect(result.data.worktree.enabled).toBe(true)
+    }
+  })
+
+  it('rejects unknown worktree fields (.strict())', () => {
+    const result = GitConfigSchema.safeParse({ worktree: { enabled: true, extra: 1 } })
+    expect(result.success).toBe(false)
+  })
+
+  it('validates worktree through ProjectConfigSchema git section', () => {
+    const result = ProjectConfigSchema.safeParse({
+      git: { worktree: { enabled: false, dir: 'custom/worktrees' } },
+    })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.git?.worktree).toEqual({ enabled: false, dir: 'custom/worktrees' })
+    }
+  })
+})
+
+describe('ChangeMetadataSchema worktree field', () => {
+  const base = {
+    workflow: 'standard',
+    created: '2026-04-04T12:00:00Z',
+    status: 'active',
+    current_artifact: 'spec',
+    base_versions: {},
+    artifacts: {},
+  }
+
+  it('accepts metadata with an absolute worktree path', () => {
+    const result = ChangeMetadataSchema.safeParse({
+      ...base,
+      worktree: '/repo/.metta/worktrees/my-change',
+    })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.worktree).toBe('/repo/.metta/worktrees/my-change')
+    }
+  })
+
+  it('accepts existing records without the worktree field (backward compat)', () => {
+    const result = ChangeMetadataSchema.safeParse(base)
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.worktree).toBeUndefined()
+    }
+  })
+
+  it('rejects a non-string worktree value', () => {
+    const result = ChangeMetadataSchema.safeParse({ ...base, worktree: 42 })
     expect(result.success).toBe(false)
   })
 })

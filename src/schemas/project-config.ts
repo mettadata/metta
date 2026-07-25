@@ -26,6 +26,10 @@ export const GitConfigSchema = z.object({
   snapshot_retention: z.enum(['until_ship', 'always', 'never']).default('until_ship'),
   create_pr: z.boolean().default(false),
   pr_base: z.string().default('main'),
+  worktree: z.object({
+    enabled: z.boolean().default(true),
+    dir: z.string().default('.metta/worktrees'),
+  }).strict().default({}),
 }).strict()
 
 export type GitConfig = z.infer<typeof GitConfigSchema>
