@@ -49,7 +49,14 @@ const BLOCKED_SUBCOMMANDS = new Set([
 const BLOCKED_TWO_WORD = new Map([
   ['backlog', new Set(['add', 'done', 'promote'])],
   ['changes', new Set(['abandon'])],
+  ['roadmap', new Set(['add', 'reorder', 'next'])],
 ]);
+
+// Explicit ALLOW list for bare (no-third-word) read-only command groups: the
+// bare form (optionally with flags, e.g. `metta roadmap --json`) is a read-only
+// status view, while its two-word mutating forms stay Tier-2 blocked above.
+// `roadmap <any-unknown-word>` remains 'unknown' → fail-closed.
+const ALLOWED_BARE = new Set(['roadmap']);
 
 // Subcommands that require a trusted agent_type (caller identity set by the Claude Code
 // runtime when a forked metta-* subagent fires the tool). Verified caller identity is the
@@ -108,6 +115,7 @@ function classify(inv) {
   if (ALLOWED_SUBCOMMANDS.has(inv.sub)) return 'allow';
   const allowedTwo = ALLOWED_TWO_WORD.get(inv.sub);
   if (allowedTwo && inv.third && allowedTwo.has(inv.third)) return 'allow';
+  if (ALLOWED_BARE.has(inv.sub) && (!inv.third || inv.third.startsWith('-'))) return 'allow';
   if (BLOCKED_SUBCOMMANDS.has(inv.sub)) return 'block';
   const blockedTwo = BLOCKED_TWO_WORD.get(inv.sub);
   if (blockedTwo && inv.third && blockedTwo.has(inv.third)) return 'block';
