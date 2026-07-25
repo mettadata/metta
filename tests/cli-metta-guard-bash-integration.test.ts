@@ -36,6 +36,14 @@ const HOOK_TEMPLATE_PATH = join(
   'hooks',
   'metta-guard-bash.mjs',
 )
+const MINT_TEMPLATE_PATH = join(
+  import.meta.dirname,
+  '..',
+  'src',
+  'templates',
+  'hooks',
+  'metta-session-mint.mjs',
+)
 
 function runHook(
   payload: unknown,
@@ -340,6 +348,99 @@ describe('metta-guard-bash integration', { timeout: 60_000 }, () => {
       expect(last.verdict).toBe('block')
       expect(last.reason).toBe('missing-credential')
       expect(last.tier).toBe('session')
+    })
+  })
+
+  describe('roadmap classification end-to-end', () => {
+    let tempDir: string
+
+    beforeEach(() => {
+      tempDir = mkdtempSync(join(tmpdir(), 'metta-guard-roadmap-int-'))
+    })
+
+    afterEach(() => {
+      rmSync(tempDir, { recursive: true, force: true })
+    })
+
+    it.each([
+      'metta roadmap add foo',
+      'metta roadmap reorder a b',
+      'metta roadmap next',
+    ])('blocks uncredentialed `%s` — exit 2, rejection points at the skill path', (command) => {
+      const { code, stderr } = runHook(bashEvent(command, { cwd: tempDir }), { cwd: tempDir })
+      expect(code).toBe(2)
+      expect(stderr).toContain('/metta-')
+      expect(stderr).toContain('skill')
+    })
+
+    it('allows bare `metta roadmap` without any credential (read-only view) — exit 0', () => {
+      const { code, stderr } = runHook(bashEvent('metta roadmap', { cwd: tempDir }), {
+        cwd: tempDir,
+      })
+      expect(code).toBe(0)
+      expect(stderr).toBe('')
+    })
+
+    it('allows `metta roadmap --json` without any credential — exit 0', () => {
+      const { code, stderr } = runHook(bashEvent('metta roadmap --json', { cwd: tempDir }), {
+        cwd: tempDir,
+      })
+      expect(code).toBe(0)
+      expect(stderr).toBe('')
+    })
+
+    it('keeps `metta roadmap frobnicate` fail-closed as unknown — exit 2', () => {
+      const { code, stderr } = runHook(bashEvent('metta roadmap frobnicate', { cwd: tempDir }), {
+        cwd: tempDir,
+      })
+      expect(code).toBe(2)
+      expect(stderr).toContain('unknown')
+    })
+
+    it.each([
+      'metta backlog add "foo"',
+      'metta backlog done foo',
+      'metta backlog promote foo',
+      'metta changes abandon foo',
+    ])('existing uncredentialed Tier-2 block `%s` is unchanged — exit 2', (command) => {
+      const { code } = runHook(bashEvent(command, { cwd: tempDir }), { cwd: tempDir })
+      expect(code).toBe(2)
+    })
+
+    it('bare `metta backlog` stays blocked (no ALLOWED_BARE entry) — exit 2', () => {
+      const { code } = runHook(bashEvent('metta backlog', { cwd: tempDir }), { cwd: tempDir })
+      expect(code).toBe(2)
+    })
+
+    it('mint hook scope for metta-roadmap grants exactly roadmap:add/reorder/next', () => {
+      const mint = spawnSync('node', [MINT_TEMPLATE_PATH, 'metta-roadmap'], {
+        input: JSON.stringify(bashEvent('metta roadmap --json', { cwd: tempDir })),
+        encoding: 'utf8',
+        timeout: 10_000,
+        cwd: tempDir,
+      })
+      expect(mint.status).toBe(0)
+
+      const tokenPath = join(tempDir, '.metta', 'scratch', 'skill-session.token')
+      expect(existsSync(tokenPath)).toBe(true)
+      const token = JSON.parse(readFileSync(tokenPath, 'utf8')) as {
+        skill: string
+        subcommands: string[]
+      }
+      expect(token.skill).toBe('metta-roadmap')
+      expect(token.subcommands).toEqual(['roadmap:add', 'roadmap:reorder', 'roadmap:next'])
+
+      // The minted credential authorizes each of the three roadmap mutations…
+      for (const command of ['metta roadmap add foo', 'metta roadmap reorder a b', 'metta roadmap next']) {
+        const { code, stderr } = runHook(bashEvent(command, { cwd: tempDir }), { cwd: tempDir })
+        expect(code, `expected allow for: ${command}\n${stderr}`).toBe(0)
+      }
+
+      // …and nothing outside that scope.
+      const outOfScope = runHook(bashEvent('metta backlog add "foo"', { cwd: tempDir }), {
+        cwd: tempDir,
+      })
+      expect(outOfScope.code).toBe(2)
     })
   })
 
