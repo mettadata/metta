@@ -16,7 +16,16 @@ artifact_timings:
   intent:
     started: 2026-07-25T07:21:04.112Z
     completed: 2026-07-25T07:22:09.246Z
+  implementation:
+    started: 2026-07-25T07:22:32.588Z
 artifact_tokens:
   intent:
     context: 759
     budget: 20000
+  implementation:
+    context: 0
+    budget: 10000
+model_runs:
+  - task: implementation
+    model: sonnet
+    timestamp: 2026-07-25T07:22:32.589Z
