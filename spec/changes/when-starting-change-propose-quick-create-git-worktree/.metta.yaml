@@ -26,6 +26,7 @@ artifact_tokens:
   implementation:
     context: 0
     budget: 10000
+verify_iterations: 1
 model_runs:
   - task: implementation
     model: sonnet

@@ -30,3 +30,9 @@
 ## Out of scope (deferred per intent)
 
 Worktree removal/pruning (`metta cleanup` implementation), automatic removal on ship/finalize, session `cd` hand-off, migration of in-flight changes, and changes to `git.enabled` semantics or `MergeSafetyPipeline`.
+
+## Verification results
+
+- **Tests** (`verify/tests.md`): PASS — 92/92 test files, 1560/1560 tests, 0 failures.
+- **Typecheck/lint/build** (`verify/tsc-lint.md`): PASS — `npx tsc --noEmit` clean, `npm run lint` (tsc alias) clean, `npm run build` success.
+- **Intent traceability** (`verify/scenarios.md`): PASS — all 9 Proposal items verified with implementation evidence (`src/util/git-worktree.ts`, propose/quick commands, schemas, artifact store) and test coverage (22/22 targeted worktree tests, 9/9 schema tests). No gaps.
