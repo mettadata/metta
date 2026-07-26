@@ -1,4 +1,6 @@
-# finalize-ship
+# uat-execution
+
+<!-- new-capability -->
 
 ## ADDED: Requirement: UAT Runner Skill
 
