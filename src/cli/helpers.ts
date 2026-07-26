@@ -4,6 +4,7 @@ import { promisify } from 'node:util'
 import { createInterface } from 'node:readline'
 import { getErrorMessage } from '../util/errors.js'
 import { ConfigLoader, ConfigParseError } from '../config/config-loader.js'
+import { getVersionDrift } from '../config/version-drift.js'
 import { ArtifactStore } from '../artifacts/artifact-store.js'
 import { WorkflowEngine } from '../workflow/workflow-engine.js'
 import { ContextEngine } from '../context/context-engine.js'
@@ -144,6 +145,19 @@ export async function autoCommitFile(
 }
 
 export function outputJson(data: unknown): void {
+  const drift = getVersionDrift()
+  if (
+    drift !== null &&
+    data !== null &&
+    typeof data === 'object' &&
+    !Array.isArray(data) &&
+    !('template_version_mismatch' in data)
+  ) {
+    data = {
+      ...data,
+      template_version_mismatch: { installed: drift.installed, running: drift.running },
+    }
+  }
   console.log(JSON.stringify(data, null, 2))
 }
 

@@ -1,5 +1,6 @@
-import { describe, it, expect, afterEach } from 'vitest'
-import { askYesNo } from '../src/cli/helpers.js'
+import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest'
+import { askYesNo, outputJson } from '../src/cli/helpers.js'
+import { recordVersionDrift, resetVersionDrift } from '../src/config/version-drift.js'
 
 describe('askYesNo', () => {
   const originalIsTTY = process.stdin.isTTY
@@ -54,5 +55,56 @@ describe('askYesNo', () => {
   it('defaults to false in jsonMode when defaultYes is omitted', async () => {
     setTTY(true)
     await expect(askYesNo('prompt?', { jsonMode: true })).resolves.toBe(false)
+  })
+})
+
+describe('outputJson', () => {
+  let logSpy: ReturnType<typeof vi.spyOn>
+
+  beforeEach(() => {
+    resetVersionDrift()
+    logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+  })
+
+  afterEach(() => {
+    resetVersionDrift()
+    logSpy.mockRestore()
+  })
+
+  function printed(): string {
+    expect(logSpy).toHaveBeenCalledTimes(1)
+    return logSpy.mock.calls[0][0] as string
+  }
+
+  it('appends template_version_mismatch to object payloads when drift is recorded', () => {
+    recordVersionDrift({ installed: '0.1.0', running: '0.2.0' })
+    outputJson({ status: 'ok', count: 3 })
+    const parsed = JSON.parse(printed()) as Record<string, unknown>
+    expect(parsed).toEqual({
+      status: 'ok',
+      count: 3,
+      template_version_mismatch: { installed: '0.1.0', running: '0.2.0' },
+    })
+  })
+
+  it('omits the key entirely when no drift is recorded', () => {
+    outputJson({ status: 'ok' })
+    expect(printed()).toBe(JSON.stringify({ status: 'ok' }, null, 2))
+  })
+
+  it('leaves array payloads untouched even when drift is recorded', () => {
+    recordVersionDrift({ installed: '0.1.0', running: '0.2.0' })
+    outputJson([{ id: 1 }, { id: 2 }])
+    expect(printed()).toBe(JSON.stringify([{ id: 1 }, { id: 2 }], null, 2))
+  })
+
+  it('does not displace a pre-existing template_version_mismatch key', () => {
+    recordVersionDrift({ installed: '0.1.0', running: '0.2.0' })
+    const payload = {
+      status: 'ok',
+      template_version_mismatch: { installed: 'a', running: 'b' },
+    }
+    outputJson(payload)
+    expect(printed()).toBe(JSON.stringify(payload, null, 2))
   })
 })
