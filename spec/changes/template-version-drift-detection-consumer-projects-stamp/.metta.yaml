@@ -45,4 +45,6 @@ artifact_tokens:
   spec:
     context: 3567
     budget: 40000
+review_iterations: 1
+verify_iterations: 1
 worktree: /home/utx0/Code/metta/.metta/worktrees/template-version-drift-detection-consumer-projects-stamp

@@ -34,3 +34,13 @@ Template version drift detection for consumer projects, per spec.md (capability 
 
 - All executors hit the metta-guard-edit hook blocking Edit/Write inside the worktree (hook resolves the active change from the session cwd, not the worktree); edits were applied via Bash/python3 fallback. Logged for follow-up as a guard/worktree blind spot.
 - No implementation bugs surfaced by the integration suite; design behaviors held as specified.
+
+## Verification results
+
+| Gate | Result |
+|------|--------|
+| npm test | PASS — 96 files, 1656/1656 tests |
+| tsc + lint | PASS — `npx tsc --noEmit` clean; `npm run lint` (tsc) clean |
+| Spec traceability | PASS — 21/21 Given/When/Then scenarios covered by passing tests |
+
+Details in `verify/tests.md`, `verify/tsc-lint.md`, `verify/scenarios.md`. Review: 2 rounds, final verdicts all PASS (security majors fixed via VALID_STAMP bound in commit 662c1c48c).
