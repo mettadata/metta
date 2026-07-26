@@ -1,0 +1,56 @@
+workflow: standard
+created: 2026-07-26T03:30:44.041Z
+status: active
+current_artifact: verification
+base_versions: {}
+artifacts:
+  intent: complete
+  stories: complete
+  spec: complete
+  research: complete
+  design: complete
+  tasks: complete
+  implementation: complete
+  verification: complete
+complexity_score:
+  score: 3
+  signals:
+    file_count: 8
+  recommended_workflow: full
+artifact_timings:
+  intent:
+    started: 2026-07-26T03:31:18.636Z
+    completed: 2026-07-26T03:36:30.861Z
+  stories:
+    started: 2026-07-26T03:36:39.353Z
+    completed: 2026-07-26T03:38:46.062Z
+  spec:
+    started: 2026-07-26T03:38:53.407Z
+    completed: 2026-07-26T03:45:02.721Z
+  research:
+    completed: 2026-07-26T03:53:44.206Z
+  design:
+    started: 2026-07-26T03:53:52.314Z
+    completed: 2026-07-26T03:59:16.210Z
+  tasks:
+    completed: 2026-07-26T04:03:17.483Z
+  implementation:
+    completed: 2026-07-26T04:22:00.803Z
+  verification:
+    completed: 2026-07-26T04:40:16.697Z
+artifact_tokens:
+  intent:
+    context: 759
+    budget: 20000
+  stories:
+    context: 3071
+    budget: 20000
+  spec:
+    context: 5367
+    budget: 40000
+  design:
+    context: 6971
+    budget: 80000
+review_iterations: 1
+verify_iterations: 1
+worktree: /home/utx0/Code/metta/.metta/worktrees/metta-uat-runner-skill-execute-change-s-generated-uat-md

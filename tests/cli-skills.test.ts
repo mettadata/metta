@@ -212,6 +212,38 @@ describe("CLI: skill & agent template byte-identity", { timeout: 30000 }, () => 
   })
 
 
+  describe('byte-identity: metta-uat skill', () => {
+    it('template and deployed copy are byte-identical with required frontmatter', async () => {
+      const { readFile } = await import('node:fs/promises')
+      const templatePath = join(import.meta.dirname, '..', 'src', 'templates', 'skills', 'metta-uat', 'SKILL.md')
+      const deployedPath = join(import.meta.dirname, '..', '.claude', 'skills', 'metta-uat', 'SKILL.md')
+      const template = await readFile(templatePath, 'utf8')
+      const deployed = await readFile(deployedPath, 'utf8')
+      expect(template).toBe(deployed)
+      expect(template).toMatch(/^---\n[\s\S]*?name:\s*metta:uat[\s\S]*?\n---/)
+      // hook-less main-session: no fork context, no mint hook
+      expect(template).not.toMatch(/context:\s*fork/)
+      expect(template).not.toMatch(/hooks:/)
+    })
+  })
+
+  describe('byte-identity: metta-uat-runner agent', () => {
+    it('template and deployed copy are byte-identical with required frontmatter', async () => {
+      const { readFile } = await import('node:fs/promises')
+      const templatePath = join(import.meta.dirname, '..', 'src', 'templates', 'agents', 'metta-uat-runner.md')
+      const deployedPath = join(import.meta.dirname, '..', '.claude', 'agents', 'metta-uat-runner.md')
+      const template = await readFile(templatePath, 'utf8')
+      const deployed = await readFile(deployedPath, 'utf8')
+      expect(template).toBe(deployed)
+      expect(template).toMatch(/^---\n[\s\S]*?name:\s*metta-uat-runner[\s\S]*?\n---/)
+      // tools: must be exactly [Read, Bash, Edit]
+      expect(template).toMatch(/tools:\s*\[\s*Read,\s*Bash,\s*Edit\s*\]/)
+      // no model field — runner always inherits the session model
+      expect(template).not.toMatch(/^model:/m)
+    })
+  })
+
+
   describe('metta-fix-issues skill template', () => {
     it('template exists with frontmatter name metta:fix-issues', async () => {
       const { readFile } = await import('node:fs/promises')

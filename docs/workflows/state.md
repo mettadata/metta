@@ -222,7 +222,7 @@ Schema: `SpecLockSchema` in `src/schemas/spec-lock.ts`.
 
 ## `spec/archive/<YYYY-MM-DD>-<slug>/` — finalized and abandoned changes
 
-`ArtifactStore.archive(name)` moves `spec/changes/<name>/` to `spec/archive/<YYYY-MM-DD>-<name>/` via an `fs.rename`. `ArtifactStore.abandon(name)` updates `status: abandoned` first, then moves to `spec/archive/<YYYY-MM-DD>-<name>-abandoned/`. The original artifact set is preserved verbatim.
+`ArtifactStore.archive(name)` moves `spec/changes/<name>/` to `spec/archive/<YYYY-MM-DD>-<name>/` via an `fs.rename`. `ArtifactStore.abandon(name)` updates `status: abandoned` first, then moves to `spec/archive/<YYYY-MM-DD>-<name>-abandoned/`. The original artifact set is preserved verbatim, with one sanctioned exception: `/metta-uat` runs may update `UAT.md` checkbox state and append dated `## UAT run` records in place.
 
 The finalizer (`src/finalize/finalizer.ts`) additionally writes `archive/<dir>/gates.yaml` containing:
 

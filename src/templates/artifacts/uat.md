@@ -8,7 +8,10 @@
 
 If any step below fails or behaves unexpectedly, log a metta issue
 (`/metta-issue <description>`) referencing this file and the step number.
-Do not edit this document to make a step pass.
+The sanctioned UAT runner (`/metta-uat`) may flip a step's Pass checkbox
+to reflect a genuinely observed outcome and may append dated `## UAT run`
+records below the steps. Never fabricate a pass: do not alter step content,
+and never check a box for behavior that was not actually observed.
 
 ## Acceptance steps
 
