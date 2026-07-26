@@ -24,6 +24,8 @@ artifact_timings:
   stories:
     started: 2026-07-26T03:50:59.647Z
     completed: 2026-07-26T03:53:02.862Z
+  spec:
+    started: 2026-07-26T03:53:18.513Z
 artifact_tokens:
   intent:
     context: 759
@@ -31,4 +33,7 @@ artifact_tokens:
   stories:
     context: 1988
     budget: 20000
+  spec:
+    context: 3567
+    budget: 40000
 worktree: /home/utx0/Code/metta/.metta/worktrees/template-version-drift-detection-consumer-projects-stamp
