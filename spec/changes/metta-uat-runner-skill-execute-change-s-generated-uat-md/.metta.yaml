@@ -24,6 +24,8 @@ artifact_timings:
   stories:
     started: 2026-07-26T03:36:39.353Z
     completed: 2026-07-26T03:38:46.062Z
+  spec:
+    started: 2026-07-26T03:38:53.407Z
 artifact_tokens:
   intent:
     context: 759
@@ -31,4 +33,7 @@ artifact_tokens:
   stories:
     context: 3071
     budget: 20000
+  spec:
+    context: 5367
+    budget: 40000
 worktree: /home/utx0/Code/metta/.metta/worktrees/metta-uat-runner-skill-execute-change-s-generated-uat-md
