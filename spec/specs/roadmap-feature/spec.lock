@@ -1,0 +1,71 @@
+version: 12
+hash: sha256:0cb2b6d01ec3
+updated: 2026-07-26T02:36:40.652Z
+status: draft
+source: change
+requirements:
+  - id: roadmap-persists-as-a-single-ordered-markdown-file-managed-by-roadmapstore
+    hash: sha256:0498e304c481
+    scenarios:
+      - entries-round-trip-through-format-and-parse-in-order
+      - missing-roadmap-file-reads-as-an-empty-roadmap
+      - unsafe-slug-is-rejected-at-the-store-boundary
+  - id: default-roadmap-command-is-a-read-only-ordered-status-view
+    hash: sha256:96f512e5b9d8
+    scenarios:
+      - populated-roadmap-listed-in-order
+      - json-view-mirrors-the-text-view
+      - read-only-view-runs-on-any-branch-without-a-guard
+      - empty-roadmap-renders-a-friendly-empty-state
+  - id: dangling-entries-are-surfaced-never-fatal
+    hash: sha256:26ddfe265f20
+    scenarios:
+      - deleted-backlog-item-shows-as-dangling
+      - dangling-flag-present-in-json-output
+  - id: roadmap-add-appends-an-existing-backlog-item-to-the-end-of-the-queue
+    hash: sha256:9557a1d4b0d6
+    scenarios:
+      - valid-slug-appended-with-a-note-and-auto-committed
+      - unknown-backlog-slug-is-rejected-as-not-found
+      - duplicate-roadmap-entry-is-rejected
+  - id: roadmap-reorder-accepts-only-a-complete-non-interactive-permutation
+    hash: sha256:004aededa702
+    scenarios:
+      - full-permutation-rewrites-the-order
+      - omission-addition-and-duplicate-are-each-rejected-with-no-partial-write
+  - id: roadmap-next-activates-the-top-entry-through-the-backlog-promote-path-and-pops-it
+    hash: sha256:f539df95f9be
+    scenarios:
+      - top-entry-activated-and-removed-from-the-queue
+      - empty-roadmap-is-a-friendly-no-op
+  - id: mutating-roadmap-operations-enforce-main-branch-and-auto-commit-discipline
+    hash: sha256:9669ed9d1d69
+    scenarios:
+      - non-main-branch-blocks-each-mutation
+      - escape-hatch-permits-a-deliberate-off-main-mutation
+  - id: roadmap-failures-use-the-standard-error-contract
+    hash: sha256:93dc3ef2452b
+    scenarios:
+      - envelope-shape-is-consistent-across-failure-types
+      - text-mode-reports-the-same-failures-on-stderr
+  - id: roadmap-wiring-is-additive-to-the-cli-context-and-barrel-exports
+    hash: sha256:51244fb113dc
+    scenarios:
+      - command-group-and-store-are-reachable-through-standard-wiring
+      - backlog-behavior-is-untouched
+  - id: guard-hook-tiers-roadmap-forms-mutations-tier-2-status-view-unguarded
+    hash: sha256:48d9dec29b51
+    scenarios:
+      - uncredentialed-ai-session-is-blocked-from-roadmap-mutations
+      - read-only-view-passes-the-guard-without-a-credential
+      - existing-guard-entries-are-unchanged
+  - id: the-metta-roadmap-skill-wraps-all-mutating-roadmap-operations
+    hash: sha256:4249c92b3142
+    scenarios:
+      - skill-invocation-mints-the-credential-and-the-guard-authorizes-the-mutation
+      - skill-offers-add-and-reorder-against-cli-emitted-slugs
+  - id: orchestrators-answer-what-next-from-the-roadmap-top-entry
+    hash: sha256:54572d246517
+    scenarios:
+      - populated-roadmap-answers-routing-without-user-re-litigation
+      - empty-roadmap-yields-a-clean-fallback-signal
