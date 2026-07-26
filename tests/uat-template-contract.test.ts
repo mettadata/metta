@@ -22,7 +22,9 @@ describe('uat.md template contract', () => {
     expect(template).toContain('## Reporting failures')
     expect(template).toContain('log a metta issue')
     expect(template).toContain('/metta-issue <description>')
-    expect(template).toContain('Do not edit this document to make a step pass.')
+    expect(template).toContain('sanctioned UAT runner (`/metta-uat`)')
+    expect(template).toContain('Never fabricate a pass')
+    expect(template).toContain('never check a box for behavior that was not actually observed')
   })
 
   it('places the Acceptance steps heading above the {uat_steps} placeholder', async () => {
