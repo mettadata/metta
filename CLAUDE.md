@@ -1,5 +1,12 @@
 # metta
 
+## Response style
+* Default to brief. Lead with the answer or the outcome, not the reasoning.
+* No preamble, no restating my question, no narrating steps as you go.
+* Summarize completed work in 1–3 lines. Skip file-by-file recaps unless a change is non-obvious.
+* Expand only when I ask ("explain", "why", "walk me through", "in detail").
+* Exception: always surface risks, breaking changes, or assumptions you made — one line each, never dropped for brevity.
+
 <!-- metta:project-start source:spec/project.md -->
 ## Project
 

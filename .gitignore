@@ -14,3 +14,4 @@ referrences/**/package-lock.json
 referrences/**/pnpm-lock.yaml
 referrences/**/yarn.lock
 .claude/worktrees/
+.metta/worktrees/
