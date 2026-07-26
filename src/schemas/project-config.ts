@@ -114,6 +114,7 @@ export const ProjectConfigSchema = z.object({
   }).strict().optional(),
   verification: VerificationConfigSchema.optional(),
   models: ModelsConfigSchema,
+  installed_version: z.string().optional(),
 }).strict()
 
 export type ProjectConfig = z.infer<typeof ProjectConfigSchema>
