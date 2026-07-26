@@ -14,7 +14,7 @@ import { randomUUID } from 'node:crypto';
 
 // Per-skill subcommand scoping: a token minted for one skill authorizes only the
 // subcommands that skill's body legitimately drives. Two-word forms are keyed
-// "<sub>:<third>". Keys are the 9 Tier-2 (non-forked) skill slugs.
+// "<sub>:<third>". Keys are the 10 Tier-2 (non-forked) skill slugs.
 const SKILL_SCOPES = {
   'metta-next': ['complete', 'finalize'],
   'metta-plan': ['complete'],
@@ -25,6 +25,7 @@ const SKILL_SCOPES = {
   'metta-init': ['init', 'refresh'],
   'metta-backlog': ['backlog:add', 'backlog:done', 'backlog:promote'],
   'metta-fix-gap': ['fix-gap', 'complete', 'finalize'],
+  'metta-roadmap': ['roadmap:add', 'roadmap:reorder', 'roadmap:next'],
 };
 
 const TTL_MS = 300000; // 5 min sliding TTL, re-primed at 80% (see design.md Data Model).
@@ -40,7 +41,7 @@ function main() {
   try { event = JSON.parse(raw); } catch { process.exit(0); }
   if (event.tool_name !== 'Bash') process.exit(0);
 
-  // Defensive: only the 9 Tier-2 skills invoke this script with their own slug.
+  // Defensive: only the 10 Tier-2 skills invoke this script with their own slug.
   const slug = process.argv[2];
   if (!Object.prototype.hasOwnProperty.call(SKILL_SCOPES, slug)) process.exit(0);
 
