@@ -2,6 +2,11 @@
 
 import { Command } from 'commander'
 import { ConfigLoader, ConfigParseError } from '../config/config-loader.js'
+import {
+  readInstalledVersion,
+  detectVersionDrift,
+  recordVersionDrift,
+} from '../config/version-drift.js'
 import { handleError, getPackageVersion } from './helpers.js'
 import { registerInstallCommand } from './commands/install.js'
 import { registerInitCommand } from './commands/init.js'
@@ -107,6 +112,12 @@ const CONFIG_PARSE_EXEMPT_COMMANDS = new Set([
   'completion',
 ])
 
+// Drift check is skipped only for the commands that re-stamp. This set is
+// independent of CONFIG_PARSE_EXEMPT_COMMANDS: doctor/update/completion keep
+// their config-parse exemption but still get the drift check. The two gates
+// are independent sets and must never be re-merged.
+const DRIFT_CHECK_EXEMPT_COMMANDS = new Set(['install', 'init'])
+
 // Preflight hook: fail fast with a ConfigParseError before running any
 // command whose action handler may load config itself. Commands that own
 // the repair path are exempted so the user can always get back to a good
@@ -114,6 +125,30 @@ const CONFIG_PARSE_EXEMPT_COMMANDS = new Set([
 // the actionable `metta doctor --fix` remedy.
 program.hook('preAction', async (_thisCommand, actionCommand) => {
   const name = actionCommand.name()
+
+  // Phase (a): version drift check — every command except install/init.
+  // Fully isolated: readInstalledVersion never throws by contract, and the
+  // whole phase is additionally wrapped so a drift-check bug can never break
+  // a CLI invocation (spec: "MUST silently skip ... never break a CLI
+  // invocation"). Runs BEFORE the fail-fast so drifted-but-corrupt projects
+  // still fail with the existing ConfigParseError remedy, not a drift error.
+  if (!DRIFT_CHECK_EXEMPT_COMMANDS.has(name)) {
+    try {
+      const installed = await readInstalledVersion(process.cwd())
+      const running = await getPackageVersion()
+      const drift = detectVersionDrift(installed, running)
+      if (drift) {
+        recordVersionDrift(drift)
+        process.stderr.write(
+          `Warning: metta assets were installed by v${drift.installed} but you are running v${drift.running} — run 'metta install' to refresh.\n`,
+        )
+      }
+    } catch {
+      // Drift detection is advisory; never surface its failures.
+    }
+  }
+
+  // Phase (b): existing ConfigParseError fail-fast — UNCHANGED.
   if (CONFIG_PARSE_EXEMPT_COMMANDS.has(name)) return
   const json = program.opts().json ?? false
   const loader = new ConfigLoader(process.cwd())
