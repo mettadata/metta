@@ -50,4 +50,5 @@ artifact_tokens:
     context: 6971
     budget: 80000
 review_iterations: 1
+verify_iterations: 1
 worktree: /home/utx0/Code/metta/.metta/worktrees/metta-uat-runner-skill-execute-change-s-generated-uat-md

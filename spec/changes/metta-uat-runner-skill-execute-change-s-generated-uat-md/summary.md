@@ -30,3 +30,13 @@ A UAT runner for metta: the `/metta-uat` skill locates a change's generated `UAT
 
 - `tests/uat-template-contract.test.ts` was not in the planned file list; it pinned the old header sentence and was updated to the new spec-mandated contract (minimal assertion swap).
 - Batch 1 executors verified pair identity with `cmp` and deferred the shared `template-deploy-sync` suite to Batch 2 to avoid a parallel-write race on the global completeness assertion.
+
+## Verification (final)
+
+| Verifier | Verdict | Detail |
+|---|---|---|
+| Tests | PASS | 94 files, 1612/1612 tests |
+| Typecheck / lint / build | PASS | tsc clean; lint (tsc alias) clean; build ships both new templates to dist/ |
+| Spec traceability | PASS | 28 scenarios: 7 VERIFIED mechanically, 21 SPECIFIED with cited contract lines, 0 FAIL |
+
+Review: 2 rounds — round 1 PASS_WITH_WARNINGS x3 (6 warnings fixed in commit 0092215db: date-anchored archive glob, whole-tree sanity check, pathspec-scoped commit, metta allow-list, non-metta command constraints, refresh.ts listing); round 2 PASS/PASS/PASS_WITH_WARNINGS (remaining findings accepted, fail-safe). Full detail in review.md and verify/.
