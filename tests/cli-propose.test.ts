@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { mkdtemp, rm, mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { runCli, execAsync, CLI_PATH } from './helpers/cli.js'
+import { runCli, execAsync, CLI_PATH, disableWorktrees } from './helpers/cli.js'
 
 describe("CLI: propose / quick / complete pre-complete validation", { timeout: 30000 }, () => {
   let tempDir: string
@@ -18,6 +18,7 @@ describe("CLI: propose / quick / complete pre-complete validation", { timeout: 3
   describe('metta propose', () => {
     it('creates a change with standard workflow', async () => {
       await runCli(['install', '--git-init'], tempDir)
+      await disableWorktrees(tempDir)
       const { stdout, code } = await runCli(['--json', 'propose', 'add user profiles'], tempDir)
       expect(code).toBe(0)
       const data = JSON.parse(stdout)
@@ -31,6 +32,7 @@ describe("CLI: propose / quick / complete pre-complete validation", { timeout: 3
   describe('metta quick', () => {
     it('creates a quick-mode change', async () => {
       await runCli(['install', '--git-init'], tempDir)
+      await disableWorktrees(tempDir)
       const { stdout, code } = await runCli(['--json', 'quick', 'fix typo'], tempDir)
       expect(code).toBe(0)
       const data = JSON.parse(stdout)
@@ -51,6 +53,7 @@ describe("CLI: propose / quick / complete pre-complete validation", { timeout: 3
 
     it('--auto persists auto_accept_recommendation: true', async () => {
       await runCli(['install', '--git-init'], tempDir)
+      await disableWorktrees(tempDir)
       const { code } = await runCli(['propose', 'auto flag probe', '--auto'], tempDir)
       expect(code).toBe(0)
       const yaml = await readChangeMeta('auto-flag-probe')
@@ -59,6 +62,7 @@ describe("CLI: propose / quick / complete pre-complete validation", { timeout: 3
 
     it('--accept-recommended alias behaves identically', async () => {
       await runCli(['install', '--git-init'], tempDir)
+      await disableWorktrees(tempDir)
       const { code } = await runCli(
         ['propose', 'alias flag probe', '--accept-recommended'],
         tempDir,
@@ -70,6 +74,7 @@ describe("CLI: propose / quick / complete pre-complete validation", { timeout: 3
 
     it('--workflow standard --auto persists both workflow_locked and auto_accept_recommendation', async () => {
       await runCli(['install', '--git-init'], tempDir)
+      await disableWorktrees(tempDir)
       const { code } = await runCli(
         ['propose', 'combo flag probe', '--workflow', 'standard', '--auto'],
         tempDir,
@@ -82,6 +87,7 @@ describe("CLI: propose / quick / complete pre-complete validation", { timeout: 3
 
     it('no flags does NOT persist auto_accept_recommendation or workflow_locked', async () => {
       await runCli(['install', '--git-init'], tempDir)
+      await disableWorktrees(tempDir)
       const { code } = await runCli(['propose', 'bare flag probe'], tempDir)
       expect(code).toBe(0)
       const yaml = await readChangeMeta('bare-flag-probe')
@@ -102,6 +108,7 @@ describe("CLI: propose / quick / complete pre-complete validation", { timeout: 3
 
     it('--auto persists auto_accept_recommendation: true', async () => {
       await runCli(['install', '--git-init'], tempDir)
+      await disableWorktrees(tempDir)
       const { code } = await runCli(['quick', 'quick auto probe', '--auto'], tempDir)
       expect(code).toBe(0)
       const yaml = await readChangeMeta('quick-auto-probe')
@@ -110,6 +117,7 @@ describe("CLI: propose / quick / complete pre-complete validation", { timeout: 3
 
     it('--accept-recommended alias behaves identically', async () => {
       await runCli(['install', '--git-init'], tempDir)
+      await disableWorktrees(tempDir)
       const { code } = await runCli(
         ['quick', 'quick alias probe', '--accept-recommended'],
         tempDir,
@@ -121,6 +129,7 @@ describe("CLI: propose / quick / complete pre-complete validation", { timeout: 3
 
     it('no flags does NOT persist auto_accept_recommendation', async () => {
       await runCli(['install', '--git-init'], tempDir)
+      await disableWorktrees(tempDir)
       const { code } = await runCli(['quick', 'quick bare probe'], tempDir)
       expect(code).toBe(0)
       const yaml = await readChangeMeta('quick-bare-probe')
@@ -150,6 +159,7 @@ describe("CLI: propose / quick / complete pre-complete validation", { timeout: 3
 
     it('rejects artifact with stub marker', async () => {
       await runCli(['install', '--git-init'], tempDir)
+      await disableWorktrees(tempDir)
       await runCli(['propose', 'validate stubs'], tempDir)
       const changeDir = join(tempDir, 'spec', 'changes', 'validate-stubs')
       // Big enough to pass min-length but contains "intent stub" marker
@@ -167,6 +177,7 @@ describe("CLI: propose / quick / complete pre-complete validation", { timeout: 3
 
     it('rejects too-short artifact', async () => {
       await runCli(['install', '--git-init'], tempDir)
+      await disableWorktrees(tempDir)
       await runCli(['propose', 'shortness'], tempDir)
       const changeDir = join(tempDir, 'spec', 'changes', 'shortness')
       // ~40 bytes, well under the 200-byte floor
@@ -183,6 +194,7 @@ describe("CLI: propose / quick / complete pre-complete validation", { timeout: 3
 
     it('rejects artifact with {change_name} in H1', async () => {
       await runCli(['install', '--git-init'], tempDir)
+      await disableWorktrees(tempDir)
       await runCli(['propose', 'unfilled template'], tempDir)
       const changeDir = join(tempDir, 'spec', 'changes', 'unfilled-template')
       // H1 contains the literal template placeholder; body padded past min-length.
@@ -200,6 +212,7 @@ describe("CLI: propose / quick / complete pre-complete validation", { timeout: 3
 
     it('stories rejects bad stories.md (missing required fields)', async () => {
       await runCli(['install', '--git-init'], tempDir)
+      await disableWorktrees(tempDir)
       await runCli(['propose', 'bad stories'], tempDir)
       const changeDir = join(tempDir, 'spec', 'changes', 'bad-stories')
       // Write a plausible intent so earlier artifacts look normal, then
@@ -241,6 +254,7 @@ describe("CLI: propose / quick / complete pre-complete validation", { timeout: 3
 
     it('happy path with real content passes', async () => {
       await runCli(['install', '--git-init'], tempDir)
+      await disableWorktrees(tempDir)
       await runCli(['propose', 'happy complete'], tempDir)
       const changeDir = join(tempDir, 'spec', 'changes', 'happy-complete')
       await writeFile(join(changeDir, 'intent.md'), realIntent, 'utf8')
@@ -265,6 +279,7 @@ describe("CLI: propose / quick / complete pre-complete validation", { timeout: 3
 
     it('spec rejects MODIFIED for non-existent capability', async () => {
       await runCli(['install', '--git-init'], tempDir)
+      await disableWorktrees(tempDir)
       await runCli(['propose', 'bad modified'], tempDir)
       const changeDir = join(tempDir, 'spec', 'changes', 'bad-modified')
       const specBody = [
@@ -291,6 +306,7 @@ describe("CLI: propose / quick / complete pre-complete validation", { timeout: 3
 
     it('spec accepts ADDED for new capability', async () => {
       await runCli(['install', '--git-init'], tempDir)
+      await disableWorktrees(tempDir)
       await runCli(['propose', 'good added'], tempDir)
       const changeDir = join(tempDir, 'spec', 'changes', 'good-added')
       const specBody = [
@@ -316,6 +332,7 @@ describe("CLI: propose / quick / complete pre-complete validation", { timeout: 3
 
     it('spec accepts MODIFIED for existing capability', async () => {
       await runCli(['install', '--git-init'], tempDir)
+      await disableWorktrees(tempDir)
       await runCli(['propose', 'good modified'], tempDir)
       const changeDir = join(tempDir, 'spec', 'changes', 'good-modified')
       // Seed the capability spec so the MODIFIED target resolves to an existing

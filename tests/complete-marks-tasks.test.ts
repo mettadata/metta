@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
+import { disableWorktrees } from './helpers/cli.js'
 
 const execAsync = promisify(execFile)
 
@@ -70,6 +71,7 @@ describe('metta complete implementation -- ticks tasks.md checkboxes', { timeout
 
   it('marks every Task N.M as complete in tasks.md when implementation is completed', async () => {
     await runCli(['install', '--git-init'], tempDir)
+    await disableWorktrees(tempDir)
     await runCli(['propose', 'mark tasks demo'], tempDir)
 
     const changeDir = join(tempDir, 'spec', 'changes', 'mark-tasks-demo')
@@ -96,6 +98,7 @@ describe('metta complete implementation -- ticks tasks.md checkboxes', { timeout
 
   it('does not fail when tasks.md is absent', async () => {
     await runCli(['install', '--git-init'], tempDir)
+    await disableWorktrees(tempDir)
     await runCli(['propose', 'no tasks md'], tempDir)
 
     // Deliberately do NOT write tasks.md. The marking block must fail open.
@@ -108,6 +111,7 @@ describe('metta complete implementation -- ticks tasks.md checkboxes', { timeout
 
   it('does not fail when tasks.md is malformed (no parseable Task IDs)', async () => {
     await runCli(['install', '--git-init'], tempDir)
+    await disableWorktrees(tempDir)
     await runCli(['propose', 'malformed tasks md'], tempDir)
 
     const changeDir = join(tempDir, 'spec', 'changes', 'malformed-tasks-md')

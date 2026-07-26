@@ -1,10 +1,7 @@
 import { Command } from 'commander'
 import { join } from 'node:path'
-import { execFile } from 'node:child_process'
-import { promisify } from 'node:util'
 import { createCliContext, outputJson, getErrorMessage } from '../helpers.js'
-
-const execAsync = promisify(execFile)
+import { setupChangeWorktree } from '../../util/git-worktree.js'
 
 export function registerProposeCommand(program: Command): void {
   program
@@ -56,9 +53,18 @@ export function registerProposeCommand(program: Command): void {
           }
         }
 
+        // Create the branch + worktree BEFORE writing any change state, so the
+        // change scaffolding lands inside the worktree and the main checkout
+        // never switches branches (falls back to in-place checkout on failure).
+        const changeName = ctx.artifactStore.deriveChangeName(description)
+        const gitSetup = await setupChangeWorktree(ctx.projectRoot, changeName, config.git)
+
+        // In worktree mode, change state is written inside the worktree.
+        const workCtx = gitSetup.worktree !== null ? createCliContext(gitSetup.worktree) : ctx
+
         // Create the change
         const artifactIds = graph.buildOrder
-        const result = await ctx.artifactStore.createChange(
+        const result = await workCtx.artifactStore.createChange(
           description,
           workflowName,
           artifactIds,
@@ -66,20 +72,8 @@ export function registerProposeCommand(program: Command): void {
           autoAccept,
           workflowLocked,
           stopAfter,
+          gitSetup.worktree ?? undefined,
         )
-
-        // Create worktree branch (all work happens off main)
-        const branchName = `metta/${result.name}`
-        let branchCreated = false
-        try {
-          const config = await ctx.configLoader.load()
-          if (config.git?.enabled !== false) {
-            await execAsync('git', ['checkout', '-b', branchName], { cwd: ctx.projectRoot })
-            branchCreated = true
-          }
-        } catch {
-          // Branch may already exist or git not available
-        }
 
         if (json) {
           outputJson({
@@ -87,14 +81,21 @@ export function registerProposeCommand(program: Command): void {
             workflow: workflowName,
             path: result.path,
             artifacts: artifactIds,
-            branch: branchCreated ? branchName : null,
+            branch: gitSetup.branch,
+            worktree: gitSetup.worktree,
             stop_after: stopAfter ?? null,
             next: `Run \`metta instructions intent --json --change ${result.name}\` to get guidance`,
           })
         } else {
           console.log(`Change created: ${result.name}`)
           console.log(`  Workflow: ${workflowName}`)
-          if (branchCreated) console.log(`  Branch: ${branchName}`)
+          if (gitSetup.branch !== null) console.log(`  Branch: ${gitSetup.branch}`)
+          if (gitSetup.worktree !== null) {
+            const note = gitSetup.mode === 'reused' ? ' (reusing existing worktree)' : ''
+            console.log(`  Worktree: ${gitSetup.worktree}${note}`)
+          } else if (gitSetup.mode === 'fallback') {
+            console.log(`  Worktree: none — fell back to in-place checkout (${gitSetup.fallbackReason})`)
+          }
           console.log(`  Artifacts: ${artifactIds.join(' → ')}`)
           if (stopAfter !== undefined) {
             console.log(`  Stop after: ${stopAfter}`)

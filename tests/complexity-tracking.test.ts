@@ -6,6 +6,7 @@ import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import YAML from 'yaml'
 import { parseComplexityTracking } from '../src/constitution/complexity-tracking.js'
+import { disableWorktrees } from './helpers/cli.js'
 
 const execFileAsync = promisify(execFile)
 
@@ -246,6 +247,7 @@ describe('adaptive-workflow integration', { timeout: 30000 }, () => {
   describe('Task 5.1: propose-then-downscale-accept', () => {
     it('standard + 1-file impact with --auto downscales to trivial and drops planning artifacts', async () => {
       await runCli(['install', '--git-init'], tempDir)
+      await disableWorktrees(tempDir)
 
       const proposeRes = await runCli(
         ['propose', 'downscale accept', '--workflow', 'standard', '--auto'],
@@ -294,6 +296,7 @@ describe('adaptive-workflow integration', { timeout: 30000 }, () => {
   describe('Task 5.2: quick-then-upscale-accept at intent time', () => {
     it('quick + 5-file impact with --auto upscales to standard and inserts planning artifacts', async () => {
       await runCli(['install', '--git-init'], tempDir)
+      await disableWorktrees(tempDir)
 
       const quickRes = await runCli(
         ['quick', 'upscale accept', '--auto'],
@@ -338,6 +341,7 @@ describe('adaptive-workflow integration', { timeout: 30000 }, () => {
   describe('Task 5.3: post-impl upscale accept + decline', () => {
     it('quick + 5-file summary with --auto: actual_complexity_score persisted, workflow promoted, directive on stdout', async () => {
       await runCli(['install', '--git-init'], tempDir)
+      await disableWorktrees(tempDir)
       await runCli(['quick', 'post impl accept', '--auto'], tempDir)
 
       const changeDir = join(tempDir, 'spec', 'changes', 'post-impl-accept')
@@ -372,6 +376,7 @@ describe('adaptive-workflow integration', { timeout: 30000 }, () => {
 
     it('quick + 5-file summary WITHOUT --auto (non-TTY decline): score persisted, workflow unchanged, warning on stderr, no retro artifacts', async () => {
       await runCli(['install', '--git-init'], tempDir)
+      await disableWorktrees(tempDir)
       // No --auto flag; execFile gives non-TTY stdin so askYesNo returns
       // its default (false) -> the no path fires.
       await runCli(['quick', 'post impl decline'], tempDir)
@@ -411,6 +416,7 @@ describe('adaptive-workflow integration', { timeout: 30000 }, () => {
   describe('Task 5.4: --auto propagates across all three prompt sites', () => {
     it('sub-a: --auto intent downscale site emits auto-accept banner and mutates workflow', async () => {
       await runCli(['install', '--git-init'], tempDir)
+      await disableWorktrees(tempDir)
       await runCli(
         ['propose', 'auto site downscale', '--workflow', 'standard', '--auto'],
         tempDir,
@@ -440,6 +446,7 @@ describe('adaptive-workflow integration', { timeout: 30000 }, () => {
 
     it('sub-b: --auto intent upscale site emits auto-accept banner and mutates workflow', async () => {
       await runCli(['install', '--git-init'], tempDir)
+      await disableWorktrees(tempDir)
       await runCli(['quick', 'auto site upscale', '--auto'], tempDir)
 
       const changeDir = join(tempDir, 'spec', 'changes', 'auto-site-upscale')
@@ -464,6 +471,7 @@ describe('adaptive-workflow integration', { timeout: 30000 }, () => {
 
     it('sub-c: --auto post-impl upscale site emits auto-accept banner and mutates workflow', async () => {
       await runCli(['install', '--git-init'], tempDir)
+      await disableWorktrees(tempDir)
       await runCli(['quick', 'auto site postimpl', '--auto'], tempDir)
 
       const changeDir = join(tempDir, 'spec', 'changes', 'auto-site-postimpl')
@@ -489,6 +497,7 @@ describe('adaptive-workflow integration', { timeout: 30000 }, () => {
 
     it('sub-d: --accept-recommended alias matches --auto behavior on the intent downscale site', async () => {
       await runCli(['install', '--git-init'], tempDir)
+      await disableWorktrees(tempDir)
       await runCli(
         [
           'propose',
