@@ -1,8 +1,9 @@
 import { Command } from 'commander'
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
-import { createCliContext, outputJson, getErrorMessage } from '../helpers.js'
+import { createCliContext, outputJson, getErrorMessage, getPackageVersion } from '../helpers.js'
 import { detectBrownfield, buildDiscoveryInstructions } from './discovery-helpers.js'
+import { stampInstalledVersion } from '../../config/version-drift.js'
 
 export function registerInitCommand(program: Command): void {
   program
@@ -32,6 +33,9 @@ export function registerInitCommand(program: Command): void {
       }
 
       try {
+        // Re-stamp the running binary version (same overwrite semantics as install).
+        await stampInstalledVersion(root, await getPackageVersion())
+
         const { isBrownfield, detectedStack, detectedDirs } = await detectBrownfield(root, options.skipScan)
         const discovery = buildDiscoveryInstructions(root, isBrownfield, detectedStack, detectedDirs)
 
