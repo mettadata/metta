@@ -1,0 +1,22 @@
+workflow: standard
+created: 2026-07-26T03:30:44.041Z
+status: active
+current_artifact: intent
+base_versions: {}
+artifacts:
+  intent: ready
+  stories: pending
+  spec: pending
+  research: pending
+  design: pending
+  tasks: pending
+  implementation: pending
+  verification: pending
+artifact_timings:
+  intent:
+    started: 2026-07-26T03:31:18.636Z
+artifact_tokens:
+  intent:
+    context: 759
+    budget: 20000
+worktree: /home/utx0/Code/metta/.metta/worktrees/metta-uat-runner-skill-execute-change-s-generated-uat-md
