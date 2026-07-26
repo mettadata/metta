@@ -102,6 +102,32 @@ describe("CLI: install / init / stack detection", { timeout: 30000 }, () => {
       expect(modelsLines).toHaveLength(1)
     })
 
+    it('fresh install stamps installed_version with the running package version and config stays schema-valid', async () => {
+      const { code } = await runCli(['install', '--git-init'], tempDir)
+      expect(code).toBe(0)
+      const { readFile } = await import('node:fs/promises')
+      const pkg = JSON.parse(await readFile(join(import.meta.dirname, '..', 'package.json'), 'utf8'))
+      const configRaw = await readFile(join(tempDir, '.metta', 'config.yaml'), 'utf8')
+      const parsed = parse(configRaw)
+      expect(parsed.installed_version).toBe(pkg.version)
+      const result = ProjectConfigSchema.safeParse(parsed)
+      expect(result.success).toBe(true)
+    })
+
+    it('re-running install overwrites a stale installed_version with the running version', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      const { readFile, writeFile } = await import('node:fs/promises')
+      const configPath = join(tempDir, '.metta', 'config.yaml')
+      const seeded = 'project:\n  name: "x"\nmodels:\n  profile: balanced\ninstalled_version: "0.0.0-stale"\n'
+      await writeFile(configPath, seeded, 'utf8')
+      const { code } = await runCli(['install'], tempDir)
+      expect(code).toBe(0)
+      const pkg = JSON.parse(await readFile(join(import.meta.dirname, '..', 'package.json'), 'utf8'))
+      const parsed = parse(await readFile(configPath, 'utf8'))
+      expect(parsed.installed_version).toBe(pkg.version)
+      expect(parsed.installed_version).not.toBe('0.0.0-stale')
+    })
+
     it('is idempotent on an already-installed project', async () => {
       // Drop a stack marker so writeStacksToConfig is exercised on both installs.
       await writeFile(join(tempDir, 'package.json'), '{"name":"x"}\n')

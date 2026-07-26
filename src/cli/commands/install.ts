@@ -4,9 +4,10 @@ import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import { createCliContext, outputJson, getErrorMessage, askYesNo } from '../helpers.js'
+import { createCliContext, outputJson, getErrorMessage, askYesNo, getPackageVersion } from '../helpers.js'
 import { installCommands } from '../../delivery/command-installer.js'
 import { setProjectField } from '../../config/config-writer.js'
+import { stampInstalledVersion } from '../../config/version-drift.js'
 
 const execAsync = promisify(execFile)
 
@@ -263,6 +264,10 @@ models:
         await writeFile(join(root, '.metta', 'config.yaml'), configContent, { flag: 'wx' }).catch(() => {
           // Config already exists
         })
+
+        // Stamp the running binary version. Always re-stamp — re-running install
+        // after an upgrade/downgrade is the documented way to clear drift.
+        await stampInstalledVersion(root, await getPackageVersion())
 
         // Create constitution template
         const constitutionContent = `# ${root.split('/').pop()} — Project Constitution

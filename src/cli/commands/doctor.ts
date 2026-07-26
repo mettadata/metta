@@ -3,6 +3,7 @@ import { readFile, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { autoCommitFile, createCliContext, outputJson, color, getPackageVersion } from '../helpers.js'
 import { repairProjectConfig } from '../../config/repair-config.js'
+import { readInstalledVersion, templateFreshnessCheck } from '../../config/version-drift.js'
 
 export function registerDoctorCommand(program: Command): void {
   program
@@ -93,7 +94,16 @@ export function registerDoctorCommand(program: Command): void {
       })
 
       // Framework version
-      checks.push({ check: 'Framework version', status: 'pass', detail: await getPackageVersion() })
+      const runningVersion = await getPackageVersion()
+      checks.push({ check: 'Framework version', status: 'pass', detail: runningVersion })
+
+      // Template freshness — stamped installed_version vs running binary.
+      // Pure comparison over a tolerant read: cannot throw, so it can never
+      // error the doctor run (spec: doctor-template-freshness-check).
+      checks.push({
+        check: 'Template freshness',
+        ...templateFreshnessCheck(await readInstalledVersion(ctx.projectRoot), runningVersion),
+      })
 
       // .metta directory
       try {

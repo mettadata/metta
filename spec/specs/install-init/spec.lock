@@ -1,6 +1,6 @@
-version: 5
-hash: sha256:03757fb90004
-updated: 2026-04-14T05:24:40.521Z
+version: 11
+hash: sha256:d916dc48393e
+updated: 2026-07-26T04:51:04.337Z
 status: draft
 source: change
 requirements:
@@ -35,3 +35,42 @@ requirements:
     scenarios:
       - skill-template-references-init-command
       - skill-propagates-to-installed-projects
+  - id: install-stamps-installed-version
+    hash: sha256:140a11098911
+    scenarios:
+      - fresh-install-stamps-the-running-version
+      - re-running-install-overwrites-a-stale-stamp
+  - id: init-stamps-installed-version
+    hash: sha256:bcc1df84b08e
+    scenarios:
+      - init-stamps-the-running-version
+      - init-refreshes-a-stale-stamp
+  - id: project-config-schema-accepts-installed-version
+    hash: sha256:f87c6b59eab8
+    scenarios:
+      - stamped-config-validates
+      - legacy-config-without-the-field-remains-valid
+      - non-string-stamp-is-rejected
+  - id: invocation-time-drift-check
+    hash: sha256:36ac6e074c7c
+    scenarios:
+      - upgrade-drift-warns-once-on-stderr
+      - downgrade-drift-also-warns
+      - matching-versions-stay-silent
+      - install-and-init-skip-the-check
+      - absent-stamp-stays-silent
+      - missing-or-corrupt-config-skips-silently
+      - drift-never-changes-exit-codes
+  - id: json-output-carries-template-version-mismatch
+    hash: sha256:97da73ffc8d0
+    scenarios:
+      - mismatch-appears-in-json-payload
+      - no-mismatch-means-no-key
+      - absent-stamp-means-no-key
+      - stderr-warning-does-not-corrupt-stdout-json
+  - id: doctor-template-freshness-check
+    hash: sha256:5e4f7dadd262
+    scenarios:
+      - matching-stamp-passes
+      - mismatched-stamp-warns-with-both-versions
+      - missing-stamp-warns-without-failing-doctor

@@ -925,6 +925,67 @@ describe('ProjectConfigSchema', () => {
     expect(result.cleanup?.log_retention_days).toBe(30)
   })
 
+  it('accepts installed_version on a full valid config and exposes the string', () => {
+    const data = {
+      project: {
+        name: 'My App',
+        description: 'E-commerce platform',
+        stack: 'Next.js, Prisma, PostgreSQL',
+      },
+      defaults: {
+        workflow: 'full',
+        mode: 'supervised',
+      },
+      providers: {
+        main: { provider: 'anthropic', model: 'claude-opus-4-6-20250415' },
+      },
+      tools: ['claude-code'],
+      gates: {
+        tests: { command: 'npm test', timeout: 120000 },
+      },
+      git: {
+        enabled: true,
+        commit_convention: 'conventional',
+        protected_branches: ['main'],
+        merge_strategy: 'ff-only',
+        snapshot_retention: 'until_ship',
+        create_pr: false,
+        pr_base: 'main',
+      },
+      docs: {
+        output: './docs',
+        generate_on: 'finalize',
+        types: ['architecture', 'api'],
+      },
+      auto: {
+        max_cycles: 10,
+        ship_on_success: false,
+      },
+      installed_version: '0.4.0',
+    }
+    const result = ProjectConfigSchema.safeParse(data)
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.installed_version).toBe('0.4.0')
+    }
+  })
+
+  it('parses a legacy config without installed_version as undefined', () => {
+    const result = ProjectConfigSchema.parse({ project: { name: 'Legacy App' } })
+    expect(result.installed_version).toBeUndefined()
+  })
+
+  it('rejects a non-string installed_version with an issue at the field path', () => {
+    const result = ProjectConfigSchema.safeParse({
+      project: { name: 'App' },
+      installed_version: 4,
+    })
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.error.issues.some((i) => i.path[0] === 'installed_version')).toBe(true)
+    }
+  })
+
   it('applies defaults for absent docs block', () => {
     const result = ProjectConfigSchema.parse({})
     expect(result.docs).toEqual({

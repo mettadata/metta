@@ -1,0 +1,52 @@
+workflow: standard
+created: 2026-07-26T03:47:20.900Z
+status: active
+current_artifact: verification
+base_versions: {}
+artifacts:
+  intent: complete
+  stories: complete
+  spec: complete
+  research: complete
+  design: complete
+  tasks: complete
+  implementation: complete
+  verification: complete
+complexity_score:
+  score: 2
+  signals:
+    file_count: 5
+  recommended_workflow: standard
+artifact_timings:
+  intent:
+    started: 2026-07-26T03:48:40.731Z
+    completed: 2026-07-26T03:50:51.340Z
+  stories:
+    started: 2026-07-26T03:50:59.647Z
+    completed: 2026-07-26T03:53:02.862Z
+  spec:
+    started: 2026-07-26T03:53:18.513Z
+    completed: 2026-07-26T03:55:57.824Z
+  research:
+    completed: 2026-07-26T04:00:20.856Z
+  design:
+    completed: 2026-07-26T04:06:10.970Z
+  tasks:
+    completed: 2026-07-26T04:09:18.772Z
+  implementation:
+    completed: 2026-07-26T04:27:40.595Z
+  verification:
+    completed: 2026-07-26T04:46:03.981Z
+artifact_tokens:
+  intent:
+    context: 759
+    budget: 20000
+  stories:
+    context: 1988
+    budget: 20000
+  spec:
+    context: 3567
+    budget: 40000
+review_iterations: 1
+verify_iterations: 1
+worktree: /home/utx0/Code/metta/.metta/worktrees/template-version-drift-detection-consumer-projects-stamp

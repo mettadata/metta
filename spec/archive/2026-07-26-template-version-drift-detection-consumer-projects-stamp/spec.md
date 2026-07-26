@@ -1,113 +1,9 @@
 # install-init
 
-## Requirement: init-command-drives-discovery
-
-The  command MUST produce the discovery payload consumed by AI agents to run project discovery. It MUST detect brownfield versus greenfield mode by scanning for language/framework marker files and non-empty source directories. It MUST emit the  object (agent persona, mode, detected stack, questions, output paths, constitution and context templates) to stdout when  is set. It MUST require a prior  and MUST NOT scaffold any files, install any commands, or create commits.
-
-### Scenario: init after install in a brownfield project
-- GIVEN a project where  has been run and  plus a non-empty  exist
-- WHEN the user runs
-- THEN the command emits JSON containing a  object with ,  including Rust,  including , the brownfield question set, and absolute  for constitution, context_file, and config
-
-### Scenario: init on a greenfield project
-- GIVEN a project where  has been run and no stack marker files or source directories are present
-- WHEN the user runs
-- THEN the command emits  with the greenfield question set and empty  and
-
-### Scenario: init before install is blocked
-- GIVEN a project with no  directory
-- WHEN the user runs
-- THEN the command exits with code 3, emits an error JSON whose message instructs the user to run  first, and writes nothing to the filesystem
-
-### Scenario: init does not mutate the repository
-- GIVEN an installed project with a clean working tree
-- WHEN the user runs
-- THEN after the command the working tree remains clean, no new commits are created,  and  are byte-identical to their pre-run state
-
-
-## Requirement: init-skill-invokes-init-command
-
-The  Claude Code skill MUST invoke  (not ) as its first step, parse the  object from the response, and spawn a  agent with the parsed fields. The skill template in  MUST match the skill installed into target projects under  via the command installer.
-
-### Scenario: skill template references init command
-- GIVEN the skill template at
-- WHEN a reader inspects the bash command on the first numbered step
-- THEN the command is , not
-
-### Scenario: skill propagates to installed projects
-- GIVEN a project where  has been run
-- WHEN the installer copies  from the template
-- THEN the installed copy also invokes
-
-
-## Requirement: install-command-scaffolds-only
-
-The  command MUST scaffold Metta files into the project and MUST NOT emit discovery instructions or brownfield/greenfield classification. It MUST create , , ,  directories; write default , , and  if absent; install  slash commands, skills, and agents; regenerate  via the refresh pipeline; and commit the result as  when there are staged changes. The  output MUST NOT include a  field and MUST NOT include a  field — project classification is the responsibility of . The command MUST NOT perform brownfield detection.
-
-### Scenario: fresh install in a git repo
-- GIVEN a git-initialized project with no  directory
-- WHEN the user runs
-- THEN the command creates , , , , , installs  assets, regenerates , commits as , and emits JSON with  and no  or  keys
-
-### Scenario: install on a project that already has .metta
-- GIVEN a project where  has been run previously
-- WHEN the user runs  again
-- THEN the command exits successfully without overwriting  or , does not produce a new commit when nothing changed, and reports  with
-
-### Scenario: install without a git repository
-- GIVEN a directory with no
-- WHEN the user runs  without
-- THEN the command exits with code 3 and emits  without scaffolding any files
-
-### Scenario: human-readable install output points at init
-- GIVEN a fresh project
-- WHEN the user runs  without
-- THEN the final line of stdout directs them to run  next
-
-
-## Requirement: init-command-drives-discovery
-
-The  command MUST produce the discovery payload consumed by AI agents to run project discovery. It MUST detect brownfield versus greenfield mode by scanning for language/framework marker files and non-empty source directories. It MUST emit the  object (agent persona, mode, detected stack, questions, output paths, constitution and context templates) to stdout when  is set. It MUST require a prior  and MUST NOT scaffold any files, install any commands, or create commits.
-
-### Scenario: init after install in a brownfield project
-- GIVEN a project where  has been run and  plus a non-empty  exist
-- WHEN the user runs
-- THEN the command emits JSON containing a  object with ,  including Rust,  including , the brownfield question set, and absolute  for constitution, context_file, and config
-
-### Scenario: init on a greenfield project
-- GIVEN a project where  has been run and no stack marker files or source directories are present
-- WHEN the user runs
-- THEN the command emits  with the greenfield question set and empty  and
-
-### Scenario: init before install is blocked
-- GIVEN a project with no  directory
-- WHEN the user runs
-- THEN the command exits with code 3, emits an error JSON whose message instructs the user to run  first, and writes nothing to the filesystem
-
-### Scenario: init does not mutate the repository
-- GIVEN an installed project with a clean working tree
-- WHEN the user runs
-- THEN after the command the working tree remains clean, no new commits are created,  and  are byte-identical to their pre-run state
-
-
-## Requirement: init-skill-invokes-init-command
-
-The  Claude Code skill MUST invoke  (not ) as its first step, parse the  object from the response, and spawn a  agent with the parsed fields. The skill template in  MUST match the skill installed into target projects under  via the command installer.
-
-### Scenario: skill template references init command
-- GIVEN the skill template at
-- WHEN a reader inspects the bash command on the first numbered step
-- THEN the command is , not
-
-### Scenario: skill propagates to installed projects
-- GIVEN a project where  has been run
-- WHEN the installer copies  from the template
-- THEN the installed copy also invokes
-
-
-## Requirement: install-stamps-installed-version
+## ADDED: Requirement: install-stamps-installed-version
 
 The `metta install` command MUST write the running package version (as reported by `getPackageVersion`) to the top-level `installed_version` field in `.metta/config.yaml` using the validated `setProjectField` write path in `src/config/config-writer.ts`. The write MUST occur on every run of `metta install`, overwriting any existing `installed_version` value, so that re-running install after a binary upgrade or downgrade always refreshes the stamp. The stamped value MUST be the exact version string of the binary that performed the install.
+
 Traces to: US-4 (Re-stamping on install clears the warning); intent problem statement — installed assets are frozen at the writing binary's version but nothing records which version that was.
 
 ### Scenario: fresh install stamps the running version
@@ -121,9 +17,10 @@ Traces to: US-4 (Re-stamping on install clears the warning); intent problem stat
 - THEN `installed_version` in `.metta/config.yaml` is overwritten with "0.4.0", and subsequent commands emit no drift warning and no `template_version_mismatch` key in `--json` output
 
 
-## Requirement: init-stamps-installed-version
+## ADDED: Requirement: init-stamps-installed-version
 
 The `metta init` command MUST stamp the running package version into the top-level `installed_version` field of `.metta/config.yaml` via `setProjectField`, using the same write path and overwrite semantics as `metta install`. The stamp MUST be re-written on every run of `metta init`, so a drifted project is refreshed by either command.
+
 Traces to: US-4 (Re-stamping on install clears the warning), acceptance criterion covering `metta init`.
 
 ### Scenario: init stamps the running version
@@ -137,9 +34,10 @@ Traces to: US-4 (Re-stamping on install clears the warning), acceptance criterio
 - THEN `installed_version` is overwritten with "0.4.0" and the next non-install/init command emits no drift warning
 
 
-## Requirement: project-config-schema-accepts-installed-version
+## ADDED: Requirement: project-config-schema-accepts-installed-version
 
 `ProjectConfigSchema` in `src/schemas/project-config.ts` MUST accept an optional top-level `installed_version` field of type string. Configs that omit the field MUST remain valid (legacy installs are unaffected), and configs that include a string value MUST validate under the strict schema. A non-string `installed_version` value MUST fail validation.
+
 Traces to: intent impact statement — the schema is strict, so stamping without the schema addition would reject stamped configs; schema and stamping ship together. Supports US-2 (legacy configs stay valid) and US-4.
 
 ### Scenario: stamped config validates
@@ -158,9 +56,10 @@ Traces to: intent impact statement — the schema is strict, so stamping without
 - THEN validation fails with a type error on `installed_version`
 
 
-## Requirement: invocation-time-drift-check
+## ADDED: Requirement: invocation-time-drift-check
 
 On every CLI invocation except the `install` and `init` commands, the global `preAction` hook in `src/cli/index.ts` MUST compare the `installed_version` stamped in `.metta/config.yaml` against the running binary version using exact string inequality — no semver ranges or "compatible minor" logic. When the two strings differ (in either direction, including a downgrade where the binary is older than the stamp), the CLI MUST emit exactly one warning line to stderr in human mode naming both versions. The check MUST NOT block execution, MUST NOT alter the command's exit code, and MUST NOT write to stdout. The check MUST emit nothing when the `installed_version` field is absent, and MUST silently skip when `.metta/config.yaml` is missing, corrupt, or unreadable — a drift-check failure MUST never break a CLI invocation.
+
 Traces to: US-1 (Warn on version drift at every CLI invocation), US-2 (Legacy and broken configs stay quiet); intent problem statement — drift accumulates invisibly with no warning or diagnostic.
 
 ### Scenario: upgrade drift warns once on stderr
@@ -199,9 +98,10 @@ Traces to: US-1 (Warn on version drift at every CLI invocation), US-2 (Legacy an
 - THEN the exit code is still 0; and for a command that would fail with exit code 3, the exit code is still 3 — the warning is purely advisory
 
 
-## Requirement: json-output-carries-template-version-mismatch
+## ADDED: Requirement: json-output-carries-template-version-mismatch
 
 When a version mismatch was detected during the invocation and the command runs with `--json`, the `outputJson` payload (`src/cli/helpers.ts`) MUST include a top-level `template_version_mismatch` object with exactly two string fields: `installed` (the stamped version) and `running` (the binary version). When no mismatch was detected — versions match, the stamp is absent, or the config was unreadable — the `template_version_mismatch` key MUST be entirely absent from the JSON output. The field MUST be merged into the command's normal payload without displacing existing fields, and the stderr warning MUST NOT corrupt the JSON document on stdout.
+
 Traces to: US-3 (Machine-readable mismatch signal in --json output).
 
 ### Scenario: mismatch appears in JSON payload
@@ -225,9 +125,10 @@ Traces to: US-3 (Machine-readable mismatch signal in --json output).
 - THEN any human-readable warning goes only to stderr and stdout contains a single well-formed JSON document
 
 
-## Requirement: doctor-template-freshness-check
+## ADDED: Requirement: doctor-template-freshness-check
 
 The `metta doctor` command MUST include a check named "Template freshness" that compares the stamped `installed_version` in `.metta/config.yaml` against the running binary version. The check MUST report pass when the two version strings are exactly equal, MUST report warn (not fail) when they differ — showing both the installed and running versions — and MUST report warn when the `installed_version` stamp is missing, indicating the stamp is absent. The check MUST NOT cause the doctor run itself to error.
+
 Traces to: US-5 (Doctor reports template freshness).
 
 ### Scenario: matching stamp passes
