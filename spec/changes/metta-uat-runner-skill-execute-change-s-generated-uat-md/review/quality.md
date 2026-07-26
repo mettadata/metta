@@ -40,3 +40,31 @@ Reviewer focus: dead code, naming, duplication, test gaps, docs drift, sibling c
 ## Verdict
 
 PASS_WITH_WARNINGS
+
+## Round 2
+
+**Verdict: PASS**
+
+Re-review of fix commit `0092215db` against the round 1 findings.
+
+### Round 1 warnings — resolution
+
+- **Warning 1 (refresh.ts missing `/metta-uat`) — resolved.** `src/cli/commands/refresh.ts:137` adds `- \`/metta-uat\` — execute a change's generated UAT.md acceptance script` between `/metta-verify` and `/metta-ship` in the Lifecycle skills group. Placement matches the lifecycle order (verify → uat → ship) and the line matches the listing's exact style (backtick skill name, em dash, lowercase description). `tests/refresh.test.ts:122` adds `/metta-uat` to the asserted skill list inside the `includes all skills` loop, so the assertion is a real `toContain` check, not cosmetic.
+- **Warning 2 (return-contract duplication) — accepted as noted in round 1;** no action expected, none taken.
+
+### Reworded rules review
+
+- **Metta allow-list** (`agents/metta-uat-runner.md:17`): flipping the deny-list to "only `metta status --json` is permitted" is strictly stronger — new subcommands are forbidden by default. The "including but not limited to" enumeration is illustrative, not load-bearing, so it cannot drift into a loophole. Consistent with the untrusted-data clause above it.
+- **Non-metta constraint** (`agents/metta-uat-runner.md:18`): the two-condition gate (stated in Do/Run AND plausibly needed for observation) plus the concrete never-list reads naturally alongside sibling agent rule style and does not contradict the "Execute only the step's stated commands" rule — it refines it.
+- **Date-anchored glob** (`SKILL.md` step 1): `spec/archive/????-??-??-<name>/UAT.md` is internally consistent with the no-argument path's own statement that archive names are `<YYYY-MM-DD>-<slug>`, and closes the suffix-collision case; both failure-message paths were updated to match.
+- **Whole-tree check** (`SKILL.md` step 4): sensible ordering (after the per-file diff check, before commit). Minor wording nit only: the sentence says "modified or newly created tracked file", but a runner-created new file would appear in `git status --porcelain` as untracked (`??`); the preceding "the ONLY modified path is the target UAT.md" requirement still catches it, so no behavioral gap.
+- **Pathspec commit** (`SKILL.md` step 5): `git commit -m "..." -- <path>` is correct git — a pathspec-scoped commit includes only changes to matching paths, so pre-staged unrelated content cannot ride along. Rationale sentence is accurate.
+
+### Mechanical checks
+
+- Byte-identity holds: `cmp` clean for both pairs (`.claude/agents/metta-uat-runner.md` vs `src/templates/agents/metta-uat-runner.md`; `.claude/skills/metta-uat/SKILL.md` vs `src/templates/skills/metta-uat/SKILL.md`).
+- `npx vitest run tests/refresh.test.ts tests/cli-skills.test.ts` — 36/36 passed.
+- `npx tsc --noEmit` — clean.
+- `.metta.yaml` gains `review_iterations: 1` — expected bookkeeping, no schema concern.
+
+No new critical issues or warnings. Round 1 notes (unanchored `hooks:` regex in cli-skills.test.ts, `[change-name]` bracket style, omitted agent-types banner) remain open as notes only.

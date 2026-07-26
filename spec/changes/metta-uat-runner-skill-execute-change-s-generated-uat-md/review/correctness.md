@@ -49,3 +49,35 @@ None.
 
 ## Verdict
 PASS_WITH_WARNINGS
+
+## Round 2
+
+PASS_WITH_WARNINGS
+
+Scope: fix commit `0092215db` only (7 files). Byte-identity re-verified by direct `cmp`: agent pair identical, skill pair identical. `tests/refresh.test.ts` re-run: 19/19 pass.
+
+### Round 1 warning resolution
+
+- **W1 — RESOLVED.** The named-argument archive glob is now `spec/archive/????-??-??-<name>/UAT.md` in both skill copies. Verified against the spec's location rule (spec.md:30, `spec/archive/<date>-<name>/UAT.md`) and against the actual archive naming convention (`ls spec/archive/` confirms every entry is `YYYY-MM-DD-<slug>`): the 11-char date anchor forces everything after the date prefix to equal `<name>` exactly, so `2026-01-01-bar-foo` can no longer match name `foo`. Glob `?` does not cross `/`. The failure message lists the same corrected pattern — internally consistent. Exact-match per the spec's "the archive entry matching that name".
+
+### New findings in the fix diff
+
+#### Warnings
+- **W2 (new)** — `src/templates/skills/metta-uat/SKILL.md:32` (and deployed copy) — The new whole-tree `git status --porcelain` check has no baseline and therefore conflicts with step 2's scope. Step 2 snapshots ONLY the target (`git status --porcelain -- <path>`) and permits starting with unrelated dirty files elsewhere; step 4 then requires the ONLY modified path in the entire worktree to be the target. A run that legally started in a dirty tree (common in a dev repo) will always be stopped at step 4 with the pre-existing modifications mislabeled as "an unsanctioned runner write". Fail-safe (no commit, and the pathspec-scoped commit already guarantees isolation regardless), but a false-positive stop with a false attribution. Fix direction: snapshot whole-tree status in step 2 and flag only entries that are new/changed relative to that snapshot. Secondary wording nit on the same line: "newly created tracked file" — a file the runner creates without git shows as untracked (`??`), never as a newly created *tracked* file, so a literal reading of the sentence exempts exactly the artifacts a misbehaving runner would leave; "any new or modified entry in the status output" would say what is meant.
+
+#### Notes
+- **N6** — `src/templates/agents/metta-uat-runner.md:17` — The allow-list tightening forbids bare `metta status` (without `--json`) and any other read-only invocation a metta-dogfooding UAT step might state (`metta --version`, `metta progress`). Such steps now end as skip-with-note rather than executing a harmless read. Deliberate trade per the round 1 fix intent, and skip is the honest outcome — just noting the behavior change. Also, the wording keys on the literal `metta` command, so `node dist/cli/index.js <cmd>` is governed only by the new plausibility clause, not the allow-list.
+- **N7** — Skill step 5: after the pathspec change, the leading `git add <path> &&` is redundant (`git commit -- <path>` commits the working-tree content of the path regardless of the index). Harmless.
+- **N8** — Verified `.metta/scratch/` is gitignored (`.gitignore:8`), so session-token rotation during the run cannot false-trip the new whole-tree check; W2 concerns genuinely pre-existing tracked-file dirt only.
+
+Round 1 notes N1-N5 were not in scope for this fix round and remain open as notes (none block).
+
+### Fix-diff verification detail
+- Date-anchored glob: correct implementation of the spec location rule; both occurrences in step 1 (lookup and failure message) updated consistently; the no-argument fallback (`spec/archive/*/UAT.md`) is correctly left un-anchored since it enumerates rather than matches a name.
+- Pathspec-scoped commit: `git commit -m "..." -- <path>` commits only that path's changes and ignores pre-staged unrelated content — correct mechanism for the stated guarantee.
+- Agent allow-list + non-metta constraints: byte-identical across template and deployed copies; forbidden-list is now open-ended ("including but not limited to"), closing the round 1 enumerated-list gap; non-metta clause permits local-host network access (needed for observing local services) while forbidding installs/exfiltration/config changes — consistent with the untrusted-data clause and the skip-with-note reporting channel.
+- `refresh.ts` + test: `/metta-uat` inserted in the lifecycle listing between `/metta-verify` and `/metta-ship`, matching its position in the workflow; test asserts presence; 19/19 pass.
+- `.metta.yaml` `review_iterations: 1`: bookkeeping only.
+
+### Round 2 Verdict
+PASS_WITH_WARNINGS
