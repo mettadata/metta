@@ -1,20 +1,26 @@
 workflow: standard
 created: 2026-07-26T03:30:44.041Z
 status: active
-current_artifact: intent
+current_artifact: stories
 base_versions: {}
 artifacts:
-  intent: ready
-  stories: pending
+  intent: complete
+  stories: ready
   spec: pending
   research: pending
   design: pending
   tasks: pending
   implementation: pending
   verification: pending
+complexity_score:
+  score: 3
+  signals:
+    file_count: 8
+  recommended_workflow: full
 artifact_timings:
   intent:
     started: 2026-07-26T03:31:18.636Z
+    completed: 2026-07-26T03:36:30.861Z
 artifact_tokens:
   intent:
     context: 759
