@@ -1,6 +1,6 @@
 {
   "name": "@mettadata/metta",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "A composable, context-aware, spec-driven development framework for AI-native software engineering",
   "type": "module",
   "bin": {

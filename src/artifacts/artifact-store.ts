@@ -17,6 +17,15 @@ export class ArtifactStore {
     this.state = new StateStore(specDir)
   }
 
+  /**
+   * Derive the change name (slug) for a description — the same name
+   * createChange will use. Exposed so callers can compute the name before
+   * change state exists (e.g. to create the change's git worktree first).
+   */
+  deriveChangeName(description: string): string {
+    return toSlug(description, { stopWords: STOP_WORDS })
+  }
+
   async createChange(
     description: string,
     workflow: string,
@@ -25,8 +34,9 @@ export class ArtifactStore {
     autoAccept?: boolean,
     workflowLocked?: boolean,
     stopAfter?: string,
+    worktree?: string,
   ): Promise<{ name: string; path: string }> {
-    const name = toSlug(description, { stopWords: STOP_WORDS })
+    const name = this.deriveChangeName(description)
     const changePath = join('changes', name)
 
     if (await this.state.exists(changePath)) {
@@ -59,6 +69,9 @@ export class ArtifactStore {
     }
     if (stopAfter !== undefined) {
       metadata.stop_after = stopAfter
+    }
+    if (worktree !== undefined) {
+      metadata.worktree = worktree
     }
 
     await this.state.write(

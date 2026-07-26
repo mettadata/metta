@@ -1,9 +1,10 @@
 import { readFile } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { unified } from 'unified'
 import remarkParse from 'remark-parse'
 import type { Root, Content, Heading, Text, InlineCode, List, ListItem } from 'mdast'
-import { parseStories, StoriesParseError } from '../specs/stories-parser.js'
+import { parseStories } from '../specs/stories-parser.js'
 import { parseDeltaSpec, type ParsedDelta } from '../specs/spec-parser.js'
 import { TemplateEngine } from '../templates/template-engine.js'
 import { getErrorMessage } from '../util/errors.js'
@@ -67,12 +68,15 @@ function norm(s: string): string {
 
 const COMMAND_SPAN_RE = /`([^`\n]+)`/g
 const COMMAND_FILTER_RE = /^[A-Za-z][\w./-]*(?:\s+\S+)+$/
+/** Shell metacharacters that disqualify a span from being an endorsed `(Run: ...)` hint. */
+const COMMAND_METACHAR_RE = /[|;&><$`]/
 
-/** Backtick-span command extraction: multi-token, word-ish first token only. */
+/** Backtick-span command extraction: multi-token, word-ish first token only, no shell metacharacters. */
 function extractCommands(text: string): string[] {
   const out: string[] = []
   for (const m of text.matchAll(COMMAND_SPAN_RE)) {
     const span = m[1].trim()
+    if (COMMAND_METACHAR_RE.test(span)) continue
     if (COMMAND_FILTER_RE.test(span) && !out.includes(span)) out.push(span)
   }
   return out
@@ -407,19 +411,33 @@ function assembleFloor(): UatGroup[] {
 
 // --- Rendering -----------------------------------------------------------------
 
+/**
+ * Collapse embedded newlines (and the whitespace around them) to a single space.
+ * Source text (AC/scenario fields, story/requirement names) can carry soft-break
+ * newlines; emitting them verbatim onto a single markdown field line would let a
+ * crafted continuation line materialize as real document structure (a heading, a
+ * checkbox, a forged machine-verified annotation, a fake Generation-notes section)
+ * in this "do not edit" trust artifact. Every string renderGroups emits onto a
+ * field line is flattened through this choke point first.
+ */
+function flattenField(text: string): string {
+  return text.replace(/\s*\r?\n\s*/g, ' ')
+}
+
 function renderGroups(groups: UatGroup[], leadIn?: string): string {
   const lines: string[] = []
   if (leadIn) lines.push(leadIn, '')
   groups.forEach((group, groupIndex) => {
     lines.push(group.heading, '')
-    if (group.preamble) lines.push(group.preamble, '')
-    if (group.trace) lines.push(group.trace, '')
+    if (group.preamble) lines.push(flattenField(group.preamble), '')
+    if (group.trace) lines.push(flattenField(group.trace), '')
     group.steps.forEach((step, stepIndex) => {
-      const label = `#### Step ${groupIndex + 1}.${stepIndex + 1}${step.title ? `: ${step.title}` : ''}`
+      const title = step.title ? `: ${flattenField(step.title)}` : ''
+      const label = `#### Step ${groupIndex + 1}.${stepIndex + 1}${title}`
       lines.push(label)
-      if (step.setup) lines.push(`- **Setup**: ${step.setup}`)
-      lines.push(`- **Do**: ${step.doText}`)
-      lines.push(`- **Observe**: ${step.observe}`)
+      if (step.setup) lines.push(`- **Setup**: ${flattenField(step.setup)}`)
+      lines.push(`- **Do**: ${flattenField(step.doText)}`)
+      lines.push(`- **Observe**: ${flattenField(step.observe)}`)
       if (step.machineVerified) lines.push(`- **Machine-verified** — ${step.machineVerified}`)
       lines.push('- [ ] Pass', '')
     })
@@ -465,7 +483,10 @@ export async function generateUat(input: UatGeneratorInput): Promise<UatGenerato
     specRaw = await readFile(join(input.changeDir, 'spec.md'), 'utf8')
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+      // Warn-and-demote discipline: surface the read failure immediately so it
+      // lands in Generation notes even when tier 1 proceeds without delta folding.
       specReadError = `spec.md could not be read (${getErrorMessage(err)})`
+      warnings.push(specReadError)
     }
   }
   const deltas = specRaw !== null ? parseDeltaSpec(specRaw).deltas : []
@@ -473,15 +494,18 @@ export async function generateUat(input: UatGeneratorInput): Promise<UatGenerato
     .filter(d => d.operation !== 'REMOVED')
     .reduce((count, d) => count + d.requirement.scenarios.length, 0)
 
-  // Tier 1: stories.md
+  // Tier 1: stories.md. Discriminate "missing file" (demote silently) from a
+  // genuine parse failure (warn) structurally via an existsSync probe, rather
+  // than matching StoriesParseError's message text — a wording change in the
+  // parser, or a real error whose message happens to contain "not found",
+  // must not change which branch this takes.
+  const storiesPath = join(input.changeDir, 'stories.md')
   let storiesDoc: StoriesDocument | null = null
-  try {
-    storiesDoc = await parseStories(join(input.changeDir, 'stories.md'))
-  } catch (err) {
-    if (err instanceof StoriesParseError && err.message.includes('not found')) {
-      // ENOENT — expected for quick tier; demote silently.
-    } else {
-      warnings.push(`stories.md failed to parse (${getErrorMessage(err)}); falling back to spec scenarios`)
+  if (existsSync(storiesPath)) {
+    try {
+      storiesDoc = await parseStories(storiesPath)
+    } catch (err) {
+      warnings.push(`stories.md failed to parse (${getErrorMessage(err)}); demoting to the next available tier`)
     }
   }
 
@@ -495,9 +519,9 @@ export async function generateUat(input: UatGeneratorInput): Promise<UatGenerato
     tier = 'spec'
     body = renderGroups(assembleFromSpec(deltas, ctx))
   } else {
-    if (specReadError !== null) {
-      warnings.push(`${specReadError}; falling back to intent/summary`)
-    } else if (specRaw !== null && liveScenarioCount === 0) {
+    // The spec.md read-failure warning (if any) was already pushed unconditionally
+    // above; avoid a second, destination-presuming warning for the same failure.
+    if (specReadError === null && specRaw !== null && liveScenarioCount === 0) {
       warnings.push('spec.md present but contains no scenarios; falling back to intent/summary')
     }
     // Tier 3: intent Proposal + summary highlights (annotation structurally skipped).
