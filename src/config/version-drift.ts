@@ -23,11 +23,21 @@ export function detectVersionDrift(
 }
 
 /**
+ * Untrusted input flows from the stamp into terminal output (stderr warnings,
+ * doctor detail) and JSON, so bound the charset and length at this single
+ * read boundary: version-like strings only (letters, digits, `.`, `+`, `-`),
+ * 1–64 chars. Rejects ANSI/OSC escape sequences, newlines, empty strings, and
+ * oversized payloads by treating the stamp as absent.
+ */
+const VALID_STAMP = /^[0-9A-Za-z.+-]{1,64}$/
+
+/**
  * Tolerant reader — never throws. Reads ONLY <root>/.metta/config.yaml raw
  * (no ConfigLoader: no global ~/.metta/config.yaml layer, no local.yaml, no
  * METTA_* env overrides — see ADR-1). Returns the top-level installed_version
- * when it is a string; returns undefined on missing file, unreadable file,
- * unparseable YAML, non-object document, absent field, or non-string value.
+ * when it is a string matching VALID_STAMP; returns undefined on missing
+ * file, unreadable file, unparseable YAML, non-object document, absent field,
+ * non-string value, or a string outside the bounded charset/length.
  */
 export async function readInstalledVersion(root: string): Promise<string | undefined> {
   try {
@@ -35,7 +45,7 @@ export async function readInstalledVersion(root: string): Promise<string | undef
     const doc: unknown = YAML.parse(raw)
     if (doc === null || typeof doc !== 'object' || Array.isArray(doc)) return undefined
     const value = (doc as Record<string, unknown>).installed_version
-    return typeof value === 'string' ? value : undefined
+    return typeof value === 'string' && VALID_STAMP.test(value) ? value : undefined
   } catch {
     return undefined
   }

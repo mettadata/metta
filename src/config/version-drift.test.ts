@@ -30,7 +30,7 @@ describe('detectVersionDrift', () => {
     expect(detectVersionDrift(undefined, '0.4.0')).toBeNull()
   })
 
-  it('treats an empty-string stamp as drift (exact string inequality)', () => {
+  it('treats an empty-string stamp as drift (exact string inequality; readInstalledVersion filters this out upstream)', () => {
     expect(detectVersionDrift('', '0.4.0')).toEqual({ installed: '', running: '0.4.0' })
   })
 })
@@ -102,6 +102,32 @@ describe('readInstalledVersion', () => {
   it('returns undefined for a YAML scalar document', async () => {
     writeFileSync(configPath, 'just a string\n', 'utf8')
     await expect(readInstalledVersion(tmpDir)).resolves.toBeUndefined()
+  })
+
+  it('returns undefined for an empty-string stamp (fails the 1-char minimum)', async () => {
+    writeFileSync(configPath, 'installed_version: ""\n', 'utf8')
+    await expect(readInstalledVersion(tmpDir)).resolves.toBeUndefined()
+  })
+
+  it('returns undefined for a stamp containing an ANSI escape sequence', async () => {
+    writeFileSync(configPath, 'installed_version: "1.0.0\\u001b[31m"\n', 'utf8')
+    await expect(readInstalledVersion(tmpDir)).resolves.toBeUndefined()
+  })
+
+  it('returns undefined for a stamp longer than 64 characters', async () => {
+    const long = '1.'.repeat(40)
+    writeFileSync(configPath, `installed_version: "${long}"\n`, 'utf8')
+    await expect(readInstalledVersion(tmpDir)).resolves.toBeUndefined()
+  })
+
+  it('returns undefined for a stamp containing a newline', async () => {
+    writeFileSync(configPath, 'installed_version: "1.0.0\\nrunning 9.9.9"\n', 'utf8')
+    await expect(readInstalledVersion(tmpDir)).resolves.toBeUndefined()
+  })
+
+  it('returns a prerelease + build-metadata stamp within the bounded charset', async () => {
+    writeFileSync(configPath, 'installed_version: "0.4.0-beta.1+build.5"\n', 'utf8')
+    await expect(readInstalledVersion(tmpDir)).resolves.toBe('0.4.0-beta.1+build.5')
   })
 })
 
