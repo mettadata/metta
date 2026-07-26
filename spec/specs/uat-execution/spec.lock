@@ -1,0 +1,64 @@
+version: 10
+hash: sha256:eed9bc213aeb
+updated: 2026-07-26T04:45:36.570Z
+status: draft
+source: change
+requirements:
+  - id: uat-runner-skill
+    hash: sha256:26c31b115232
+    scenarios:
+      - skill-template-and-deployed-copy-are-byte-identical
+      - invoking-the-skill-on-an-active-change-spawns-the-runner
+      - skill-introduces-no-cli-guard-or-tier-2-surface
+  - id: uat-document-location-rules
+    hash: sha256:c5eaa2cec263
+    scenarios:
+      - active-change-uat-is-preferred
+      - named-archive-entry-is-resolved-when-a-change-name-is-given
+      - fallback-to-newest-archive-entry
+      - no-uat-found-fails-clearly
+  - id: uat-runner-agent
+    hash: sha256:db8635523b26
+    scenarios:
+      - agent-template-and-deployed-copy-are-byte-identical-with-correct-frontmatter
+      - agent-registry-discovers-the-runner-by-filename
+      - instruction-like-step-text-is-treated-as-data
+  - id: uat-step-execution-semantics
+    hash: sha256:dc0201f2b7ee
+    scenarios:
+      - matching-observation-checks-the-box
+      - contradicting-observation-leaves-the-box-unchecked-with-a-recorded-discrepancy
+      - environment-impossible-step-is-skipped-with-a-note
+      - generated-step-content-is-never-altered
+      - header-wording-sanctions-honest-checkbox-flips-only
+  - id: uat-run-record
+    hash: sha256:10c016c9219d
+    scenarios:
+      - completed-run-appends-a-dated-record
+      - prior-run-sections-survive-later-runs-untouched
+  - id: uat-idempotent-re-runs
+    hash: sha256:1a9c1a8d9746
+    scenarios:
+      - checkboxes-reset-before-evaluation
+      - two-runs-yield-two-records-and-latest-run-checkbox-state
+      - pass-then-fail-step-reflects-the-latest-run-while-history-keeps-the-pass
+  - id: uat-failure-to-issue-loop
+    hash: sha256:53dda35b21bc
+    scenarios:
+      - failed-steps-become-logged-issues-via-the-orchestrator
+      - runner-never-invokes-fork-tier-skills
+  - id: uat-commit-ownership
+    hash: sha256:a8a7e12df413
+    scenarios:
+      - orchestrator-commits-after-the-run
+      - agent-contract-forbids-git
+  - id: uat-model-routing-deferral
+    hash: sha256:2c66a5400e73
+    scenarios:
+      - runner-always-spawns-at-the-inherited-session-model
+      - no-fake-instructions-artifact-is-introduced
+  - id: archived-uat-run-recording
+    hash: sha256:a2492a464b99
+    scenarios:
+      - archived-run-changes-only-sanctioned-regions
+      - archive-answers-the-acceptance-question-months-later
