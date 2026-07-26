@@ -13,3 +13,4 @@ referrences/**/package.json
 referrences/**/package-lock.json
 referrences/**/pnpm-lock.yaml
 referrences/**/yarn.lock
+.claude/worktrees/
