@@ -49,3 +49,34 @@ Scope: OWASP-style review of the drift-detection diff (`git diff main...HEAD -- 
 ## Verdict rationale
 
 No critical (must-fix-before-ship) issues: the injection sinks require the victim to run metta inside a repo with a hostile `.metta/config.yaml`, impact is terminal-output deception/annoyance rather than code execution, and the JSON contract is escape-safe. The two major findings share a single one-line-class fix — validate/bound `installed_version` at the read boundary in `readInstalledVersion` — and should be addressed before release.
+
+## Round 2
+
+VERDICT: PASS
+
+Re-review of commit `662c1c48c` against round 1 majors 1 and 2 (unbounded/unsanitized `installed_version` reaching stderr and doctor output).
+
+### Fix verification
+
+1. **Validation at the read boundary — confirmed.** `src/config/version-drift.ts:32` defines `const VALID_STAMP = /^[0-9A-Za-z.+-]{1,64}$/` and `readInstalledVersion` (`version-drift.ts:48`) returns the stamp only when `typeof value === 'string' && VALID_STAMP.test(value)`, else `undefined` (treated as "no stamp").
+   - **Anchored:** `^...$` with no `m` flag — in JavaScript `$` without multiline matches only at absolute end of input (it does not tolerate a trailing newline, unlike Python), so partial-match bypass is impossible.
+   - **Charset:** `[0-9A-Za-z.+-]` — excludes ESC (0x1b), BEL (0x07), CR/LF, all C0/C1 controls, whitespace, quotes, and shell metacharacters. `-` is positioned last in the class (literal), `.` and `+` are literal inside a class. ANSI/OSC escape sequences, line forgery, and title/clipboard OSC vectors are all structurally excluded.
+   - **Length:** `{1,64}` — rejects empty string (also resolving round 1 minor 5, the malformed `v ` warning) and multi-megabyte flood payloads (round 1 findings 1c and 3).
+
+2. **All sinks receive only validated values — confirmed.** Traced every consumer:
+   - stderr warning: `src/cli/index.ts:137-144` — `drift.installed` originates exclusively from `readInstalledVersion(process.cwd())` via `detectVersionDrift`. Validated.
+   - doctor: `src/cli/commands/doctor.ts:105` — `templateFreshnessCheck(await readInstalledVersion(ctx.projectRoot), ...)`. Validated.
+   - JSON merge: `src/cli/helpers.ts:148-160` — `getVersionDrift()` reads the module slot written only by `recordVersionDrift` at `index.ts:141`, which is fed only the validated value. Validated (and JSON.stringify-escaped regardless).
+   - No other call sites of `readInstalledVersion`/`detectVersionDrift`/`recordVersionDrift`/`getVersionDrift`/`templateFreshnessCheck` exist outside tests.
+
+3. **Bypass search — no unvalidated read path found.** `grep -rn installed_version src/` (excluding tests) shows only `version-drift.ts` and the Zod schema field `src/schemas/project-config.ts:117`. No ConfigLoader-based code path reads or prints `config.installed_version`; the drift feature never goes through ConfigLoader (ADR-1). The generic `metta config get installed_version` echo (`src/cli/commands/config.ts:58`) can print the raw value, but that is the pre-existing key-echo mechanism for every config key, is user-initiated (the user explicitly asks for that key), and is not part of this change's automatic output flow — out of scope, noted below as defense-in-depth.
+
+4. **Adversarial tests pass — confirmed.** `npx vitest run src/config/version-drift.test.ts`: 27/27 passed. Includes the new cases: ANSI escape sequence in stamp (`version-drift.test.ts:112`), >64-character stamp (`:117`), and embedded newline (`:123`) — all asserted to return `undefined`.
+
+### Residual (non-blocking)
+
+- Suggestion — `src/schemas/project-config.ts:117`: `installed_version: z.string().optional()` is unbounded at the schema layer. Tightening to `.max(64)` (or the same regex) would give defense in depth for any future consumer that reads the field via ConfigLoader instead of `readInstalledVersion`. Not required for this change: no such consumer exists today.
+
+### Round 2 rationale
+
+Both round 1 majors are closed by a single, correctly placed control at the only read boundary for the stamp; the regex is anchored, charset-safe, and length-bounded; every sink is downstream of that boundary; adversarial tests cover the exact vectors reported. Round 1 minors 3 and 5 are resolved as side effects. No new findings.

@@ -42,3 +42,33 @@ None.
 ## Verdict
 
 PASS_WITH_WARNINGS — no critical or major issues; four minors, of which only the barrel export (finding 1) suggests a one-line follow-up.
+
+## Round 2
+
+VERDICT: PASS
+
+Re-review of the two fix commits (`4253c13fb` barrel export, `662c1c48c` stamp sanitization). All round 1 blockable items are resolved.
+
+### Fix verification
+
+1. **Barrel export (round 1 finding 1) -- fixed.** `src/index.ts:32` adds `export * from './config/version-drift.js'`, matching sibling style exactly (same `export * from` form, `.js` extension, grouped with the other `./config/*` lines 30-31 at the end of the barrel). No name collisions with existing barrel exports.
+
+2. **Sanitization (`VALID_STAMP`) -- well-formed.**
+   - `src/config/version-drift.ts:32` -- `const VALID_STAMP = /^[0-9A-Za-z.+-]{1,64}$/`. Name is clear (SCREAMING_SNAKE for a module constant, consistent with `DRIFT_CHECK_EXEMPT_COMMANDS` in `src/cli/index.ts`), single definition, no duplication elsewhere in `src/`.
+   - The comment block (`version-drift.ts:26-31`) explains the threat model (untrusted stamp flows to stderr/JSON), the bound (version-like charset, 1-64 chars), and the rejection behavior (treat as absent) -- exactly the kind of load-bearing comment this boundary needs.
+   - Enforcement is at the single read boundary (`readInstalledVersion:48`), keeping `detectVersionDrift` pure and unchanged; the `readInstalledVersion` doc comment (line 40) was updated to include the new rejection case, and the empty-string unit test title (`version-drift.test.ts:33`) now notes the upstream filter -- no stale comments left behind.
+   - `-` is placed last in the character class (no unintended range), anchors present, no regex-DoS surface (linear, bounded).
+
+3. **New tests (5) -- follow suite conventions.** `src/config/version-drift.test.ts:107-131` use the same `writeFileSync(configPath, ...)` + `await expect(...).resolves...` pattern, tmpdir fixtures, and descriptive titles as the pre-existing `readInstalledVersion` block. Coverage is real behavior, not happy-path only: empty string (min length), ANSI escape (the YAML `\u001b` escape produces a real ESC byte in the stamp), 80-char oversize (length bound, charset-valid chars), embedded newline (spoofed-warning vector), plus a positive case (`0.4.0-beta.1+build.5`) proving prerelease/build-metadata stamps survive the bound. Suite: 27/27 pass.
+
+4. **No new dead code or duplication.** `VALID_STAMP` is module-private with one call site; no other file re-implements the bound. The two commits touch only `src/index.ts`, `src/config/version-drift.ts`, and `src/config/version-drift.test.ts`.
+
+5. **`npx tsc --noEmit`** -- clean from the worktree root.
+
+### Remaining round 1 minors (2-4)
+
+Findings 2 (test-only `resetVersionDrift`, documented ADR-2 seam), 3 (no integration-level downgrade fixture), and 4 (exit-code-4-vs-3 example) stand as recorded non-blocking observations; none warranted changes.
+
+### Verdict
+
+PASS -- both fixes are correct, idiomatic, and fully tested; no new issues introduced.

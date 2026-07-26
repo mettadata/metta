@@ -50,3 +50,38 @@ None.
 ## Verdict
 
 PASS — all five spec requirements and all 19 scenarios are implemented and traceable to passing tests; the isolation, ordering, and guard invariants called out in the design hold in the code as written.
+
+## Round 2
+
+VERDICT: PASS
+
+Scope: verify the two post-round-1 fixes — stamp validation in `readInstalledVersion` (662c1c48c) and the barrel export of version-drift (4253c13fb) — did not regress correctness.
+
+### Fix 1 — stamp validation (`src/config/version-drift.ts:32,48`)
+
+- **Regex is correct and safe.** `/^[0-9A-Za-z.+-]{1,64}$/` is fully anchored (`^`…`$`), a single bounded character class with a fixed quantifier — no alternation, no nested quantifiers, so no catastrophic backtracking is possible. The `-` sits last in the class, so it is a literal, not a range. No `g`/`y` flag, so no `lastIndex` statefulness across calls.
+- **Type guard ordering is correct.** `typeof value === 'string'` is evaluated before `VALID_STAMP.test(value)` (`version-drift.ts:48`), so non-string values never reach the regex.
+- **Charset covers real version strings.** Semver core, prerelease, and build metadata (`0.4.0-beta.1+build.5`) all fall inside `[0-9A-Za-z.+-]`; unit test at `version-drift.test.ts:128-131` locks this. 64 chars comfortably exceeds any version this project emits.
+- **Rejection paths tested.** New unit tests cover empty string (:107), embedded ANSI escape (:112), >64 chars (:117), and embedded newline (:123) — all resolve to `undefined` without throwing.
+
+### Fix 2 — barrel export (`src/index.ts:32`)
+
+`export * from './config/version-drift.js'` added; `tsc --noEmit` exits 0, confirming no name collisions with existing barrel exports (`VersionDrift`, `detectVersionDrift`, etc. are unique).
+
+### Spec compliance re-check
+
+No spec scenario requires a warning on a malformed stamp. The invocation-time-drift-check scenarios (spec.md:65-98) enumerate: valid mismatched stamp → warn; matching → silent; **absent stamp → silent** (spec.md:85-88); missing/corrupt config → silent. A malformed stamp now mapping to "absent" therefore lands on an explicitly-silent path, and the requirement's "MUST emit nothing when the `installed_version` field is absent" is the governing clause. Doctor's requirement (spec.md:130) treats a missing stamp as warn — a malformed stamp now produces that same warn via `templateFreshnessCheck(undefined, ...)`, so doctor still surfaces the anomaly rather than hiding it. The schema requirement (spec.md:39) concerns `ProjectConfigSchema` (string vs non-string) and is untouched by the tolerant reader's tighter bound.
+
+### Test execution
+
+`npx vitest run src/config/version-drift.test.ts tests/cli-version-drift.test.ts` — 39/39 passing (27 unit incl. the 4 new validation cases, 12 integration). `tsc --noEmit` clean.
+
+### Findings
+
+None critical or major. One informational note:
+
+1. `src/schemas/project-config.ts` accepts any string for `installed_version` while the tolerant reader only accepts the bounded charset — so a config with e.g. `installed_version: "0.4.0 "` (trailing space) validates under the schema but reads as absent (silent at invocation, "no stamp" warn in doctor). Since only `stampInstalledVersion` writes the field and it always writes a clean `getPackageVersion` string, this divergence is unreachable through supported flows; hand-edited configs degrade safely to the silent/warn path. No action required.
+
+### Verdict
+
+PASS — both fixes are correct, tested, and regress nothing; all 19 spec scenarios remain satisfied.

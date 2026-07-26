@@ -33,3 +33,15 @@ Fix now (before verification):
 2. Add `version-drift.js` to the `src/index.ts` barrel (quality consistency minor).
 
 Accepted as-is (documented): test-only reset seam; upgrade-only integration fixtures (downgrade unit-covered); exit-code example variance; pre-existing update double-emission (out of scope, pre-existing).
+
+# Round 2 (post-fix)
+
+Fixes applied: 662c1c48c (VALID_STAMP charset/length bound in readInstalledVersion + 5 adversarial tests), 4253c13fb (version-drift barrel export).
+
+| Reviewer | Verdict |
+|----------|---------|
+| Correctness | PASS |
+| Security | PASS (both round-1 majors closed; regex anchored, all three sinks downstream of the validated read boundary) |
+| Quality | PASS |
+
+Non-blocking notes carried forward: schema-side `.max(64)` defense-in-depth suggestion; upgrade-only integration fixtures; test-only reset seam.
