@@ -29,6 +29,8 @@ artifact_timings:
     completed: 2026-07-26T03:45:02.721Z
   research:
     completed: 2026-07-26T03:53:44.206Z
+  design:
+    started: 2026-07-26T03:53:52.314Z
 artifact_tokens:
   intent:
     context: 759
@@ -39,4 +41,7 @@ artifact_tokens:
   spec:
     context: 5367
     budget: 40000
+  design:
+    context: 6971
+    budget: 80000
 worktree: /home/utx0/Code/metta/.metta/worktrees/metta-uat-runner-skill-execute-change-s-generated-uat-md
