@@ -134,6 +134,7 @@ export function buildWorkflowSection(): string {
   lines.push('- `/metta-plan` — build planning artifacts for the active change')
   lines.push('- `/metta-execute` — run implementation for the active change')
   lines.push('- `/metta-verify` — verify implementation against spec')
+  lines.push('- `/metta-uat` — execute a change\'s generated UAT.md acceptance script')
   lines.push('- `/metta-ship` — finalize, merge specs, merge branch to main\n')
 
   lines.push('### Status skills')

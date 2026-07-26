@@ -119,7 +119,7 @@ A composable framework.
       const result = buildWorkflowSection()
       const skills = [
         '/metta-propose', '/metta-quick', '/metta-auto',
-        '/metta-plan', '/metta-execute', '/metta-verify',
+        '/metta-plan', '/metta-execute', '/metta-verify', '/metta-uat',
         '/metta-ship',
         '/metta-status', '/metta-progress', '/metta-next',
         '/metta-issue', '/metta-fix-issues', '/metta-backlog',
