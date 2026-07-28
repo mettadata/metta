@@ -38,7 +38,7 @@
 4 requirements
 
 ### install-init
-5 requirements
+11 requirements
 
 ### instruction-contracts
 13 requirements

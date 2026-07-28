@@ -730,6 +730,51 @@ Scenarios:
 - skill template references init command
 - skill propagates to installed projects
 
+### install-stamps-installed-version
+
+Scenarios:
+- fresh install stamps the running version
+- re-running install overwrites a stale stamp
+
+### init-stamps-installed-version
+
+Scenarios:
+- init stamps the running version
+- init refreshes a stale stamp
+
+### project-config-schema-accepts-installed-version
+
+Scenarios:
+- stamped config validates
+- legacy config without the field remains valid
+- non-string stamp is rejected
+
+### invocation-time-drift-check
+
+Scenarios:
+- upgrade drift warns once on stderr
+- downgrade drift also warns
+- matching versions stay silent
+- install and init skip the check
+- absent stamp stays silent
+- missing or corrupt config skips silently
+- drift never changes exit codes
+
+### json-output-carries-template-version-mismatch
+
+Scenarios:
+- mismatch appears in JSON payload
+- no mismatch means no key
+- absent stamp means no key
+- stderr warning does not corrupt stdout JSON
+
+### doctor-template-freshness-check
+
+Scenarios:
+- matching stamp passes
+- mismatched stamp warns with both versions
+- missing stamp warns without failing doctor
+
 ## instruction-contracts
 
 ### Persona Text Is Derived At Runtime From The Agent Definition
