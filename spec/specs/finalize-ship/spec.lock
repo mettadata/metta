@@ -1,6 +1,6 @@
-version: 30
-hash: sha256:7069eaa51a1c
-updated: 2026-08-08T06:00:51.937Z
+version: 38
+hash: sha256:4dce4c76d0c4
+updated: 2026-08-08T13:14:31.024Z
 status: draft
 source: change
 requirements:
@@ -120,18 +120,17 @@ requirements:
     scenarios:
       - delta-merges-into-finalize-ship-despite-spanning-adjacent-surfaces
   - id: token-usage-record-schema
-    hash: sha256:4df0799ca18f
+    hash: sha256:634662e9ba0e
     scenarios:
-      - valid-record-passes-strict-validation
-      - invalid-records-are-rejected-strictly
-      - metadata-without-token-usage-remains-valid-and-artifact-tokens-is-untouched
+      - hook-sourced-record-passes-strict-validation
+      - invalid-source-values-are-rejected-strictly
+      - legacy-record-without-source-remains-valid-and-reads-as-prose-sourced
   - id: tokens-record-cli-command
-    hash: sha256:ea8d17bb176a
+    hash: sha256:98f909876ac8
     scenarios:
-      - record-appended-against-the-single-active-change
-      - explicit-change-targeting-with-change
-      - ambiguous-or-missing-change-fails-typed-with-exit-4
-      - invalid-tokens-value-writes-nothing
+      - source-flag-persists-provenance
+      - legacy-invocation-without-source-stays-backward-compatible
+      - invalid-source-value-writes-nothing
   - id: tokens-guard-hook-allowlist-entry
     hash: sha256:68c5aa15e6a4
     scenarios:
@@ -139,11 +138,11 @@ requirements:
       - hook-copies-stay-byte-identical-and-syntactically-valid
       - other-guard-classifications-are-unchanged
   - id: lifecycle-skill-token-recording-instruction
-    hash: sha256:6cdc013aac30
+    hash: sha256:3488b8ee0ce3
     scenarios:
-      - each-spawning-skill-carries-the-recording-instruction
+      - no-skill-mandates-per-subagent-recording
       - template-and-deployed-skill-pairs-are-byte-identical
-      - recording-instruction-changes-nothing-about-routing
+      - demotion-changes-nothing-about-routing-or-the-guard-allowlist
   - id: tokens-report-generation-at-finalize
     hash: sha256:f4bb8c402655
     scenarios:
@@ -151,10 +150,11 @@ requirements:
       - assembly-is-deterministic-template-driven-and-ai-free
       - no-token-records-still-yields-a-report
   - id: tokens-report-content
-    hash: sha256:37e42b79e081
+    hash: sha256:30906154932c
     scenarios:
-      - full-report-sections-render-from-recorded-data
-      - missing-records-surface-in-gaps
+      - provenance-is-distinguishable-per-record
+      - a-gap-reads-as-a-hook-coverage-miss
+      - report-structure-is-otherwise-unchanged
       - complete-coverage-reports-no-gaps
   - id: tokens-report-configuration-toggle
     hash: sha256:45563d0d00bf
@@ -185,3 +185,29 @@ requirements:
       - tier-grouped-averages-render-from-recorded-data
       - no-data-tier-is-distinct-from-zero-and-null-in-json
       - pre-feature-archives-aggregate-gracefully
+  - id: token-recording-subagentstop-hook
+    hash: sha256:0b77cc65faf6
+    scenarios:
+      - subagent-stop-is-recorded-automatically-with-the-exact-transcript-summed-count
+      - missing-or-usage-free-transcript-records-nothing-rather-than-fabricating-a-count
+      - registration-targets-the-subagentstop-event-and-leaves-existing-hooks-untouched
+      - hook-copies-stay-byte-identical-and-syntactically-valid
+  - id: worktree-aware-change-resolution-for-token-recording
+    hash: sha256:d2fbade7cf6e
+    scenarios:
+      - recording-from-inside-a-change-worktree-attributes-to-that-change
+      - repo-root-recording-keeps-the-existing-single-active-change-behavior
+      - unresolvable-change-fails-safely-without-misattribution
+  - id: non-blocking-token-recording-hook-failure
+    hash: sha256:c379a04e103a
+    scenarios:
+      - cli-unavailable-leaves-the-subagent-run-unaffected
+      - recording-command-failure-is-swallowed
+      - missing-transcript-is-swallowed-without-blocking-the-subagent
+      - guard-hook-behavior-is-unchanged-with-the-recording-hook-installed
+  - id: token-record-provenance-deduplication-in-tokens-report
+    hash: sha256:bea2e5953649
+    scenarios:
+      - duplicate-hook-and-prose-records-count-once-preferring-the-hook-value
+      - prose-only-records-are-retained
+      - dedupe-never-mutates-persisted-state
