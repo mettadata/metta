@@ -100,6 +100,19 @@ export const ModelsConfigSchema = z.object({
 
 export type ModelsConfig = NonNullable<z.infer<typeof ModelsConfigSchema>>
 
+export const ReleaseConfigSchema = z.object({
+  scheme: z.literal('semver', {
+    errorMap: () => ({ message: "release.scheme: only 'semver' is supported" }),
+  }),
+  version_file: z.string().min(1, {
+    message: 'release.version_file: must be a non-empty path to the file holding the product version',
+  }),
+  tag_prefix: z.string().default('v'),
+  github_release: z.boolean().default(false),
+}).strict()
+
+export type ReleaseConfig = z.infer<typeof ReleaseConfigSchema>
+
 export const ProjectConfigSchema = z.object({
   project: ProjectInfoSchema.optional(),
   defaults: z.object({
@@ -121,6 +134,7 @@ export const ProjectConfigSchema = z.object({
   }).strict().optional(),
   verification: VerificationConfigSchema.optional(),
   models: ModelsConfigSchema,
+  release: ReleaseConfigSchema.optional(),
   installed_version: z.string().optional(),
 }).strict()
 
