@@ -47,3 +47,8 @@ token_usage:
     model: sonnet
     tokens: 79777
     timestamp: 2026-08-08T06:39:06.207Z
+  - task: verification
+    agent: metta-verifier
+    model: inherit
+    tokens: 29933
+    timestamp: 2026-08-08T06:46:19.416Z
