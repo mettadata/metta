@@ -58,3 +58,11 @@ template remain byte-identical (asserted by test).
 - Worktree discovery covers the default `.metta/worktrees` layout only; a
   custom `git.worktree.dir` is not aggregated (config load is async, context
   creation is sync). One level of nesting only, per intent out-of-scope.
+
+## Review (2026-08-08)
+Three parallel reviewers (correctness, security, quality): all PASS_WITH_WARNINGS, zero critical issues. Merged report in review.md. Multi-reviewer warnings fixed in commit ef2aea842: hook symlink physical/logical fail-open (realpath normalization), non-string file_path guard, transient (non-persisted) injected worktree path, collision-warning I/O moved to CLI shell with accurate host naming, resolveProjectRoot normalization.
+
+## Verification (2026-08-08, iteration 1)
+- Gate tests: PASS — 99/99 files, 1759/1759 tests, 0 failures
+- Gate typecheck+lint+build: PASS — tsc clean, lint (tsc) clean, build + template copy clean
+- Gate intent-coverage: PASS — all 6 intent commitments verified with file:line evidence; hook/template byte parity confirmed by cmp and by test
