@@ -25,3 +25,10 @@ All 11 tasks across 4 batches completed; full suite green (99 files / 1723 tests
 - All figures recorded by the new command are approximate orchestrator-reported counts (stated in the report header).
 - Known accepted gap: metta-propose/quick/auto/fix-issues/fix-gap skills carry no recording instruction; their changes surface in TOKENS.md GAPS by design.
 - The `metta-guard-edit` hook is worktree-blind (blocks Write/Edit in worktrees; executors used bash fallbacks) — pre-existing issue, worth logging separately.
+
+## Verification (iteration 1) — ALL GATES PASS
+
+- **Tests** (`verify/tests.md`): GATE PASS — 99/99 files, 1723/1723 tests, no flakes, ~282s.
+- **Typecheck/lint/build/byte-identity** (`verify/tsc-lint.md`): GATE PASS — `tsc --noEmit` clean, `npm run lint` clean, build ships `dist/templates/artifacts/tokens.md`, all five template/deployed pairs byte-identical.
+- **Spec traceability** (`verify/scenarios.md`): GATE PASS — 34/34 scenarios evidenced; 32 by passing tests, 2 weak paths (zero-active-changes exit 4; human confirmation line) resolved by direct sandboxed CLI invocation.
+- Review verdicts (iteration 1): correctness PASS_WITH_WARNINGS, security PASS_WITH_WARNINGS, quality PASS — 0 critical, 0 major, 14 minor (logged in review.md for follow-up).
