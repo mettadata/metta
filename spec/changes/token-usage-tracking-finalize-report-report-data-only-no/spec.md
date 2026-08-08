@@ -16,7 +16,7 @@ This delta specifies the end-to-end token-usage observability feature (record, r
 Fulfills: US-1
 
 ### Scenario: Valid record passes strict validation
-- GIVEN a candidate record `{ task: "spec-writer-spec.md", agent: "spec-writer", model: "cheap", tokens: 42000, timestamp: "2026-08-08T12:00:00.000Z" }`
+- GIVEN a candidate record `{ task: "spec-writer-spec.md", agent: "spec-writer", model: "haiku", tokens: 42000, timestamp: "2026-08-08T12:00:00.000Z" }`
 - WHEN `TokenUsageRecordSchema.parse` is called on it
 - THEN parsing succeeds and the record round-trips through `ChangeMetadataSchema` inside a `token_usage` array
 
@@ -38,7 +38,7 @@ Fulfills: US-1
 
 ### Scenario: Record appended against the single active change
 - GIVEN exactly one active change exists
-- WHEN `metta tokens record --task spec-writer-spec.md --agent spec-writer --model cheap --tokens 42000` runs
+- WHEN `metta tokens record --task spec-writer-spec.md --agent spec-writer --model haiku --tokens 42000` runs
 - THEN the change's `.metta.yaml` gains one validated `token_usage` entry with task, agent, model, tokens, and an ISO timestamp
 - AND the command exits zero with a confirmation
 
@@ -55,7 +55,7 @@ Fulfills: US-1
 
 ### Scenario: Invalid tokens value writes nothing
 - GIVEN an active change
-- WHEN `metta tokens record --task impl --agent executor --model cheap --tokens -5` runs
+- WHEN `metta tokens record --task impl --agent executor --model haiku --tokens -5` runs
 - THEN Zod validation fails before any write, the command exits 4, and the change's `token_usage` array is unchanged
 
 ## ADDED: Requirement: Tokens Guard Hook Allowlist Entry
@@ -65,7 +65,7 @@ Fulfills: US-1
 
 ### Scenario: Skill-issued tokens record passes the guard
 - GIVEN the guard hook is active in an AI session
-- WHEN an authorized skill flow issues `metta tokens record --task impl --agent executor --model cheap --tokens 1000`
+- WHEN an authorized skill flow issues `metta tokens record --task impl --agent executor --model haiku --tokens 1000`
 - THEN the hook resolves the subcommand `tokens` from `ALLOWED_SUBCOMMANDS` and returns `allow`
 
 ### Scenario: Hook copies stay byte-identical and syntactically valid
@@ -122,13 +122,13 @@ Fulfills: US-3
 
 ## ADDED: Requirement: Tokens Report Content
 
-The generated `TOKENS.md` MUST contain, in order: (1) a header stating the change name, the generation date, and that all figures are approximate orchestrator-reported counts, not billing-grade accounting; (2) a total token count across all `token_usage` entries; (3) a per-artifact table with columns for artifact/task, agent role, model, and tokens; (4) a per-role rollup summing tokens by `agent`; (5) a per-model rollup summing tokens by `model` alias; (6) a cheap-vs-inherit split contrasting tokens recorded at the `cheap` alias against tokens recorded at `inherit`; and (7) a GAPS section listing every artifact that has run evidence — an entry in the change's `artifact_timings` keys — but no matching `token_usage` record for that task, so silent non-compliance with the skill recording contract is visible. When every expected-run artifact has a matching record the GAPS section MUST state explicitly that no gaps were found.
+The generated `TOKENS.md` MUST contain, in order: (1) a header stating the change name, the generation date, and that all figures are approximate orchestrator-reported counts, not billing-grade accounting; (2) a total token count across all `token_usage` entries; (3) a per-artifact table with columns for artifact/task, agent role, model, and tokens; (4) a per-role rollup summing tokens by `agent`; (5) a per-model rollup summing tokens by `model` alias; (6) a cheap/pinned (non-inherit) vs inherit split contrasting tokens recorded at any concrete alias (`model !== 'inherit'`) against tokens recorded at `inherit`; and (7) a GAPS section listing every artifact that has run evidence — an entry in the change's `artifact_timings` keys — but no matching `token_usage` record for that task, so silent non-compliance with the skill recording contract is visible. When every expected-run artifact has a matching record the GAPS section MUST state explicitly that no gaps were found.
 Fulfills: US-3
 
 ### Scenario: Full report sections render from recorded data
-- GIVEN a change with `token_usage` entries spanning two roles and both `cheap` and `inherit` models
+- GIVEN a change with `token_usage` entries spanning two roles and both `haiku` and `inherit` models
 - WHEN `TOKENS.md` is generated
-- THEN the report contains the approximate-figures header, the correct total, a per-artifact row per entry, per-role and per-model rollups whose sums match the entries, and a cheap-vs-inherit split whose two figures sum to the total of cheap-plus-inherit usage
+- THEN the report contains the approximate-figures header, the correct total, a per-artifact row per entry, per-role and per-model rollups whose sums match the entries, and a cheap/pinned (non-inherit) vs inherit split whose two figures sum to the total of non-inherit-plus-inherit usage
 
 ### Scenario: Missing records surface in GAPS
 - GIVEN `artifact_timings` contains keys `plan` and `implementation` but `token_usage` only contains a record with `task: "plan"`
