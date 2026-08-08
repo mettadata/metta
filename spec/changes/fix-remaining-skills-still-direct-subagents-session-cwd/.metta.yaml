@@ -26,6 +26,7 @@ artifact_tokens:
   implementation:
     context: 0
     budget: 10000
+review_iterations: 1
 worktree: /home/utx0/Code/metta/.metta/worktrees/fix-remaining-skills-still-direct-subagents-session-cwd
 model_runs:
   - task: implementation
@@ -47,3 +48,23 @@ token_usage:
     model: sonnet
     tokens: 43774
     timestamp: 2026-08-08T11:37:29.542Z
+  - task: review-security
+    agent: metta-reviewer
+    model: inherit
+    tokens: 39365
+    timestamp: 2026-08-08T11:45:41.926Z
+  - task: review-quality
+    agent: metta-reviewer
+    model: inherit
+    tokens: 61435
+    timestamp: 2026-08-08T11:46:29.701Z
+  - task: review-correctness
+    agent: metta-reviewer
+    model: inherit
+    tokens: 56046
+    timestamp: 2026-08-08T11:47:07.260Z
+  - task: review-fixes
+    agent: metta-executor
+    model: sonnet
+    tokens: 50018
+    timestamp: 2026-08-08T11:49:43.183Z
