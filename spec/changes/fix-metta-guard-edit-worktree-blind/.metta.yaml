@@ -1,0 +1,22 @@
+workflow: standard
+created: 2026-08-08T07:47:38.272Z
+status: active
+current_artifact: intent
+base_versions: {}
+artifacts:
+  intent: ready
+  stories: pending
+  spec: pending
+  research: pending
+  design: pending
+  tasks: pending
+  implementation: pending
+  verification: pending
+artifact_timings:
+  intent:
+    started: 2026-08-08T07:47:46.111Z
+artifact_tokens:
+  intent:
+    context: 759
+    budget: 20000
+worktree: /home/utx0/Code/metta/.metta/worktrees/fix-metta-guard-edit-worktree-blind
