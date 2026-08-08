@@ -75,7 +75,10 @@ export function resolveProjectRoot(cwd: string = process.cwd()): string {
  * project root and in-worktree behavior is unchanged.
  *
  * Containment guarantee: the `worktree` value is persisted in a git-tracked
- * `.metta.yaml` and therefore untrusted. The resolved value is only honored
+ * `.metta.yaml` and therefore untrusted. It is resolved against
+ * `projectRoot` (never `process.cwd()`), so a relative persisted value
+ * yields the same result regardless of the invocation directory. The
+ * resolved value is only honored
  * when it is strictly contained under `<projectRoot>/.metta/worktrees/`
  * (checked via `path.relative`, never string prefixing); anything else —
  * an absolute path elsewhere, a `..` escape, or the worktrees dir itself —
@@ -89,7 +92,7 @@ export function resolveChangeRoot(
 ): string {
   if (metadata.worktree === undefined) return projectRoot
   const worktreesDir = resolve(projectRoot, DEFAULT_WORKTREE_DIR)
-  const candidate = resolve(metadata.worktree)
+  const candidate = resolve(projectRoot, metadata.worktree)
   const rel = relative(worktreesDir, candidate)
   if (rel === '' || rel.startsWith('..') || isAbsolute(rel)) return projectRoot
   return candidate

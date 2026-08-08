@@ -147,6 +147,16 @@ describe('resolveChangeRoot', () => {
     ).toBe('/repo')
   })
 
+  it('resolves a relative worktree value against projectRoot, independent of cwd', () => {
+    // A relative persisted value like `.metta/worktrees/foo` must resolve
+    // deterministically against the project root — never process.cwd().
+    expect(resolveChangeRoot('/repo', { worktree: join('.metta', 'worktrees', 'foo') })).toBe(
+      join('/repo', '.metta', 'worktrees', 'foo'),
+    )
+    // A relative escape falls back to projectRoot like any other escape.
+    expect(resolveChangeRoot('/repo', { worktree: join('..', 'outside') })).toBe('/repo')
+  })
+
   it('rejects the worktrees dir itself — only strict children qualify', () => {
     const worktreesDir = join('/repo', '.metta', 'worktrees')
     expect(resolveChangeRoot('/repo', { worktree: worktreesDir })).toBe('/repo')
