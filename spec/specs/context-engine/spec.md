@@ -340,7 +340,8 @@ The system MUST:
 1. Call `contextEngine.resolve` with `artifact.type`, `changePath`, `specDir`, and `agent.context_budget`.
 2. Call `templateEngine.render` with `artifact.template` and a `TemplateContext` of `{ change_name, capability_name }`.
 3. Normalize `agent.tools`: string entries are used as-is; object entries have their first key extracted.
-4. Return `InstructionOutput` with all fields populated.
+4. Construct `output_path` from the caller-supplied `changeRoot` param per §10.3, and set `change_root` to `changeRoot` unchanged.
+5. Return `InstructionOutput` with all fields populated.
 
 ### 10.2 `InstructionOutput` Fields
 
@@ -356,7 +357,8 @@ The system MUST:
 | `agent.rules` | `string[]` | Agent rules (empty array if omitted) |
 | `template` | `string` | Rendered artifact template |
 | `context.project` | `string \| undefined` | Content of `project.md` if loaded |
-| `output_path` | `string` | `spec/changes/{changeName}/{artifact.generates}` |
+| `output_path` | `string` | Absolute path of the artifact file to write: `{changeRoot}/spec/changes/{changeName}/{artifact.generates}` |
+| `change_root` | `string` | Absolute checkout root hosting the change — the worktree checkout for worktree-hosted changes, the project root otherwise |
 | `next_steps` | `string[]` | Ordered list of next actions |
 | `gates` | `string[]` | Gate IDs from the artifact definition |
 | `budget.context_tokens` | `number` | Tokens actually consumed |
@@ -375,13 +377,21 @@ Then `output.budget.warning` MUST equal `'over-budget'` and `output.budget.dropp
 
 ### 10.3 Output Path Convention
 
-The `output_path` MUST follow the pattern:
+The `output_path` MUST be an absolute path following the pattern:
 
 ```
-spec/changes/{changeName}/{artifact.generates}
+{changeRoot}/spec/changes/{changeName}/{artifact.generates}
 ```
 
-This path is relative to the project root and is not created by the generator; it informs the agent where to write its output.
+where `changeRoot` is the caller-supplied absolute checkout root hosting the change. The caller (the `instructions` CLI command) MUST resolve `changeRoot` via `resolveChangeRoot`: the worktree checkout root when the change is worktree-hosted, the project root otherwise. The `output_path` MUST NOT be cwd-relative — a consumer invoked from the main checkout root MUST receive the same path, byte for byte, as one invoked from inside the worktree, so it always writes into the checkout hosting the change.
+
+The payload MUST also carry `change_root` — the same absolute checkout root — as the single anchor for any change-scoped side effect (sibling artifact reads, `git -C` operations).
+
+Given a worktree-hosted change whose worktree checkout root is `/repo/.metta/worktrees/my-change`,
+When `generate` returns for artifact `intent` with `generates: intent.md`,
+Then `output.output_path` MUST equal `/repo/.metta/worktrees/my-change/spec/changes/my-change/intent.md` and `output.change_root` MUST equal `/repo/.metta/worktrees/my-change`, regardless of the invoking process's working directory.
+
+The path is not created by the generator; it informs the agent where to write its output.
 
 ### 10.4 Project Context Extraction
 
