@@ -19,6 +19,7 @@ import { SpecLockManager } from '../specs/spec-lock-manager.js'
 import { TemplateEngine } from '../templates/template-engine.js'
 import { InstructionGenerator } from '../context/instruction-generator.js'
 import { StateStore } from '../state/state-store.js'
+import type { ChangeMetadata } from '../schemas/change-metadata.js'
 import type { Command } from 'commander'
 
 export interface CliContext {
@@ -59,6 +60,25 @@ export function resolveProjectRoot(cwd: string = process.cwd()): string {
     if (parent === dir) return start
     dir = parent
   }
+}
+
+/**
+ * Resolve the checkout root that hosts a change's files. When the change's
+ * discovery metadata carries a hosting `worktree` path (injected transiently
+ * by `ArtifactStore.getChange()` for changes living under
+ * `<root>/.metta/worktrees/<name>/`), all change-scoped paths — artifact
+ * files, the change's `spec/` tree, and git side-effect targets — must root
+ * at that checkout; otherwise they root at the project root. Pure given the
+ * metadata (functional core) — callers perform the store lookup at the
+ * command edge. Invoked from inside a worktree, the metadata carries no
+ * injected host (discovery is local), so the result is the worktree's own
+ * project root and in-worktree behavior is unchanged.
+ */
+export function resolveChangeRoot(
+  projectRoot: string,
+  metadata: Pick<ChangeMetadata, 'worktree'>,
+): string {
+  return metadata.worktree ?? projectRoot
 }
 
 export function createCliContext(projectRoot?: string): CliContext {

@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest'
-import { askYesNo, outputJson, resolveProjectRoot } from '../src/cli/helpers.js'
+import { askYesNo, outputJson, resolveChangeRoot, resolveProjectRoot } from '../src/cli/helpers.js'
 import { mkdtemp, rm, mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -109,6 +109,24 @@ describe('outputJson', () => {
     }
     outputJson(payload)
     expect(printed()).toBe(JSON.stringify(payload, null, 2))
+  })
+})
+
+describe('resolveChangeRoot', () => {
+  it('returns the hosting worktree checkout root when metadata carries one', () => {
+    const worktree = join('/repo', '.metta', 'worktrees', 'demo')
+    expect(resolveChangeRoot('/repo', { worktree })).toBe(worktree)
+  })
+
+  it('falls back to the project root for non-worktree changes', () => {
+    expect(resolveChangeRoot('/repo', {})).toBe('/repo')
+    expect(resolveChangeRoot('/repo', { worktree: undefined })).toBe('/repo')
+  })
+
+  it('is pure given the metadata — no filesystem existence requirement', () => {
+    // The paths involved do not exist; the helper only maps metadata → root.
+    const worktree = join('/nonexistent', '.metta', 'worktrees', 'ghost')
+    expect(resolveChangeRoot('/nonexistent', { worktree })).toBe(worktree)
   })
 })
 
