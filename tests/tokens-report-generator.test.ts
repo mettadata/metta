@@ -17,6 +17,9 @@ const TEMPLATE_PLACEHOLDERS = [
   '{gaps}',
 ] as const
 
+const GAP_LINE = (key: string) =>
+  `- \`${key}\` — run evidence with no token record; the recording hook missed this run`
+
 // --- Fixture builders ---------------------------------------------------------
 
 function record(over: Partial<TokenUsageRecord> = {}): TokenUsageRecord {
@@ -107,10 +110,10 @@ describe('generateTokensReport', () => {
         record({ task: 'mid', agent: 'metta-verifier', model: 'inherit', tokens: 30 }),
       ],
     })
-    expect(markdown).toContain('| Artifact/task | Agent | Model | Tokens |')
-    const zeta = markdown.indexOf('| zeta | metta-executor | sonnet | 10 |')
-    const alpha = markdown.indexOf('| alpha | metta-analyst | haiku | 20 |')
-    const mid = markdown.indexOf('| mid | metta-verifier | inherit | 30 |')
+    expect(markdown).toContain('| Artifact/task | Agent | Model | Tokens | Provenance |')
+    const zeta = markdown.indexOf('| zeta | metta-executor | sonnet | 10 | prose (estimate) |')
+    const alpha = markdown.indexOf('| alpha | metta-analyst | haiku | 20 | prose (estimate) |')
+    const mid = markdown.indexOf('| mid | metta-verifier | inherit | 30 | prose (estimate) |')
     expect(zeta).toBeGreaterThan(-1)
     expect(alpha).toBeGreaterThan(zeta)
     expect(mid).toBeGreaterThan(alpha)
@@ -173,8 +176,8 @@ describe('generateTokensReport', () => {
       tokenUsage: [record({ task: 'spec' })],
       artifactTimings: { tasks: timing(), intent: timing(), spec: timing() },
     })
-    const intent = markdown.indexOf('- `intent` — timed artifact with no reported token usage')
-    const tasks = markdown.indexOf('- `tasks` — timed artifact with no reported token usage')
+    const intent = markdown.indexOf(GAP_LINE('intent'))
+    const tasks = markdown.indexOf(GAP_LINE('tasks'))
     expect(intent).toBeGreaterThan(-1)
     expect(tasks).toBeGreaterThan(intent)
     expect(markdown).not.toContain('- `spec` —')
@@ -187,8 +190,8 @@ describe('generateTokensReport', () => {
       artifactTimings: { tasks: timing() },
     })
     expect(markdown).toContain('**~750 tokens** across 1 record(s).')
-    expect(markdown).toContain('| T1 | metta-executor | sonnet | 750 |')
-    expect(markdown).toContain('- `tasks` — timed artifact with no reported token usage')
+    expect(markdown).toContain('| T1 | metta-executor | sonnet | 750 | prose (estimate) |')
+    expect(markdown).toContain(GAP_LINE('tasks'))
   })
 
   it('produces fully-populated gaps when usage is empty but timings exist', async () => {
@@ -196,8 +199,8 @@ describe('generateTokensReport', () => {
       tokenUsage: [],
       artifactTimings: { spec: timing(), intent: timing() },
     })
-    const intent = markdown.indexOf('- `intent` — timed artifact with no reported token usage')
-    const spec = markdown.indexOf('- `spec` — timed artifact with no reported token usage')
+    const intent = markdown.indexOf(GAP_LINE('intent'))
+    const spec = markdown.indexOf(GAP_LINE('spec'))
     expect(intent).toBeGreaterThan(-1)
     expect(spec).toBeGreaterThan(intent)
     expect(markdown).toContain('**~0 tokens** across 0 record(s).')
@@ -209,6 +212,104 @@ describe('generateTokensReport', () => {
     expect(markdown).toContain('No gaps found.')
     expect(markdown).toContain('- **Cheap/pinned (non-inherit)**: ~0 tokens')
     expect(markdown).toContain('- **Inherit**: ~0 tokens')
+  })
+
+  it('lists a hook-coverage gap when artifact_timings has a key with no token record', async () => {
+    const { markdown } = await gen({
+      tokenUsage: [record({ task: 'spec', source: 'hook' })],
+      artifactTimings: { implementation: timing(), spec: timing() },
+    })
+    expect(markdown).toContain(GAP_LINE('implementation'))
+    expect(markdown).not.toContain('- `spec` —')
+    expect(markdown).not.toContain('No gaps found.')
+  })
+
+  it('renders "No gaps found." when every timed artifact has a token record', async () => {
+    const { markdown } = await gen({
+      tokenUsage: [record({ task: 'implementation', agent: 'metta-executor', source: 'hook' })],
+      artifactTimings: { implementation: timing() },
+    })
+    expect(markdown).toContain('No gaps found.')
+  })
+
+  // --- Report-time dedupe -----------------------------------------------------
+
+  it('counts a duplicate hook+prose pair for the same task+agent once, at the hook figure', async () => {
+    const { markdown } = await gen({
+      tokenUsage: [
+        record({ task: 'implementation', agent: 'metta-executor', model: 'sonnet', tokens: 40000, source: 'prose' }),
+        record({ task: 'implementation', agent: 'metta-executor', model: 'sonnet', tokens: 41250, source: 'hook' }),
+      ],
+    })
+    expect(markdown).toContain('**~41,250 tokens** across 1 record(s).')
+    expect(markdown).toContain('| implementation | metta-executor | sonnet | 41,250 | hook (exact) |')
+    expect(markdown).not.toContain('40,000')
+    expect(markdown).toContain('| metta-executor | 41,250 |')
+    expect(markdown).toContain('| sonnet | 41,250 |')
+    expect(markdown).toContain('- **Cheap/pinned (non-inherit)**: ~41,250 tokens')
+  })
+
+  it('retains a legacy prose-only record (no source) everywhere as prose (estimate)', async () => {
+    const { markdown } = await gen({
+      tokenUsage: [record({ task: 'intent', agent: 'metta-analyst', model: 'haiku', tokens: 1200 })],
+    })
+    expect(markdown).toContain('**~1,200 tokens** across 1 record(s).')
+    expect(markdown).toContain('| intent | metta-analyst | haiku | 1,200 | prose (estimate) |')
+    expect(markdown).toContain('| metta-analyst | 1,200 |')
+    expect(markdown).toContain('| haiku | 1,200 |')
+  })
+
+  it('counts two hook records sharing a key both times (hook records are never dropped)', async () => {
+    const { markdown } = await gen({
+      tokenUsage: [
+        record({ task: 'implementation', agent: 'metta-executor', model: 'sonnet', tokens: 100, source: 'hook' }),
+        record({ task: 'implementation', agent: 'metta-executor', model: 'sonnet', tokens: 200, source: 'hook' }),
+      ],
+    })
+    expect(markdown).toContain('**~300 tokens** across 2 record(s).')
+    expect(markdown).toContain('| implementation | metta-executor | sonnet | 100 | hook (exact) |')
+    expect(markdown).toContain('| implementation | metta-executor | sonnet | 200 | hook (exact) |')
+    expect(markdown).toContain('| metta-executor | 300 |')
+  })
+
+  it('does not collapse a prose record whose task id differs from the hook record', async () => {
+    const { markdown } = await gen({
+      tokenUsage: [
+        record({ task: 'T1', agent: 'metta-executor', model: 'sonnet', tokens: 500, source: 'prose' }),
+        record({ task: 'implementation', agent: 'metta-executor', model: 'sonnet', tokens: 41250, source: 'hook' }),
+      ],
+    })
+    expect(markdown).toContain('**~41,750 tokens** across 2 record(s).')
+    expect(markdown).toContain('| T1 | metta-executor | sonnet | 500 | prose (estimate) |')
+    expect(markdown).toContain('| implementation | metta-executor | sonnet | 41,250 | hook (exact) |')
+  })
+
+  it('does not mutate the caller tokenUsage array during generation', async () => {
+    const tokenUsage = [
+      record({ task: 'implementation', agent: 'metta-executor', tokens: 40000, source: 'prose' }),
+      record({ task: 'implementation', agent: 'metta-executor', tokens: 41250, source: 'hook' }),
+    ]
+    const snapshot = structuredClone(tokenUsage)
+    await gen({ tokenUsage })
+    expect(tokenUsage).toEqual(snapshot)
+  })
+
+  // --- Section order ----------------------------------------------------------
+
+  it('renders the seven sections in the pre-delta order', async () => {
+    const { markdown } = await gen({ tokenUsage: [record()], artifactTimings: { intent: timing() } })
+    const sections = [
+      '# Token usage: test-change',
+      '## Total',
+      '## Per artifact',
+      '## Per role',
+      '## Per model',
+      '## Cheap/pinned (non-inherit) vs inherit',
+      '## Gaps',
+    ]
+    const positions = sections.map(s => markdown.indexOf(s))
+    for (const pos of positions) expect(pos).toBeGreaterThan(-1)
+    expect(positions).toEqual([...positions].sort((a, b) => a - b))
   })
 })
 
