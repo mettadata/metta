@@ -19,6 +19,16 @@
           }
         ]
       }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/metta-tokens-record.mjs"
+          }
+        ]
+      }
     ]
   },
   "statusLine": {
