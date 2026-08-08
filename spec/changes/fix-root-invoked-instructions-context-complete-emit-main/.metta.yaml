@@ -32,6 +32,7 @@ artifact_tokens:
     context: 0
     budget: 50000
 review_iterations: 3
+verify_iterations: 1
 worktree: /home/utx0/Code/metta/.metta/worktrees/fix-root-invoked-instructions-context-complete-emit-main
 model_runs:
   - task: implementation
