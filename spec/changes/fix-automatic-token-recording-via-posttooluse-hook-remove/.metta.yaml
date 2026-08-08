@@ -24,6 +24,8 @@ artifact_timings:
   stories:
     started: 2026-08-08T12:08:45.181Z
     completed: 2026-08-08T12:09:54.686Z
+  spec:
+    started: 2026-08-08T12:09:58.867Z
 artifact_tokens:
   intent:
     context: 759
@@ -31,4 +33,7 @@ artifact_tokens:
   stories:
     context: 2510
     budget: 20000
+  spec:
+    context: 4276
+    budget: 40000
 worktree: /home/utx0/Code/metta/.metta/worktrees/fix-automatic-token-recording-via-posttooluse-hook-remove
