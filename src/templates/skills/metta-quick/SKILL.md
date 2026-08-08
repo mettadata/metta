@@ -196,15 +196,18 @@ You are the **orchestrator** for a quick change (intent → implementation → r
    If any gate fails (either path): run `metta iteration record --phase verify --change <name>` again, then spawn parallel metta-executors to fix (all fixes in ONE orchestrator message unless two fixes share a file path you have named in writing), then re-verify.
 9. `metta complete verification --json --change <name>`
 10. `metta finalize --json --change <name>` → runs gates, archives, merges specs
-11. `git checkout main && git merge metta/<change-name> --no-ff -m "chore: merge <change-name>"`
-12. Report to user what was done
+11. `git push -u origin metta/<change-name>` → push the feature branch to the remote
+12. `gh pr create --title "<conventional-commit-style title from the change>" --body "<summary from summary.md or intent.md highlights>"` → open a PR. The body MUST end with `🤖 Generated with [Claude Code](https://claude.com/claude-code)`
+13. `gh pr merge <pr-number> --merge` → land the PR immediately, unless the user asked to leave it open for review — in that case stop here and report the PR URL instead of merging
+14. Back on `main`: `git pull --ff-only`, then clean up the change branch and worktree
+15. Report to user what was done
 
 ## Critical: You MUST complete ALL steps
 
 - Do NOT skip step 2 (discovery) — ask questions if the change has any ambiguity
 - Do NOT skip step 7 (review) — 3 reviewers MUST review code
 - Do NOT skip step 8 (verification) — 3 verifiers MUST confirm gates pass
-- Do NOT stop after step 5 — the change is not done until merged to main
+- Do NOT stop after step 5 — the change is not done until shipped via a merged PR
 - If reviewer verdict is NEEDS_CHANGES, fix before proceeding to verification
 - If finalize fails gates, spawn metta-executor to fix, then retry
 
@@ -212,5 +215,6 @@ You are the **orchestrator** for a quick change (intent → implementation → r
 
 - MUST write all files to disk — not just describe them
 - Commit ownership: the orchestrator commits planning, review, and verification artifacts after each subagent returns. The executor subagent commits atomically per task during implementation. Planning-artifact subagents (proposer, researcher, architect, planner, product) write files only — they do not run git.
+- Direct local merge of the change branch into main (`git merge`) is forbidden — every change ships through a pushed branch and a GitHub PR
 - If a dispatched step appears orphaned, follow the residual orphaning recovery protocol in metta-skill-host.md.
 - If the change turns out to be complex, tell the user to use `/metta:propose` instead

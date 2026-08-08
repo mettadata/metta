@@ -72,14 +72,17 @@ You are the **orchestrator** for the full Metta lifecycle. Spawn subagents for e
    - If any gate fails: run `metta iteration record --phase verify --change <name>` again, then spawn parallel metta-executors to fix, then re-verify
 8. `metta complete verification --json --change <name>`
 9. `metta finalize --json --change <name>` → runs gates, archives, merges specs
-10. `git checkout main && git merge metta/<change-name> --no-ff -m "chore: merge <change-name>"`
-11. Report results to user
+10. `git push -u origin metta/<change-name>` → push the feature branch to the remote
+11. `gh pr create --title "<conventional-commit-style title from the change>" --body "<summary from summary.md or intent.md highlights>"` → open a PR. The body MUST end with `🤖 Generated with [Claude Code](https://claude.com/claude-code)`
+12. `gh pr merge <pr-number> --merge` → land the PR immediately, unless the user asked to leave it open for review — in that case stop here and report the PR URL instead of merging
+13. Back on `main`: `git pull --ff-only`, then clean up the change branch and worktree
+14. Report results to user
 
-## Critical: You MUST review, verify, finalize, and merge
+## Critical: You MUST review, verify, finalize, and ship
 
 - Do NOT skip step 6 (review) — 3 reviewers MUST review code before verification
 - Do NOT skip step 7 (verify) — a metta-verifier MUST run gates and confirm spec compliance
-- Do NOT stop after verification — finalize + merge must happen
+- Do NOT stop after verification — finalize + ship must happen
 - If reviewer verdict is NEEDS_CHANGES, fix before verifying
 - If finalize fails gates, spawn metta-executor to fix, then retry
 
@@ -88,5 +91,6 @@ You are the **orchestrator** for the full Metta lifecycle. Spawn subagents for e
 - Ask discovery questions BEFORE writing spec — don't guess requirements
 - Commit ownership: the orchestrator commits planning, review, and verification artifacts after each subagent returns. The executor subagent commits atomically per task during implementation. Planning-artifact subagents (proposer, researcher, architect, planner, product) write files only — they do not run git.
 - Every artifact MUST be followed by `metta complete` to advance workflow
+- Direct local merge of the change branch into main (`git merge`) is forbidden — every change ships through a pushed branch and a GitHub PR
 - If a dispatched step appears orphaned, follow the residual orphaning recovery protocol in metta-skill-host.md.
 - Deviation Rule 4: design is wrong → STOP, tell user

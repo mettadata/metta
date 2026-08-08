@@ -273,4 +273,25 @@ describe("CLI: skill & agent template byte-identity", { timeout: 30000 }, () => 
     })
   })
 
+  describe('PR-based shipping across all ship paths', () => {
+    const shipSkills = [
+      'metta-ship',
+      'metta-propose',
+      'metta-quick',
+      'metta-auto',
+      'metta-fix-issues',
+      'metta-fix-gap',
+    ]
+
+    for (const skill of shipSkills) {
+      it(`${skill} template ships via \`gh pr create\` and forbids direct local merge to main`, async () => {
+        const { readFile } = await import('node:fs/promises')
+        const templatePath = join(import.meta.dirname, '..', 'src', 'templates', 'skills', skill, 'SKILL.md')
+        const contents = await readFile(templatePath, 'utf8')
+        expect(contents).toContain('gh pr create')
+        expect(contents).not.toContain('git merge metta/')
+      })
+    }
+  })
+
 })

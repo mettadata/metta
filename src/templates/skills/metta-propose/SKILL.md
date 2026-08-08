@@ -271,14 +271,18 @@ Routing decision:
    - If any gate fails: run `metta iteration record --phase verify --change <name>` again, then spawn parallel metta-executors to fix (all fixes in ONE orchestrator message unless two fixes share a file path you have named in writing), then re-verify
 8. When `all_complete: true`:
    a. `metta finalize --json --change <name>` → runs gates, archives, merges specs
-   b. `git checkout main && git merge metta/<change-name> --no-ff -m "chore: merge <change-name>"`
+   b. `git push -u origin metta/<change-name>` → push the feature branch to the remote
+   c. `gh pr create --title "<conventional-commit-style title from the change>" --body "<summary from summary.md or intent.md highlights>"` → open a PR. The body MUST end with `🤖 Generated with [Claude Code](https://claude.com/claude-code)`
+   d. `gh pr merge <pr-number> --merge` → land the PR immediately, unless the user asked to leave it open for review — in that case stop here and report the PR URL instead of merging
+   e. Back on `main`: `git pull --ff-only`, then clean up the change branch and worktree
 9. Report to user what was done
 
-## Critical: You MUST verify, finalize, and merge
+## Critical: You MUST verify, finalize, and ship
 
 - Do NOT skip verification — a metta-verifier agent MUST run gates and confirm spec compliance
-- Do NOT stop after the last artifact — finalize + merge must happen
+- Do NOT stop after the last artifact — finalize + ship must happen
 - If metta finalize fails gates, spawn a metta-executor to fix, then retry
+- Direct local merge of the change branch into main (`git merge`) is forbidden — every change ships through a pushed branch and a GitHub PR
 - If a dispatched step appears orphaned, follow the residual orphaning recovery protocol in metta-skill-host.md.
 
 ## Agent Execution Pattern
