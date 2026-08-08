@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { mkdtemp, rm, mkdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { ArtifactStore } from '../src/artifacts/artifact-store.js'
@@ -222,5 +222,121 @@ describe('ArtifactStore', () => {
       const archiveName = await store.abandon('test')
       expect(archiveName).toMatch(/^\d{4}-\d{2}-\d{2}-test-abandoned$/)
     })
+  })
+})
+
+describe('ArtifactStore worktree discovery', () => {
+  let rootDir: string
+  let store: ArtifactStore
+
+  beforeEach(async () => {
+    rootDir = await mkdtemp(join(tmpdir(), 'metta-artifact-wt-'))
+    store = new ArtifactStore(join(rootDir, 'spec'), {
+      worktreesDir: join(rootDir, '.metta', 'worktrees'),
+    })
+  })
+
+  afterEach(async () => {
+    await rm(rootDir, { recursive: true, force: true })
+  })
+
+  // Simulate a worktree-per-change checkout: `.metta/worktrees/<name>/` with
+  // its own spec/changes/<name>/ — discovery is filesystem-based, so a real
+  // `git worktree add` is not required.
+  async function createHostedChange(
+    description: string,
+  ): Promise<{ name: string; host: string; store: ArtifactStore }> {
+    const name = store.deriveChangeName(description)
+    const host = join(rootDir, '.metta', 'worktrees', name)
+    await mkdir(join(host, 'spec'), { recursive: true })
+    const hostStore = new ArtifactStore(join(host, 'spec'))
+    await hostStore.createChange(description, 'standard', ['intent'])
+    return { name, host, store: hostStore }
+  }
+
+  it('lists worktree-hosted changes alongside local ones', async () => {
+    await store.createChange('local change', 'quick', ['intent'])
+    await createHostedChange('hosted change')
+    const changes = await store.listChanges()
+    expect(changes.sort()).toEqual(['hosted-change', 'local-change'])
+  })
+
+  it('discoverChanges reports the hosting worktree path per change', async () => {
+    await store.createChange('local change', 'quick', ['intent'])
+    const { host } = await createHostedChange('hosted change')
+    const { changes, warnings } = await store.discoverChanges()
+    const byName = new Map(changes.map((change) => [change.name, change]))
+    expect(byName.get('local-change')?.worktree).toBeUndefined()
+    expect(byName.get('hosted-change')?.worktree).toBe(host)
+    expect(warnings).toEqual([])
+  })
+
+  it('resolves a worktree-hosted change by name and injects the hosting worktree', async () => {
+    const { host } = await createHostedChange('hosted change')
+    const metadata = await store.getChange('hosted-change')
+    expect(metadata.workflow).toBe('standard')
+    expect(metadata.worktree).toBe(host)
+  })
+
+  it('routes artifact reads and writes to the hosting worktree', async () => {
+    const { host } = await createHostedChange('hosted change')
+    await store.writeArtifact('hosted-change', 'intent.md', '# Hosted intent')
+    const onDisk = await readFile(
+      join(host, 'spec', 'changes', 'hosted-change', 'intent.md'),
+      'utf8',
+    )
+    expect(onDisk).toContain('# Hosted intent')
+    expect(await store.readArtifact('hosted-change', 'intent.md')).toContain('# Hosted intent')
+    expect(await store.artifactExists('hosted-change', 'intent.md')).toBe(true)
+  })
+
+  it('worktree copy wins a slug collision and a warning is surfaced', async () => {
+    // Same slug in the main checkout and a worktree, with divergent workflows.
+    const { host } = await createHostedChange('collision change')
+    const localStore = new ArtifactStore(join(rootDir, 'spec'))
+    await localStore.createChange('collision change', 'quick', ['intent'])
+
+    const { changes, warnings } = await store.discoverChanges()
+    expect(changes).toHaveLength(1)
+    expect(changes[0]).toEqual({ name: 'collision-change', worktree: host })
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toContain('collision-change')
+    expect(warnings[0]).toContain(host)
+
+    // Resolution by name returns the worktree copy (standard, not quick).
+    const metadata = await store.getChange('collision-change')
+    expect(metadata.workflow).toBe('standard')
+
+    // listChanges surfaces the warning on stderr — never silently merged.
+    const spy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+    try {
+      const names = await store.listChanges()
+      expect(names).toEqual(['collision-change'])
+      expect(
+        spy.mock.calls.some((call) => String(call[0]).includes('collision-change')),
+      ).toBe(true)
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  it('createChange rejects a slug already hosted in a worktree', async () => {
+    await createHostedChange('taken change')
+    await expect(store.createChange('taken change', 'quick', ['intent'])).rejects.toThrow(
+      /already exists/,
+    )
+  })
+
+  it('markArtifact writes to the hosting worktree copy', async () => {
+    const { store: hostStore } = await createHostedChange('mutating change')
+    await store.markArtifact('mutating-change', 'intent', 'complete')
+    const metadata = await hostStore.getChange('mutating-change')
+    expect(metadata.artifacts.intent).toBe('complete')
+  })
+
+  it('ignores worktrees when constructed without a worktreesDir', async () => {
+    await createHostedChange('hidden change')
+    const plainStore = new ArtifactStore(join(rootDir, 'spec'))
+    expect(await plainStore.listChanges()).toEqual([])
   })
 })

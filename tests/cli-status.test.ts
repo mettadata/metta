@@ -23,6 +23,33 @@ describe("CLI: status / next / changes / doctor / gate / validate-stories", { ti
       const data = JSON.parse(stdout)
       expect(data.changes).toEqual([])
     })
+
+    it('aggregates worktree-hosted changes when run from the main root', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await disableWorktrees(tempDir)
+      // Simulate a worktree-per-change checkout hosting the only active
+      // change — the main checkout's own spec/changes stays empty.
+      const host = join(tempDir, '.metta', 'worktrees', 'demo-change')
+      const changeDir = join(host, 'spec', 'changes', 'demo-change')
+      await mkdir(changeDir, { recursive: true })
+      await writeFile(
+        join(changeDir, '.metta.yaml'),
+        [
+          'workflow: quick',
+          'created: "2026-08-08T00:00:00.000Z"',
+          'status: active',
+          'current_artifact: intent',
+          'base_versions: {}',
+          'artifacts:',
+          '  intent: ready',
+          '',
+        ].join('\n'),
+      )
+      const { stdout } = await runCli(['--json', 'status'], tempDir)
+      const data = JSON.parse(stdout)
+      expect(data.change).toBe('demo-change')
+      expect(data.worktree).toBe(host)
+    })
   })
 
 
