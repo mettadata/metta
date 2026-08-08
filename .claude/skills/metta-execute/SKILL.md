@@ -47,7 +47,7 @@ Agent(subagent_type: "metta-executor", description: "Task 2.2: build product API
 
 For **every** executor spawn (parallel or sequential, first run or re-run — not just the examples above): read `agent.model` from `metta instructions <id> --json`. If it is not `inherit`, pass it as `Agent(subagent_type: "metta-executor", model: "<value>", ...)`. If it is `inherit`, omit the `model` parameter. Pass the payload's `change_root` into every executor prompt: all file paths handed to an executor must be absolute under `{change_root}`, and all commits it makes must use `git -C "{change_root}"` — never plain git from the session cwd.
 
-After each subagent returns, record its reported token usage: `metta tokens record --task <artifact-or-task-id> --agent <subagent-type> --model <alias> --tokens <count> --change <name>` — `--task` is the artifact or task id it worked, `--agent` is the `subagent_type` you spawned, `--model` is the model alias you passed to `Agent(...)` (use `inherit` when you omitted the `model` parameter), and `--tokens` is the token count from its completion report. This applies to every spawn — planner, executor, reviewer, and verifier alike.
+Token recording is automatic — a SubagentStop hook records each subagent's harness-measured usage; do not run `metta tokens record` after subagent returns. Only if the hook is unavailable, record manually: `metta tokens record --task <artifact-or-task-id> --agent <subagent-type> --model <alias> --tokens <count> --change <name> --source prose`.
 
 ## How to detect file overlap
 
