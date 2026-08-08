@@ -32,6 +32,22 @@ No critical findings. Two major findings, addressed as follows: security contain
 - Pre-existing: `complete.ts`/`instructions.ts` never `assertSafeSlug` the `--change` argument (security #4); TOCTOU existsSync patterns (security #3, pre-existing, no action). Folded into follow-up issue.
 - Config-load parity caveat (correctness #5) — main-root invocation uses main's `.metta/config.yaml`; deliberate per intent, noted in code comment.
 
+## Re-review (iteration 2, fix commits 85667a8eb / 2b6cb57b5 / 3dfd6a923)
+
+| Reviewer | Verdict |
+|----------|---------|
+| Correctness | PASS_WITH_WARNINGS |
+| Security | PASS_WITH_WARNINGS |
+| Quality | PASS |
+
+- Containment verified sound (component-wise `path.relative`; rejects escapes, sibling-prefix dirs, worktrees dir itself; fails safe on case/`..foo` edges). All legitimate flows preserved; no remaining raw `metadata.worktree` sink.
+- Narrowed catch verified: canonical not_found holds for ENOENT/ENOTDIR; `StateValidationError`/YAML corruption now propagates (tested).
+- Prior minor polish findings confirmed resolved.
+- Determinism nit (`resolve(metadata.worktree)` was cwd-dependent) — fixed in `3dfd6a923` (`resolve(projectRoot, ...)` + relative-value tests). 1778/1778 tests green.
+- Remaining non-blocking warning: containment anchors on `DEFAULT_WORKTREE_DIR` while `git.worktree.dir` is configurable — latent, consistent with pre-existing hardcoded discovery (helpers.ts:108); custom worktree dirs remain unsupported for root-invoked re-rooting. Noted for the follow-up issue. Residual note: containment is path math (no realpath), so a git-tracked symlink at `.metta/worktrees` is out of this trust edge (hostile-repo threat model).
+
+No critical findings in either iteration; review loop exits clean.
+
 ## Clean
 
 - All path/cwd sites named in the intent verified re-rooted; non-worktree behavior provably byte-identical (`?? projectRoot` reduction).
