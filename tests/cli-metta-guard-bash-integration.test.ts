@@ -444,6 +444,74 @@ describe('metta-guard-bash integration', { timeout: 60_000 }, () => {
     })
   })
 
+  describe('release classification end-to-end', () => {
+    let tempDir: string
+
+    beforeEach(() => {
+      tempDir = mkdtempSync(join(tmpdir(), 'metta-guard-release-int-'))
+    })
+
+    afterEach(() => {
+      rmSync(tempDir, { recursive: true, force: true })
+    })
+
+    it.each([
+      'metta release status',
+      'metta release',
+      'metta release --json',
+    ])('allows read-only `%s` without any credential — exit 0', (command) => {
+      const { code, stderr } = runHook(bashEvent(command, { cwd: tempDir }), { cwd: tempDir })
+      expect(code).toBe(0)
+      expect(stderr).toBe('')
+    })
+
+    it('blocks uncredentialed `metta release cut` — exit 2, rejection points at the skill path', () => {
+      const { code, stderr } = runHook(bashEvent('metta release cut', { cwd: tempDir }), {
+        cwd: tempDir,
+      })
+      expect(code).toBe(2)
+      expect(stderr).toContain('/metta-')
+      expect(stderr).toContain('skill')
+    })
+
+    it('keeps `metta release frobnicate` fail-closed as unknown — exit 2', () => {
+      const { code, stderr } = runHook(bashEvent('metta release frobnicate', { cwd: tempDir }), {
+        cwd: tempDir,
+      })
+      expect(code).toBe(2)
+      expect(stderr).toContain('unknown')
+    })
+
+    it('mint hook scope for metta-release grants exactly release:cut', () => {
+      const mint = spawnSync('node', [MINT_TEMPLATE_PATH, 'metta-release'], {
+        input: JSON.stringify(bashEvent('metta release status --json', { cwd: tempDir })),
+        encoding: 'utf8',
+        timeout: 10_000,
+        cwd: tempDir,
+      })
+      expect(mint.status).toBe(0)
+
+      const tokenPath = join(tempDir, '.metta', 'scratch', 'skill-session.token')
+      expect(existsSync(tokenPath)).toBe(true)
+      const token = JSON.parse(readFileSync(tokenPath, 'utf8')) as {
+        skill: string
+        subcommands: string[]
+      }
+      expect(token.skill).toBe('metta-release')
+      expect(token.subcommands).toEqual(['release:cut'])
+
+      // The minted credential authorizes the Tier-2 cut…
+      const cut = runHook(bashEvent('metta release cut --bump patch --yes --json', { cwd: tempDir }), {
+        cwd: tempDir,
+      })
+      expect(cut.code, cut.stderr).toBe(0)
+
+      // …and nothing outside that scope.
+      const outOfScope = runHook(bashEvent('metta finalize', { cwd: tempDir }), { cwd: tempDir })
+      expect(outOfScope.code).toBe(2)
+    })
+  })
+
   describe('background Bash rejection end-to-end', () => {
     let tempDir: string
 

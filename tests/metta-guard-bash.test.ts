@@ -700,6 +700,99 @@ describe('metta-guard-bash hook', { timeout: 30_000 }, () => {
         })
       })
 
+      // ----- Release classification (read-only status vs Tier-2 cut) -----
+      describe('release classification', () => {
+        const TTL_MS = 300_000
+        const tempDirs: string[] = []
+        afterEach(() => {
+          while (tempDirs.length) {
+            const dir = tempDirs.pop()!
+            try {
+              rmSync(dir, { recursive: true, force: true })
+            } catch {
+              // best-effort cleanup
+            }
+          }
+        })
+        function makeTempCwd(): string {
+          const dir = mkdtempSync(join(tmpdir(), 'metta-guard-release-'))
+          tempDirs.push(dir)
+          return dir
+        }
+
+        it('allows `metta release status` two-word without any credential (exit 0)', () => {
+          const { code, stderr } = runHook(hookPath, bashEvent('metta release status'))
+          expect(code).toBe(0)
+          expect(stderr).toBe('')
+        })
+
+        it('allows bare `metta release` (read-only status view) without any credential (exit 0)', () => {
+          const { code, stderr } = runHook(hookPath, bashEvent('metta release'))
+          expect(code).toBe(0)
+          expect(stderr).toBe('')
+        })
+
+        it('allows `metta release --json` without any credential (exit 0)', () => {
+          const { code, stderr } = runHook(hookPath, bashEvent('metta release --json'))
+          expect(code).toBe(0)
+          expect(stderr).toBe('')
+        })
+
+        it('blocks `metta release cut` without a session credential — Tier-2 missing-credential (exit 2)', () => {
+          const cwd = makeTempCwd()
+          const { code, stderr } = runHook(hookPath, bashEvent('metta release cut', { cwd }), {
+            cwd,
+          })
+          expect(code).toBe(2)
+          expect(stderr).toContain('/metta-')
+        })
+
+        it('allows `metta release cut` with a valid release:cut-scoped session token (exit 0)', () => {
+          const cwd = makeTempCwd()
+          mkdirSync(join(cwd, '.metta', 'scratch'), { recursive: true })
+          const tok = {
+            token: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+            skill: 'metta-release',
+            subcommands: ['release:cut'],
+            mintedAt: Date.now(),
+            ttlMs: TTL_MS,
+          }
+          writeFileSync(join(cwd, '.metta', 'scratch', 'skill-session.token'), JSON.stringify(tok), {
+            mode: 0o600,
+          })
+          const { code, stderr } = runHook(
+            hookPath,
+            bashEvent('metta release cut --bump minor --yes --json', { cwd }),
+            { cwd },
+          )
+          expect(code).toBe(0)
+          expect(stderr).toBe('')
+        })
+
+        it('blocks `metta release cut` when the token scope does not include release:cut (exit 2)', () => {
+          const cwd = makeTempCwd()
+          mkdirSync(join(cwd, '.metta', 'scratch'), { recursive: true })
+          const tok = {
+            token: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+            skill: 'metta-backlog',
+            subcommands: ['backlog:add', 'backlog:done', 'backlog:promote'],
+            mintedAt: Date.now(),
+            ttlMs: TTL_MS,
+          }
+          writeFileSync(join(cwd, '.metta', 'scratch', 'skill-session.token'), JSON.stringify(tok), {
+            mode: 0o600,
+          })
+          const { code } = runHook(hookPath, bashEvent('metta release cut', { cwd }), { cwd })
+          expect(code).toBe(2)
+        })
+
+        it('keeps `metta release frobnicate` fail-closed as unknown (exit 2)', () => {
+          const { code, stderr } = runHook(hookPath, bashEvent('metta release frobnicate'))
+          expect(code).toBe(2)
+          expect(stderr).toContain('unknown')
+        })
+      })
+
       // ----- Non-Bash / edge cases -----
       it('passes through non-Bash events (tool_name: Edit) (exit 0)', () => {
         const { code } = runHook(hookPath, { tool_name: 'Edit', tool_input: { file_path: 'x.ts' } })
