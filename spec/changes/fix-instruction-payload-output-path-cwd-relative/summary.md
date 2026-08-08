@@ -42,3 +42,11 @@ The main-root ENOENT for worktree-hosted changes (`metta instructions --change <
 ## Out of scope (unchanged)
 
 Config/workflow main-root anchoring, worktree lifecycle, guard-hook authorization, `metta-init` discovery `output_paths` (main-root by design), slug validation beyond `complete`/`instructions`.
+
+## Verification (3 parallel verifiers, iteration #1)
+
+- **Tests:** full suite 102 files, 1792/1792 passing, 0 skipped, no flakes.
+- **Gates:** `npx tsc --noEmit` clean; `npm run lint` (tsc alias) clean; `npm run build` (tsc + copy-templates) clean.
+- **Spec coverage:** all 7 intent proposal items and all new/changed context-engine section-10 scenarios traced to implementing code and passing tests (details in verifier evidence: instructions-payload-paths, instruction-generator, cli-check-constitution-paths, cli-complete slug suite, artifact-store, template-deploy-sync, verify-template-contract).
+- **Caveat:** skill markdown phrasing (item 3) is verified by template mirror byte-identity + manual inspection; no behavioral test asserts prose content — consistent with existing project practice.
+- Review round 1: 3 reviewers PASS_WITH_WARNINGS; the single major (living-spec drift) fixed in c4863cdfc, quoting minor in 7957fc5b1.
