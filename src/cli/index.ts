@@ -40,6 +40,7 @@ import { registerUpdateCommand } from './commands/update.js'
 import { registerProgressCommand } from './commands/progress.js'
 import { registerIterationCommand } from './commands/iteration.js'
 import { registerModelEscalationCommand } from './commands/model-escalation.js'
+import { registerTokensCommand } from './commands/tokens.js'
 import { registerImportCommand } from './commands/import.js'
 import { registerGapsCommand } from './commands/gaps.js'
 import { registerFixGapCommand } from './commands/fix-gap.js'
@@ -92,6 +93,7 @@ registerUpdateCommand(program)
 registerProgressCommand(program)
 registerIterationCommand(program)
 registerModelEscalationCommand(program)
+registerTokensCommand(program)
 registerImportCommand(program)
 registerGapsCommand(program)
 registerFixGapCommand(program)
