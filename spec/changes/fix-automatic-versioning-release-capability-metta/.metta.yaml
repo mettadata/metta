@@ -21,8 +21,13 @@ artifact_timings:
   intent:
     started: 2026-08-08T14:57:56.690Z
     completed: 2026-08-08T14:59:21.164Z
+  stories:
+    started: 2026-08-08T14:59:25.086Z
 artifact_tokens:
   intent:
     context: 759
+    budget: 20000
+  stories:
+    context: 2860
     budget: 20000
 worktree: /home/utx0/Code/metta/.metta/worktrees/fix-automatic-versioning-release-capability-metta
