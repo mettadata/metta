@@ -1,0 +1,22 @@
+workflow: quick
+created: 2026-08-08T13:46:41.593Z
+status: active
+current_artifact: verification
+base_versions: {}
+artifacts:
+  intent: complete
+  implementation: complete
+  verification: complete
+complexity_score:
+  score: 1
+  signals:
+    file_count: 2
+  recommended_workflow: quick
+artifact_timings:
+  intent:
+    completed: 2026-08-08T13:47:21.185Z
+  implementation:
+    completed: 2026-08-08T13:55:07.031Z
+  verification:
+    completed: 2026-08-08T13:55:07.626Z
+worktree: /home/utx0/Code/metta/.metta/worktrees/fix-ci-first-run-git-identity-npm-audit-high-vulns
