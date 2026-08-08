@@ -31,3 +31,13 @@ Fixed the remaining wrong-tree family of skill instructions (issue `remaining-sk
 ## Verification
 
 Doc-only change (markdown skill files). Mirror pairs verified byte-identical by each executor. Gates (tests, lint, typecheck, build) run by the orchestrator before completing implementation.
+
+## Verification results (3 parallel verifiers, iteration #1)
+
+| Verifier | Result |
+|----------|--------|
+| Test suite | PASS — 102/102 files, 1792/1792 tests |
+| Typecheck / lint / build | PASS — tsc clean, lint clean, build clean; dist template copy verified identical to src |
+| Intent coverage | PASS — all 6 intent commitments implemented with file:line evidence; mirrors byte-identical; provenance claims cross-checked against quick.ts/propose.ts/instruction-generator.ts; Out of Scope respected (diff = 12 skill files + change artifacts only) |
+
+All major review findings confirmed resolved in the verified tree (commit `a0dbbbf75`).
