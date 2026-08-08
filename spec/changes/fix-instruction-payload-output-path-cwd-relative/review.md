@@ -25,3 +25,9 @@ Three parallel reviews (iteration #1). Verdicts: Correctness PASS_WITH_WARNINGS,
 ## Verified by reviewers
 
 Absolute output_path correct for worktree-hosted and local changes; containment guard strengthened by discovered-host precedence; never-persist invariant extended correctly; template mirrors byte-identical; slug validation ordered before all joins/lookups in complete/instructions/check-constitution; no remaining relative-path consumer of the contract; tsc clean; touched suites green.
+
+## Fix status (post-review)
+
+- Major 1 resolved in c4863cdfc (context-engine spec section 10 reconciled: absolute output_path, change_root field, worktree scenario).
+- Minor 2 resolved in 7957fc5b1 (quoted git -C "{change_root}" add "{output_path}" in metta-plan/metta-propose, both trees, mirrors byte-identical).
+- Remaining minors accepted or deferred as noted above; follow-ups to be logged as issues after ship.
