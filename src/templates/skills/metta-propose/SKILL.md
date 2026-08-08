@@ -292,25 +292,26 @@ For each artifact, you act as the **orchestrator** — lean context, no implemen
 ### Per-Artifact Loop
 
 1. `metta instructions <artifact> --json --change <name>`
-   → Returns: agent.persona, agent.tools, template, output_path, context
+   → Returns: agent.persona, agent.tools, template, output_path, change_root, context
+   `output_path` is an absolute path inside the checkout hosting the change and `change_root` is that checkout's root — use both verbatim; never re-derive paths from the session cwd.
 2. **Spawn a subagent** to do the work:
    ```
    Agent(subagent_type: "metta-proposer", prompt: "...", description: "...")
    ```
    - The agent persona from the instructions response
-   - The template and output_path
+   - The template, output_path, and change_root
    - Any context from previous artifacts
-   - Clear task: "Write <output_path> following this template. Fill ALL sections with real content. Then git commit."
+   - Clear task: "Write <output_path> (absolute — use it exactly as given) following this template. Fill ALL sections with real content. Then git -C <change_root> add + commit."
 
 
    **For research: fan-out parallel exploration.** Instead of one researcher:
    a. Identify 2-4 viable approaches from the spec (e.g. "WebSockets vs SSE vs polling")
-   b. **Spawn one metta-researcher per approach in a single message.** Each researcher MUST write its findings to `spec/changes/<change>/research-<approach-slug>.md` (a short kebab-case slug per approach, e.g. `research-websockets.md`, `research-sse.md`, `research-polling.md`). Forbid `/tmp/` paths — per-approach output MUST be in-tree.
+   b. **Spawn one metta-researcher per approach in a single message.** Each researcher MUST write its findings to `{change_root}/spec/changes/<change>/research-<approach-slug>.md` (a short kebab-case slug per approach, e.g. `research-websockets.md`, `research-sse.md`, `research-polling.md`). Forbid `/tmp/` paths — per-approach output MUST be in-tree, inside the change's own checkout.
    c. Each researcher evaluates their approach's pros, cons, complexity, fit with existing code
-   d. **Synthesize research** — read all `spec/changes/<change>/research-*.md` files you just created, write a single consolidated `spec/changes/<change>/research.md` that summarizes each approach and ends with a recommendation, and git-commit it. Do NOT call `metta complete research` until `spec/changes/<change>/research.md` exists on disk with real content.
+   d. **Synthesize research** — read all `{change_root}/spec/changes/<change>/research-*.md` files you just created, write a single consolidated `{change_root}/spec/changes/<change>/research.md` that summarizes each approach and ends with a recommendation, and commit it with `git -C {change_root}`. Do NOT call `metta complete research` until `{change_root}/spec/changes/<change>/research.md` exists on disk with real content.
 
    **For implementation: DO NOT spawn one big executor.** Instead:
-   a. Read `spec/changes/<change>/tasks.md` yourself
+   a. Read `{change_root}/spec/changes/<change>/tasks.md` yourself
    b. Parse the batches (Batch 1, Batch 2, etc.)
    c. For each batch, check file overlap between tasks
    d. No overlap → spawn one metta-executor per task **in a single message** (parallel)
@@ -327,14 +328,14 @@ When spawning subagents, include this in the prompt. Use subagent_type: "metta-p
 
 "You are: {agent.persona}
 
-Write the file {output_path} following this template:
+Write the file {output_path} (an absolute path — use it exactly as given) following this template:
 {template}
 
 Context from previous artifacts:
-{read the files from spec/changes/<change>/}
+{read the files from {change_root}/spec/changes/<change>/}
 
 Rules:
 - Fill in ALL sections with real, specific content — no placeholders
-- When done, run: git add {output_path} && git commit -m 'docs(<change>): create <artifact>'
+- When done, run: git -C {change_root} add {output_path} && git -C {change_root} commit -m 'docs(<change>): create <artifact>' — always `git -C {change_root}`, never plain git from your cwd: for a worktree-hosted change a plain `git add` would target the wrong checkout or fail with 'outside repository'
 - For implementation tasks, use conventional commits: feat(<change>): <description>
 - For specs, use RFC 2119 keywords (MUST/SHOULD/MAY) and Given/When/Then scenarios"
