@@ -11,7 +11,7 @@ artifacts:
   design: complete
   tasks: complete
   implementation: complete
-  verification: ready
+  verification: complete
 complexity_score:
   score: 2
   signals:
@@ -38,6 +38,8 @@ artifact_timings:
     completed: 2026-08-08T05:05:01.031Z
   implementation:
     completed: 2026-08-08T05:43:01.338Z
+  verification:
+    completed: 2026-08-08T05:55:52.814Z
 artifact_tokens:
   intent:
     context: 759
@@ -57,4 +59,6 @@ artifact_tokens:
   tasks:
     context: 11443
     budget: 40000
+review_iterations: 1
+verify_iterations: 1
 worktree: /home/utx0/Code/metta/.metta/worktrees/token-usage-tracking-finalize-report-report-data-only-no
