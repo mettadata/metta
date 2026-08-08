@@ -308,7 +308,7 @@ For each artifact, you act as the **orchestrator** — lean context, no implemen
    a. Identify 2-4 viable approaches from the spec (e.g. "WebSockets vs SSE vs polling")
    b. **Spawn one metta-researcher per approach in a single message.** Each researcher MUST write its findings to `{change_root}/spec/changes/<change>/research-<approach-slug>.md` (a short kebab-case slug per approach, e.g. `research-websockets.md`, `research-sse.md`, `research-polling.md`). Forbid `/tmp/` paths — per-approach output MUST be in-tree, inside the change's own checkout.
    c. Each researcher evaluates their approach's pros, cons, complexity, fit with existing code
-   d. **Synthesize research** — read all `{change_root}/spec/changes/<change>/research-*.md` files you just created, write a single consolidated `{change_root}/spec/changes/<change>/research.md` that summarizes each approach and ends with a recommendation, and commit it with `git -C {change_root}`. Do NOT call `metta complete research` until `{change_root}/spec/changes/<change>/research.md` exists on disk with real content.
+   d. **Synthesize research** — read all `{change_root}/spec/changes/<change>/research-*.md` files you just created, write a single consolidated `{change_root}/spec/changes/<change>/research.md` that summarizes each approach and ends with a recommendation, and commit it with `git -C "{change_root}"`. Do NOT call `metta complete research` until `{change_root}/spec/changes/<change>/research.md` exists on disk with real content.
 
    **For implementation: DO NOT spawn one big executor.** Instead:
    a. Read `{change_root}/spec/changes/<change>/tasks.md` yourself
@@ -336,6 +336,6 @@ Context from previous artifacts:
 
 Rules:
 - Fill in ALL sections with real, specific content — no placeholders
-- When done, run: git -C {change_root} add {output_path} && git -C {change_root} commit -m 'docs(<change>): create <artifact>' — always `git -C {change_root}`, never plain git from your cwd: for a worktree-hosted change a plain `git add` would target the wrong checkout or fail with 'outside repository'
+- When done, run: git -C "{change_root}" add "{output_path}" && git -C "{change_root}" commit -m 'docs(<change>): create <artifact>' — always `git -C "{change_root}"` with the paths quoted, never plain git from your cwd: for a worktree-hosted change a plain `git add` would target the wrong checkout or fail with 'outside repository'
 - For implementation tasks, use conventional commits: feat(<change>): <description>
 - For specs, use RFC 2119 keywords (MUST/SHOULD/MAY) and Given/When/Then scenarios"

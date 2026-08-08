@@ -47,7 +47,7 @@ Read existing artifacts from {change_root}/spec/changes/<change>/ for context.
 
 Rules:
 - Fill in ALL sections with real, specific content — no placeholders
-- When done, run: git -C {change_root} add {output_path} && git -C {change_root} commit -m 'docs(<change>): create <artifact>' — always `git -C {change_root}`, never plain git from your cwd: for a worktree-hosted change a plain `git add` would target the wrong checkout or fail with 'outside repository'
+- When done, run: git -C "{change_root}" add "{output_path}" && git -C "{change_root}" commit -m 'docs(<change>): create <artifact>' — always `git -C "{change_root}"` with the paths quoted, never plain git from your cwd: for a worktree-hosted change a plain `git add` would target the wrong checkout or fail with 'outside repository'
 - Research: explore 2-4 approaches, recommend one, explain tradeoffs
 - Design: reference spec requirements and research decisions
 - Tasks: use checklist format with `- [ ] **Task 1.1: name**` followed by indented Files, Action, Verify, Done fields. Group into Batch sections."
