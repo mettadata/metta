@@ -1,5 +1,8 @@
 import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest'
-import { askYesNo, outputJson } from '../src/cli/helpers.js'
+import { askYesNo, outputJson, resolveProjectRoot } from '../src/cli/helpers.js'
+import { mkdtemp, rm, mkdir } from 'node:fs/promises'
+import { join } from 'node:path'
+import { tmpdir } from 'node:os'
 import { recordVersionDrift, resetVersionDrift } from '../src/config/version-drift.js'
 
 describe('askYesNo', () => {
@@ -106,5 +109,68 @@ describe('outputJson', () => {
     }
     outputJson(payload)
     expect(printed()).toBe(JSON.stringify(payload, null, 2))
+  })
+})
+
+describe('resolveProjectRoot', () => {
+  let rootDir: string
+
+  beforeEach(async () => {
+    rootDir = await mkdtemp(join(tmpdir(), 'metta-root-'))
+  })
+
+  afterEach(async () => {
+    await rm(rootDir, { recursive: true, force: true })
+  })
+
+  it('returns cwd when it has its own spec/changes', async () => {
+    await mkdir(join(rootDir, 'spec', 'changes'), { recursive: true })
+    expect(resolveProjectRoot(rootDir)).toBe(rootDir)
+  })
+
+  it('resolves the checkout top level from a nested subdirectory', async () => {
+    await mkdir(join(rootDir, 'spec', 'changes'), { recursive: true })
+    const nested = join(rootDir, 'src', 'deep')
+    await mkdir(nested, { recursive: true })
+    expect(resolveProjectRoot(nested)).toBe(rootDir)
+  })
+
+  it('resolves a worktree checkout root instead of the outer main root', async () => {
+    await mkdir(join(rootDir, 'spec', 'changes'), { recursive: true })
+    const worktree = join(rootDir, '.metta', 'worktrees', 'demo')
+    await mkdir(join(worktree, 'spec', 'changes'), { recursive: true })
+    const inside = join(worktree, 'src')
+    await mkdir(inside, { recursive: true })
+    expect(resolveProjectRoot(inside)).toBe(worktree)
+  })
+
+  it('never escapes a git checkout that lacks spec/changes', async () => {
+    await mkdir(join(rootDir, 'spec', 'changes'), { recursive: true })
+    const innerRepo = join(rootDir, 'vendor', 'other')
+    await mkdir(join(innerRepo, '.git'), { recursive: true })
+    const inner = join(innerRepo, 'src')
+    await mkdir(inner, { recursive: true })
+    expect(resolveProjectRoot(inner)).toBe(inner)
+  })
+
+  it('falls back to cwd when nothing qualifies', async () => {
+    const bare = join(rootDir, 'bare')
+    await mkdir(bare, { recursive: true })
+    expect(resolveProjectRoot(bare)).toBe(bare)
+  })
+
+  it('returns a resolved path from every fallback branch (unnormalized input)', async () => {
+    // Plain fallback (nothing qualifies): the raw argument must be normalized.
+    const bare = join(rootDir, 'bare')
+    await mkdir(bare, { recursive: true })
+    expect(resolveProjectRoot(`${bare}/../bare`)).toBe(bare)
+
+    // Git-boundary fallback: same guarantee when the walk stops at a checkout
+    // that lacks spec/changes.
+    const innerRepo = join(rootDir, 'vendor', 'other')
+    await mkdir(join(innerRepo, '.git'), { recursive: true })
+    const inner = join(innerRepo, 'src')
+    await mkdir(inner, { recursive: true })
+    expect(resolveProjectRoot(`${inner}/../src`)).toBe(inner)
   })
 })

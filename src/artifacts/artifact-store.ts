@@ -1,4 +1,4 @@
-import { readdir, mkdir, rename as move } from 'node:fs/promises'
+import { readdir, mkdir, rename as move, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { StateStore } from '../state/state-store.js'
 import { toSlug } from '../util/slug.js'
@@ -10,11 +10,58 @@ import {
 
 const STOP_WORDS = new Set(['a', 'an', 'the', 'add', 'and', 'or', 'for', 'to', 'of', 'with', 'in', 'on', 'by', 'is', 'it', 'that', 'this', 'from', 'into', 'each', 'its', 'own', 'showing', 'using', 'without'])
 
+/** A change discovered by the store, with its hosting worktree when not local. */
+export interface DiscoveredChange {
+  name: string
+  /** Absolute path of the worktree checkout hosting the change; undefined for local changes. */
+  worktree?: string
+}
+
+/** Result of change discovery across the local spec dir and worktree checkouts. */
+export interface ChangeDiscovery {
+  changes: DiscoveredChange[]
+  /** Slug-collision warnings — a worktree copy shadowing a local copy is surfaced, never silently merged. */
+  warnings: string[]
+}
+
+export interface ArtifactStoreOptions {
+  /**
+   * Absolute path of the directory holding per-change worktree checkouts
+   * (`<projectRoot>/.metta/worktrees`). When set, change discovery and change
+   * resolution by name also cover `<worktreesDir>/<name>/spec/changes/`, with
+   * worktree copies winning slug collisions against local copies.
+   */
+  worktreesDir?: string
+  /**
+   * Sink for change-discovery warnings (slug collisions). Injected by the
+   * imperative shell (the CLI writes them to stderr); the store core itself
+   * performs no I/O. When absent, warnings are only available via
+   * `discoverChanges()`.
+   */
+  onWarning?: (warning: string) => void
+}
+
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await stat(path)
+    return true
+  } catch {
+    return false
+  }
+}
+
 export class ArtifactStore {
   private state: StateStore
+  private readonly worktreesDir: string | undefined
+  private readonly onWarning: ((warning: string) => void) | undefined
 
-  constructor(private readonly specDir: string) {
+  constructor(
+    private readonly specDir: string,
+    options?: ArtifactStoreOptions,
+  ) {
     this.state = new StateStore(specDir)
+    this.worktreesDir = options?.worktreesDir
+    this.onWarning = options?.onWarning
   }
 
   /**
@@ -39,7 +86,10 @@ export class ArtifactStore {
     const name = this.deriveChangeName(description)
     const changePath = join('changes', name)
 
-    if (await this.state.exists(changePath)) {
+    if (
+      (await this.state.exists(changePath)) ||
+      (await this.findWorktreeHost(name)) !== undefined
+    ) {
       throw new Error(`Change '${name}' already exists`)
     }
 
@@ -84,23 +134,84 @@ export class ArtifactStore {
   }
 
   async getChange(name: string): Promise<ChangeMetadata> {
-    return this.state.read(
-      join('changes', name, '.metta.yaml'),
-      ChangeMetadataSchema,
-    )
+    const host = await this.findWorktreeHost(name)
+    const metadata = await this.readStoredChange(name, host)
+    // Report the hosting worktree even when the stored metadata predates
+    // worktree mode, so consumers (status --json and friends) can always
+    // locate the checkout that owns the change. The injection is TRANSIENT:
+    // it exists only on the returned copy — writes (updateChange /
+    // markArtifact) re-read the stored file and strip the injected value, so
+    // the machine-specific host path is never persisted to `.metta.yaml`.
+    if (host !== undefined && metadata.worktree === undefined) {
+      metadata.worktree = host
+    }
+    return metadata
   }
 
   async updateChange(name: string, updates: Partial<ChangeMetadata>): Promise<void> {
-    const current = await this.getChange(name)
+    const host = await this.findWorktreeHost(name)
+    const current = await this.readStoredChange(name, host)
     const merged = { ...current, ...updates }
-    await this.state.write(
+    // Never persist the runtime-injected worktree host path: callers that
+    // round-trip a getChange() result would otherwise write the absolute,
+    // machine-specific path into the git-tracked `.metta.yaml`. A worktree
+    // value is kept only when it was already stored (e.g. by propose) or
+    // differs from the discovered host (an explicit caller decision).
+    if (host !== undefined && current.worktree === undefined && merged.worktree === host) {
+      delete merged.worktree
+    }
+    await this.stateForHost(host).write(
       join('changes', name, '.metta.yaml'),
       ChangeMetadataSchema,
       merged,
     )
   }
 
+  /**
+   * List active change names — local plus worktree-hosted. Slug-collision
+   * warnings from discovery are forwarded to the injected `onWarning` sink
+   * (the CLI shell routes them to stderr so they never corrupt JSON stdout);
+   * the store itself performs no I/O.
+   */
   async listChanges(): Promise<string[]> {
+    const { changes, warnings } = await this.discoverChanges()
+    if (this.onWarning !== undefined) {
+      for (const warning of warnings) {
+        this.onWarning(warning)
+      }
+    }
+    return changes.map((change) => change.name)
+  }
+
+  /**
+   * Discover active changes in the local spec dir and (when a worktrees dir
+   * is configured) in each `<worktreesDir>/<name>/spec/changes/` checkout. On a
+   * slug collision the worktree copy wins and a warning is recorded.
+   */
+  async discoverChanges(): Promise<ChangeDiscovery> {
+    const byName = new Map<string, DiscoveredChange>()
+    for (const name of await this.listLocalChanges()) {
+      byName.set(name, { name })
+    }
+    const warnings: string[] = []
+    for (const { name, worktree } of await this.listWorktreeHostedChanges()) {
+      const shadowed = byName.get(name)
+      if (shadowed !== undefined) {
+        const shadowedHost =
+          shadowed.worktree === undefined
+            ? 'the main checkout'
+            : `worktree '${shadowed.worktree}'`
+        warnings.push(
+          `change '${name}' exists in both ${shadowedHost} and worktree '${worktree}'; using the copy from worktree '${worktree}'`,
+        )
+      }
+      byName.set(name, { name, worktree })
+    }
+    return { changes: [...byName.values()], warnings }
+  }
+
+  /** Active changes under the store's own `<specDir>/changes/`. */
+  private async listLocalChanges(): Promise<string[]> {
     const changesDir = join(this.specDir, 'changes')
     try {
       const entries = await readdir(changesDir, { withFileTypes: true })
@@ -118,13 +229,86 @@ export class ArtifactStore {
     }
   }
 
+  /** Active changes hosted in `<worktreesDir>/<name>/spec/changes/` checkouts. */
+  private async listWorktreeHostedChanges(): Promise<Array<{ name: string; worktree: string }>> {
+    const worktreesDir = this.worktreesDir
+    if (worktreesDir === undefined) return []
+    let hosts: string[]
+    try {
+      const entries = await readdir(worktreesDir, { withFileTypes: true })
+      hosts = entries.filter((e) => e.isDirectory()).map((e) => join(worktreesDir, e.name))
+    } catch {
+      return []
+    }
+    const hosted: Array<{ name: string; worktree: string }> = []
+    for (const host of hosts) {
+      const changesDir = join(host, 'spec', 'changes')
+      let names: string[]
+      try {
+        const entries = await readdir(changesDir, { withFileTypes: true })
+        names = entries.filter((e) => e.isDirectory()).map((e) => e.name)
+      } catch {
+        continue
+      }
+      for (const name of names) {
+        if (await pathExists(join(changesDir, name, '.metta.yaml'))) {
+          hosted.push({ name, worktree: host })
+        }
+      }
+    }
+    return hosted
+  }
+
+  /**
+   * Resolve the worktree checkout hosting `name`, when one exists. Worktree
+   * copies win slug collisions, so a defined result shadows any local copy.
+   */
+  private async findWorktreeHost(name: string): Promise<string | undefined> {
+    for (const hosted of await this.listWorktreeHostedChanges()) {
+      if (hosted.name === name) return hosted.worktree
+    }
+    return undefined
+  }
+
+  /** State store rooted at the spec dir that actually hosts `name`. */
+  private async stateFor(name: string): Promise<StateStore> {
+    return this.stateForHost(await this.findWorktreeHost(name))
+  }
+
+  /** State store for a resolved worktree host (undefined = the local spec dir). */
+  private stateForHost(host: string | undefined): StateStore {
+    return host === undefined ? this.state : new StateStore(join(host, 'spec'))
+  }
+
+  /**
+   * Read a change's stored metadata exactly as persisted — WITHOUT the
+   * transient worktree injection getChange applies. All write paths merge
+   * from this so runtime-derived values never leak into `.metta.yaml`.
+   */
+  private async readStoredChange(
+    name: string,
+    host: string | undefined,
+  ): Promise<ChangeMetadata> {
+    return this.stateForHost(host).read(
+      join('changes', name, '.metta.yaml'),
+      ChangeMetadataSchema,
+    )
+  }
+
+  /** Spec dir that actually hosts `name` (worktree copy wins collisions). */
+  private async specDirFor(name: string): Promise<string> {
+    const host = await this.findWorktreeHost(name)
+    return host === undefined ? this.specDir : join(host, 'spec')
+  }
+
   async archive(name: string): Promise<string> {
     const date = new Date().toISOString().slice(0, 10)
     const archiveName = `${date}-${name}`
-    const srcPath = join(this.specDir, 'changes', name)
-    const destPath = join(this.specDir, 'archive', archiveName)
+    const baseDir = await this.specDirFor(name)
+    const srcPath = join(baseDir, 'changes', name)
+    const destPath = join(baseDir, 'archive', archiveName)
 
-    await mkdir(join(this.specDir, 'archive'), { recursive: true })
+    await mkdir(join(baseDir, 'archive'), { recursive: true })
     await move(srcPath, destPath)
 
     return archiveName
@@ -133,37 +317,44 @@ export class ArtifactStore {
   async abandon(name: string): Promise<string> {
     const date = new Date().toISOString().slice(0, 10)
     const archiveName = `${date}-${name}-abandoned`
-    const srcPath = join(this.specDir, 'changes', name)
-    const destPath = join(this.specDir, 'archive', archiveName)
+    const baseDir = await this.specDirFor(name)
+    const srcPath = join(baseDir, 'changes', name)
+    const destPath = join(baseDir, 'archive', archiveName)
 
     // Update status before archiving
     await this.updateChange(name, { status: 'abandoned' })
 
-    await mkdir(join(this.specDir, 'archive'), { recursive: true })
+    await mkdir(join(baseDir, 'archive'), { recursive: true })
     await move(srcPath, destPath)
 
     return archiveName
   }
 
   async writeArtifact(changeName: string, fileName: string, content: string): Promise<void> {
-    await this.state.writeRaw(join('changes', changeName, fileName), content)
+    const state = await this.stateFor(changeName)
+    await state.writeRaw(join('changes', changeName, fileName), content)
   }
 
   async readArtifact(changeName: string, fileName: string): Promise<string> {
-    return this.state.readRaw(join('changes', changeName, fileName))
+    const state = await this.stateFor(changeName)
+    return state.readRaw(join('changes', changeName, fileName))
   }
 
   async artifactExists(changeName: string, fileName: string): Promise<boolean> {
-    return this.state.exists(join('changes', changeName, fileName))
+    const state = await this.stateFor(changeName)
+    return state.exists(join('changes', changeName, fileName))
   }
 
   async markArtifact(changeName: string, artifactId: string, status: ArtifactStatus): Promise<void> {
-    const metadata = await this.getChange(changeName)
+    const host = await this.findWorktreeHost(changeName)
+    // Read the stored file (no transient worktree injection) so the
+    // machine-specific host path is never written back — see getChange.
+    const metadata = await this.readStoredChange(changeName, host)
     metadata.artifacts[artifactId] = status
     if (status === 'ready' || status === 'in_progress' || status === 'complete') {
       metadata.current_artifact = artifactId
     }
-    await this.state.write(
+    await this.stateForHost(host).write(
       join('changes', changeName, '.metta.yaml'),
       ChangeMetadataSchema,
       metadata,
