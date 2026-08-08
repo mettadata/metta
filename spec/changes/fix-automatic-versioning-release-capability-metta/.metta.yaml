@@ -1,12 +1,12 @@
 workflow: standard
 created: 2026-08-08T14:57:46.185Z
 status: active
-current_artifact: stories
+current_artifact: spec
 base_versions: {}
 artifacts:
   intent: complete
-  stories: ready
-  spec: pending
+  stories: complete
+  spec: ready
   research: pending
   design: pending
   tasks: pending
@@ -23,6 +23,7 @@ artifact_timings:
     completed: 2026-08-08T14:59:21.164Z
   stories:
     started: 2026-08-08T14:59:25.086Z
+    completed: 2026-08-08T15:00:39.275Z
 artifact_tokens:
   intent:
     context: 759
