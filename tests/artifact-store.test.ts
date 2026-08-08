@@ -375,6 +375,78 @@ describe('ArtifactStore worktree discovery', () => {
     expect(onDisk).toContain(`worktree: ${host}`)
   })
 
+  it('discovered host wins over a stale stored worktree path', async () => {
+    // Simulate a repo move / cross-machine resume: the persisted `worktree`
+    // value points at a path that no longer exists, but discovery finds the
+    // live host. The live host must win — a stale absolute path would make
+    // resolveChangeRoot silently fall back to the project root.
+    const name = store.deriveChangeName('moved host change')
+    const host = join(rootDir, '.metta', 'worktrees', name)
+    const staleHost = join(rootDir, 'old-location', '.metta', 'worktrees', name)
+    await mkdir(join(host, 'spec'), { recursive: true })
+    const hostStore = new ArtifactStore(join(host, 'spec'))
+    await hostStore.createChange(
+      'moved host change',
+      'standard',
+      ['intent'],
+      {},
+      undefined,
+      undefined,
+      undefined,
+      staleHost,
+    )
+    const metadata = await store.getChange(name)
+    expect(metadata.worktree).toBe(host)
+  })
+
+  it('uses the stored worktree value when discovery finds nothing', async () => {
+    // Change lives in the local spec dir with a persisted worktree value but
+    // no discoverable worktree host — the stored value is all we have.
+    const storedHost = join(rootDir, 'elsewhere', 'worktrees', 'stored-only-change')
+    await store.createChange(
+      'stored only change',
+      'standard',
+      ['intent'],
+      {},
+      undefined,
+      undefined,
+      undefined,
+      storedHost,
+    )
+    const metadata = await store.getChange('stored-only-change')
+    expect(metadata.worktree).toBe(storedHost)
+  })
+
+  it('round-tripping the injected host over a stale stored value never persists it', async () => {
+    // Stored worktree is stale; getChange injects the discovered host. A
+    // caller that round-trips the full getChange() result into updateChange
+    // must not overwrite the stored value with the machine-specific injected
+    // host — the stored value is restored on write.
+    const name = store.deriveChangeName('roundtrip host change')
+    const host = join(rootDir, '.metta', 'worktrees', name)
+    const staleHost = join(rootDir, 'old-location', '.metta', 'worktrees', name)
+    await mkdir(join(host, 'spec'), { recursive: true })
+    const hostStore = new ArtifactStore(join(host, 'spec'))
+    await hostStore.createChange(
+      'roundtrip host change',
+      'standard',
+      ['intent'],
+      {},
+      undefined,
+      undefined,
+      undefined,
+      staleHost,
+    )
+    const injected = await store.getChange(name)
+    expect(injected.worktree).toBe(host)
+    await store.updateChange(name, injected)
+    const onDisk = await readFile(join(host, 'spec', 'changes', name, '.metta.yaml'), 'utf8')
+    expect(onDisk).toContain(`worktree: ${staleHost}`)
+    expect(onDisk).not.toContain(`worktree: ${host}\n`)
+    // Consumers still see the live discovered host after the write.
+    expect((await store.getChange(name)).worktree).toBe(host)
+  })
+
   it('createChange rejects a slug already hosted in a worktree', async () => {
     await createHostedChange('taken change')
     await expect(store.createChange('taken change', 'quick', ['intent'])).rejects.toThrow(
