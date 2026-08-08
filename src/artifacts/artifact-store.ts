@@ -136,13 +136,17 @@ export class ArtifactStore {
   async getChange(name: string): Promise<ChangeMetadata> {
     const host = await this.findWorktreeHost(name)
     const metadata = await this.readStoredChange(name, host)
-    // Report the hosting worktree even when the stored metadata predates
-    // worktree mode, so consumers (status --json and friends) can always
-    // locate the checkout that owns the change. The injection is TRANSIENT:
-    // it exists only on the returned copy — writes (updateChange /
-    // markArtifact) re-read the stored file and strip the injected value, so
-    // the machine-specific host path is never persisted to `.metta.yaml`.
-    if (host !== undefined && metadata.worktree === undefined) {
+    // Report the hosting worktree so consumers (status --json and friends)
+    // can always locate the checkout that owns the change. The DISCOVERED
+    // live host wins over any persisted `worktree` value: a stored absolute
+    // path goes stale after a repo move or cross-machine resume, and stale
+    // paths make resolveChangeRoot's containment guard silently fall back to
+    // the project root (wrong-tree writes). The stored value is used only
+    // when discovery finds nothing. The injection is TRANSIENT: it exists
+    // only on the returned copy — writes (updateChange / markArtifact)
+    // re-read the stored file and strip the injected value, so the
+    // machine-specific host path is never persisted to `.metta.yaml`.
+    if (host !== undefined) {
       metadata.worktree = host
     }
     return metadata
@@ -154,11 +158,18 @@ export class ArtifactStore {
     const merged = { ...current, ...updates }
     // Never persist the runtime-injected worktree host path: callers that
     // round-trip a getChange() result would otherwise write the absolute,
-    // machine-specific path into the git-tracked `.metta.yaml`. A worktree
-    // value is kept only when it was already stored (e.g. by propose) or
-    // differs from the discovered host (an explicit caller decision).
-    if (host !== undefined && current.worktree === undefined && merged.worktree === host) {
-      delete merged.worktree
+    // machine-specific path into the git-tracked `.metta.yaml`. Since
+    // getChange injects the discovered host even over a stored (possibly
+    // stale) value, an update whose worktree equals the discovered host is
+    // treated as the injected round-trip: the stored value — including its
+    // absence — is restored. A worktree value that differs from the
+    // discovered host (an explicit caller decision) is kept.
+    if (host !== undefined && current.worktree !== host && merged.worktree === host) {
+      if (current.worktree === undefined) {
+        delete merged.worktree
+      } else {
+        merged.worktree = current.worktree
+      }
     }
     await this.stateForHost(host).write(
       join('changes', name, '.metta.yaml'),

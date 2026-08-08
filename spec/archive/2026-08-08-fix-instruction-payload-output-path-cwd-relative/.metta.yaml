@@ -1,0 +1,37 @@
+workflow: trivial
+created: 2026-08-08T10:36:34.062Z
+status: active
+current_artifact: verification
+base_versions: {}
+artifacts:
+  intent: complete
+  implementation: complete
+  verification: complete
+complexity_score:
+  score: 0
+  signals:
+    file_count: 1
+  recommended_workflow: trivial
+artifact_timings:
+  intent:
+    started: 2026-08-08T10:36:46.434Z
+    completed: 2026-08-08T10:38:43.904Z
+  implementation:
+    started: 2026-08-08T10:39:57.662Z
+    completed: 2026-08-08T10:58:41.092Z
+  verification:
+    completed: 2026-08-08T11:18:48.380Z
+artifact_tokens:
+  intent:
+    context: 759
+    budget: 20000
+  implementation:
+    context: 0
+    budget: 10000
+review_iterations: 1
+verify_iterations: 1
+worktree: /home/utx0/Code/metta/.metta/worktrees/fix-instruction-payload-output-path-cwd-relative
+model_runs:
+  - task: implementation
+    model: sonnet
+    timestamp: 2026-08-08T10:39:57.662Z

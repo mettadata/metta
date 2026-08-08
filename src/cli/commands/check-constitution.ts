@@ -3,7 +3,7 @@ import { writeFile, mkdir, readFile } from 'node:fs/promises'
 import { join, dirname } from 'node:path'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import { createCliContext, outputJson, getErrorMessage } from '../helpers.js'
+import { createCliContext, outputJson, getErrorMessage, resolveChangeRoot } from '../helpers.js'
 import {
   buildCheckContract,
   recordVerdict,
@@ -97,10 +97,34 @@ export function registerCheckConstitutionCommand(program: Command): void {
         const changeName = await resolveChangeName(ctx, options.change)
         assertSafeSlug(changeName, 'change name')
 
+        // Change-scoped paths (spec.md read, violations.md write) root at
+        // the checkout hosting the change — the worktree checkout for
+        // worktree-hosted changes — so a main-root-invoked session never
+        // reads or writes the wrong tree. Only not-found metadata reads
+        // fall back to the project root (mirrors context.ts); anything else
+        // propagates. The verdict scratch file stays anchored at the
+        // invoking checkout's `.metta/scratch` — it is transient session
+        // state, not a change artifact.
+        let changeRoot = ctx.projectRoot
+        try {
+          changeRoot = resolveChangeRoot(ctx.projectRoot, await ctx.artifactStore.getChange(changeName))
+        } catch (err) {
+          const code =
+            err instanceof Error && 'code' in err
+              ? (err as NodeJS.ErrnoException).code
+              : undefined
+          if (code !== 'ENOENT' && code !== 'ENOTDIR') throw err
+          // Treat as a plain local change.
+        }
+
         if (!options.record) {
           // Emission mode: produce the check contract for the skill/subagent.
-          const contract = await buildCheckContract(ctx.projectRoot, changeName)
-          const outputPath = join('.metta', 'scratch', changeName, 'verdict.json')
+          // Both payload paths are absolute — output_path is where the
+          // orchestrator writes the verdict, spec_path is where the checked
+          // spec actually lives — so consumers stay correct regardless of
+          // the session's cwd.
+          const contract = await buildCheckContract(changeRoot, changeName)
+          const outputPath = join(ctx.projectRoot, '.metta', 'scratch', changeName, 'verdict.json')
 
           if (json) {
             outputJson({
@@ -111,6 +135,7 @@ export function registerCheckConstitutionCommand(program: Command): void {
                 'expected shape: {"violations": [{article, severity: critical|major|minor, evidence, suggestion}]}',
               instructions: contract.instructions,
               output_path: outputPath,
+              change_root: changeRoot,
             })
           } else {
             const articleCount =
@@ -146,15 +171,13 @@ export function registerCheckConstitutionCommand(program: Command): void {
         }
         const verdict: ViolationList = verdictResult.data
 
-        const result = await recordVerdict(verdict, ctx.projectRoot, changeName)
+        const result = await recordVerdict(verdict, changeRoot, changeName)
 
-        const specRelPath = join('spec', 'changes', changeName, 'spec.md')
-        const specAbsPath = join(ctx.projectRoot, specRelPath)
-        const specVersion = await getSpecVersion(ctx.projectRoot, specAbsPath)
+        const specAbsPath = join(changeRoot, 'spec', 'changes', changeName, 'spec.md')
+        const specVersion = await getSpecVersion(changeRoot, specAbsPath)
         const checkedIso = new Date().toISOString()
 
-        const violationsRelPath = join('spec', 'changes', changeName, 'violations.md')
-        const violationsAbsPath = join(ctx.projectRoot, violationsRelPath)
+        const violationsAbsPath = join(changeRoot, 'spec', 'changes', changeName, 'violations.md')
         const md = renderViolationsMd(changeName, result, checkedIso, specVersion)
 
         await mkdir(dirname(violationsAbsPath), { recursive: true })
@@ -164,7 +187,8 @@ export function registerCheckConstitutionCommand(program: Command): void {
           outputJson({
             violations: result.violations,
             blocking: result.blocking,
-            violations_path: violationsRelPath,
+            violations_path: violationsAbsPath,
+            change_root: changeRoot,
           })
         } else {
           if (result.violations.length === 0) {
@@ -180,7 +204,7 @@ export function registerCheckConstitutionCommand(program: Command): void {
               }
             }
           }
-          console.log(`\nWrote: ${violationsRelPath}`)
+          console.log(`\nWrote: ${violationsAbsPath}`)
         }
 
         process.exit(result.blocking ? 4 : 0)

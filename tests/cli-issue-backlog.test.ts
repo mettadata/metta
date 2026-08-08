@@ -368,7 +368,8 @@ describe("CLI: issue / fix-issue / backlog / branch-safety / check-constitution"
       expect(data.spec_content).toContain('Fixture change for check-constitution.')
       expect(data.verdict_schema).toContain('violations')
       expect(data.instructions.length).toBeGreaterThan(0)
-      expect(data.output_path).toBe(join('.metta', 'scratch', 'probe-change', 'verdict.json'))
+      // output_path is absolute — anchored at the invoking checkout's scratch dir.
+      expect(data.output_path).toBe(join(tempDir, '.metta', 'scratch', 'probe-change', 'verdict.json'))
     })
 
     it('records a clean verdict and exits 0', async () => {
@@ -382,8 +383,9 @@ describe("CLI: issue / fix-issue / backlog / branch-safety / check-constitution"
       )
       expect(code).toBe(0)
       const data = JSON.parse(stdout)
-      expect(data.violations_path).toBeTruthy()
-      const md = await readFile(join(tempDir, data.violations_path), 'utf8')
+      // violations_path is absolute and change-rooted.
+      expect(data.violations_path).toBe(join(tempDir, 'spec', 'changes', 'probe-change', 'violations.md'))
+      const md = await readFile(data.violations_path, 'utf8')
       expect(md).toContain('No violations found.')
     })
 
@@ -412,7 +414,7 @@ describe("CLI: issue / fix-issue / backlog / branch-safety / check-constitution"
       expect(code).toBe(4)
       const data = JSON.parse(stdout)
       expect(data.blocking).toBe(true)
-      const md = await readFile(join(tempDir, data.violations_path), 'utf8')
+      const md = await readFile(data.violations_path, 'utf8')
       expect(md).toContain('BLOCKING')
     })
 

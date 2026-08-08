@@ -25,7 +25,19 @@ export interface InstructionOutput {
     existing_specs?: string[]
     active_gaps?: string[]
   }
+  /**
+   * Absolute path of the artifact file to write, rooted at the checkout
+   * hosting the change (`change_root`). Never cwd-relative: a consumer
+   * invoked from the main checkout root must still write into the
+   * worktree checkout for worktree-hosted changes.
+   */
   output_path: string
+  /**
+   * Absolute checkout root hosting the change — the worktree checkout for
+   * worktree-hosted changes, the project root otherwise. The single anchor
+   * for any change-scoped side effect (sibling reads, `git -C` operations).
+   */
+  change_root: string
   next_steps: string[]
   gates: string[]
   budget: {
@@ -54,6 +66,7 @@ export class InstructionGenerator {
     artifact: WorkflowArtifact
     changeName: string
     changePath: string
+    changeRoot: string
     workflow: string
     status: string
     specDir: string
@@ -130,7 +143,14 @@ export class InstructionGenerator {
       },
       template,
       context: instructionContext,
-      output_path: `spec/changes/${params.changeName}/${params.artifact.generates}`,
+      output_path: join(
+        params.changeRoot,
+        'spec',
+        'changes',
+        params.changeName,
+        params.artifact.generates,
+      ),
+      change_root: params.changeRoot,
       next_steps: params.nextSteps,
       gates: params.artifact.gates,
       budget,

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { mkdtemp, rm, mkdir, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { join, isAbsolute } from 'node:path'
 import { tmpdir } from 'node:os'
 import { InstructionGenerator } from '../src/context/instruction-generator.js'
 import { ContextEngine } from '../src/context/context-engine.js'
@@ -57,6 +57,7 @@ describe('InstructionGenerator', () => {
       artifact,
       changeName: 'test-change',
       changePath,
+      changeRoot: tempDir,
       workflow: 'standard',
       status: 'ready',
       specDir,
@@ -73,7 +74,10 @@ describe('InstructionGenerator', () => {
     expect(output.agent.tools).toEqual(['Read', 'Grep', 'Glob'])
     expect(output.agent.rules).toContain('Focus on the why, not the how')
     expect(output.template).toContain('# test-change')
-    expect(output.output_path).toBe('spec/changes/test-change/intent.md')
+    // output_path is absolute and rooted at changeRoot — never cwd-relative.
+    expect(output.output_path).toBe(join(tempDir, 'spec', 'changes', 'test-change', 'intent.md'))
+    expect(isAbsolute(output.output_path)).toBe(true)
+    expect(output.change_root).toBe(tempDir)
     expect(output.next_steps).toHaveLength(2)
     expect(output.gates).toEqual([])
     expect(output.budget.budget_tokens).toBe(20000)
@@ -102,6 +106,7 @@ describe('InstructionGenerator', () => {
       artifact,
       changeName: 'test',
       changePath,
+      changeRoot: tempDir,
       workflow: 'standard',
       status: 'needs_input',
       specDir,
@@ -151,6 +156,7 @@ describe('InstructionGenerator', () => {
       artifact,
       changeName: 'test-change',
       changePath,
+      changeRoot: tempDir,
       workflow: 'standard',
       status: 'ready',
       specDir,
@@ -182,6 +188,7 @@ describe('InstructionGenerator', () => {
       artifact,
       changeName: 'test-change',
       changePath,
+      changeRoot: tempDir,
       workflow: 'standard',
       status: 'ready',
       specDir,
@@ -220,6 +227,7 @@ describe('InstructionGenerator', () => {
         artifact: specArtifact,
         changeName: 'test-change',
         changePath,
+        changeRoot: tempDir,
         workflow: 'standard',
         status: 'ready',
         specDir,
@@ -255,6 +263,7 @@ describe('InstructionGenerator', () => {
         artifact,
         changeName: 'test-change',
         changePath,
+        changeRoot: tempDir,
         workflow: 'standard',
         status: 'ready',
         specDir,
@@ -270,6 +279,7 @@ describe('InstructionGenerator', () => {
         artifact: specArtifact,
         changeName: 'test-change',
         changePath,
+        changeRoot: tempDir,
         workflow: 'standard',
         status: 'ready',
         specDir,
@@ -279,6 +289,48 @@ describe('InstructionGenerator', () => {
 
       expect(output.context.existing_specs).toEqual([])
     })
+  })
+
+  it('roots output_path and change_root at a worktree-style changeRoot', async () => {
+    // Simulate a worktree-hosted change: the change lives under
+    // <main>/.metta/worktrees/<name>, and the generator receives that
+    // checkout as changeRoot. output_path must land inside the worktree.
+    const worktreeRoot = join(tempDir, '.metta', 'worktrees', 'test-change')
+    const wtChangePath = join(worktreeRoot, 'spec', 'changes', 'test-change')
+    await mkdir(wtChangePath, { recursive: true })
+
+    const artifact: WorkflowArtifact = {
+      id: 'intent',
+      type: 'intent',
+      template: 'intent.md',
+      generates: 'intent.md',
+      requires: [],
+      agents: ['proposer'],
+      gates: [],
+    }
+    const agent: AgentDefinition = {
+      name: 'proposer',
+      persona: 'p',
+      capabilities: ['propose'],
+      tools: ['Read'],
+      context_budget: 20000,
+    }
+
+    const output = await generator.generate({
+      artifact,
+      changeName: 'test-change',
+      changePath: wtChangePath,
+      changeRoot: worktreeRoot,
+      workflow: 'standard',
+      status: 'ready',
+      specDir: join(worktreeRoot, 'spec'),
+      agent,
+      nextSteps: [],
+    })
+
+    expect(output.change_root).toBe(worktreeRoot)
+    expect(output.output_path).toBe(join(worktreeRoot, 'spec', 'changes', 'test-change', 'intent.md'))
+    expect(isAbsolute(output.output_path)).toBe(true)
   })
 
   it('surfaces over-budget warning and dropped_optionals when context overflows', async () => {
@@ -308,6 +360,7 @@ describe('InstructionGenerator', () => {
       artifact,
       changeName: 'test-change',
       changePath,
+      changeRoot: tempDir,
       workflow: 'standard',
       status: 'ready',
       specDir,

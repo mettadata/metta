@@ -5,6 +5,7 @@ import { promisify } from 'node:util'
 import { createCliContext, outputJson, agentBanner, getErrorMessage, resolveChangeRoot } from '../helpers.js'
 import { renderBanner } from '../../complexity/index.js'
 import { loadAgentDefinition, AgentResolutionError } from '../../agents/index.js'
+import { assertSafeSlug } from '../../util/slug.js'
 
 const execAsync = promisify(execFile)
 
@@ -39,6 +40,10 @@ export function registerInstructionsCommand(program: Command): void {
         const changes = await ctx.artifactStore.listChanges()
         const changeName = options.change ?? (changes.length === 1 ? changes[0] : null)
         if (!changeName) throw new Error(changes.length === 0 ? 'No active changes.' : `Multiple changes: ${changes.join(', ')}`)
+        // Reject traversal-shaped change names before any store lookup or
+        // path join (mirrors context.ts) — a `../..`-shaped --change value
+        // must never reach join('spec', 'changes', <name>).
+        assertSafeSlug(changeName, 'change name')
 
         const metadata = await ctx.artifactStore.getChange(changeName)
 
@@ -101,6 +106,7 @@ export function registerInstructionsCommand(program: Command): void {
           artifact,
           changeName,
           changePath,
+          changeRoot,
           workflow: metadata.workflow,
           status: metadata.artifacts[artifactId] ?? 'pending',
           specDir,

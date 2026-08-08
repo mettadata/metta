@@ -1332,4 +1332,83 @@ describe("CLI: instructions banners / complete tier downscale & upscale", { time
     })
   })
 
+
+  describe('metta complete --change slug validation', { timeout: 60000 }, () => {
+    // Padded above the 200-byte content sanity floor so complete's artifact
+    // checks never mask the slug-validation behavior under test.
+    function validIntent(title: string): string {
+      return [
+        `# ${title}`,
+        '',
+        '## Problem',
+        '',
+        'A single-file touch-up used to prove that a legitimate slug passes the',
+        'assertSafeSlug guard on --change unchanged. The body is padded to clear',
+        'the content-sanity floor of 200 bytes so the complete command does not',
+        'reject the artifact before the slug check is exercised end to end.',
+        '',
+        '## Impact',
+        '',
+        '- `src/cli/commands/complete.ts`',
+        '',
+      ].join('\n')
+    }
+
+    it('rejects a traversal-shaped change name with a slug error (exit 4), no path join attempted', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await disableWorktrees(tempDir)
+
+      const { stderr, code } = await runCli(
+        ['complete', 'intent', '--change', '../..'],
+        tempDir,
+      )
+      expect(code).toBe(4)
+      expect(stderr).toContain('Invalid change name')
+      // The traversing path must never be reported as a missing artifact —
+      // the slug guard fires before any join('spec','changes',<name>).
+      expect(stderr).not.toContain('not found in spec/changes')
+    })
+
+    it('rejects an embedded-separator change name (foo/../bar) with a slug error', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await disableWorktrees(tempDir)
+
+      const { stderr, code } = await runCli(
+        ['complete', 'intent', '--change', 'foo/../bar'],
+        tempDir,
+      )
+      expect(code).toBe(4)
+      expect(stderr).toContain('Invalid change name')
+    })
+
+    it('--json mode: traversal-shaped change name yields a structured error payload with code 4', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await disableWorktrees(tempDir)
+
+      const { stdout, code } = await runCli(
+        ['--json', 'complete', 'intent', '--change', '../../etc'],
+        tempDir,
+      )
+      expect(code).toBe(4)
+      const data = JSON.parse(stdout)
+      expect(data.error.code).toBe(4)
+      expect(data.error.message).toContain('Invalid change name')
+    })
+
+    it('accepts a legitimate slug: complete intent succeeds with exit 0', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await disableWorktrees(tempDir)
+      await runCli(['propose', 'slug pass ok'], tempDir)
+      const changeDir = join(tempDir, 'spec', 'changes', 'slug-pass-ok')
+      await writeFile(join(changeDir, 'intent.md'), validIntent('Slug Pass Ok'), 'utf8')
+
+      const { stderr, code } = await runCli(
+        ['complete', 'intent', '--change', 'slug-pass-ok'],
+        tempDir,
+      )
+      expect(code).toBe(0)
+      expect(stderr).not.toContain('Invalid change name')
+    })
+  })
+
 })

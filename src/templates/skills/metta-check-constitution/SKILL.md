@@ -17,7 +17,7 @@ Orchestrates the three-step constitution check: emit the check contract, spawn t
    ```
    metta check-constitution --change <slug> --json
    ```
-   Capture `articles`, `spec_path`, `spec_content`, `instructions`, and `output_path` from the JSON output. Exit `0` here only means the contract was produced — it is NOT a check result, and this skill must not report "no violations" from this step.
+   Capture `articles`, `spec_path`, `spec_content`, `instructions`, `output_path`, and `change_root` from the JSON output. `spec_path` and `output_path` are absolute paths — use them verbatim from any cwd; `change_root` is the checkout hosting the change. Exit `0` here only means the contract was produced — it is NOT a check result, and this skill must not report "no violations" from this step.
 
 3. **Spawn the subagent.** Spawn `metta-constitution-checker` (Read-only tools) with a prompt built from the emitted contract: frame the constitution content in `<CONSTITUTION>...</CONSTITUTION>` tags (the `articles` lists), frame the spec content in `<SPEC path="...">...</SPEC>` tags (using `spec_path` and `spec_content`), and include the emitted `instructions` as the task framing. The subagent returns a single JSON object of the form `{"violations": [...]}`. Write that output **verbatim** to `output_path` (Write tool; create parent directories as needed).
 
