@@ -78,6 +78,7 @@ describe('verification artifact contract agreement', () => {
         artifact,
         changeName: 'test-change',
         changePath,
+        changeRoot: tempDir,
         workflow: 'trivial',
         status: 'ready',
         specDir,
