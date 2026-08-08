@@ -1,8 +1,10 @@
-import { join, relative } from 'node:path'
+import { dirname, join, relative, resolve } from 'node:path'
+import { existsSync } from 'node:fs'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { createInterface } from 'node:readline'
 import { getErrorMessage } from '../util/errors.js'
+import { DEFAULT_WORKTREE_DIR } from '../util/git-worktree.js'
 import { ConfigLoader, ConfigParseError } from '../config/config-loader.js'
 import { getVersionDrift } from '../config/version-drift.js'
 import { ArtifactStore } from '../artifacts/artifact-store.js'
@@ -36,13 +38,38 @@ export interface CliContext {
   stateStore: StateStore
 }
 
+/**
+ * Resolve the project root for a CLI invocation: the nearest ancestor of
+ * `cwd` (including `cwd` itself) that has its own `spec/changes/` directory,
+ * so invocations from inside a worktree checkout (or any subdirectory of a
+ * checkout) root the context at that checkout's top level. The walk never
+ * escapes the containing git checkout — reaching a directory with a `.git`
+ * entry that lacks `spec/changes/` stops the search. Falls back to `cwd`
+ * when no ancestor qualifies (e.g. pre-init projects).
+ */
+export function resolveProjectRoot(cwd: string = process.cwd()): string {
+  let dir = resolve(cwd)
+  for (;;) {
+    if (existsSync(join(dir, 'spec', 'changes'))) return dir
+    if (existsSync(join(dir, '.git'))) return cwd
+    const parent = dirname(dir)
+    if (parent === dir) return cwd
+    dir = parent
+  }
+}
+
 export function createCliContext(projectRoot?: string): CliContext {
-  const root = projectRoot ?? process.cwd()
+  const root = projectRoot ?? resolveProjectRoot()
   const configLoader = new ConfigLoader(root)
   const specDir = join(root, 'spec')
   const mettaDir = join(root, '.metta')
 
-  const artifactStore = new ArtifactStore(specDir)
+  // Change discovery also covers worktree-per-change checkouts under
+  // `<root>/.metta/worktrees/<name>/spec/changes/`, so status/list/resolution
+  // stay truthful when invoked from the main checkout root.
+  const artifactStore = new ArtifactStore(specDir, {
+    worktreesDir: resolve(root, DEFAULT_WORKTREE_DIR),
+  })
   const workflowEngine = new WorkflowEngine()
   const contextEngine = new ContextEngine()
   const gateRegistry = new GateRegistry()
