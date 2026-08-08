@@ -68,7 +68,7 @@ function dedupeTokenUsage(records: TokenUsageRecord[]): TokenUsageRecord[] {
 }
 
 function provenance(r: TokenUsageRecord): string {
-  return (r.source ?? 'prose') === 'hook' ? 'hook (exact)' : 'prose (estimate)'
+  return r.source === 'hook' ? 'hook (exact)' : 'prose (estimate)'
 }
 
 function renderPerArtifactTable(records: TokenUsageRecord[]): string {

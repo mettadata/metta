@@ -9,7 +9,7 @@ import { detectWorktreeChangeName } from '../../util/git-worktree.js'
  *   --tokens <count> [--change <name>] [--source <origin>]`
  *
  * Appends a token-usage record to a change's `.metta.yaml` (`token_usage`
- * array). Recording is hook-driven: a PostToolUse hook invokes this after
+ * array). Recording is hook-driven: a SubagentStop hook invokes this after
  * each subagent run (records carry `source: hook`), with skill-prose
  * invocations remaining as the fallback path (no `source` field, reported
  * as 'prose'). The finalize report aggregates token spend per task / agent /
