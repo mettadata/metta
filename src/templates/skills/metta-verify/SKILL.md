@@ -23,8 +23,9 @@ You are the **orchestrator** for verification. Spawn a verifier subagent.
    - Task: check each Given/When/Then scenario against tests and code
    - Write results to `spec/changes/<change>/summary.md`
    - Commit: `git commit -m "docs(<change>): verification summary"`
-3. `metta complete verification --json --change <name>`
-4. When all_complete: true, tell the user to run `/metta:ship` to finalize and merge
+3. After each subagent returns, record its reported token usage: `metta tokens record --task <artifact-or-task-id> --agent <subagent-type> --model <alias> --tokens <count> --change <name>` — `--task` is the artifact or task id it worked, `--agent` is the `subagent_type` you spawned, `--model` is the model alias you passed to `Agent(...)` (use `inherit` when you omitted the `model` parameter), and `--tokens` is the token count from its completion report. This applies to every spawn — planner, executor, reviewer, and verifier alike.
+4. `metta complete verification --json --change <name>`
+5. When all_complete: true, tell the user to run `/metta:ship` to finalize and merge
 
 ## If any gate fails or the verifier reports FAIL
 

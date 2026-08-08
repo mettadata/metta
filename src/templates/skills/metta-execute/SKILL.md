@@ -47,6 +47,8 @@ Agent(subagent_type: "metta-executor", description: "Task 2.2: build product API
 
 For **every** executor spawn (parallel or sequential, first run or re-run — not just the examples above): read `agent.model` from `metta instructions <id> --json`. If it is not `inherit`, pass it as `Agent(subagent_type: "metta-executor", model: "<value>", ...)`. If it is `inherit`, omit the `model` parameter.
 
+After each subagent returns, record its reported token usage: `metta tokens record --task <artifact-or-task-id> --agent <subagent-type> --model <alias> --tokens <count> --change <name>` — `--task` is the artifact or task id it worked, `--agent` is the `subagent_type` you spawned, `--model` is the model alias you passed to `Agent(...)` (use `inherit` when you omitted the `model` parameter), and `--tokens` is the token count from its completion report. This applies to every spawn — planner, executor, reviewer, and verifier alike.
+
 ## How to detect file overlap
 
 Read the **Files** field of each task in the batch. If any two tasks list the same file or directory prefix, they overlap. Example:
