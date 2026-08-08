@@ -21,7 +21,7 @@ You are the **orchestrator** for the full Metta lifecycle. Spawn subagents for e
    Then run:
    `metta propose "<description>" --workflow <name> --json` (when flag present)
    `metta propose "<description>" --json` (when flag absent — standard workflow)
-   → creates change
+   → creates change. The payload's `change_root` is the root of the checkout hosting the change — use it verbatim; never re-derive paths from the session cwd. Every artifact path below is anchored under `{change_root}`.
 
 2. **DISCOVERY GATE (mandatory):**
    Before writing ANY artifacts, YOU (the orchestrator) MUST ask discovery questions using AskUserQuestion.
@@ -32,31 +32,31 @@ You are the **orchestrator** for the full Metta lifecycle. Spawn subagents for e
    e. Pass answers as context to all downstream subagents
 
 3. For each **planning** artifact (intent, spec, design, tasks) — one subagent per artifact:
-   `metta instructions <artifact> --json` → spawn agent → `metta complete <artifact>`
+   `metta instructions <artifact> --json` → spawn agent → `metta complete <artifact>`. The payload's `output_path` is an absolute path inside the checkout hosting the change, and `change_root` is that checkout's root — pass both to the subagent and use them verbatim; never re-derive paths from the session cwd.
 
    When a non-default `--workflow` is used, the artifact loop uses whatever sequence `metta propose` returned — `metta instructions <artifact> --json` provides the correct agent persona per stage. Note: as of this change, the `full` workflow references stage templates (`domain-research`, `architecture`, `ux-spec`) that do not yet exist in `src/templates/artifacts/`; running `--workflow full` will fail on the first missing template. Tracked as issue `full-workflow-references-missing-template-files-domain-resea` for a follow-up.
 
-   For **research**: spawn 2-4 metta-researcher agents in parallel (one per approach). Each researcher MUST write to `spec/changes/<change>/research-<approach-slug>.md` (a short kebab-case slug per approach, e.g. `research-websockets.md`, `research-sse.md`, `research-polling.md`). Forbid `/tmp/` paths — per-approach output MUST be in-tree so the synthesis step can read it.
+   For **research**: spawn 2-4 metta-researcher agents in parallel (one per approach). Each researcher MUST write to `{change_root}/spec/changes/<change>/research-<approach-slug>.md` (a short kebab-case slug per approach, e.g. `research-websockets.md`, `research-sse.md`, `research-polling.md`). Forbid `/tmp/` paths — per-approach output MUST be in-tree so the synthesis step can read it.
 
-4. **Synthesize research** — read all `spec/changes/<change>/research-*.md` files you just created, write a single consolidated `spec/changes/<change>/research.md` that summarizes each approach and ends with a recommendation, and git-commit it. Do NOT call `metta complete research` until `spec/changes/<change>/research.md` exists on disk with real content.
+4. **Synthesize research** — read all `{change_root}/spec/changes/<change>/research-*.md` files you just created, write a single consolidated `{change_root}/spec/changes/<change>/research.md` that summarizes each approach and ends with a recommendation, and commit it with `git -C "{change_root}"` — always `git -C "{change_root}"` with the paths quoted, never plain git from your cwd: for a worktree-hosted change plain git would target the wrong checkout or fail with 'outside repository'. Do NOT call `metta complete research` until `{change_root}/spec/changes/<change>/research.md` exists on disk with real content.
 
 5. **IMPLEMENTATION — MANDATORY PARALLEL EXECUTION:**
    **⚠️ DO NOT spawn a single metta-executor for all tasks. You MUST parse batches and spawn per-task.**
-   a. Read `spec/changes/<change>/tasks.md` — YOU the orchestrator, not a subagent
+   a. Read `{change_root}/spec/changes/<change>/tasks.md` — YOU the orchestrator, not a subagent
    b. Parse the batches (## Batch 1, ## Batch 2, etc.) and list tasks per batch
    c. For each batch:
       - List the **Files** field of each task
       - Different files → **spawn one metta-executor per task in a SINGLE message** (parallel)
       - Same files → spawn ONE AT A TIME (sequential)
-      - Each executor prompt: include ONLY that task's details (Files, Action, Verify, Done)
+      - Each executor prompt: include ONLY that task's details (Files, Action, Verify, Done) plus the `change_root` value — executors commit with `git -C "{change_root}"`, never plain git from the cwd
       - Wait for ALL executors in batch to complete before next batch
-   d. After all batches: write summary.md and commit
+   d. After all batches: write `{change_root}/spec/changes/<change>/summary.md` and commit with `git -C "{change_root}"`
    e. `metta complete implementation --json --change <name>`
 6. **Spawn 3 metta-reviewer agents in parallel** (fan-out):
    - Agent 1 (subagent_type: "metta-reviewer"): "**Correctness reviewer**"
    - Agent 2 (subagent_type: "metta-reviewer"): "**Security reviewer**"
    - Agent 3 (subagent_type: "metta-reviewer"): "**Quality reviewer**"
-   - Merge results into `spec/changes/<change>/review.md` and commit
+   - Merge results into `{change_root}/spec/changes/<change>/review.md` and commit with `git -C "{change_root}"`
    - If critical issues:
    **REVIEW-FIX LOOP (repeat until clean):**
      a. Run `metta iteration record --phase review --change <name>`
@@ -68,7 +68,7 @@ You are the **orchestrator** for the full Metta lifecycle. Spawn subagents for e
    - Agent 1 (subagent_type: "metta-verifier"): "Run `npm test` — report pass/fail count and failures"
    - Agent 2 (subagent_type: "metta-verifier"): "Run `npx tsc --noEmit` and `npm run lint` — report errors"
    - Agent 3 (subagent_type: "metta-verifier"): "Read spec.md, check each scenario has a passing test — cite evidence"
-   - Merge results into summary.md and commit
+   - Merge results into `{change_root}/spec/changes/<change>/summary.md` and commit with `git -C "{change_root}"`
    - If any gate fails: run `metta iteration record --phase verify --change <name>` again, then spawn parallel metta-executors to fix, then re-verify
 8. `metta complete verification --json --change <name>`
 9. `metta finalize --json --change <name>` → runs gates, archives, merges specs

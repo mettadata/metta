@@ -21,7 +21,7 @@ You are the **orchestrator** for a quick change (intent → implementation → r
 
    > **Note on `--auto` scope:** The `--auto` flag now also auto-accepts adaptive routing recommendations (intent-time downscale/upscale and post-implementation upscale prompts) in addition to its existing discovery-loop short-circuit behavior.
 
-   Then run: `metta quick "$ARGUMENTS" --json` → creates change on branch `metta/<change-name>`
+   Then run: `metta quick "$ARGUMENTS" --json` → creates change on branch `metta/<change-name>`. The payload's `change_root` is the root of the checkout hosting the change (for quick changes, a worktree under `.metta/worktrees/`) — use it verbatim; never re-derive paths from the session cwd. Every artifact path below is anchored under `{change_root}`.
 
 2. **LIGHT DISCOVERY (mandatory — do NOT skip):**
    Before writing the intent, YOU (the orchestrator, not a subagent) MUST evaluate whether the change carries meaningful ambiguity BEFORE asking any questions.
@@ -50,12 +50,12 @@ You are the **orchestrator** for a quick change (intent → implementation → r
    **Cumulative context:** pass the full set of all question-answer pairs from all completed rounds to the proposer subagent; answers from later rounds supplement, not replace, earlier answers.
 
 3. **Spawn a metta-proposer agent** (subagent_type: "metta-proposer") for the intent:
-   `metta instructions intent --json --change <name>` → get template + persona
-   Subagent writes intent.md (Problem, Proposal, Impact, Out of Scope), commits it
+   `metta instructions intent --json --change <name>` → get template + persona. The payload's `output_path` is an absolute path inside the checkout hosting the change, and `change_root` is that checkout's root — use them verbatim; never re-derive paths from the session cwd.
+   Subagent writes intent.md (Problem, Proposal, Impact, Out of Scope) to `{output_path}`, then commits it with `git -C "{change_root}" add "{output_path}" && git -C "{change_root}" commit -m 'docs(<change>): create intent'` — always `git -C "{change_root}"` with the paths quoted, never plain git from the cwd: for a worktree-hosted change plain git would target the wrong checkout or fail with 'outside repository'
 4. `metta complete intent --json --change <name>` → advances to implementation
 5. **IMPLEMENTATION — MANDATORY PARALLEL EXECUTION:**
    **⚠️ DO NOT spawn a single metta-executor for all work. You MUST parse independent pieces and spawn per-piece.**
-   a. Read the intent yourself — YOU the orchestrator, not a subagent
+   a. Read the intent yourself (`{change_root}/spec/changes/<change>/intent.md`) — YOU the orchestrator, not a subagent
    b. Identify independent pieces (e.g. separate files, separate modules) and list them
    c. Execute the pre-batch self-check below before spawning any agents:
 
@@ -91,10 +91,10 @@ You are the **orchestrator** for a quick change (intent → implementation → r
         Agent(subagent_type: "metta-executor", ...Piece C...)
       ```
 
-      - Each executor: implement its piece, run tests, commit with `feat(<change>): <description>`
-      - Each executor prompt MUST include only the specific piece's details — NOT the entire intent.
+      - Each executor: implement its piece, run tests, commit with message `feat(<change>): <description>` via `git -C "{change_root}"` — never plain git from the cwd
+      - Each executor prompt MUST include only the specific piece's details — NOT the entire intent — plus the `change_root` value so its paths and git commands are anchored to the correct checkout.
       - You MUST wait for ALL executors to complete before writing the summary.
-   d. After all executors complete, write `spec/changes/<change>/summary.md` and commit
+   d. After all executors complete, write `{change_root}/spec/changes/<change>/summary.md` and commit it with `git -C "{change_root}"`
 6. `metta complete implementation --json --change <name>` → advances to verification
 7. **REVIEW — trivial-detection gate, then fan-out:**
 
@@ -104,7 +104,7 @@ You are the **orchestrator** for a quick change (intent → implementation → r
 
    **Trivial path (1 reviewer):**
    - Spawn 1 metta-reviewer agent (subagent_type: "metta-reviewer") with persona: "You are a quality reviewer. Check dead code, naming, duplication, test gaps."
-   - Write findings to `spec/changes/<change>/review.md` and commit.
+   - Write findings to `{change_root}/spec/changes/<change>/review.md` and commit with `git -C "{change_root}"`.
 
    **Standard path — you MUST spawn all 3 metta-reviewer agents in a SINGLE orchestrator message** (fan-out — parallel, one message, three `Agent(...)` calls):
 
@@ -138,7 +138,7 @@ You are the **orchestrator** for a quick change (intent → implementation → r
    - Agent 1 (subagent_type: "metta-reviewer"): "You are a **correctness reviewer**."
    - Agent 2 (subagent_type: "metta-reviewer"): "You are a **security reviewer**."
    - Agent 3 (subagent_type: "metta-reviewer"): "You are a **quality reviewer**."
-   - Each writes their findings. Merge results into `spec/changes/<change>/review.md` and commit.
+   - Each writes their findings. Merge results into `{change_root}/spec/changes/<change>/review.md` and commit with `git -C "{change_root}"`.
 
    **REVIEW-FIX LOOP (applies to both paths, repeat until clean):**
    a. Run `metta iteration record --phase review --change <name>`
@@ -156,7 +156,7 @@ You are the **orchestrator** for a quick change (intent → implementation → r
 
    **Trivial path (1 verifier):**
    - Spawn 1 metta-verifier agent (subagent_type: "metta-verifier") with prompt: "Run `npm test -- --run` and `npx tsc --noEmit && npm run lint` — report pass/fail count and any type/lint errors."
-   - Merge results into `spec/changes/<change>/summary.md` and commit.
+   - Merge results into `{change_root}/spec/changes/<change>/summary.md` and commit with `git -C "{change_root}"`.
 
    **Standard path — you MUST spawn all 3 metta-verifier agents in a SINGLE orchestrator message** (fan-out — parallel, one message, three `Agent(...)` calls):
 
@@ -191,7 +191,7 @@ You are the **orchestrator** for a quick change (intent → implementation → r
    - Agent 1 (subagent_type: "metta-verifier"): "Run `npm test` — report pass/fail count and any failures"
    - Agent 2 (subagent_type: "metta-verifier"): "Run `npx tsc --noEmit` and `npm run lint` — report any type or lint errors"
    - Agent 3 (subagent_type: "metta-verifier"): "Read intent.md and check each stated goal is implemented in the code — cite file:line evidence"
-   - Merge results into `spec/changes/<change>/summary.md` and commit.
+   - Merge results into `{change_root}/spec/changes/<change>/summary.md` and commit with `git -C "{change_root}"`.
 
    If any gate fails (either path): run `metta iteration record --phase verify --change <name>` again, then spawn parallel metta-executors to fix (all fixes in ONE orchestrator message unless two fixes share a file path you have named in writing), then re-verify.
 9. `metta complete verification --json --change <name>`
