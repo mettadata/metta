@@ -30,6 +30,8 @@ artifact_timings:
   research:
     started: 2026-08-08T04:49:50.756Z
     completed: 2026-08-08T04:57:00.550Z
+  design:
+    started: 2026-08-08T04:57:06.102Z
 artifact_tokens:
   intent:
     context: 759
@@ -43,4 +45,7 @@ artifact_tokens:
   research:
     context: 6525
     budget: 60000
+  design:
+    context: 8243
+    budget: 80000
 worktree: /home/utx0/Code/metta/.metta/worktrees/token-usage-tracking-finalize-report-report-data-only-no
