@@ -75,6 +75,7 @@ export const TokenUsageRecordSchema = z.object({
   model: ModelAliasEnum,
   tokens: z.number().int().positive(),
   timestamp: z.string().datetime(),
+  source: z.enum(['hook', 'prose']).optional(),
 }).strict()
 
 export type TokenUsageRecord = z.infer<typeof TokenUsageRecordSchema>

@@ -1,0 +1,64 @@
+workflow: standard
+created: 2026-08-08T12:07:06.351Z
+status: active
+current_artifact: verification
+base_versions: {}
+artifacts:
+  intent: complete
+  stories: complete
+  spec: complete
+  research: complete
+  design: complete
+  tasks: complete
+  implementation: complete
+  verification: complete
+complexity_score:
+  score: 2
+  signals:
+    file_count: 5
+  recommended_workflow: standard
+artifact_timings:
+  intent:
+    started: 2026-08-08T12:07:16.685Z
+    completed: 2026-08-08T12:08:41.445Z
+  stories:
+    started: 2026-08-08T12:08:45.181Z
+    completed: 2026-08-08T12:09:54.686Z
+  spec:
+    started: 2026-08-08T12:09:58.867Z
+    completed: 2026-08-08T12:13:30.416Z
+  research:
+    completed: 2026-08-08T12:23:58.939Z
+  design:
+    started: 2026-08-08T12:25:59.073Z
+    completed: 2026-08-08T12:31:27.484Z
+  tasks:
+    started: 2026-08-08T12:31:32.128Z
+    completed: 2026-08-08T12:34:18.644Z
+  implementation:
+    started: 2026-08-08T12:34:24.694Z
+    completed: 2026-08-08T12:57:17.093Z
+  verification:
+    completed: 2026-08-08T13:09:30.810Z
+artifact_tokens:
+  intent:
+    context: 759
+    budget: 20000
+  stories:
+    context: 2510
+    budget: 20000
+  spec:
+    context: 4276
+    budget: 40000
+  design:
+    context: 7883
+    budget: 80000
+  tasks:
+    context: 11395
+    budget: 40000
+  implementation:
+    context: 4243
+    budget: 10000
+review_iterations: 1
+verify_iterations: 1
+worktree: /home/utx0/Code/metta/.metta/worktrees/fix-automatic-token-recording-via-posttooluse-hook-remove

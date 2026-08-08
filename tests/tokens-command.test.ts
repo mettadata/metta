@@ -70,6 +70,7 @@ describe('metta tokens record', { timeout: 30000 }, () => {
       agent: 'metta-executor',
       model: 'sonnet',
       tokens: 12345,
+      source: 'prose',
     })
 
     const meta = await store.getChange('tokens-demo')
@@ -227,6 +228,12 @@ describe('metta tokens record', { timeout: 30000 }, () => {
     expect(payload.error?.type).toBe('tokens_record_error')
     expect(payload.error?.message).toContain('change-one')
     expect(payload.error?.message).toContain('change-two')
+
+    // Nothing written to either change.
+    const one = await store.getChange('change-one')
+    const two = await store.getChange('change-two')
+    expect(one.token_usage).toBeUndefined()
+    expect(two.token_usage).toBeUndefined()
   })
 
   it('errors with exit 4 when the named change does not exist', async () => {
@@ -272,5 +279,134 @@ describe('metta tokens record', { timeout: 30000 }, () => {
 
     const alphaMeta = await store.getChange('alpha')
     expect(alphaMeta.token_usage).toBeUndefined()
+  })
+
+  it('binds to the worktree-cwd change when two active changes exist', async () => {
+    const store = new ArtifactStore(specDir)
+    await store.createChange('change one', 'quick', ['intent'])
+    await store.createChange('change two', 'quick', ['intent'])
+
+    const worktreeCwd = join(tempDir, '.metta', 'worktrees', 'change-two')
+    await mkdir(worktreeCwd, { recursive: true })
+
+    const result = await runCli(
+      [
+        '--json', 'tokens', 'record',
+        '--task', 'implementation',
+        '--agent', 'metta-executor',
+        '--model', 'sonnet',
+        '--tokens', '512',
+      ],
+      worktreeCwd,
+    )
+    expect(result.code).toBe(0)
+    const payload = JSON.parse(result.stdout)
+    expect(payload.change).toBe('change-two')
+
+    const two = await store.getChange('change-two')
+    expect(two.token_usage).toHaveLength(1)
+    expect(two.token_usage![0].tokens).toBe(512)
+
+    const one = await store.getChange('change-one')
+    expect(one.token_usage).toBeUndefined()
+  })
+
+  it('legacy repo-root invocation without --source persists a record with no source field', async () => {
+    const store = new ArtifactStore(specDir)
+    await store.createChange('only change', 'quick', ['intent'])
+
+    const result = await runCli(
+      [
+        '--json', 'tokens', 'record',
+        '--task', 'implementation',
+        '--agent', 'metta-executor',
+        '--model', 'sonnet',
+        '--tokens', '99',
+      ],
+      tempDir,
+    )
+    expect(result.code).toBe(0)
+    const payload = JSON.parse(result.stdout)
+    expect(payload.change).toBe('only-change')
+    expect(payload.source).toBe('prose')
+
+    const meta = await store.getChange('only-change')
+    expect(meta.token_usage).toHaveLength(1)
+    expect(meta.token_usage![0]).not.toHaveProperty('source')
+  })
+
+  it('worktree cwd naming an inactive change errors without falling through', async () => {
+    const store = new ArtifactStore(specDir)
+    await store.createChange('real change', 'quick', ['intent'])
+
+    const worktreeCwd = join(tempDir, '.metta', 'worktrees', 'ghost-change')
+    await mkdir(worktreeCwd, { recursive: true })
+
+    const result = await runCli(
+      [
+        '--json', 'tokens', 'record',
+        '--task', 'implementation',
+        '--agent', 'metta-executor',
+        '--model', 'sonnet',
+        '--tokens', '100',
+      ],
+      worktreeCwd,
+    )
+    expect(result.code).toBe(4)
+    const payload = JSON.parse(result.stdout)
+    expect(payload.error?.type).toBe('tokens_record_error')
+    expect(payload.error?.message).toContain('ghost-change')
+    expect(payload.error?.message).toContain('not an active change')
+
+    // No fall-through to the single active change.
+    const meta = await store.getChange('real-change')
+    expect(meta.token_usage).toBeUndefined()
+  })
+
+  it('--source hook persists source: hook and reports it in the --json payload', async () => {
+    const store = new ArtifactStore(specDir)
+    await store.createChange('only change', 'quick', ['intent'])
+
+    const result = await runCli(
+      [
+        '--json', 'tokens', 'record',
+        '--task', 'implementation',
+        '--agent', 'metta-executor',
+        '--model', 'sonnet',
+        '--tokens', '321',
+        '--source', 'hook',
+      ],
+      tempDir,
+    )
+    expect(result.code).toBe(0)
+    const payload = JSON.parse(result.stdout)
+    expect(payload.source).toBe('hook')
+
+    const meta = await store.getChange('only-change')
+    expect(meta.token_usage).toHaveLength(1)
+    expect(meta.token_usage![0].source).toBe('hook')
+  })
+
+  it('rejects an invalid --source value without mutating token_usage', async () => {
+    const store = new ArtifactStore(specDir)
+    await store.createChange('only change', 'quick', ['intent'])
+
+    const result = await runCli(
+      [
+        '--json', 'tokens', 'record',
+        '--task', 'implementation',
+        '--agent', 'metta-executor',
+        '--model', 'sonnet',
+        '--tokens', '100',
+        '--source', 'guessed',
+      ],
+      tempDir,
+    )
+    expect(result.code).toBe(4)
+    const payload = JSON.parse(result.stdout)
+    expect(payload.error?.type).toBe('tokens_record_error')
+
+    const meta = await store.getChange('only-change')
+    expect(meta.token_usage).toBeUndefined()
   })
 })

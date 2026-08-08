@@ -51,11 +51,31 @@ function renderTable(header: string[], rows: string[][]): string {
 const NO_USAGE = '_No token usage recorded._'
 const NO_GAPS = 'No gaps found.'
 
+function dedupeKey(r: TokenUsageRecord): string {
+  return `${r.task}\u0000${r.agent}`
+}
+
+/**
+ * Report-time dedupe: when both a hook-sourced (harness-measured, exact) and a
+ * prose-sourced (orchestrator-estimated) record exist for the same
+ * `task + agent` key, the hook record wins. Every hook record is kept; a
+ * prose-sourced record (`source` absent or 'prose') is dropped only when a
+ * same-key hook record exists. Pure — never mutates the input array.
+ */
+function dedupeTokenUsage(records: TokenUsageRecord[]): TokenUsageRecord[] {
+  const hookKeys = new Set(records.filter(r => r.source === 'hook').map(dedupeKey))
+  return records.filter(r => r.source === 'hook' || !hookKeys.has(dedupeKey(r)))
+}
+
+function provenance(r: TokenUsageRecord): string {
+  return r.source === 'hook' ? 'hook (exact)' : 'prose (estimate)'
+}
+
 function renderPerArtifactTable(records: TokenUsageRecord[]): string {
   if (records.length === 0) return NO_USAGE
   return renderTable(
-    ['Artifact/task', 'Agent', 'Model', 'Tokens'],
-    records.map(r => [r.task, r.agent, r.model, fmt(r.tokens)]),
+    ['Artifact/task', 'Agent', 'Model', 'Tokens', 'Provenance'],
+    records.map(r => [r.task, r.agent, r.model, fmt(r.tokens), provenance(r)]),
   )
 }
 
@@ -91,7 +111,9 @@ function computeGaps(
 
 function renderGaps(gaps: string[]): string {
   if (gaps.length === 0) return NO_GAPS
-  return gaps.map(gap => `- \`${gap}\` — timed artifact with no reported token usage`).join('\n')
+  return gaps
+    .map(gap => `- \`${gap}\` — run evidence with no token record; the recording hook missed this run`)
+    .join('\n')
 }
 
 // --- Orchestration -----------------------------------------------------------
@@ -101,18 +123,19 @@ function renderGaps(gaps: string[]): string {
  * `generatedAt` is caller-injected and the only I/O is the template read.
  */
 export async function generateTokensReport(input: TokensReportInput): Promise<TokensReportResult> {
-  const total = input.tokenUsage.reduce((sum, record) => sum + record.tokens, 0)
-  const gaps = computeGaps(input.tokenUsage, input.artifactTimings)
+  const records = dedupeTokenUsage(input.tokenUsage)
+  const total = records.reduce((sum, record) => sum + record.tokens, 0)
+  const gaps = computeGaps(records, input.artifactTimings)
 
   const engine = new TemplateEngine([new URL('../templates/artifacts', import.meta.url).pathname])
   const markdown = await engine.render('tokens.md', {
     change_name: input.changeName,
     generated_date: input.generatedAt,
-    total: `**~${fmt(total)} tokens** across ${input.tokenUsage.length} record(s).`,
-    per_artifact_table: renderPerArtifactTable(input.tokenUsage),
-    per_role_rollup: renderRollup('Agent', rollup(input.tokenUsage, r => r.agent)),
-    per_model_rollup: renderRollup('Model', rollup(input.tokenUsage, r => r.model)),
-    split: renderSplit(input.tokenUsage),
+    total: `**~${fmt(total)} tokens** across ${records.length} record(s).`,
+    per_artifact_table: renderPerArtifactTable(records),
+    per_role_rollup: renderRollup('Agent', rollup(records, r => r.agent)),
+    per_model_rollup: renderRollup('Model', rollup(records, r => r.model)),
+    split: renderSplit(records),
     gaps: renderGaps(gaps),
   })
 

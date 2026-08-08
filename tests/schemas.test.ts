@@ -1860,6 +1860,66 @@ describe('TokenUsageRecordSchema', () => {
     }
   })
 
+  it('parses and round-trips a hook-sourced record through ChangeMetadataSchema', () => {
+    const hookRecord = {
+      task: 'impl',
+      agent: 'executor',
+      model: 'haiku',
+      tokens: 41250,
+      timestamp: '2026-08-08T12:00:00.000Z',
+      source: 'hook',
+    }
+    const direct = TokenUsageRecordSchema.safeParse(hookRecord)
+    expect(direct.success).toBe(true)
+    if (direct.success) {
+      expect(direct.data.source).toBe('hook')
+    }
+    const result = ChangeMetadataSchema.safeParse({
+      ...baseMetadata,
+      token_usage: [hookRecord],
+    })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.token_usage).toEqual([hookRecord])
+      expect(result.data.token_usage?.[0]?.source).toBe('hook')
+    }
+  })
+
+  it('accepts source: "prose"', () => {
+    const result = TokenUsageRecordSchema.safeParse({ ...validRecord, source: 'prose' })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.source).toBe('prose')
+    }
+  })
+
+  it('rejects source: "manual" (out of enum)', () => {
+    const result = TokenUsageRecordSchema.safeParse({ ...validRecord, source: 'manual' })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects source: 1 (non-string)', () => {
+    const result = TokenUsageRecordSchema.safeParse({ ...validRecord, source: 1 })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects an unknown extra key alongside a valid source', () => {
+    const result = TokenUsageRecordSchema.safeParse({
+      ...validRecord,
+      source: 'hook',
+      extra: 'nope',
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('parses a legacy record with no source field (source undefined)', () => {
+    const result = TokenUsageRecordSchema.safeParse(validRecord)
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.source).toBeUndefined()
+    }
+  })
+
   it('leaves existing artifact_tokens fixture behavior unchanged', () => {
     const result = ChangeMetadataSchema.safeParse({
       ...baseMetadata,

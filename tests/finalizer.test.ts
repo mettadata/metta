@@ -728,8 +728,12 @@ The system MUST conflict on this delta.
       const content = await readFile(result.tokensPath!, 'utf-8')
       expect(content).toContain('**~0 tokens** across 0 record(s).')
       expect(content).toContain('_No token usage recorded._')
-      expect(content).toContain('- `implementation` — timed artifact with no reported token usage')
-      expect(content).toContain('- `intent` — timed artifact with no reported token usage')
+      expect(content).toContain(
+        '- `implementation` — run evidence with no token record; the recording hook missed this run',
+      )
+      expect(content).toContain(
+        '- `intent` — run evidence with no token record; the recording hook missed this run',
+      )
     })
 
     it('skips generation when tokens.enabled is false while UAT proceeds', async () => {
