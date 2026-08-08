@@ -1,13 +1,46 @@
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { appendFile, readFile, stat } from 'node:fs/promises'
-import { join, resolve } from 'node:path'
+import { join, resolve, sep } from 'node:path'
 import { getErrorMessage } from './errors.js'
 
 const execAsync = promisify(execFile)
 
 /** Default base directory (relative to the project root) for change worktrees. */
 export const DEFAULT_WORKTREE_DIR = '.metta/worktrees'
+
+/**
+ * Detect the change name from a cwd inside a change worktree.
+ *
+ * Pure path-segment math — no filesystem I/O (callers do any realpathSync
+ * resolution first). Splits the normalized `cwd` into segments, splits
+ * `worktreeDir` into its own segments (e.g. `.metta`, `worktrees`), then
+ * finds the LAST adjacent occurrence of that segment run which has a
+ * following segment and returns that following segment (the change name).
+ * Returns null when the cwd is not inside a worktree path.
+ */
+export function detectWorktreeChangeName(
+  cwd: string,
+  worktreeDir: string = DEFAULT_WORKTREE_DIR,
+): string | null {
+  const segments = resolve(cwd)
+    .split(sep)
+    .filter((segment) => segment.length > 0)
+  const pair = worktreeDir
+    .split(/[\\/]+/)
+    .filter((segment) => segment.length > 0)
+  if (pair.length === 0) {
+    return null
+  }
+
+  // Walk backwards so the LAST occurrence with a following segment wins.
+  for (let i = segments.length - pair.length - 1; i >= 0; i--) {
+    if (pair.every((part, j) => segments[i + j] === part)) {
+      return segments[i + pair.length]
+    }
+  }
+  return null
+}
 
 /** Subset of the project git config consumed by worktree setup. */
 export interface WorktreeGitConfig {

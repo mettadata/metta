@@ -7,6 +7,7 @@ import { promisify } from 'node:util'
 import {
   setupChangeWorktree,
   ensureGitignoreEntry,
+  detectWorktreeChangeName,
   DEFAULT_WORKTREE_DIR,
 } from '../src/util/git-worktree.js'
 
@@ -151,6 +152,48 @@ describe('setupChangeWorktree', () => {
     await setupChangeWorktree(tempDir, 'ignore-me')
     const gitignore = await readFile(join(tempDir, '.gitignore'), 'utf8')
     expect(gitignore).toContain('.metta/worktrees/')
+  })
+})
+
+describe('detectWorktreeChangeName', () => {
+  it('returns the change name when cwd is exactly the worktree root', () => {
+    expect(detectWorktreeChangeName('/repo/.metta/worktrees/beta')).toBe('beta')
+  })
+
+  it('returns the change name when cwd is nested below the worktree root', () => {
+    expect(detectWorktreeChangeName('/repo/.metta/worktrees/beta/src/deep')).toBe('beta')
+  })
+
+  it('last occurrence wins when the path contains two worktree-pair occurrences', () => {
+    expect(
+      detectWorktreeChangeName('/repo/.metta/worktrees/alpha/.metta/worktrees/beta/src'),
+    ).toBe('beta')
+  })
+
+  it('returns null for the repo root', () => {
+    expect(detectWorktreeChangeName('/repo')).toBeNull()
+  })
+
+  it('returns null for an unrelated cwd', () => {
+    expect(detectWorktreeChangeName('/home/user/projects/other')).toBeNull()
+  })
+
+  it('returns null when the pair segments are not adjacent', () => {
+    expect(detectWorktreeChangeName('/x/.metta/other/worktrees/y')).toBeNull()
+  })
+
+  it('returns null when the pair has no following segment', () => {
+    expect(detectWorktreeChangeName('/repo/.metta/worktrees')).toBeNull()
+  })
+
+  it('tolerates trailing separators', () => {
+    expect(detectWorktreeChangeName('/repo/.metta/worktrees/beta/')).toBe('beta')
+    expect(detectWorktreeChangeName('/repo/.metta/worktrees/beta///')).toBe('beta')
+  })
+
+  it('respects a custom worktreeDir', () => {
+    expect(detectWorktreeChangeName('/repo/.wt/gamma/src', '.wt')).toBe('gamma')
+    expect(detectWorktreeChangeName('/repo/.metta/worktrees/beta', '.wt')).toBeNull()
   })
 })
 
