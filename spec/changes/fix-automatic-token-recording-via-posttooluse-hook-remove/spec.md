@@ -2,27 +2,29 @@
 
 <!-- Merge target: finalize-ship is the existing capability that owns the end-to-end token-usage observability feature (see its Token Tracking Delta Scope Note). Requirements below that name adjacent surfaces (hooks, CLI, schemas, skills) bind those surfaces' implementations while merging here, following the established single-target pattern. -->
 
-## ADDED: Requirement: Token Recording PostToolUse Hook
+<!-- Amended 2026-08-08 after payload research (Claude Code 2.1.226): PostToolUse on the Agent tool fires at launch time with an async launch receipt and never carries token usage (408/408 dispatches async). Exact harness-measured counts are reachable via the SubagentStop event's `agent_transcript_path`; the recording hook requirement and all event references below are restated accordingly. -->
 
-A new standalone hook at `.claude/hooks/metta-tokens-record.mjs`, with a template source at `src/templates/hooks/metta-tokens-record.mjs` (delivered by the existing template copy step, never inlined as a TypeScript string literal), MUST be registered in `.claude/settings.json` under the `PostToolUse` event with a matcher that fires on `Task` (subagent) tool completions only. On each firing the hook MUST read the hook payload JSON from stdin, extract the harness-measured subagent token usage together with the identifying fields the payload exposes (subagent type, model, and prompt/description), and invoke `metta tokens record` as a child process with `--tokens` set to the exact payload usage value, `--agent`, `--model`, and `--task` mapped from those payload fields (`--model inherit` when the payload names no explicit model), and `--source hook`. The recorded count MUST be the payload value verbatim — the hook MUST NOT estimate, derive, or fabricate a count, and when the payload exposes no usage field the hook MUST NOT invoke `metta tokens record` at all. The installed copy and the template copy MUST be byte-identical and each MUST pass `node --check`. Existing `PreToolUse` registrations for `metta-guard-edit.mjs` and `metta-guard-bash.mjs` in `.claude/settings.json` MUST be unchanged by the new registration.
+## ADDED: Requirement: Token Recording SubagentStop Hook
+
+A new standalone hook at `.claude/hooks/metta-tokens-record.mjs`, with a template source at `src/templates/hooks/metta-tokens-record.mjs` (delivered by the existing template copy step, never inlined as a TypeScript string literal), MUST be registered in `.claude/settings.json` under the `SubagentStop` event. `SubagentStop` registrations take no tool matcher, so scoping MUST be performed inside the hook by filtering on the payload's `agent_type` field. On each firing the hook MUST read the hook payload JSON from stdin, locate the subagent's transcript via the payload's `agent_transcript_path` field, and sum the token components of the assistant records' `message.usage` entries (`input_tokens`, `output_tokens`, `cache_creation_input_tokens`, `cache_read_input_tokens`) in that transcript to an exact total — the totals definition (which components count toward the recorded total) is delegated to design, but the recorded count MUST derive solely from harness-written transcript usage values and the hook MUST NOT estimate, derive from prose, or fabricate a count. The hook MUST then invoke `metta tokens record` as a child process with `--tokens` set to that exact total, `--agent` derived from the payload's `agent_type`, `--model` derived from the transcript's `message.model` mapped to a model alias (`inherit` when the model is unmapped or absent), `--task` derived from transcript attribution/context (e.g. `attributionSkill`/`attributionAgent` fields) toward the artifact-or-task-id vocabulary, and `--source hook`. When the transcript is missing, unreadable, or contains no usage records, the hook MUST NOT invoke `metta tokens record` at all. The installed copy and the template copy MUST be byte-identical and each MUST pass `node --check`. Existing `PreToolUse` registrations for `metta-guard-edit.mjs` and `metta-guard-bash.mjs` in `.claude/settings.json` MUST be unchanged by the new registration.
 Fulfills: US-1, US-2
 
-### Scenario: Task completion is recorded automatically with the exact payload count
-- GIVEN the hook is registered and an active change exists, and a PostToolUse payload for a completed Task tool call whose usage field reports 42000 tokens for a `metta-executor` subagent
+### Scenario: Subagent stop is recorded automatically with the exact transcript-summed count
+- GIVEN the hook is registered and an active change exists, and a SubagentStop payload for a `metta-executor` subagent whose `agent_transcript_path` points at a transcript whose assistant records' `message.usage` components sum to exactly 42000 tokens under the designed totals definition
 - WHEN the hook is executed with that payload on stdin
-- THEN it invokes `metta tokens record` with `--tokens 42000`, `--source hook`, and agent/model/task values mapped from the payload, with no orchestrator action involved
+- THEN it invokes `metta tokens record` with `--tokens 42000`, `--source hook`, `--agent` derived from `agent_type`, `--model` derived from the transcript's `message.model`, and `--task` derived from transcript attribution/context, with no orchestrator action involved
 - AND the change's `.metta.yaml` gains one validated `token_usage` entry whose `tokens` value is exactly 42000
 
-### Scenario: Payload without usage records nothing rather than fabricating a count
-- GIVEN a PostToolUse payload for a completed Task tool call that exposes no token-usage field
+### Scenario: Missing or usage-free transcript records nothing rather than fabricating a count
+- GIVEN a SubagentStop payload whose `agent_transcript_path` names a file that is missing, unreadable, or contains no assistant records with `message.usage`
 - WHEN the hook is executed with that payload on stdin
 - THEN it exits 0 without invoking `metta tokens record`
 - AND no `token_usage` entry is written anywhere
 
-### Scenario: Registration targets Task completions and leaves existing hooks untouched
+### Scenario: Registration targets the SubagentStop event and leaves existing hooks untouched
 - GIVEN the updated `.claude/settings.json`
 - WHEN its `hooks` block is inspected
-- THEN `PostToolUse` contains a matcher for the Task tool wired to `.claude/hooks/metta-tokens-record.mjs`
+- THEN `SubagentStop` contains an entry (with no tool matcher) wired to `.claude/hooks/metta-tokens-record.mjs`, and the hook itself performs any agent scoping by filtering on the payload's `agent_type`
 - AND the pre-existing `PreToolUse` entries for `metta-guard-edit.mjs` and `metta-guard-bash.mjs` are byte-for-byte unchanged
 
 ### Scenario: Hook copies stay byte-identical and syntactically valid
@@ -33,7 +35,7 @@ Fulfills: US-1, US-2
 
 ## ADDED: Requirement: Worktree-Aware Change Resolution For Token Recording
 
-The token-recording path MUST resolve the target change from the invocation cwd before falling back to active-change counting. When the cwd is at or below `.metta/worktrees/<change>/` (relative to the repository root), the recording MUST be attributed to `<change>`, taking precedence over the how-many-active-changes rule — a worktree cwd resolves unambiguously even when multiple changes are active. When the cwd is not inside a worktree, resolution MUST behave as before: an explicit `--change` wins, otherwise auto-select when exactly one active change exists. When no change can be resolved (cwd not in a worktree, no `--change`, and zero or multiple active changes), the recording MUST fail with the existing typed error and MUST NOT write a record to any change — records are never misattributed as a fallback. This resolution MUST apply both when the PostToolUse hook invokes `metta tokens record` (the hook runs with, or passes through, the session cwd) and when the command is invoked directly.
+The token-recording path MUST resolve the target change from the invocation cwd before falling back to active-change counting. When the cwd is at or below `.metta/worktrees/<change>/` (relative to the repository root), the recording MUST be attributed to `<change>`, taking precedence over the how-many-active-changes rule — a worktree cwd resolves unambiguously even when multiple changes are active. When the cwd is not inside a worktree, resolution MUST behave as before: an explicit `--change` wins, otherwise auto-select when exactly one active change exists. When no change can be resolved (cwd not in a worktree, no `--change`, and zero or multiple active changes), the recording MUST fail with the existing typed error and MUST NOT write a record to any change — records are never misattributed as a fallback. This resolution MUST apply both when the SubagentStop recording hook invokes `metta tokens record` (the hook runs with, or passes through, the session cwd) and when the command is invoked directly.
 Fulfills: US-3
 
 ### Scenario: Recording from inside a change worktree attributes to that change
@@ -55,19 +57,25 @@ Fulfills: US-3
 
 ## ADDED: Requirement: Non-Blocking Token Recording Hook Failure
 
-The `metta-tokens-record.mjs` hook MUST be non-blocking: it MUST exit 0 and emit no blocking decision output regardless of internal failure — including an unparseable payload, a missing or unbuilt `metta` CLI, a non-zero `metta tokens record` exit (such as unresolvable change), or a filesystem error. A recording failure MUST never fail, retry, or alter the outcome of the Task tool call it observed. Failure detail MAY be written to stderr for diagnostics, but the hook MUST NOT write error state into `.metta/` or any change metadata. The hook MUST NOT change the behavior of any other registered hook: guard and mint hook decisions on their events remain identical with the recording hook installed.
+The `metta-tokens-record.mjs` hook MUST be non-blocking: it MUST exit 0 and MUST NOT emit a blocking decision (`decision: "block"`) in its output regardless of internal failure — on the `SubagentStop` event a blocking decision would force the subagent to continue, so the hook MUST never emit one. Swallowed failure modes include an unparseable payload, a missing, unreadable, or usage-free subagent transcript at `agent_transcript_path`, a missing or unbuilt `metta` CLI, a non-zero `metta tokens record` exit (such as unresolvable change), and a filesystem error. A recording failure MUST never fail, retry, or alter the outcome of the subagent run it observed. Failure detail MAY be written to stderr for diagnostics, but the hook MUST NOT write error state into `.metta/` or any change metadata. The hook MUST NOT change the behavior of any other registered hook: guard and mint hook decisions on their events remain identical with the recording hook installed.
 Fulfills: US-5
 
-### Scenario: CLI unavailable leaves the Task call unaffected
-- GIVEN a valid Task-completion payload and an environment where the `metta` CLI is not on PATH
+### Scenario: CLI unavailable leaves the subagent run unaffected
+- GIVEN a valid SubagentStop payload with a readable transcript and an environment where the `metta` CLI is not on PATH
 - WHEN the hook is executed with that payload on stdin
 - THEN it exits 0 with no blocking decision in its output
 - AND no change metadata is modified
 
 ### Scenario: Recording command failure is swallowed
-- GIVEN a valid Task-completion payload and a cwd from which no change can be resolved
+- GIVEN a valid SubagentStop payload and a cwd from which no change can be resolved
 - WHEN the hook runs and its `metta tokens record` child process exits non-zero
-- THEN the hook still exits 0, optionally noting the failure on stderr only
+- THEN the hook still exits 0 with no blocking decision, optionally noting the failure on stderr only
+
+### Scenario: Missing transcript is swallowed without blocking the subagent
+- GIVEN a SubagentStop payload whose `agent_transcript_path` does not exist or cannot be read
+- WHEN the hook is executed with that payload on stdin
+- THEN it exits 0 with no blocking decision in its output, so the subagent stop proceeds normally
+- AND no change metadata is modified
 
 ### Scenario: Guard hook behavior is unchanged with the recording hook installed
 - GIVEN the recording hook is registered alongside the existing guard hooks
@@ -99,7 +107,7 @@ Fulfills: US-4
 
 ## MODIFIED: Requirement: Token Usage Record Schema
 
-`ChangeMetadataSchema` in `src/schemas/change-metadata.ts` MUST gain an optional `token_usage` array field. Each entry MUST validate against a strict Zod object schema (`TokenUsageRecordSchema`) with exactly these fields: `task` (non-empty string — the artifact or task id the usage applies to), `agent` (non-empty string — the subagent role spawned), `model` (`ModelAliasEnum` — the alias the subagent ran at, `inherit` when no explicit model was passed), `tokens` (positive integer), `timestamp` (ISO 8601 datetime string), and an optional `source` provenance field constrained to the enum `hook | prose` — `hook` marking a harness-measured count recorded by the PostToolUse hook, `prose` marking an orchestrator-reported estimate. A record with `source` absent MUST validate and MUST be treated by consumers as prose-sourced, so all pre-delta historical records remain valid without migration. The schema MUST reject unknown keys, non-integer or non-positive `tokens` values, model values outside `ModelAliasEnum`, and `source` values outside the enum. The field MUST remain additive: existing `.metta.yaml` files without `token_usage` MUST remain valid. `token_usage` stays distinct from the existing `artifact_tokens` record (context-engine context/budget figures); this delta MUST NOT change `artifact_tokens` in any way.
+`ChangeMetadataSchema` in `src/schemas/change-metadata.ts` MUST gain an optional `token_usage` array field. Each entry MUST validate against a strict Zod object schema (`TokenUsageRecordSchema`) with exactly these fields: `task` (non-empty string — the artifact or task id the usage applies to), `agent` (non-empty string — the subagent role spawned), `model` (`ModelAliasEnum` — the alias the subagent ran at, `inherit` when no explicit model was passed), `tokens` (positive integer), `timestamp` (ISO 8601 datetime string), and an optional `source` provenance field constrained to the enum `hook | prose` — `hook` marking a harness-measured count recorded by the SubagentStop recording hook, `prose` marking an orchestrator-reported estimate. A record with `source` absent MUST validate and MUST be treated by consumers as prose-sourced, so all pre-delta historical records remain valid without migration. The schema MUST reject unknown keys, non-integer or non-positive `tokens` values, model values outside `ModelAliasEnum`, and `source` values outside the enum. The field MUST remain additive: existing `.metta.yaml` files without `token_usage` MUST remain valid. `token_usage` stays distinct from the existing `artifact_tokens` record (context-engine context/budget figures); this delta MUST NOT change `artifact_tokens` in any way.
 Fulfills: US-2, US-4
 
 ### Scenario: Hook-sourced record passes strict validation
@@ -143,7 +151,7 @@ Fulfills: US-1, US-2, US-3
 
 ## MODIFIED: Requirement: Lifecycle Skill Token Recording Instruction
 
-With hook-driven recording in place, the subagent pass-through sections of the four lifecycle skills that spawn subagents — metta-plan, metta-execute, metta-verify, and metta-next — MUST NOT mandate that the orchestrator run `metta tokens record` after each returning subagent. The mandatory per-subagent recording instruction MUST be removed from all four skills; each skill MAY retain at most a single short fallback note stating that token recording is automatic via the PostToolUse hook and that `metta tokens record --source prose` exists as a manual fallback if the hook is unavailable. Every edit MUST land in both the template copy (`src/templates/skills/**`) and the deployed copy (`.claude/skills/**`), and each template/deployed pair MUST remain byte-identical. The skills MUST NOT change model routing, agent selection, or any other behavior — the only diff versus the pre-delta skills is the removal or demotion of the recording instruction. The `tokens` entry in the `metta-guard-bash` `ALLOWED_SUBCOMMANDS` allowlist MUST be retained so the fallback path still passes the guard.
+With hook-driven recording in place, the subagent pass-through sections of the four lifecycle skills that spawn subagents — metta-plan, metta-execute, metta-verify, and metta-next — MUST NOT mandate that the orchestrator run `metta tokens record` after each returning subagent. The mandatory per-subagent recording instruction MUST be removed from all four skills; each skill MAY retain at most a single short fallback note stating that token recording is automatic via the SubagentStop recording hook and that `metta tokens record --source prose` exists as a manual fallback if the hook is unavailable. Every edit MUST land in both the template copy (`src/templates/skills/**`) and the deployed copy (`.claude/skills/**`), and each template/deployed pair MUST remain byte-identical. The skills MUST NOT change model routing, agent selection, or any other behavior — the only diff versus the pre-delta skills is the removal or demotion of the recording instruction. The `tokens` entry in the `metta-guard-bash` `ALLOWED_SUBCOMMANDS` allowlist MUST be retained so the fallback path still passes the guard.
 Fulfills: US-6
 
 ### Scenario: No skill mandates per-subagent recording
