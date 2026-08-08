@@ -34,7 +34,7 @@ For a given `<issue-slug>`:
 
 3. **Per-Artifact Loop** — For each planning artifact (intent, spec, design, tasks), spawn one subagent per artifact:
    `metta instructions <artifact> --json --change <name>` → spawn agent → `metta complete <artifact>`
-   - The `metta propose` and `metta instructions` JSON payloads carry an absolute `output_path` and `change_root` (plus `worktree`) — `change_root` is the root of the checkout hosting the change. Use them verbatim; never re-derive paths from the session cwd.
+   - The `metta propose` JSON payload carries `worktree` — the root of the checkout hosting the change (when null, the main checkout root hosts the change); treat that value as `{change_root}`. The `metta instructions` JSON payloads carry an absolute `output_path` and `change_root`. Use them verbatim; never re-derive paths from the session cwd.
    - Include the full issue details (from step 1) as context for every subagent
    - Discovery mode is always **batch** for fix-issues — the issue definition IS the discovery; do NOT run a separate discovery gate
    - For **research**: spawn 2-4 metta-researcher agents in parallel (one per approach). Each researcher MUST write to `{change_root}/spec/changes/<change>/research-<approach-slug>.md` (a short kebab-case slug per approach, e.g. `research-websockets.md`, `research-sse.md`, `research-polling.md`). Forbid `/tmp/` paths — per-approach output MUST be in-tree so the synthesis step can read it.
@@ -49,7 +49,7 @@ For a given `<issue-slug>`:
       - List the **Files** field of each task
       - Different files → **spawn one metta-executor per task in a SINGLE message** (parallel)
       - Same files → spawn ONE AT A TIME (sequential)
-      - Each executor prompt: include ONLY that task's details (Files, Action, Verify, Done)
+      - Each executor prompt: include ONLY that task's details (Files, Action, Verify, Done) plus the `change_root` value — executors use absolute `{change_root}/...` paths and commit with `git -C "{change_root}"`, never plain git from the cwd
       - Wait for ALL executors in batch to complete before next batch
    d. After all batches: write `{change_root}/spec/changes/<change>/summary.md` and commit it with `git -C "{change_root}"`
    e. `metta complete implementation --json --change <name>`
@@ -75,7 +75,7 @@ For a given `<issue-slug>`:
    - Before spawning verifier agents, run: `metta iteration record --phase verify --change <name>`
    - Agent 1 (subagent_type: "metta-verifier"): "Run `npm test` — report pass/fail count and failures"
    - Agent 2 (subagent_type: "metta-verifier"): "Run `npx tsc --noEmit` and `npm run lint` — report errors"
-   - Agent 3 (subagent_type: "metta-verifier"): "Read spec.md, check each scenario has a passing test — cite evidence"
+   - Agent 3 (subagent_type: "metta-verifier"): "Read {change_root}/spec/changes/<change>/spec.md, check each scenario has a passing test — cite evidence"
    - Merge results into `{change_root}/spec/changes/<change>/summary.md` and commit it with `git -C "{change_root}"`
    - If any gate fails: run `metta iteration record --phase verify --change <name>` again, then spawn parallel metta-executors to fix, then re-verify
 

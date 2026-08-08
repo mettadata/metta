@@ -21,7 +21,7 @@ You are the **orchestrator** for the full Metta lifecycle. Spawn subagents for e
    Then run:
    `metta propose "<description>" --workflow <name> --json` (when flag present)
    `metta propose "<description>" --json` (when flag absent — standard workflow)
-   → creates change. The payload's `change_root` is the root of the checkout hosting the change — use it verbatim; never re-derive paths from the session cwd. Every artifact path below is anchored under `{change_root}`.
+   → creates change. The payload's `worktree` field is the root of the checkout hosting the change (when `worktree` is null, the main checkout root hosts the change) — treat that value as the change root `{change_root}` used throughout this skill. Later `metta instructions` payloads carry it directly as `change_root`. Use these values verbatim; never re-derive paths from the session cwd. Every artifact path below is anchored under `{change_root}`.
 
 2. **DISCOVERY GATE (mandatory):**
    Before writing ANY artifacts, YOU (the orchestrator) MUST ask discovery questions using AskUserQuestion.
@@ -67,12 +67,12 @@ You are the **orchestrator** for the full Metta lifecycle. Spawn subagents for e
    - Before spawning verifier agents, run: `metta iteration record --phase verify --change <name>`
    - Agent 1 (subagent_type: "metta-verifier"): "Run `npm test` — report pass/fail count and failures"
    - Agent 2 (subagent_type: "metta-verifier"): "Run `npx tsc --noEmit` and `npm run lint` — report errors"
-   - Agent 3 (subagent_type: "metta-verifier"): "Read spec.md, check each scenario has a passing test — cite evidence"
+   - Agent 3 (subagent_type: "metta-verifier"): "Read {change_root}/spec/changes/<change>/spec.md, check each scenario has a passing test — cite evidence"
    - Merge results into `{change_root}/spec/changes/<change>/summary.md` and commit with `git -C "{change_root}"`
    - If any gate fails: run `metta iteration record --phase verify --change <name>` again, then spawn parallel metta-executors to fix, then re-verify
 8. `metta complete verification --json --change <name>`
 9. `metta finalize --json --change <name>` → runs gates, archives, merges specs
-10. `git push -u origin metta/<change-name>` → push the feature branch to the remote
+10. `git -C "{change_root}" push -u origin metta/<change-name>` → push the feature branch to the remote
 11. `gh pr create --title "<conventional-commit-style title from the change>" --body "<summary from summary.md or intent.md highlights>"` → open a PR. The body MUST end with `🤖 Generated with [Claude Code](https://claude.com/claude-code)`
 12. `gh pr merge <pr-number> --merge` → land the PR immediately, unless the user asked to leave it open for review — in that case stop here and report the PR URL instead of merging
 13. Back on `main`: `git pull --ff-only`, then clean up the change branch and worktree
