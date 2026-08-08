@@ -567,6 +567,88 @@ Scenarios:
 - Assembly error degrades to a warning, finalize still succeeds
 - Degraded run reports the failure in output
 
+### Token Tracking Delta Scope Note
+
+Scenarios:
+- Delta merges into finalize-ship despite spanning adjacent surfaces
+
+### Token Usage Record Schema
+
+Scenarios:
+- Valid record passes strict validation
+- Invalid records are rejected strictly
+- Metadata without token_usage remains valid and artifact_tokens is untouched
+
+### Tokens Record CLI Command
+
+Scenarios:
+- Record appended against the single active change
+- Explicit change targeting with --change
+- Ambiguous or missing change fails typed with exit 4
+- Invalid tokens value writes nothing
+
+### Tokens Guard Hook Allowlist Entry
+
+Scenarios:
+- Skill-issued tokens record passes the guard
+- Hook copies stay byte-identical and syntactically valid
+- Other guard classifications are unchanged
+
+### Lifecycle Skill Token Recording Instruction
+
+Scenarios:
+- Each spawning skill carries the recording instruction
+- Template and deployed skill pairs are byte-identical
+- Recording instruction changes nothing about routing
+
+### Tokens Report Generation At Finalize
+
+Scenarios:
+- Successful finalize writes TOKENS.md before archive
+- Assembly is deterministic, template-driven, and AI-free
+- No token records still yields a report
+
+### Tokens Report Content
+
+Scenarios:
+- Full report sections render from recorded data
+- Missing records surface in GAPS
+- Complete coverage reports no gaps
+
+### Tokens Report Configuration Toggle
+
+Scenarios:
+- Disabled toggle skips the report cleanly
+- Omitted tokens key defaults to enabled
+- Invalid tokens config is rejected strictly
+
+### No Stray Tokens Report On Failed Finalize Paths
+
+Scenarios:
+- Gate failure leaves no TOKENS.md behind
+- Dry-run finalize writes no TOKENS.md
+- Incomplete artifacts and merge conflicts abort before report generation
+
+### Tokens Report Failure Degradation
+
+Scenarios:
+- Assembly error degrades to a warning, finalize still succeeds
+- Degraded run reports the failure in both output modes
+
+### Tokens Path In Finalize Output
+
+Scenarios:
+- JSON success payload carries the tokens path additively
+- Human output reports the tokens path
+- Disabled generation yields null path, no human line, and untouched error shapes
+
+### Progress Average Tokens Per Change By Tier
+
+Scenarios:
+- Tier-grouped averages render from recorded data
+- No-data tier is distinct from zero and null in JSON
+- Pre-feature archives aggregate gracefully
+
 ## fix-issues-command
 
 ### fix-issue-cli-command
