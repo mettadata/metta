@@ -55,3 +55,20 @@ before design (commit 3d52d4379).
   misattribute); such runs surface in TOKENS.md GAPS as hook coverage misses.
 - Totals definition: `input_tokens + output_tokens` only — cache components parsed and logged to
   stderr but excluded to avoid multi-counting re-served cached context.
+
+## Verification results (3 parallel verifiers, all PASS)
+
+- **Test suite**: `npm test` (vitest) — 103 files, 1859/1859 tests passed, 0 failures.
+- **Typecheck / lint / build**: `npx tsc --noEmit` PASS; `npm run lint` (tsc-based, no eslint configured) PASS; `npm run build` PASS.
+- **Spec coverage**: all 24 scenarios across the 8 spec-delta requirements have passing test
+  coverage or direct command verification (settings.json diff limited to the SubagentStop block;
+  hook pairs byte-identical and `node --check` clean; skill diffs limited to the one demoted
+  sentence per file). R1-S1 covered compositionally: hook test asserts exact CLI argv via PATH
+  shim; CLI persistence asserted in tokens-command tests.
+
+## Review results (3 parallel reviewers)
+
+Correctness PASS, Security PASS_WITH_WARNINGS (4 minor), Quality PASS_WITH_WARNINGS.
+No critical findings; review loop closed in 1 iteration. Actioned: tokens.ts doc comment
+(SubagentStop), redundant source coalesce. Deferred to follow-up: installer does not
+settings-register the recording hook in consumer projects (install.ts:355-358).
