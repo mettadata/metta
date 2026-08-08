@@ -16,11 +16,20 @@ artifact_timings:
   intent:
     started: 2026-08-08T06:16:40.671Z
     completed: 2026-08-08T06:23:56.553Z
+  implementation:
+    started: 2026-08-08T06:24:10.253Z
 artifact_tokens:
   intent:
     context: 759
     budget: 20000
+  implementation:
+    context: 0
+    budget: 10000
 worktree: /home/utx0/Code/metta/.metta/worktrees/enforce-pr-based-shipping-all-ship-paths-user-requires-every
+model_runs:
+  - task: implementation
+    model: sonnet
+    timestamp: 2026-08-08T06:24:10.253Z
 token_usage:
   - task: intent
     agent: metta-proposer
