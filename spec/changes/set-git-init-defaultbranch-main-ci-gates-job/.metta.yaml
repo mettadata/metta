@@ -1,0 +1,18 @@
+workflow: quick
+created: 2026-08-08T14:26:36.103Z
+status: active
+current_artifact: implementation
+base_versions: {}
+artifacts:
+  intent: complete
+  implementation: ready
+  verification: pending
+complexity_score:
+  score: 1
+  signals:
+    file_count: 3
+  recommended_workflow: quick
+artifact_timings:
+  intent:
+    completed: 2026-08-08T14:27:21.313Z
+worktree: /home/utx0/Code/metta/.metta/worktrees/set-git-init-defaultbranch-main-ci-gates-job
