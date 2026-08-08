@@ -2,7 +2,7 @@ import { Command } from 'commander'
 import { join } from 'node:path'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import { createCliContext, outputJson, agentBanner, getErrorMessage } from '../helpers.js'
+import { createCliContext, outputJson, agentBanner, getErrorMessage, resolveChangeRoot } from '../helpers.js'
 import { renderBanner } from '../../complexity/index.js'
 import { loadAgentDefinition, AgentResolutionError } from '../../agents/index.js'
 
@@ -62,8 +62,18 @@ export function registerInstructionsCommand(program: Command): void {
         // there is no silent fallback agent.
         const agent = await loadAgentDefinition(agentName, artifactId)
 
-        const changePath = join(ctx.projectRoot, 'spec', 'changes', changeName)
-        const specDir = join(ctx.projectRoot, 'spec')
+        // Change-scoped paths root at the checkout hosting the change: the
+        // worktree checkout for worktree-hosted changes (so root-invoked
+        // emission matches in-worktree invocation byte for byte), the project
+        // root otherwise. Only change-scoped paths re-root — workflow lookup
+        // (above) and config loading (below) stay anchored at the invoking
+        // checkout's projectRoot. Main-root config anchoring is deliberate:
+        // the invoking session's `.metta/config.yaml` governs model
+        // resolution and verification context regardless of where the
+        // change's files live.
+        const changeRoot = resolveChangeRoot(ctx.projectRoot, metadata)
+        const changePath = join(changeRoot, 'spec', 'changes', changeName)
+        const specDir = join(changeRoot, 'spec')
 
         // Single config load, reused by both model resolution and the
         // verification-context injection below.
@@ -184,12 +194,15 @@ export function registerInstructionsCommand(program: Command): void {
           if (cfg.git?.enabled !== false) {
             try {
               const mettaYamlPath = join('spec', 'changes', changeName, '.metta.yaml')
-              await execAsync('git', ['add', mettaYamlPath], { cwd: ctx.projectRoot })
-              await execAsync('git', ['diff', '--cached', '--quiet', '--', mettaYamlPath], { cwd: ctx.projectRoot }).catch(async () => {
+              // The commit targets the checkout hosting the change — the
+              // worktree branch for worktree-hosted changes — never the main
+              // checkout's index when invoked from the main root.
+              await execAsync('git', ['add', mettaYamlPath], { cwd: changeRoot })
+              await execAsync('git', ['diff', '--cached', '--quiet', '--', mettaYamlPath], { cwd: changeRoot }).catch(async () => {
                 await execAsync(
                   'git',
                   ['commit', '-m', `chore(${changeName}): record instruction emission`, '--', mettaYamlPath],
-                  { cwd: ctx.projectRoot },
+                  { cwd: changeRoot },
                 )
               })
             } catch {

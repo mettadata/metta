@@ -1,0 +1,41 @@
+workflow: quick
+created: 2026-08-08T09:29:27.130Z
+status: active
+current_artifact: verification
+base_versions: {}
+artifacts:
+  intent: complete
+  implementation: complete
+  verification: complete
+complexity_score:
+  score: 1
+  signals:
+    file_count: 2
+  recommended_workflow: quick
+artifact_timings:
+  intent:
+    started: 2026-08-08T09:29:34.595Z
+    completed: 2026-08-08T09:31:12.610Z
+  implementation:
+    started: 2026-08-08T09:31:29.205Z
+    completed: 2026-08-08T09:44:26.334Z
+  verification:
+    started: 2026-08-08T10:11:24.265Z
+    completed: 2026-08-08T10:16:57.697Z
+artifact_tokens:
+  intent:
+    context: 759
+    budget: 20000
+  implementation:
+    context: 0
+    budget: 10000
+  verification:
+    context: 0
+    budget: 50000
+review_iterations: 3
+verify_iterations: 1
+worktree: /home/utx0/Code/metta/.metta/worktrees/fix-root-invoked-instructions-context-complete-emit-main
+model_runs:
+  - task: implementation
+    model: sonnet
+    timestamp: 2026-08-08T09:31:29.206Z

@@ -1,4 +1,4 @@
-import { dirname, join, relative, resolve } from 'node:path'
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { existsSync } from 'node:fs'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
@@ -19,6 +19,7 @@ import { SpecLockManager } from '../specs/spec-lock-manager.js'
 import { TemplateEngine } from '../templates/template-engine.js'
 import { InstructionGenerator } from '../context/instruction-generator.js'
 import { StateStore } from '../state/state-store.js'
+import type { ChangeMetadata } from '../schemas/change-metadata.js'
 import type { Command } from 'commander'
 
 export interface CliContext {
@@ -59,6 +60,42 @@ export function resolveProjectRoot(cwd: string = process.cwd()): string {
     if (parent === dir) return start
     dir = parent
   }
+}
+
+/**
+ * Resolve the checkout root that hosts a change's files. When the change's
+ * discovery metadata carries a hosting `worktree` path (injected transiently
+ * by `ArtifactStore.getChange()` for changes living under
+ * `<root>/.metta/worktrees/<name>/`), all change-scoped paths — artifact
+ * files, the change's `spec/` tree, and git side-effect targets — must root
+ * at that checkout; otherwise they root at the project root. Pure given the
+ * metadata (functional core) — callers perform the store lookup at the
+ * command edge. Invoked from inside a worktree, the metadata carries no
+ * injected host (discovery is local), so the result is the worktree's own
+ * project root and in-worktree behavior is unchanged.
+ *
+ * Containment guarantee: the `worktree` value is persisted in a git-tracked
+ * `.metta.yaml` and therefore untrusted. It is resolved against
+ * `projectRoot` (never `process.cwd()`), so a relative persisted value
+ * yields the same result regardless of the invocation directory. The
+ * resolved value is only honored
+ * when it is strictly contained under `<projectRoot>/.metta/worktrees/`
+ * (checked via `path.relative`, never string prefixing); anything else —
+ * an absolute path elsewhere, a `..` escape, or the worktrees dir itself —
+ * silently falls back to `projectRoot`, matching the absent-metadata default.
+ * This bounds every change-scoped path and git side-effect cwd to the
+ * project's own worktree area. Still pure: path math only, no fs I/O.
+ */
+export function resolveChangeRoot(
+  projectRoot: string,
+  metadata: Pick<ChangeMetadata, 'worktree'>,
+): string {
+  if (metadata.worktree === undefined) return projectRoot
+  const worktreesDir = resolve(projectRoot, DEFAULT_WORKTREE_DIR)
+  const candidate = resolve(projectRoot, metadata.worktree)
+  const rel = relative(worktreesDir, candidate)
+  if (rel === '' || rel.startsWith('..') || isAbsolute(rel)) return projectRoot
+  return candidate
 }
 
 export function createCliContext(projectRoot?: string): CliContext {

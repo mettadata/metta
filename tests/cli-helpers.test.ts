@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest'
-import { askYesNo, outputJson, resolveProjectRoot } from '../src/cli/helpers.js'
+import { askYesNo, outputJson, resolveChangeRoot, resolveProjectRoot } from '../src/cli/helpers.js'
 import { mkdtemp, rm, mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -109,6 +109,57 @@ describe('outputJson', () => {
     }
     outputJson(payload)
     expect(printed()).toBe(JSON.stringify(payload, null, 2))
+  })
+})
+
+describe('resolveChangeRoot', () => {
+  it('returns the hosting worktree checkout root when metadata carries one', () => {
+    const worktree = join('/repo', '.metta', 'worktrees', 'demo')
+    expect(resolveChangeRoot('/repo', { worktree })).toBe(worktree)
+  })
+
+  it('falls back to the project root for non-worktree changes', () => {
+    expect(resolveChangeRoot('/repo', {})).toBe('/repo')
+    expect(resolveChangeRoot('/repo', { worktree: undefined })).toBe('/repo')
+  })
+
+  it('is pure given the metadata — no filesystem existence requirement', () => {
+    // The paths involved do not exist; the helper only maps metadata → root.
+    const worktree = join('/nonexistent', '.metta', 'worktrees', 'ghost')
+    expect(resolveChangeRoot('/nonexistent', { worktree })).toBe(worktree)
+  })
+
+  it('accepts a valid .metta/worktrees/<name> path under the project root', () => {
+    const worktree = join('/repo', '.metta', 'worktrees', 'my-change')
+    expect(resolveChangeRoot('/repo', { worktree })).toBe(worktree)
+  })
+
+  it('rejects an absolute worktree path outside the project (falls back to projectRoot)', () => {
+    expect(resolveChangeRoot('/repo', { worktree: '/elsewhere/evil' })).toBe('/repo')
+    expect(resolveChangeRoot('/repo', { worktree: '/repo/other-dir' })).toBe('/repo')
+  })
+
+  it('rejects a ..-relative escape out of the worktrees dir (falls back to projectRoot)', () => {
+    const worktree = join('/repo', '.metta', 'worktrees', '..', '..', 'escape')
+    expect(resolveChangeRoot('/repo', { worktree })).toBe('/repo')
+    expect(
+      resolveChangeRoot('/repo', { worktree: '/repo/.metta/worktrees/../../../etc' }),
+    ).toBe('/repo')
+  })
+
+  it('resolves a relative worktree value against projectRoot, independent of cwd', () => {
+    // A relative persisted value like `.metta/worktrees/foo` must resolve
+    // deterministically against the project root — never process.cwd().
+    expect(resolveChangeRoot('/repo', { worktree: join('.metta', 'worktrees', 'foo') })).toBe(
+      join('/repo', '.metta', 'worktrees', 'foo'),
+    )
+    // A relative escape falls back to projectRoot like any other escape.
+    expect(resolveChangeRoot('/repo', { worktree: join('..', 'outside') })).toBe('/repo')
+  })
+
+  it('rejects the worktrees dir itself — only strict children qualify', () => {
+    const worktreesDir = join('/repo', '.metta', 'worktrees')
+    expect(resolveChangeRoot('/repo', { worktree: worktreesDir })).toBe('/repo')
   })
 })
 
