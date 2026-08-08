@@ -29,6 +29,13 @@ export interface FinalizeResult {
   uatPath: string | null
   /** Set only when UAT generation failed and finalize degraded. */
   uatError?: string
+  /**
+   * Post-archive path to the generated TOKENS.md; null when generation was
+   * disabled, skipped (dry-run / abort paths / no projectRoot), or degraded.
+   */
+  tokensPath: string | null
+  /** Set only when tokens-report generation failed and finalize degraded. */
+  tokensError?: string
 }
 
 export class Finalizer {
@@ -84,6 +91,7 @@ export class Finalizer {
         refreshed: false,
         incompleteArtifacts,
         uatPath: null,
+        tokensPath: null,
       }
     }
 
@@ -102,6 +110,7 @@ export class Finalizer {
         docsGenerated: [],
         refreshed: false,
         uatPath: null,
+        tokensPath: null,
       }
     }
 
@@ -127,6 +136,7 @@ export class Finalizer {
           docsGenerated: [],
           refreshed: false,
           uatPath: null,
+          tokensPath: null,
         }
       }
     }
@@ -143,6 +153,7 @@ export class Finalizer {
         docsGenerated: [],
         refreshed: false,
         uatPath: null,
+        tokensPath: null,
       }
     }
 
@@ -159,6 +170,7 @@ export class Finalizer {
         docsGenerated: [],
         refreshed: false,
         uatPath: null,
+        tokensPath: null,
       }
     }
 
@@ -192,9 +204,38 @@ export class Finalizer {
       }
     }
 
+    // Step 5c: Generate TOKENS.md (pre-archive so the move sweeps it in)
+    let tokensGenerated = false
+    let tokensError: string | undefined
+    if (this.projectRoot) {
+      try {
+        const { ConfigLoader } = await import('../config/config-loader.js')
+        configLoader ??= new ConfigLoader(this.projectRoot)
+        const config = await configLoader.load()
+        if (config.tokens.enabled) {
+          const { generateTokensReport } = await import('./tokens-report-generator.js')
+          const tokensResult = await generateTokensReport({
+            changeName,
+            generatedAt: new Date().toISOString().slice(0, 10),
+            tokenUsage: metadata.token_usage ?? [],
+            artifactTimings: metadata.artifact_timings ?? {},
+          })
+          await this.artifactStore.writeArtifact(changeName, 'TOKENS.md', tokensResult.markdown)
+          tokensGenerated = true
+        }
+      } catch (err) {
+        tokensError = getErrorMessage(err) // warn-and-continue; finalize proceeds
+        // Best-effort cleanup of a partially written TOKENS.md so a truncated
+        // file is never swept into the archive.
+        const { rm } = await import('node:fs/promises')
+        await rm(join(this.specDir, 'changes', changeName, 'TOKENS.md'), { force: true }).catch(() => {})
+      }
+    }
+
     // Step 6: Archive the change
     const archiveName = await this.artifactStore.archive(changeName)
     const uatPath = uatGenerated ? join(this.specDir, 'archive', archiveName, 'UAT.md') : null
+    const tokensPath = tokensGenerated ? join(this.specDir, 'archive', archiveName, 'TOKENS.md') : null
 
     // Step 6b: Write gate results to archive
     if (gates.length > 0) {
@@ -247,6 +288,8 @@ export class Finalizer {
       refreshed,
       uatPath,
       ...(uatError ? { uatError } : {}),
+      tokensPath,
+      ...(tokensError ? { tokensError } : {}),
     }
   }
 }

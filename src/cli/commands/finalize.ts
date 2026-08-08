@@ -145,6 +145,8 @@ export function registerFinalizeCommand(program: Command): void {
             merged: result.specMerge.merged,
             uatPath: result.uatPath,
             ...(result.uatError ? { uatWarning: result.uatError } : {}),
+            tokensPath: result.tokensPath,
+            ...(result.tokensError ? { tokensWarning: result.tokensError } : {}),
           })
         } else {
           if (options.dryRun) {
@@ -171,6 +173,8 @@ export function registerFinalizeCommand(program: Command): void {
             console.log(`  Specs merged: ${result.specMerge.merged.join(', ') || 'none'}`)
             if (result.uatPath) console.log(`  UAT script: ${result.uatPath}`)
             if (result.uatError) console.error(color(`Warning: UAT generation failed: ${result.uatError}`, 33))
+            if (result.tokensPath) console.log(`  Tokens report: ${result.tokensPath}`)
+            if (result.tokensError) console.error(color(`Warning: tokens report generation failed: ${result.tokensError}`, 33))
             console.log(`\nNext: merge branch to main or run metta ship`)
           }
         }
