@@ -19,6 +19,8 @@ artifact_timings:
   implementation:
     started: 2026-08-08T13:18:41.084Z
     completed: 2026-08-08T13:25:47.850Z
+  verification:
+    started: 2026-08-08T13:32:25.007Z
 artifact_tokens:
   intent:
     context: 759
@@ -26,6 +28,11 @@ artifact_tokens:
   implementation:
     context: 0
     budget: 10000
+  verification:
+    context: 292
+    budget: 50000
+review_iterations: 1
+verify_iterations: 1
 worktree: /home/utx0/Code/metta/.metta/worktrees/fix-set-up-github-ci-metta-repo-no-ci-currently-exists
 model_runs:
   - task: implementation
