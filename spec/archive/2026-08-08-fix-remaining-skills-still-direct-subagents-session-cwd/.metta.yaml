@@ -1,0 +1,88 @@
+workflow: quick
+created: 2026-08-08T11:31:25.787Z
+status: active
+current_artifact: verification
+base_versions: {}
+artifacts:
+  intent: complete
+  implementation: complete
+  verification: complete
+complexity_score:
+  score: 1
+  signals:
+    file_count: 3
+  recommended_workflow: quick
+artifact_timings:
+  intent:
+    started: 2026-08-08T11:31:38.718Z
+    completed: 2026-08-08T11:33:10.269Z
+  implementation:
+    started: 2026-08-08T11:33:21.063Z
+    completed: 2026-08-08T11:43:35.536Z
+  verification:
+    completed: 2026-08-08T11:55:27.590Z
+artifact_tokens:
+  intent:
+    context: 759
+    budget: 20000
+  implementation:
+    context: 0
+    budget: 10000
+review_iterations: 1
+verify_iterations: 1
+worktree: /home/utx0/Code/metta/.metta/worktrees/fix-remaining-skills-still-direct-subagents-session-cwd
+model_runs:
+  - task: implementation
+    model: sonnet
+    timestamp: 2026-08-08T11:33:21.064Z
+token_usage:
+  - task: implementation-fix-issues-fix-gap
+    agent: metta-executor
+    model: sonnet
+    tokens: 39823
+    timestamp: 2026-08-08T11:36:39.112Z
+  - task: implementation-quick-auto
+    agent: metta-executor
+    model: sonnet
+    tokens: 45345
+    timestamp: 2026-08-08T11:36:49.953Z
+  - task: implementation-execute-uat
+    agent: metta-executor
+    model: sonnet
+    tokens: 43774
+    timestamp: 2026-08-08T11:37:29.542Z
+  - task: review-security
+    agent: metta-reviewer
+    model: inherit
+    tokens: 39365
+    timestamp: 2026-08-08T11:45:41.926Z
+  - task: review-quality
+    agent: metta-reviewer
+    model: inherit
+    tokens: 61435
+    timestamp: 2026-08-08T11:46:29.701Z
+  - task: review-correctness
+    agent: metta-reviewer
+    model: inherit
+    tokens: 56046
+    timestamp: 2026-08-08T11:47:07.260Z
+  - task: review-fixes
+    agent: metta-executor
+    model: sonnet
+    tokens: 50018
+    timestamp: 2026-08-08T11:49:43.183Z
+  - task: verify-typecheck-lint-build
+    agent: metta-verifier
+    model: inherit
+    tokens: 12541
+    timestamp: 2026-08-08T11:51:12.289Z
+  - task: verify-intent-coverage
+    agent: metta-verifier
+    model: inherit
+    tokens: 36081
+    timestamp: 2026-08-08T11:52:05.240Z
+  - task: verify-tests
+    agent: metta-verifier
+    model: inherit
+    tokens: 14773
+    timestamp: 2026-08-08T11:55:27.006Z
