@@ -27,5 +27,6 @@ Automatically advance to whatever's next in the metta workflow.
 - Let the CLI drive — `metta next` tells you what to do
 - MUST call `metta complete` for each artifact
 - Commit ownership: the orchestrator commits planning, review, and verification artifacts after each subagent returns. The executor subagent commits atomically per task during implementation. Planning-artifact subagents (proposer, researcher, architect, planner, product) write files only — they do not run git.
+- After each subagent returns, record its reported token usage: `metta tokens record --task <artifact-or-task-id> --agent <subagent-type> --model <alias> --tokens <count> --change <name>` — `--task` is the artifact or task id it worked, `--agent` is the `subagent_type` you spawned, `--model` is the model alias you passed to `Agent(...)` (use `inherit` when you omitted the `model` parameter), and `--tokens` is the token count from its completion report. This applies to every spawn — planner, executor, reviewer, and verifier alike.
 - If `metta next` says "finalize", run `/metta:ship` to finalize and merge
 - If `metta next` says "ship", run `/metta:ship` (or the returned command) to merge the branch to main

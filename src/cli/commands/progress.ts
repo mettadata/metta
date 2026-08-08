@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { createCliContext, outputJson, color, agentBanner, getErrorMessage } from '../helpers.js'
 import { formatDuration } from '../../util/duration.js'
 import { getGitLogTimings } from '../../util/git-log-timings.js'
-import { getCeremonyCommitRatio, getArtifactsPerSmallChange, getModelEscalationRate, getLatestTag } from '../../util/ceremony-metrics.js'
+import { getCeremonyCommitRatio, getArtifactsPerSmallChange, getModelEscalationRate, getAvgTokensPerChangeByTier, getLatestTag } from '../../util/ceremony-metrics.js'
 import type { ArtifactTiming, ArtifactTokens } from '../../schemas/change-metadata.js'
 
 export function registerProgressCommand(program: Command): void {
@@ -43,6 +43,12 @@ export function registerProgressCommand(program: Command): void {
         // Measures only STOP/verify-FAIL-driven model escalations recorded
         // via `metta model-escalation record`.
         const modelEscalationRate = await getModelEscalationRate(
+          join(ctx.projectRoot, 'spec'),
+          ctx.artifactStore,
+        )
+        // Per-tier average token spend across active + archived changes.
+        // Tiers with no reported `token_usage` are null, never 0.
+        const avgTokensByTier = await getAvgTokensPerChangeByTier(
           join(ctx.projectRoot, 'spec'),
           ctx.artifactStore,
         )
@@ -117,6 +123,7 @@ export function registerProgressCommand(program: Command): void {
             ceremony_commit_ratio_windowed: ceremonyRatioWindowed,
             artifacts_per_small_change: artifactsPerSmall,
             model_escalation_rate: modelEscalationRate,
+            avg_tokens_per_change_by_tier: avgTokensByTier,
           })
           return
         }
@@ -222,6 +229,13 @@ export function registerProgressCommand(program: Command): void {
         } else {
           console.log('  Model escalation rate: no data')
         }
+        // Per-tier token averages — explicit no-data wording per tier,
+        // rendered in fixed tier order.
+        const tierParts = (['trivial', 'quick', 'standard', 'full'] as const).map((tier) => {
+          const avg = avgTokensByTier[tier]
+          return avg !== null ? `${tier} ${formatThousandsK(avg.mean)}` : `${tier} no data`
+        })
+        console.log(`  Avg tokens per change: ${tierParts.join(' · ')}`)
 
       } catch (err) {
         const message = getErrorMessage(err)

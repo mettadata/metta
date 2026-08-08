@@ -608,4 +608,311 @@ The system MUST conflict on this delta.
       expect(archived).not.toContain('UAT.md')
     })
   })
+
+  describe('tokens report generation (Step 5c)', () => {
+    let projectRoot: string
+    let scopedSpecDir: string
+    let scopedArtifactStore: ArtifactStore
+    let scopedLockManager: SpecLockManager
+    let scopedFinalizer: Finalizer
+
+    beforeEach(async () => {
+      projectRoot = await mkdtemp(join(tmpdir(), 'metta-final-tokens-'))
+      scopedSpecDir = join(projectRoot, 'spec')
+      await mkdir(join(scopedSpecDir, 'specs'), { recursive: true })
+      await mkdir(join(scopedSpecDir, 'archive'), { recursive: true })
+      await mkdir(join(projectRoot, '.metta'), { recursive: true })
+      scopedArtifactStore = new ArtifactStore(scopedSpecDir)
+      scopedLockManager = new SpecLockManager(scopedSpecDir)
+      scopedFinalizer = new Finalizer(
+        scopedSpecDir,
+        scopedArtifactStore,
+        scopedLockManager,
+        undefined,
+        projectRoot,
+      )
+    })
+
+    afterEach(async () => {
+      vi.restoreAllMocks()
+      await rm(projectRoot, { recursive: true, force: true })
+    })
+
+    // docs.generate_on: manual keeps DocGenerator out of these tests so Step 7
+    // never interferes with the Step 5c assertions.
+    async function writeConfig(extra: string = ''): Promise<void> {
+      await writeFile(
+        join(projectRoot, '.metta', 'config.yaml'),
+        `project:\n  name: x\ndocs:\n  generate_on: manual\n${extra}`,
+      )
+    }
+
+    async function createCompleteChange(description: string, name: string): Promise<void> {
+      await scopedArtifactStore.createChange(description, 'quick', ['intent', 'implementation', 'verification'])
+      await markAllComplete(scopedArtifactStore, name, ['intent', 'implementation', 'verification'])
+    }
+
+    // Seed orchestrator-reported usage/timing fields directly into the
+    // change's .metta.yaml, the same file the CLI records them in.
+    async function seedMetadata(name: string, extra: Record<string, unknown>): Promise<void> {
+      const YAML = (await import('yaml')).default
+      const path = join(scopedSpecDir, 'changes', name, '.metta.yaml')
+      const doc = YAML.parse(await readFile(path, 'utf-8')) as Record<string, unknown>
+      Object.assign(doc, extra)
+      await writeFile(path, YAML.stringify(doc))
+    }
+
+    const usageRecord = {
+      task: 'implementation',
+      agent: 'metta-executor',
+      model: 'sonnet',
+      tokens: 1234,
+      timestamp: '2026-08-08T00:00:00.000Z',
+    }
+
+    /** Reject rendering of one template only; every other template renders for real. */
+    function breakTemplate(templateName: string, message: string): void {
+      const realRender = TemplateEngine.prototype.render
+      vi.spyOn(TemplateEngine.prototype, 'render').mockImplementation(function (
+        this: TemplateEngine,
+        ...args: Parameters<typeof realRender>
+      ) {
+        if (args[0] === templateName) return Promise.reject(new Error(message))
+        return realRender.apply(this, args)
+      })
+    }
+
+    it('writes TOKENS.md pre-archive so the sweep carries it in beside UAT.md', async () => {
+      await writeConfig() // tokens omitted → enabled by schema default
+
+      await createCompleteChange('tokens success test', 'tokens-success-test')
+      await seedMetadata('tokens-success-test', {
+        token_usage: [usageRecord],
+        artifact_timings: { implementation: { started: '2026-08-08T00:00:00.000Z' } },
+      })
+      const result = await scopedFinalizer.finalize('tokens-success-test')
+
+      expect(result.archiveName).toMatch(/^\d{4}-\d{2}-\d{2}-tokens-success-test$/)
+      expect(result.tokensPath).toBe(join(scopedSpecDir, 'archive', result.archiveName, 'TOKENS.md'))
+      expect(result.tokensError).toBeUndefined()
+
+      const archived = await readdir(join(scopedSpecDir, 'archive', result.archiveName))
+      expect(archived).toContain('TOKENS.md')
+      expect(archived).toContain('UAT.md')
+
+      const content = await readFile(result.tokensPath!, 'utf-8')
+      expect(content).toContain('# Token usage: tokens-success-test')
+      expect(content).toContain('**~1,234 tokens** across 1 record(s).')
+      expect(content).toContain('No gaps found.')
+
+      // Nothing left behind under spec/changes/ (the move took the whole dir).
+      const remaining = await readdir(join(scopedSpecDir, 'changes')).catch(() => [] as string[])
+      expect(remaining).not.toContain('tokens-success-test')
+    })
+
+    it('absent token_usage still produces a report listing every timed artifact as a gap', async () => {
+      await writeConfig()
+
+      await createCompleteChange('tokens empty test', 'tokens-empty-test')
+      await seedMetadata('tokens-empty-test', {
+        artifact_timings: {
+          intent: { started: '2026-08-08T00:00:00.000Z' },
+          implementation: { started: '2026-08-08T00:01:00.000Z' },
+        },
+      })
+      const result = await scopedFinalizer.finalize('tokens-empty-test')
+
+      expect(result.tokensPath).toBe(join(scopedSpecDir, 'archive', result.archiveName, 'TOKENS.md'))
+      expect(result.tokensError).toBeUndefined()
+
+      const content = await readFile(result.tokensPath!, 'utf-8')
+      expect(content).toContain('**~0 tokens** across 0 record(s).')
+      expect(content).toContain('_No token usage recorded._')
+      expect(content).toContain('- `implementation` — timed artifact with no reported token usage')
+      expect(content).toContain('- `intent` — timed artifact with no reported token usage')
+    })
+
+    it('skips generation when tokens.enabled is false while UAT proceeds', async () => {
+      await writeConfig('tokens:\n  enabled: false\n')
+
+      await createCompleteChange('tokens disabled test', 'tokens-disabled-test')
+      const result = await scopedFinalizer.finalize('tokens-disabled-test')
+
+      expect(result.archiveName).toMatch(/^\d{4}-\d{2}-\d{2}-tokens-disabled-test$/)
+      expect(result.tokensPath).toBeNull()
+      expect(result.tokensError).toBeUndefined()
+      // UAT is independent of the tokens toggle.
+      expect(result.uatPath).toBe(join(scopedSpecDir, 'archive', result.archiveName, 'UAT.md'))
+
+      const archived = await readdir(join(scopedSpecDir, 'archive', result.archiveName))
+      expect(archived).not.toContain('TOKENS.md')
+      expect(archived).toContain('UAT.md')
+    })
+
+    it('returns tokensPath null and writes no TOKENS.md when constructed without a projectRoot', async () => {
+      await artifactStore.createChange('tokens no root', 'quick', ['intent'])
+      await markAllComplete(artifactStore, 'tokens-no-root', ['intent'])
+
+      const result = await finalizer.finalize('tokens-no-root')
+
+      expect(result.tokensPath).toBeNull()
+      expect(result.tokensError).toBeUndefined()
+      const archived = await readdir(join(specDir, 'archive', result.archiveName))
+      expect(archived).not.toContain('TOKENS.md')
+    })
+
+    it('degrades when the tokens template fails: finalize succeeds, tokensError set, UAT unaffected', async () => {
+      await writeConfig()
+      breakTemplate('tokens.md', 'synthetic tokens template failure')
+
+      await createCompleteChange('tokens degraded test', 'tokens-degraded-test')
+      const result = await scopedFinalizer.finalize('tokens-degraded-test')
+
+      // Degradation never converts success to failure.
+      expect(result.archiveName).toMatch(/^\d{4}-\d{2}-\d{2}-tokens-degraded-test$/)
+      expect(result.tokensPath).toBeNull()
+      expect(result.tokensError).toContain('synthetic tokens template failure')
+      // UAT generation is independent of tokens degradation.
+      expect(result.uatPath).toBe(join(scopedSpecDir, 'archive', result.archiveName, 'UAT.md'))
+      expect(result.uatError).toBeUndefined()
+
+      const archived = await readdir(join(scopedSpecDir, 'archive', result.archiveName))
+      expect(archived).not.toContain('TOKENS.md')
+      expect(archived).toContain('UAT.md')
+    })
+
+    it('removes a partially written TOKENS.md so it is never swept into the archive', async () => {
+      await writeConfig()
+
+      const realWrite = ArtifactStore.prototype.writeArtifact
+      vi.spyOn(ArtifactStore.prototype, 'writeArtifact').mockImplementation(async function (
+        this: ArtifactStore,
+        ...args: Parameters<typeof realWrite>
+      ) {
+        if (args[1] === 'TOKENS.md') {
+          await realWrite.call(this, args[0], 'TOKENS.md', '# partial')
+          throw new Error('synthetic tokens write failure')
+        }
+        return realWrite.apply(this, args)
+      })
+
+      await createCompleteChange('tokens partial test', 'tokens-partial-test')
+      const result = await scopedFinalizer.finalize('tokens-partial-test')
+
+      expect(result.archiveName).toMatch(/^\d{4}-\d{2}-\d{2}-tokens-partial-test$/)
+      expect(result.tokensPath).toBeNull()
+      expect(result.tokensError).toContain('synthetic tokens write failure')
+
+      const archived = await readdir(join(scopedSpecDir, 'archive', result.archiveName))
+      expect(archived).not.toContain('TOKENS.md')
+    })
+
+    it('UAT failure leaves tokens generation unaffected (independence both ways)', async () => {
+      await writeConfig()
+      breakTemplate('uat.md', 'synthetic uat template failure')
+
+      await createCompleteChange('tokens uat degraded test', 'tokens-uat-degraded-test')
+      await seedMetadata('tokens-uat-degraded-test', { token_usage: [usageRecord] })
+      const result = await scopedFinalizer.finalize('tokens-uat-degraded-test')
+
+      expect(result.uatPath).toBeNull()
+      expect(result.uatError).toContain('synthetic uat template failure')
+      expect(result.tokensPath).toBe(join(scopedSpecDir, 'archive', result.archiveName, 'TOKENS.md'))
+      expect(result.tokensError).toBeUndefined()
+
+      const archived = await readdir(join(scopedSpecDir, 'archive', result.archiveName))
+      expect(archived).toContain('TOKENS.md')
+      expect(archived).not.toContain('UAT.md')
+    })
+
+    it('dry-run returns tokensPath null and writes no TOKENS.md', async () => {
+      await writeConfig()
+
+      await createCompleteChange('tokens dry run test', 'tokens-dry-run-test')
+      const result = await scopedFinalizer.finalize('tokens-dry-run-test', true)
+
+      expect(result.archiveName).toBe('(dry-run)')
+      expect(result.tokensPath).toBeNull()
+      expect(result.tokensError).toBeUndefined()
+
+      const changeFiles = await readdir(join(scopedSpecDir, 'changes', 'tokens-dry-run-test'))
+      expect(changeFiles).not.toContain('TOKENS.md')
+    })
+
+    it('incomplete-artifacts abort returns tokensPath null and leaves no stray TOKENS.md', async () => {
+      await writeConfig()
+
+      await scopedArtifactStore.createChange('tokens incomplete test', 'quick', ['intent', 'implementation'])
+      await scopedArtifactStore.markArtifact('tokens-incomplete-test', 'intent', 'complete')
+      // 'implementation' deliberately left incomplete.
+
+      const result = await scopedFinalizer.finalize('tokens-incomplete-test')
+
+      expect(result.incompleteArtifacts).toBeDefined()
+      expect(result.tokensPath).toBeNull()
+      expect(result.tokensError).toBeUndefined()
+
+      const changeFiles = await readdir(join(scopedSpecDir, 'changes', 'tokens-incomplete-test'))
+      expect(changeFiles).not.toContain('TOKENS.md')
+    })
+
+    it('merge-conflict abort returns tokensPath null and leaves no stray TOKENS.md', async () => {
+      await writeConfig()
+
+      await createCompleteChange('tokens conflict test', 'tokens-conflict-test')
+      // MODIFIED targeting a capability that does not exist → dry-run merge conflict.
+      const deltaContent = `# missingcap (Delta)
+
+## MODIFIED: Requirement: Nonexistent Behavior
+
+The system MUST conflict on this delta.
+
+### Scenario: Conflicted
+- GIVEN a missing capability
+- WHEN finalize runs
+- THEN the merge conflicts
+`
+      await writeFile(join(scopedSpecDir, 'changes', 'tokens-conflict-test', 'spec.md'), deltaContent)
+
+      const result = await scopedFinalizer.finalize('tokens-conflict-test')
+
+      expect(result.specMerge.status).toBe('conflict')
+      expect(result.tokensPath).toBeNull()
+      expect(result.tokensError).toBeUndefined()
+
+      const changeFiles = await readdir(join(scopedSpecDir, 'changes', 'tokens-conflict-test'))
+      expect(changeFiles).not.toContain('TOKENS.md')
+    })
+
+    it('gate-failure abort returns tokensPath null and leaves no stray TOKENS.md', async () => {
+      await writeConfig()
+
+      const failingRegistry = new GateRegistry()
+      failingRegistry.register({
+        name: 'tests',
+        description: 'always-failing gate',
+        command: 'false',
+        timeout: 5000,
+        required: true,
+        on_failure: 'stop',
+      })
+      const gatedFinalizer = new Finalizer(
+        scopedSpecDir,
+        scopedArtifactStore,
+        scopedLockManager,
+        failingRegistry,
+        projectRoot,
+      )
+
+      await createCompleteChange('tokens gate fail test', 'tokens-gate-fail-test')
+      const result = await gatedFinalizer.finalize('tokens-gate-fail-test')
+
+      expect(result.gatesPassed).toBe(false)
+      expect(result.tokensPath).toBeNull()
+      expect(result.tokensError).toBeUndefined()
+
+      const changeFiles = await readdir(join(scopedSpecDir, 'changes', 'tokens-gate-fail-test'))
+      expect(changeFiles).not.toContain('TOKENS.md')
+    })
+  })
 })

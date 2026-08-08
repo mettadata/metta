@@ -186,3 +186,87 @@ export async function getModelEscalationRate(
   if (total === 0) return null
   return { escalated, total, rate: escalated / total }
 }
+
+/** The fixed workflow tiers the token-usage metric groups by. */
+export type WorkflowTier = 'trivial' | 'quick' | 'standard' | 'full'
+
+const WORKFLOW_TIERS: readonly WorkflowTier[] = ['trivial', 'quick', 'standard', 'full']
+
+function isWorkflowTier(workflow: string): workflow is WorkflowTier {
+  return (WORKFLOW_TIERS as readonly string[]).includes(workflow)
+}
+
+/**
+ * Average reported token consumption per change, grouped by workflow tier,
+ * across all active and archived changes.
+ *
+ * Per-change total = sum of `token_usage[].tokens`. Reporting is opt-in and
+ * best-effort, so changes with an absent `token_usage` field AND changes with
+ * a present-but-empty array are excluded from the sample entirely — they are
+ * never counted as `0`, which would drag the mean toward zero.
+ *
+ * Always resolves; never throws. The returned record always carries all four
+ * tier keys; a tier with no sampled changes maps to `null` (the explicit
+ * no-data case). Changes whose `workflow` is outside the four fixed tiers are
+ * ignored. Archive entries with a missing or schema-invalid `.metta.yaml`
+ * are skipped rather than throwing.
+ */
+export async function getAvgTokensPerChangeByTier(
+  specDir: string,
+  artifactStore: ArtifactStore,
+): Promise<Record<WorkflowTier, { mean: number; sample_size: number } | null>> {
+  const totalsByTier: Record<WorkflowTier, number[]> = {
+    trivial: [],
+    quick: [],
+    standard: [],
+    full: [],
+  }
+
+  const collect = (metadata: { workflow: string; token_usage?: { tokens: number }[] }): void => {
+    if (!isWorkflowTier(metadata.workflow)) return
+    const usage = metadata.token_usage
+    if (!usage || usage.length === 0) return
+    totalsByTier[metadata.workflow].push(usage.reduce((sum, record) => sum + record.tokens, 0))
+  }
+
+  // Active changes.
+  let changeNames: string[] = []
+  try {
+    changeNames = await artifactStore.listChanges()
+  } catch {
+    // No active-changes directory — treat as zero active changes.
+  }
+  for (const name of changeNames) {
+    try {
+      collect(await artifactStore.getChange(name))
+    } catch {
+      // Skip changes with a missing or schema-invalid .metta.yaml.
+    }
+  }
+
+  // Archived changes.
+  let entries: Dirent[]
+  try {
+    entries = await readdir(join(specDir, 'archive'), { withFileTypes: true })
+  } catch {
+    entries = []
+  }
+  const state = new StateStore(specDir)
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue
+    try {
+      collect(await state.read(join('archive', entry.name, '.metta.yaml'), ChangeMetadataSchema))
+    } catch {
+      // Skip archive entries with a missing or schema-invalid .metta.yaml.
+    }
+  }
+
+  const result = {} as Record<WorkflowTier, { mean: number; sample_size: number } | null>
+  for (const tier of WORKFLOW_TIERS) {
+    const totals = totalsByTier[tier]
+    result[tier] = totals.length === 0
+      ? null
+      : { mean: totals.reduce((a, b) => a + b, 0) / totals.length, sample_size: totals.length }
+  }
+  return result
+}

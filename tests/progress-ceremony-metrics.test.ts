@@ -4,20 +4,25 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { runCli, execAsync } from './helpers/cli.js'
 
-async function writeArchiveMetadata(
-  tempDir: string,
-  entryName: string,
+interface MetadataOpts {
+  modelRuns?: number
+  modelEscalations?: number
+  tokenUsage?: number[]
+}
+
+async function writeChangeMetadataFile(
+  dir: string,
   workflow: string,
+  status: string,
   artifactIds: string[],
-  opts: { modelRuns?: number; modelEscalations?: number } = {},
+  opts: MetadataOpts,
 ): Promise<void> {
-  const dir = join(tempDir, 'spec', 'archive', entryName)
   await mkdir(dir, { recursive: true })
   const artifacts = artifactIds.map(id => `  ${id}: complete`).join('\n')
   const lines = [
     `workflow: ${workflow}`,
     'created: 2026-07-01T10:00:00.000Z',
-    'status: complete',
+    `status: ${status}`,
     `current_artifact: ${artifactIds[artifactIds.length - 1] ?? ''}`,
     'base_versions: {}',
     'artifacts:',
@@ -45,8 +50,56 @@ async function writeArchiveMetadata(
       )
     }
   }
+  if (opts.tokenUsage !== undefined) {
+    if (opts.tokenUsage.length === 0) {
+      lines.push('token_usage: []')
+    } else {
+      lines.push('token_usage:')
+      for (const tokens of opts.tokenUsage) {
+        lines.push(
+          '  - task: implementation',
+          '    agent: metta-executor',
+          '    model: sonnet',
+          `    tokens: ${tokens}`,
+          '    timestamp: 2026-07-01T13:00:00.000Z',
+        )
+      }
+    }
+  }
   lines.push('')
   await writeFile(join(dir, '.metta.yaml'), lines.join('\n'), 'utf8')
+}
+
+async function writeArchiveMetadata(
+  tempDir: string,
+  entryName: string,
+  workflow: string,
+  artifactIds: string[],
+  opts: MetadataOpts = {},
+): Promise<void> {
+  await writeChangeMetadataFile(
+    join(tempDir, 'spec', 'archive', entryName),
+    workflow,
+    'complete',
+    artifactIds,
+    opts,
+  )
+}
+
+async function writeActiveChangeMetadata(
+  tempDir: string,
+  name: string,
+  workflow: string,
+  artifactIds: string[],
+  opts: MetadataOpts = {},
+): Promise<void> {
+  await writeChangeMetadataFile(
+    join(tempDir, 'spec', 'changes', name),
+    workflow,
+    'active',
+    artifactIds,
+    opts,
+  )
 }
 
 describe('CLI: progress ceremony metrics', { timeout: 60000 }, () => {
@@ -77,6 +130,14 @@ describe('CLI: progress ceremony metrics', { timeout: 60000 }, () => {
     // No model_runs recorded anywhere — explicit no-data null, never 0.
     expect('model_escalation_rate' in data).toBe(true)
     expect(data.model_escalation_rate).toBeNull()
+    // No token_usage reported anywhere — every tier is null, never 0.
+    expect('avg_tokens_per_change_by_tier' in data).toBe(true)
+    expect(data.avg_tokens_per_change_by_tier).toEqual({
+      trivial: null,
+      quick: null,
+      standard: null,
+      full: null,
+    })
   })
 
   it('--json reports model_escalation_rate over recorded model_runs and model_escalations', async () => {
@@ -209,6 +270,62 @@ describe('CLI: progress ceremony metrics', { timeout: 60000 }, () => {
     const { stdout, code } = await runCli(['progress', '--ceremony-since', 'v1.0.0'], tempDir)
     expect(code).toBe(0)
     expect(stdout).toContain('since v1.0.0 (1/2)')
+  })
+
+  it('--json averages token_usage per tier across active and archived changes, null for no-data tiers', async () => {
+    await runCli(['install', '--git-init'], tempDir)
+    // Active quick change: 30k total; archived quick change: 10k total.
+    await writeActiveChangeMetadata(tempDir, 'active-quick', 'quick', ['intent', 'implementation'], {
+      tokenUsage: [20000, 10000],
+    })
+    await writeArchiveMetadata(tempDir, '2026-07-01-quick-one', 'quick', ['intent', 'implementation'], {
+      tokenUsage: [10000],
+    })
+    await writeArchiveMetadata(tempDir, '2026-07-02-standard-one', 'standard', ['intent', 'spec', 'tasks'], {
+      tokenUsage: [50000],
+    })
+    // Pre-feature archive without a token_usage field — skipped, not counted as 0.
+    await writeArchiveMetadata(tempDir, '2026-06-01-quick-legacy', 'quick', ['intent', 'implementation'])
+
+    const { stdout, code } = await runCli(['--json', 'progress'], tempDir)
+    expect(code).toBe(0)
+    const data = JSON.parse(stdout)
+    expect(data.avg_tokens_per_change_by_tier).toEqual({
+      trivial: null,
+      quick: { mean: 20000, sample_size: 2 },
+      standard: { mean: 50000, sample_size: 1 },
+      full: null,
+    })
+  })
+
+  it('human output renders all four tiers in order with formatted values and no-data wording', async () => {
+    await runCli(['install', '--git-init'], tempDir)
+    await writeActiveChangeMetadata(tempDir, 'active-quick', 'quick', ['intent', 'implementation'], {
+      tokenUsage: [30000],
+    })
+    await writeArchiveMetadata(tempDir, '2026-07-01-quick-one', 'quick', ['intent', 'implementation'], {
+      tokenUsage: [10000],
+    })
+    await writeArchiveMetadata(tempDir, '2026-07-02-standard-one', 'standard', ['intent', 'spec', 'tasks'], {
+      tokenUsage: [50000],
+    })
+    // Pre-feature archive without a token_usage field — skipped without error.
+    await writeArchiveMetadata(tempDir, '2026-06-01-quick-legacy', 'quick', ['intent', 'implementation'])
+
+    const { stdout, code } = await runCli(['progress'], tempDir)
+    expect(code).toBe(0)
+    expect(stdout).toContain(
+      'Avg tokens per change: trivial no data · quick 20k · standard 50k · full no data',
+    )
+  })
+
+  it('human output shows no data for every tier when nothing reports token_usage', async () => {
+    await runCli(['install', '--git-init'], tempDir)
+    const { stdout, code } = await runCli(['progress'], tempDir)
+    expect(code).toBe(0)
+    expect(stdout).toContain(
+      'Avg tokens per change: trivial no data · quick no data · standard no data · full no data',
+    )
   })
 
   it('--ceremony-since with an unknown ref reports no data, names the ref, and exits 0', async () => {

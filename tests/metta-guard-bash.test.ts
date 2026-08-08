@@ -226,6 +226,17 @@ describe('metta-guard-bash hook', { timeout: 30_000 }, () => {
         expect(stderr).toBe('')
       })
 
+      it('allows `metta tokens record ...` with no agent_type (orchestrator-driven, non-forked) (exit 0)', () => {
+        const { code, stderr } = runHook(
+          hookPath,
+          bashEvent(
+            'metta tokens record --task impl --agent executor --model haiku --tokens 1000',
+          ),
+        )
+        expect(code).toBe(0)
+        expect(stderr).toBe('')
+      })
+
       // ----- Retired legacy bypass / env prefixes / chains -----
       it('ignores METTA_SKILL=1 env on the hook process — `metta propose "foo"` still blocked (exit 2)', () => {
         const { code } = runHook(hookPath, bashEvent('metta propose "foo"'), {

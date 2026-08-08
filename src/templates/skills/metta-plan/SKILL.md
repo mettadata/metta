@@ -21,7 +21,8 @@ You are the **orchestrator** for building planning artifacts. Spawn subagents fo
    a. `metta instructions <artifact> --json --change <name>` → get template + persona
    b. **Spawn a subagent** with the right metta agent type based on the artifact (research→metta-researcher, design→metta-architect, tasks→metta-planner), the agent persona, template, and output_path
    c. Subagent writes the artifact file with real content, then git commits
-   d. `metta complete <artifact> --json --change <name>` → returns next artifact
+   d. After each subagent returns, record its reported token usage: `metta tokens record --task <artifact-or-task-id> --agent <subagent-type> --model <alias> --tokens <count> --change <name>` — `--task` is the artifact or task id it worked, `--agent` is the `subagent_type` you spawned, `--model` is the model alias you passed to `Agent(...)` (use `inherit` when you omitted the `model` parameter), and `--tokens` is the token count from its completion report. This applies to every spawn — planner, executor, reviewer, and verifier alike.
+   e. `metta complete <artifact> --json --change <name>` → returns next artifact
 3. Continue until all planning artifacts are complete
 4. **Run constitution check (emit → spawn → record):**
    After all planning artifacts are committed:

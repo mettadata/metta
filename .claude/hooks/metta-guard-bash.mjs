@@ -21,6 +21,7 @@ const ALLOWED_SUBCOMMANDS = new Set([
   'next', // read-only routing query (`metta next --json`); first Bash call of the metta-next skill body
   'iteration', // counter-only instrumentation; skills call it during fan-out. Read-safe-ish; no state-mutating side effects beyond a per-change counter.
   'model-escalation', // audit-only instrumentation; skills call it during the execute/verify fix loop. Appends a per-change escalation record; no broader state-mutating side effects than the iteration counter has.
+  'tokens', // append-only usage instrumentation; skills call it after each subagent returns. Appends a per-change token_usage record; no broader state-mutating side effects than model-escalation has.
   'install', // intentional pass-through for human/CI-driven install (no matching skill yet)
 ]);
 
