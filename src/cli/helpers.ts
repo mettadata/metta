@@ -48,12 +48,15 @@ export interface CliContext {
  * when no ancestor qualifies (e.g. pre-init projects).
  */
 export function resolveProjectRoot(cwd: string = process.cwd()): string {
-  let dir = resolve(cwd)
+  // Normalize once so every return branch yields a resolved absolute path —
+  // the fallbacks must not leak a raw (possibly relative) `cwd` argument.
+  const start = resolve(cwd)
+  let dir = start
   for (;;) {
     if (existsSync(join(dir, 'spec', 'changes'))) return dir
-    if (existsSync(join(dir, '.git'))) return cwd
+    if (existsSync(join(dir, '.git'))) return start
     const parent = dirname(dir)
-    if (parent === dir) return cwd
+    if (parent === dir) return start
     dir = parent
   }
 }
@@ -69,6 +72,10 @@ export function createCliContext(projectRoot?: string): CliContext {
   // stay truthful when invoked from the main checkout root.
   const artifactStore = new ArtifactStore(specDir, {
     worktreesDir: resolve(root, DEFAULT_WORKTREE_DIR),
+    // Slug-collision warnings surface on stderr so they never corrupt JSON
+    // stdout. The write happens here in the CLI shell — the store core is
+    // pure and only invokes the injected sink.
+    onWarning: (warning) => process.stderr.write(`Warning: ${warning}\n`),
   })
   const workflowEngine = new WorkflowEngine()
   const contextEngine = new ContextEngine()

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { mkdtemp, rm, mkdir, writeFile, realpath } from 'node:fs/promises'
+import { mkdtemp, rm, mkdir, writeFile, realpath, symlink } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { spawnSync } from 'node:child_process'
@@ -129,6 +129,19 @@ describe('metta-guard-edit hook init-phase allow-list', { timeout: 30_000 }, () 
           // blocked via stderr — good
         } else {
           expect(code).toBe(0)
+        }
+      })
+
+      it('tolerates a non-string file_path without crashing (no exit-1 fail-open)', () => {
+        // A malformed payload must never throw: an uncaught throw exits 1,
+        // which Claude Code treats as a non-blocking error — a fail-open.
+        for (const badPath of [123, { evil: true }, null, ['a']]) {
+          const { code } = runHook(
+            hookPath,
+            { tool_name: 'Write', tool_input: { file_path: badPath } },
+            tempDir,
+          )
+          expect([0, 2]).toContain(code)
         }
       })
 
@@ -280,6 +293,26 @@ describe('metta-guard-edit hook worktree awareness', { timeout: 60_000 }, () => 
         )
         expect(stderr).not.toContain('blocked')
         expect(code).toBe(0)
+      })
+
+      it('still blocks when the target is addressed through a symlinked root (no physical/logical fail-open)', async () => {
+        // git reports physical paths; a logical (symlinked) target used to look
+        // outside the checkout root and hit the outside-root early allow. The
+        // hook must realpath the target so the guard still applies.
+        const linkParent = await mkdtemp(join(tmpdir(), 'metta-guard-link-'))
+        try {
+          const linkRoot = join(linkParent, 'link')
+          await symlink(repoDir, linkRoot)
+          const { code, stderr } = runHookWithShim(
+            hookPath,
+            { tool_name: 'Write', tool_input: { file_path: join(linkRoot, 'src', 'foo.ts') } },
+            repoDir,
+          )
+          expect(code).toBe(2)
+          expect(stderr).toContain('metta-guard')
+        } finally {
+          await rm(linkParent, { recursive: true, force: true })
+        }
       })
     })
   }

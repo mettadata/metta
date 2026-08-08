@@ -158,4 +158,19 @@ describe('resolveProjectRoot', () => {
     await mkdir(bare, { recursive: true })
     expect(resolveProjectRoot(bare)).toBe(bare)
   })
+
+  it('returns a resolved path from every fallback branch (unnormalized input)', async () => {
+    // Plain fallback (nothing qualifies): the raw argument must be normalized.
+    const bare = join(rootDir, 'bare')
+    await mkdir(bare, { recursive: true })
+    expect(resolveProjectRoot(`${bare}/../bare`)).toBe(bare)
+
+    // Git-boundary fallback: same guarantee when the walk stops at a checkout
+    // that lacks spec/changes.
+    const innerRepo = join(rootDir, 'vendor', 'other')
+    await mkdir(join(innerRepo, '.git'), { recursive: true })
+    const inner = join(innerRepo, 'src')
+    await mkdir(inner, { recursive: true })
+    expect(resolveProjectRoot(`${inner}/../src`)).toBe(inner)
+  })
 })

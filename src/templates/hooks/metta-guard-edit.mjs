@@ -5,8 +5,8 @@
 
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import { existsSync } from 'node:fs'
-import { dirname, isAbsolute, relative, resolve } from 'node:path'
+import { existsSync, realpathSync } from 'node:fs'
+import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path'
 
 const execAsync = promisify(execFile)
 const GUARDED = new Set(['Edit', 'Write', 'NotebookEdit', 'MultiEdit'])
@@ -19,15 +19,40 @@ async function readStdin() {
   try { return JSON.parse(raw) } catch { return {} }
 }
 
+// Convert an absolute path to its physical (symlink-resolved) form so it can
+// be compared against `git rev-parse --show-toplevel`, which always reports
+// physical paths. Under a symlinked session path the logical target would
+// otherwise appear outside the physical checkout root and hit the
+// outside-root early allow — a fail-open. Write targets often don't exist
+// yet, so realpath the nearest EXISTING ancestor and re-append the
+// not-yet-created tail. Any realpath failure keeps the logical path,
+// preserving the tolerant philosophy.
+function toPhysicalPath(target) {
+  let dir = target
+  const tail = []
+  while (!existsSync(dir)) {
+    const parent = dirname(dir)
+    if (parent === dir) break
+    tail.unshift(basename(dir))
+    dir = parent
+  }
+  try {
+    dir = realpathSync(dir)
+  } catch {
+    // Tolerate: keep the logical prefix.
+  }
+  return tail.length > 0 ? join(dir, ...tail) : dir
+}
+
 // Resolve the git top-level of the checkout containing `target` (an absolute
-// path), so edits inside a worktree checkout (e.g. .metta/worktrees/<change>/)
-// are judged against that worktree's own active change instead of the session
-// cwd's. Write targets often don't exist yet, so walk up to the nearest
-// EXISTING ancestor before asking git. Any failure (git missing, target
-// outside any repo) falls back to process.cwd(), preserving the tolerant
-// philosophy.
+// physical path), so edits inside a worktree checkout (e.g.
+// .metta/worktrees/<change>/) are judged against that worktree's own active
+// change instead of the session cwd's. Write targets often don't exist yet,
+// so walk up to the nearest EXISTING ancestor before asking git. Any failure
+// (git missing, target outside any repo) falls back to the physical
+// process.cwd(), preserving the tolerant philosophy.
 async function resolveTargetRoot(target) {
-  if (!target) return process.cwd()
+  if (!target) return toPhysicalPath(process.cwd())
   let dir = dirname(target)
   while (!existsSync(dir)) {
     const parent = dirname(dir)
@@ -44,7 +69,7 @@ async function resolveTargetRoot(target) {
   } catch {
     // Not a git checkout (or git unavailable) — fall back to the session cwd.
   }
-  return process.cwd()
+  return toPhysicalPath(process.cwd())
 }
 
 const input = await readStdin()
@@ -58,11 +83,14 @@ if (!GUARDED.has(toolName)) {
 // the guard reasons about, so worktree-hosted targets probe their own
 // checkout rather than the session cwd. Relative tool paths are interpreted
 // against the session cwd, matching how the tools themselves resolve them.
-const filePath =
-  input?.tool_input?.file_path ||
-  input?.tool_input?.notebook_path ||
-  ''
-const targetPath = filePath ? resolve(process.cwd(), filePath) : ''
+// Non-string payloads are ignored (never allowed to throw — an uncaught
+// throw would exit 1 and fail open).
+const filePathCandidate = [
+  input?.tool_input?.file_path,
+  input?.tool_input?.notebook_path,
+].find((p) => typeof p === 'string' && p.length > 0)
+const filePath = filePathCandidate ?? ''
+const targetPath = filePath ? toPhysicalPath(resolve(process.cwd(), filePath)) : ''
 const projectRoot = await resolveTargetRoot(targetPath)
 
 // Query metta status at the target's checkout root; tolerate any failure
@@ -102,6 +130,9 @@ const ALLOW_PREFIXES = [
   'spec/backlog/',
 ]
 if (filePath) {
+  // Both sides physical: targetPath via toPhysicalPath, projectRoot via git
+  // (or toPhysicalPath in the fallback) — so symlinked session paths cannot
+  // make an in-root edit look like an outside-root escape.
   const relPath = relative(projectRoot, targetPath)
   // Outside-root early allow: a file outside the resolved checkout root can
   // never be part of that checkout's metta change, so the guard doesn't apply.
