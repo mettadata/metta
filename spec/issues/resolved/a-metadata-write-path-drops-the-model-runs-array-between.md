@@ -1,7 +1,7 @@
 # A metadata write path drops the model_runs array between emission and archive, corrupting the escalation-rate denominator
 
 **Captured**: 2026-07-18
-**Status**: logged
+**Status**: resolved
 **Severity**: major
 
 ## Symptom
@@ -25,3 +25,9 @@ The suspected write-path bug (a metadata writer replacing the whole object and d
 2. **Reconcile at complete time** — In `complete.ts`'s `implementation` branch, re-resolve the executor model from `.metta/config.yaml` (the same resolution `instructions.ts` performs) and append a `model_runs` record if none exists for the task, before the auto-commit. Tradeoff: duplicates model-resolution logic in a second command, records a potentially wrong model if config changed mid-change, and silently masks the underlying durability gap — `artifact_timings.started` and `artifact_tokens` would still be lost.
 
 3. **Append-only journal outside the working tree** — Write model-run records to an append-only store not subject to working-tree reverts (e.g. `.metta/` project-local state or git notes), and have `ceremony-metrics.ts` read the journal alongside archived metadata. Tradeoff: splits change metadata across two stores, complicates the escalation-rate read path and the archive story, and is significantly more machinery than the one-commit fix in option 1.
+
+## Resolution
+
+**Resolved**: 2026-08-08 (stale-issue sweep)
+
+Fixed: instructions.ts auto-commits the emission stamp (chore: record instruction emission), so model_runs survives executor git hygiene; observed working on today's changes.

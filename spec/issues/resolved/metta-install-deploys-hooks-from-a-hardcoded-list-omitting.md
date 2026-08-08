@@ -1,7 +1,7 @@
 # metta install deploys hooks from a hardcoded list, omitting the session-mint and agent-dispatch hooks — consumer projects' lifecycle is completely blocked
 
 **Captured**: 2026-07-17
-**Status**: logged
+**Status**: resolved
 **Severity**: critical
 
 ## Symptom
@@ -19,3 +19,9 @@
 1. **Readdir-driven hook install (mirror command-installer)** — Replace the per-file hook copies in `install.ts` with a single readdir over `templates/hooks/` that copies and chmods every `.mjs` file, keeping the existing settings.json PreToolUse registration logic only for guard-bash and guard-edit (session-mint and agent-dispatch are skill/agent-frontmatter-scoped by design and need no settings registration). Add a test asserting the installed `.claude/hooks/` inventory exactly equals the `templates/hooks/` inventory. Tradeoff: any stray file dropped into templates/hooks/ ships to every consumer automatically, so the templates dir becomes a de facto public contract requiring hygiene.
 2. **Keep explicit list, add completeness test only** — Add the two missing copy calls for `metta-session-mint.mjs` and `metta-guard-agent-dispatch.mjs`, plus a test that fails whenever `templates/hooks/` contains a file the installer does not copy. Tradeoff: retains the manual list as a maintenance point; every future hook still requires an installer edit, with the test converting silent drift into a build failure rather than eliminating the class.
 3. **Manifest-driven install** — Introduce a hooks manifest (e.g. `templates/hooks/manifest.json`) declaring each hook plus its registration mode (settings-registered vs frontmatter-scoped), and drive both copying and settings.json registration from it, validated by Zod. Tradeoff: most robust and self-describing, but adds a new file format and schema for what is currently a four-file directory — likely over-engineering at this scale.
+
+## Resolution
+
+**Resolved**: 2026-08-08 (stale-issue sweep)
+
+Fixed: install.ts is readdir-driven over src/templates/hooks/ (full inventory, completeness test); zeus re-installed and healed.

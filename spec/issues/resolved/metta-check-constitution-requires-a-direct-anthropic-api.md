@@ -1,7 +1,7 @@
 # metta check-constitution requires a direct Anthropic API call, violating the project's no-API design principle: everything AI-driven must run from within the Claude Code session via skills and subagents (user directive 2026-07-14). Hit live 2026-07-13: `metta check-constitution --change enforce-workflow-tier-routing-so-ceremony-actually-scales --json` exits 4 with "Could not resolve authentication method. Expected either apiKey or authToken" because src/constitution/checker.ts calls the Anthropic SDK (the codebase's single generateObject call site) and no ANTHROPIC_API_KEY exists. The session worked around it by spawning the metta-constitution-checker subagent directly, which needs only Read access — proving the subagent path is sufficient. Suggested direction: rework `metta check-constitution` to instruction mode like every other AI-driven step — the CLI emits the check instructions/contract (constitution articles + spec path + expected violations JSON shape) and the metta-check-constitution skill spawns the metta-constitution-checker agent to produce the verdict, with the CLI (or a follow-up CLI call) validating and persisting violations.md. This also unblocks removing the AIProvider/ProviderRegistry abstraction in src/providers/ and the Anthropic SDK dependency entirely (per the 2026-07 framework review, generateObject at checker.ts:97 is its only consumer), and spec/project.md's stack section ("Anthropic SDK — AI provider integration") should be updated to reflect the no-direct-API principle.
 
 **Captured**: 2026-07-14
-**Status**: logged
+**Status**: resolved
 **Severity**: major
 
 ## Symptom
@@ -20,3 +20,9 @@
 2. **Instruction mode plus full provider removal** — do (1) and also delete the `AIProvider` abstraction in `src/providers/`, drop the `@anthropic-ai/sdk` dependency, and update `spec/project.md`'s stack section ("Anthropic SDK — AI provider integration") to state the no-direct-API principle, per the 2026-07 framework review finding that `generateObject` at `checker.ts:97` is the abstraction's only consumer. Tradeoff: larger blast radius — provider references in specs, config, and tests must be reconciled, and any future genuinely headless use case would require rebuilding the provider layer from scratch.
 3. **Keep the API path as an explicit opt-in fallback** — implement instruction mode as the default but retain `AnthropicProvider` behind an explicit flag (e.g. `--provider anthropic`) for CI or headless runs where a key is deliberately provided. Tradeoff: preserves the SDK dependency and dual code paths that the design principle wants eliminated, carrying ongoing maintenance and drift risk for a path the project does not exercise.
 
+
+## Resolution
+
+**Resolved**: 2026-08-08 (stale-issue sweep)
+
+Fixed: checker.ts is instruction-mode (emits contract from constitution-check-instructions.md template); src/providers/ and the Anthropic SDK dependency removed — no API call sites remain.

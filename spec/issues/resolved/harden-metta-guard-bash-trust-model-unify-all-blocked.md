@@ -1,7 +1,7 @@
 # Harden metta-guard-bash trust model: unify all blocked subcommands on the unforgeable agent_type signal and retire the forgeable METTA_SKILL=1 bypass
 
 **Captured**: 2026-06-22
-**Status**: logged
+**Status**: resolved
 **Severity**: major
 
 ## Symptom
@@ -19,3 +19,9 @@ The offender predicate in main() (metta-guard-bash.mjs:148-156) branches on SKIL
 1. **Per-subcommand fork-context migration (recommended)** — Fork the non-forked skills that call blocked subcommands (metta-plan, metta-execute, metta-verify, metta-next, metta-fix-gap, metta-refresh, metta-import, metta-init) so agent_type is reliably populated, then collapse SKILL_ENFORCED_SUBCOMMANDS to cover ALL blocked subcommands and require isTrustedSkillCaller everywhere; retire METTA_SKILL=1 and the process.env fallback (line 140) and the inline prefix entirely, which also eliminates the config-loader warning. Tradeoff: high blast radius — converting eight skills to context: fork changes their execution model and context budget, and any skill missed during migration is hard-locked out; requires full guard test-suite coverage plus identical edits to both byte-identical hook copies.
 2. **Keep METTA_SKILL=1 as a non-trust co-marker, add agent_type as the authority** — Require isTrustedSkillCaller for ALL blocked subcommands but only after first forking the non-forked skills; retain METTA_SKILL=1 purely as an explicit-intent annotation (no longer sufficient on its own) and separately patch ProjectConfigSchema to reserve/ignore the `skill` key so the warning disappears without removing the env var. Tradeoff: leaves a dead forgeable token in the command strings (confusing, invites future regressions where someone re-trusts it) and adds a config-schema special case that must be maintained.
 3. **Config-loader-only patch (narrow, does NOT close the bypass)** — Add `skill` to a reserved-name allowlist in config-loader so the warning stops, leaving the two-tier guard model untouched. Tradeoff: cosmetic only — it silences the noise but the major privilege-escalation bypass on complete/finalize/refresh/import/init/fix-gap remains fully open; should be flagged as out-of-scope-alone, not a fix for this issue.
+
+## Resolution
+
+**Resolved**: 2026-08-08 (stale-issue sweep)
+
+Fixed by the two-tier trust model change: Tier-1 via runtime agent_type, Tier-2 via server-minted session credential; METTA_SKILL=1 fully retired (zero references in either hook copy).

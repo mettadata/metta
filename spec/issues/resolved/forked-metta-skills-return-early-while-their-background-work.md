@@ -1,7 +1,7 @@
 # Forked metta skills return early while their background work is still running, leaving orphaned agents and stale locks
 
 **Captured**: 2026-07-14
-**Status**: logged
+**Status**: resolved
 **Severity**: major
 
 ## Symptom
@@ -21,3 +21,9 @@ Secondary cause (the stale lock): `acquireFinalizeLock` registers lock cleanup v
 1. **Synchronous-completion contract for forked skills** — Add a hard rule to `.claude/agents/metta-skill-host.md` and each `context: fork` SKILL.md: the fork MUST NOT use `run_in_background` on Bash, MUST NOT dispatch background agents, and MUST NOT end its turn while any launched tool call or subagent is pending — it either blocks until completion or returns an explicit machine-readable resumable-state block (change slug, artifact, pid) instead of prose claiming to wait. Tradeoff: prompt-level rules are advisory — a model can still violate them, and long-running work (full finalize, multi-batch execution) then occupies the fork's context window for its whole duration.
 2. **Mechanical enforcement via hooks** — Extend the metta-guard-bash PreToolUse hook to reject `run_in_background: true` Bash calls when `event.agent_type` starts with `metta-`, and add a Stop/SubagentStop hook that blocks the fork from ending its turn while background tasks it launched are still registered. Tradeoff: more hook machinery to maintain and test; SubagentStop semantics vary across Claude Code versions, and a false-positive block could wedge a fork that has legitimately finished.
 3. **Harden the finalize lock lifecycle** — Bring the finalize lock up to state-store parity: reap and report dead-pid locks from `metta status` and `metta next` (not just at finalize acquisition), add an mtime-based 60s staleness fallback for pid-recycling/EPERM cases, and rewrite the FinalizeLockError message to say "re-run finalize — stale locks are reclaimed automatically" instead of recommending manual deletion. Tradeoff: treats the downstream symptom, not the orphaning itself; a wrongly-reaped lock (e.g. a slow but live finalize on the mtime fallback) could allow two concurrent finalizes against the same change.
+
+## Resolution
+
+**Resolved**: 2026-08-08 (stale-issue sweep)
+
+Fixed by fix-forked-metta-skills (2026-07-15): synchronous-completion contract in metta-skill-host.md + guard-bash mechanical block on run_in_background + dispatch-guard hook. Residual Agent-dispatch recurrence tracked by forked-skill-agent-dispatch-orphaning-recurred-after-the.

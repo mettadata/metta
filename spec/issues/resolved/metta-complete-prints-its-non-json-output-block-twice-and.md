@@ -1,7 +1,7 @@
 # metta complete prints its non-json output block twice and stories parser rejects **As an** variant
 
 **Captured**: 2026-07-14
-**Status**: logged
+**Status**: resolved
 **Severity**: minor
 
 ## Symptom
@@ -27,3 +27,9 @@ The `**As an**` rejection is an exact-prefix match in the stories parser. `FIELD
 2. **Drop the stdout duplicate instead** — Keep stderr as the canonical banner channel for both modes and delete the duplicated `console.log(agentBanner(...))` / `Next:` lines from the non-json branch, retaining only the `Run: metta instructions ...` hint on stdout. Tradeoff: stdout no longer carries the completion banner, which can silently break existing tests or pipelines asserting on stdout content, and stderr may be redirected away in some CI setups.
 
 3. **Accept both article variants in the stories parser** — Replace the exact `'**As a**'` prefix entry with a small regex match (`/^\*\*As an?\*\*/`) for the `asA` field, or add a second `FIELD_PREFIXES` entry `'**As an**'`; update the stories template to mention both forms and add parser tests covering `**As an** AI orchestrator`. Tradeoff: the field-matching loop becomes slightly asymmetric (one regex among literal prefixes) or grows a near-duplicate entry, and any downstream tooling that re-serializes stories must treat the two labels as equivalent.
+
+## Resolution
+
+**Resolved**: 2026-08-08 (stale-issue sweep)
+
+Fixed: stories-parser.ts:50 accepts the **As an** variant; complete's non-json block printed once per invocation across today's three completes.

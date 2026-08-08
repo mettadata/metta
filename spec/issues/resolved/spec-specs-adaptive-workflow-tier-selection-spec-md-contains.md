@@ -1,7 +1,7 @@
 # spec/specs/adaptive-workflow-tier-selection/spec.md contains a large duplicated block of requirements — roughly lines 139-339 repeated verbatim around lines 462-655+. Found 2026-07-13 by the proposer agent while authoring the delta spec for change enforce-workflow-tier-routing-so-ceremony-actually-scales, which merges into this capability at finalize — so the corruption should be cleaned before that ship to avoid compounding it or double-matching MODIFIED requirements. Likely cause worth investigating during RCA: the spec merger appending instead of replacing on some earlier merge (this capability has been merged into repeatedly; it carries 309 requirements per CLAUDE.md, plausibly inflated by the duplication). Fix should deduplicate the file and, if the merger append bug is confirmed, log/fix that separately or fold it into the fix.
 
 **Captured**: 2026-07-13
-**Status**: logged
+**Status**: resolved
 **Severity**: minor
 
 ## Symptom
@@ -28,3 +28,9 @@ Three code paths conspire to allow this. First, `Finalizer.finalize()` applies t
 
 3. **Cleanup plus a duplicate-detection gate** — Deduplicate the file now and add a finalize/post-merge gate that fails when any capability spec contains two `## Requirement:` headings with the same name, catching future recurrences without touching merge semantics. Tradeoff: detection rather than prevention — the merger stays non-idempotent, and the gate fires after corruption is written, requiring manual cleanup each time it triggers.
 
+
+## Resolution
+
+**Resolved**: 2026-08-08 (stale-issue sweep)
+
+Fixed by the v0.2 spec store reset: file deduplicated (109 requirements, no repeated blocks; verified via uniq sweep 2026-08-08).

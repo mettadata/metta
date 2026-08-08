@@ -1,7 +1,7 @@
 # metta finalize does not require all workflow artifacts to be complete — it ran successfully with the verification artifact still in 'ready' state. Observed 2026-07-14 on change fix-metta-guard-edit-hook-blocks-edit-write-files-outside (trivial workflow): `metta complete verification` failed with "Artifact file 'summary.md' not found" (so verification stayed incomplete in .metta.yaml), but an immediately-following `metta finalize --change ...` ran all gates, archived the change, and reported success anyway. The archived .metta.yaml presumably still shows verification: ready. Two aspects: (1) finalize should refuse (or at least loudly warn) when any workflow artifact is not complete — otherwise the artifact state machine is advisory and a change can ship without its verification being formally accepted (same defect family as spec/issues/metta-complete-accepts-stub-placeholder-artifacts-on-intent-.md); (2) secondary: the trivial workflow's verification artifact requires a summary.md that nothing in the trivial flow instructs anyone to write — either the requirement should be dropped for trivial tier or the verification instructions should mention it (the workaround was having the verifier write summary.md alongside verification.md).
 
 **Captured**: 2026-07-14
-**Status**: logged
+**Status**: resolved
 **Severity**: major
 
 ## Symptom
@@ -21,3 +21,9 @@ A secondary contributing cause explains the trigger: the trivial workflow's veri
 1. **Hard completeness gate in Finalizer** — At the top of `Finalizer.finalize()`, iterate `metadata.artifacts` and refuse (new result field, e.g. `incompleteArtifacts`, mapped to a distinct non-zero exit in `finalize.ts`) when any artifact is not `complete`, with an explicit `--force` flag that prints a loud warning and records the override in the archived metadata. Tradeoff: breaking change for any flow relying on current leniency (auto/ship loops, dry-run) — those paths need auditing so the block is surfaced and recoverable rather than fatal mid-loop.
 2. **Warn-and-record (soft enforcement)** — Keep finalize permissive but print a prominent warning listing incomplete artifacts and stamp them into the archived `gates.yaml` / `.metta.yaml` so the gap is auditable. Tradeoff: the state machine remains advisory; a change can still ship unverified, so the defect family is documented rather than closed.
 3. **Fix the trivial verification contract** — Either drop the `summary.md` requirement from `trivial.yaml`'s verification artifact or make the trivial-tier verify instructions explicitly direct writing `summary.md`. Tradeoff: removes only this trigger; the finalize enforcement hole remains exploitable by every other artifact and workflow tier, so this is complementary rather than sufficient.
+
+## Resolution
+
+**Resolved**: 2026-08-08 (stale-issue sweep)
+
+Fixed: finalizer.ts completeness gate aborts unless every workflow-required artifact is 'complete' (incompleteArtifacts result); quick/trivial verification now emits summary.md via instruction contract.
