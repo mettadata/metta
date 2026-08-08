@@ -1,6 +1,9 @@
 import { readFile, writeFile, mkdir, readdir } from 'node:fs/promises'
 import { join, relative } from 'node:path'
 import type { DocsConfig } from '../schemas/project-config.js'
+import type { ReleasesRecord } from '../schemas/releases-record.js'
+import { loadReleasesRecord } from '../release/releases-record-store.js'
+import { groupEntriesByRelease, type ChangelogEntryInput } from '../release/changelog-grouping.js'
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -204,8 +207,9 @@ export class DocGenerator {
 
   private async generateChangelog(sources: string[]): Promise<string> {
     const archiveEntries = await this.loadArchiveEntries()
+    const record = await this.loadReleasesRecordSafe()
 
-    const entries: Array<{ date: string; changeName: string; summaryContent: string }> = []
+    const entries: ChangelogEntryInput[] = []
     for (const entry of archiveEntries) {
       if (entry.summaryContent === null) {
         this.warn(`Archive entry '${entry.dirName}' is missing summary.md — skipped in changelog`)
@@ -213,6 +217,7 @@ export class DocGenerator {
       }
       sources.push(entry.summaryPath)
       entries.push({
+        dirName: entry.dirName,
         date: entry.date,
         changeName: entry.changeName,
         summaryContent: entry.summaryContent,
@@ -221,17 +226,53 @@ export class DocGenerator {
 
     const lines: string[] = ['# Changelog\n']
 
-    for (const entry of entries) {
-      lines.push(`## ${entry.date} — ${entry.changeName}\n`)
-      lines.push(entry.summaryContent)
-      lines.push('')
+    if (record === null) {
+      // Flat format — byte-identical to pre-release-record output.
+      for (const entry of entries) {
+        lines.push(`## ${entry.date} — ${entry.changeName}\n`)
+        lines.push(entry.summaryContent)
+        lines.push('')
+      }
+
+      if (entries.length === 0) {
+        lines.push('No archived changes with summaries found.\n')
+      }
+
+      return lines.join('\n')
     }
 
-    if (entries.length === 0) {
-      lines.push('No archived changes with summaries found.\n')
+    const groups = groupEntriesByRelease(entries, record)
+
+    for (const group of groups) {
+      if (group.version === null) {
+        lines.push('## Unreleased\n')
+      } else {
+        lines.push(`## ${group.version} — ${group.date}\n`)
+      }
+      for (const entry of group.entries) {
+        lines.push(`### ${entry.date} — ${entry.changeName}\n`)
+        lines.push(entry.summaryContent)
+        lines.push('')
+      }
     }
 
     return lines.join('\n')
+  }
+
+  /**
+   * Loads `{specDir}/releases.yaml` via the releases-record store
+   * (Zod-validated). Returns `null` when the record is absent AND when it is
+   * invalid — an invalid record produces a warning and degrades to the flat
+   * changelog format rather than throwing, so docs regeneration inside
+   * finalize's failure-tolerant path can never be broken by a corrupt record.
+   */
+  private async loadReleasesRecordSafe(): Promise<ReleasesRecord | null> {
+    try {
+      return await loadReleasesRecord(this.specDir)
+    } catch {
+      this.warn('spec/releases.yaml is invalid — falling back to flat changelog format')
+      return null
+    }
   }
 
   private async generateGettingStarted(sources: string[]): Promise<string> {
