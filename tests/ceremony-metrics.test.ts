@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { execFileSync } from 'node:child_process'
-import { getCeremonyCommitRatio, getArtifactsPerSmallChange, getModelEscalationRate, getLatestTag } from '../src/util/ceremony-metrics.js'
+import { getCeremonyCommitRatio, getArtifactsPerSmallChange, getModelEscalationRate, getAvgTokensPerChangeByTier, getLatestTag } from '../src/util/ceremony-metrics.js'
 import { ArtifactStore } from '../src/artifacts/artifact-store.js'
 
 function git(cwd: string, args: string[], env: NodeJS.ProcessEnv = {}): void {
@@ -36,7 +36,7 @@ function writeArchiveMetadata(
   entryName: string,
   workflow: string,
   artifactIds: string[],
-  opts: { modelRuns?: number; modelEscalations?: number } = {},
+  opts: { modelRuns?: number; modelEscalations?: number; tokenUsage?: number[] } = {},
 ): void {
   const dir = join(specDir, 'archive', entryName)
   mkdirSync(dir, { recursive: true })
@@ -70,6 +70,22 @@ function writeArchiveMetadata(
         '    trigger: stop_deviation',
         '    timestamp: 2026-07-01T12:00:00.000Z',
       )
+    }
+  }
+  if (opts.tokenUsage !== undefined) {
+    if (opts.tokenUsage.length === 0) {
+      lines.push('token_usage: []')
+    } else {
+      lines.push('token_usage:')
+      for (const tokens of opts.tokenUsage) {
+        lines.push(
+          '  - task: implementation',
+          '    agent: metta-executor',
+          '    model: sonnet',
+          `    tokens: ${tokens}`,
+          '    timestamp: 2026-07-01T13:00:00.000Z',
+        )
+      }
     }
   }
   lines.push('')
@@ -290,6 +306,90 @@ describe('ceremony-metrics', () => {
 
       const result = await getModelEscalationRate(tmp, store)
       expect(result).toEqual({ escalated: 1, total: 2, rate: 0.5 })
+    })
+  })
+  describe('getAvgTokensPerChangeByTier', () => {
+    const NULL_TIERS = { trivial: null, quick: null, standard: null, full: null }
+
+    it('groups per-change totals by tier across active and archived changes', async () => {
+      const store = new ArtifactStore(tmp)
+      await store.createChange('active quick', 'quick', ['intent'])
+      await store.updateChange('active-quick', {
+        token_usage: [
+          { task: 'implementation', agent: 'metta-executor', model: 'sonnet', tokens: 4000, timestamp: '2026-07-01T13:00:00.000Z' },
+          { task: 'verification', agent: 'metta-verifier', model: 'sonnet', tokens: 6000, timestamp: '2026-07-01T13:05:00.000Z' },
+        ],
+      })
+      writeArchiveMetadata(tmp, '2026-07-02-archived-quick', 'quick', ['intent', 'implementation'], {
+        tokenUsage: [30000],
+      })
+      writeArchiveMetadata(tmp, '2026-07-03-archived-standard', 'standard', ['intent', 'spec', 'implementation'], {
+        tokenUsage: [50000],
+      })
+
+      const result = await getAvgTokensPerChangeByTier(tmp, store)
+      expect(result).toEqual({
+        trivial: null,
+        quick: { mean: 20000, sample_size: 2 },
+        standard: { mean: 50000, sample_size: 1 },
+        full: null,
+      })
+    })
+
+    it('excludes changes with an absent token_usage field (never counted as 0)', async () => {
+      const store = new ArtifactStore(tmp)
+      writeArchiveMetadata(tmp, '2026-07-01-reported', 'quick', ['intent', 'implementation'], {
+        tokenUsage: [10000],
+      })
+      writeArchiveMetadata(tmp, '2026-07-02-unreported', 'quick', ['intent', 'implementation'])
+
+      const result = await getAvgTokensPerChangeByTier(tmp, store)
+      expect(result.quick).toEqual({ mean: 10000, sample_size: 1 })
+    })
+
+    it('excludes changes with a present-but-empty token_usage array', async () => {
+      const store = new ArtifactStore(tmp)
+      writeArchiveMetadata(tmp, '2026-07-01-reported', 'quick', ['intent', 'implementation'], {
+        tokenUsage: [10000],
+      })
+      writeArchiveMetadata(tmp, '2026-07-02-empty-usage', 'quick', ['intent', 'implementation'], {
+        tokenUsage: [],
+      })
+
+      const result = await getAvgTokensPerChangeByTier(tmp, store)
+      expect(result.quick).toEqual({ mean: 10000, sample_size: 1 })
+    })
+
+    it('ignores changes whose workflow is outside the four fixed tiers', async () => {
+      const store = new ArtifactStore(tmp)
+      writeArchiveMetadata(tmp, '2026-07-01-custom-tier', 'custom-workflow', ['intent'], {
+        tokenUsage: [99999],
+      })
+
+      const result = await getAvgTokensPerChangeByTier(tmp, store)
+      expect(result).toEqual(NULL_TIERS)
+    })
+
+    it('returns all four tiers as null when there is no data at all', async () => {
+      const store = new ArtifactStore(tmp)
+
+      const result = await getAvgTokensPerChangeByTier(tmp, store)
+      expect(result).toEqual(NULL_TIERS)
+    })
+
+    it('skips corrupt archive entries instead of throwing', async () => {
+      const store = new ArtifactStore(tmp)
+      writeArchiveMetadata(tmp, '2026-07-01-valid', 'quick', ['intent', 'implementation'], {
+        tokenUsage: [10000, 30000],
+      })
+      const badDir = join(tmp, 'archive', '2026-07-02-corrupt')
+      mkdirSync(badDir, { recursive: true })
+      writeFileSync(join(badDir, '.metta.yaml'), 'workflow: quick\nnot_a_real_field: true\n', 'utf8')
+      // Directory with no .metta.yaml at all.
+      mkdirSync(join(tmp, 'archive', '2026-07-03-empty-dir'), { recursive: true })
+
+      const result = await getAvgTokensPerChangeByTier(tmp, store)
+      expect(result.quick).toEqual({ mean: 40000, sample_size: 1 })
     })
   })
 })
