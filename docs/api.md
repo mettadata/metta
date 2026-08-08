@@ -575,17 +575,16 @@ Scenarios:
 ### Token Usage Record Schema
 
 Scenarios:
-- Valid record passes strict validation
-- Invalid records are rejected strictly
-- Metadata without token_usage remains valid and artifact_tokens is untouched
+- Hook-sourced record passes strict validation
+- Invalid source values are rejected strictly
+- Legacy record without source remains valid and reads as prose-sourced
 
 ### Tokens Record CLI Command
 
 Scenarios:
-- Record appended against the single active change
-- Explicit change targeting with --change
-- Ambiguous or missing change fails typed with exit 4
-- Invalid tokens value writes nothing
+- Source flag persists provenance
+- Legacy invocation without source stays backward compatible
+- Invalid source value writes nothing
 
 ### Tokens Guard Hook Allowlist Entry
 
@@ -597,9 +596,9 @@ Scenarios:
 ### Lifecycle Skill Token Recording Instruction
 
 Scenarios:
-- Each spawning skill carries the recording instruction
+- No skill mandates per-subagent recording
 - Template and deployed skill pairs are byte-identical
-- Recording instruction changes nothing about routing
+- Demotion changes nothing about routing or the guard allowlist
 
 ### Tokens Report Generation At Finalize
 
@@ -611,8 +610,9 @@ Scenarios:
 ### Tokens Report Content
 
 Scenarios:
-- Full report sections render from recorded data
-- Missing records surface in GAPS
+- Provenance is distinguishable per record
+- A gap reads as a hook coverage miss
+- Report structure is otherwise unchanged
 - Complete coverage reports no gaps
 
 ### Tokens Report Configuration Toggle
@@ -648,6 +648,36 @@ Scenarios:
 - Tier-grouped averages render from recorded data
 - No-data tier is distinct from zero and null in JSON
 - Pre-feature archives aggregate gracefully
+
+### Token Recording SubagentStop Hook
+
+Scenarios:
+- Subagent stop is recorded automatically with the exact transcript-summed count
+- Missing or usage-free transcript records nothing rather than fabricating a count
+- Registration targets the SubagentStop event and leaves existing hooks untouched
+- Hook copies stay byte-identical and syntactically valid
+
+### Worktree-Aware Change Resolution For Token Recording
+
+Scenarios:
+- Recording from inside a change worktree attributes to that change
+- Repo-root recording keeps the existing single-active-change behavior
+- Unresolvable change fails safely without misattribution
+
+### Non-Blocking Token Recording Hook Failure
+
+Scenarios:
+- CLI unavailable leaves the subagent run unaffected
+- Recording command failure is swallowed
+- Missing transcript is swallowed without blocking the subagent
+- Guard hook behavior is unchanged with the recording hook installed
+
+### Token Record Provenance Deduplication In Tokens Report
+
+Scenarios:
+- Duplicate hook and prose records count once, preferring the hook value
+- Prose-only records are retained
+- Dedupe never mutates persisted state
 
 ## fix-issues-command
 
