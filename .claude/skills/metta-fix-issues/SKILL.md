@@ -80,7 +80,11 @@ For a given `<issue-slug>`:
 
 9. **Finalize** — `metta finalize --json --change <name>` → runs gates, archives, merges specs
 
-10. **Merge** — `git checkout main && git merge metta/<change-name> --no-ff -m "chore: merge <change-name>"`
+10. **Ship** —
+    a. `git push -u origin metta/<change-name>` → push the feature branch to the remote
+    b. `gh pr create --title "<conventional-commit-style title from the change>" --body "<summary from summary.md or intent.md highlights>"` → open a PR. The body MUST end with `🤖 Generated with [Claude Code](https://claude.com/claude-code)`
+    c. `gh pr merge <pr-number> --merge` → land the PR immediately, unless the user asked to leave it open for review — in that case stop here and report the PR URL instead of merging
+    d. Back on `main`: `git pull --ff-only`, then clean up the change branch and worktree
 
 11. **Remove Issue** — `metta fix-issue --remove-issue <issue-slug> --json` → archives issue to `spec/issues/resolved/` then removes from `spec/issues/`
 
@@ -116,7 +120,8 @@ When `$ARGUMENTS` is `--all` (optionally with `--severity <level>`):
 - Every artifact MUST be followed by `metta complete` to advance workflow
 - Discovery mode is always **batch** for fix-issues — the issue definition provides all context
 - Do NOT skip review or verification — all 3 reviewers and 3 verifiers MUST run
-- Do NOT stop after verification — finalize + merge + remove-issue must happen
+- Do NOT stop after verification — finalize + ship + remove-issue must happen
 - If metta finalize fails gates, spawn a metta-executor to fix, then retry
+- Direct local merge of the change branch into main (`git merge`) is forbidden — every change ships through a pushed branch and a GitHub PR
 - If a dispatched step appears orphaned, follow the residual orphaning recovery protocol in metta-skill-host.md.
 - Deviation Rule 4: design is wrong → STOP, tell user

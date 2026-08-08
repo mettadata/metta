@@ -82,7 +82,11 @@ For a given `<gap-slug>`:
 
 9. **Finalize** — `metta finalize --json --change <name>` → runs gates, archives, merges specs
 
-10. **Merge** — `git checkout main && git merge metta/<change-name> --no-ff -m "chore: merge <change-name>"`
+10. **Ship** —
+    a. `git push -u origin metta/<change-name>` → push the feature branch to the remote
+    b. `gh pr create --title "<conventional-commit-style title from the change>" --body "<summary from summary.md or intent.md highlights>"` → open a PR. The body MUST end with `🤖 Generated with [Claude Code](https://claude.com/claude-code)`
+    c. `gh pr merge <pr-number> --merge` → land the PR immediately, unless the user asked to leave it open for review — in that case stop here and report the PR URL instead of merging
+    d. Back on `main`: `git pull --ff-only`, then clean up the change branch and worktree
 
 11. **Remove Gap** — `metta gaps remove <gap-slug> --json` → archives gap to `spec/archive/` then removes from `spec/gaps/`
 
@@ -119,6 +123,7 @@ When `$ARGUMENTS` is `--all` (optionally with `--severity <level>`):
 - Every artifact MUST be followed by `metta complete` to advance workflow
 - Discovery mode is always **batch** for fix-gap — the gap definition provides all context
 - Do NOT skip review or verification — all 3 reviewers and 3 verifiers MUST run
-- Do NOT stop after verification — finalize + merge + remove-gap must happen
+- Do NOT stop after verification — finalize + ship + remove-gap must happen
 - If metta finalize fails gates, spawn a metta-executor to fix, then retry
+- Direct local merge of the change branch into main (`git merge`) is forbidden — every change ships through a pushed branch and a GitHub PR
 - Deviation Rule 4: design is wrong → STOP, tell user
