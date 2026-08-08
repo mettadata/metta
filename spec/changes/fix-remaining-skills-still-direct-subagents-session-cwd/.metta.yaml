@@ -30,3 +30,19 @@ model_runs:
   - task: implementation
     model: sonnet
     timestamp: 2026-08-08T11:33:21.064Z
+token_usage:
+  - task: implementation-fix-issues-fix-gap
+    agent: metta-executor
+    model: sonnet
+    tokens: 39823
+    timestamp: 2026-08-08T11:36:39.112Z
+  - task: implementation-quick-auto
+    agent: metta-executor
+    model: sonnet
+    tokens: 45345
+    timestamp: 2026-08-08T11:36:49.953Z
+  - task: implementation-execute-uat
+    agent: metta-executor
+    model: sonnet
+    tokens: 43774
+    timestamp: 2026-08-08T11:37:29.542Z
