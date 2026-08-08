@@ -1,4 +1,4 @@
-import { dirname, join, relative, resolve } from 'node:path'
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { existsSync } from 'node:fs'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
@@ -73,12 +73,26 @@ export function resolveProjectRoot(cwd: string = process.cwd()): string {
  * command edge. Invoked from inside a worktree, the metadata carries no
  * injected host (discovery is local), so the result is the worktree's own
  * project root and in-worktree behavior is unchanged.
+ *
+ * Containment guarantee: the `worktree` value is persisted in a git-tracked
+ * `.metta.yaml` and therefore untrusted. The resolved value is only honored
+ * when it is strictly contained under `<projectRoot>/.metta/worktrees/`
+ * (checked via `path.relative`, never string prefixing); anything else —
+ * an absolute path elsewhere, a `..` escape, or the worktrees dir itself —
+ * silently falls back to `projectRoot`, matching the absent-metadata default.
+ * This bounds every change-scoped path and git side-effect cwd to the
+ * project's own worktree area. Still pure: path math only, no fs I/O.
  */
 export function resolveChangeRoot(
   projectRoot: string,
   metadata: Pick<ChangeMetadata, 'worktree'>,
 ): string {
-  return metadata.worktree ?? projectRoot
+  if (metadata.worktree === undefined) return projectRoot
+  const worktreesDir = resolve(projectRoot, DEFAULT_WORKTREE_DIR)
+  const candidate = resolve(metadata.worktree)
+  const rel = relative(worktreesDir, candidate)
+  if (rel === '' || rel.startsWith('..') || isAbsolute(rel)) return projectRoot
+  return candidate
 }
 
 export function createCliContext(projectRoot?: string): CliContext {
