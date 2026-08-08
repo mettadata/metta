@@ -17,14 +17,14 @@ You are the **orchestrator** for implementation. Spawn executor subagents per ba
 ## Steps
 
 1. `metta status --json` → confirm implementation is ready
-2. Read `spec/changes/<change>/tasks.md` for the task list
+2. Read `{change_root}/spec/changes/<change>/tasks.md` for the task list. `change_root` comes from the `metta instructions <id> --json` payload (the root of the checkout hosting the change, emitted alongside `output_path`) — use it verbatim; never re-derive paths from the session cwd. If you do not yet hold a payload, resolve it the same way: the change's worktree at `.metta/worktrees/<change>/` when that directory exists, otherwise the main checkout root.
 3. Group tasks by batch (Batch 1, Batch 2, etc.)
 4. For each batch:
    a. Check if tasks in this batch touch **different files** (no overlap)
    b. If NO overlap → **spawn all tasks in parallel** using multiple Agent tool calls in a single message
    c. If overlap exists → spawn tasks **sequentially** (one at a time)
    d. Wait for all tasks in batch to complete before starting next batch
-5. After all batches, write `spec/changes/<change>/summary.md`
+5. After all batches, write `{change_root}/spec/changes/<change>/summary.md`, then commit it: `git -C "{change_root}" add "{change_root}/spec/changes/<change>/summary.md" && git -C "{change_root}" commit -m 'docs(<change>): implementation summary'` — always `git -C "{change_root}"` with the paths quoted, never plain git from your cwd: for a worktree-hosted change a plain `git add` would target the wrong checkout or fail with 'outside repository'
 6. `metta complete implementation --json --change <name>`
 
 ## Parallel Execution
@@ -45,7 +45,7 @@ Agent(subagent_type: "metta-executor", description: "Task 2.1: build auth API", 
 Agent(subagent_type: "metta-executor", description: "Task 2.2: build product API", prompt: "...")
 ```
 
-For **every** executor spawn (parallel or sequential, first run or re-run — not just the examples above): read `agent.model` from `metta instructions <id> --json`. If it is not `inherit`, pass it as `Agent(subagent_type: "metta-executor", model: "<value>", ...)`. If it is `inherit`, omit the `model` parameter.
+For **every** executor spawn (parallel or sequential, first run or re-run — not just the examples above): read `agent.model` from `metta instructions <id> --json`. If it is not `inherit`, pass it as `Agent(subagent_type: "metta-executor", model: "<value>", ...)`. If it is `inherit`, omit the `model` parameter. Pass the payload's `change_root` into every executor prompt: all file paths handed to an executor must be absolute under `{change_root}`, and all commits it makes must use `git -C "{change_root}"` — never plain git from the session cwd.
 
 After each subagent returns, record its reported token usage: `metta tokens record --task <artifact-or-task-id> --agent <subagent-type> --model <alias> --tokens <count> --change <name>` — `--task` is the artifact or task id it worked, `--agent` is the `subagent_type` you spawned, `--model` is the model alias you passed to `Agent(...)` (use `inherit` when you omitted the `model` parameter), and `--tokens` is the token count from its completion report. This applies to every spawn — planner, executor, reviewer, and verifier alike.
 
