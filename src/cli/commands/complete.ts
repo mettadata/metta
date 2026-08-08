@@ -8,7 +8,7 @@ import { parseStories, StoriesParseError } from '../../specs/stories-parser.js'
 import { validateFulfillsRefs } from '../../stories/story-validator.js'
 import { parseSpec, parseDeltaSpec } from '../../specs/spec-parser.js'
 import { readFile } from 'node:fs/promises'
-import { toSlug } from '../../util/slug.js'
+import { toSlug, assertSafeSlug } from '../../util/slug.js'
 import { scoreFromIntentImpact, scoreFromSummaryFiles, isScorePresent, renderBanner } from '../../complexity/index.js'
 import { parseTasks, markTaskComplete } from '../../planning/index.js'
 import { SpecTargetError } from '../../finalize/spec-merger.js'
@@ -102,6 +102,11 @@ export function registerCompleteCommand(program: Command): void {
         const changes = await ctx.artifactStore.listChanges()
         const changeName = options.change ?? (changes.length === 1 ? changes[0] : null)
         if (!changeName) throw new Error(changes.length === 0 ? 'No active changes.' : `Multiple changes: ${changes.join(', ')}. Use --change <name>.`)
+
+        // Slug-validate the change name before any store lookup or path join
+        // built from it (matches context.ts) — a '../..'-shaped --change must
+        // fail fast instead of traversing outside the spec tree.
+        assertSafeSlug(changeName, 'change name')
 
         // Verify the artifact file exists
         const metadata = await ctx.artifactStore.getChange(changeName)
