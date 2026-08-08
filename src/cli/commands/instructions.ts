@@ -65,8 +65,12 @@ export function registerInstructionsCommand(program: Command): void {
         // Change-scoped paths root at the checkout hosting the change: the
         // worktree checkout for worktree-hosted changes (so root-invoked
         // emission matches in-worktree invocation byte for byte), the project
-        // root otherwise. Workflow/template/config loading above stays
-        // main-root-anchored deliberately.
+        // root otherwise. Only change-scoped paths re-root — workflow lookup
+        // (above) and config loading (below) stay anchored at the invoking
+        // checkout's projectRoot. Main-root config anchoring is deliberate:
+        // the invoking session's `.metta/config.yaml` governs model
+        // resolution and verification context regardless of where the
+        // change's files live.
         const changeRoot = resolveChangeRoot(ctx.projectRoot, metadata)
         const changePath = join(changeRoot, 'spec', 'changes', changeName)
         const specDir = join(changeRoot, 'spec')

@@ -51,13 +51,21 @@ export function registerContextCommand(program: Command): void {
 
         // Root change-scoped paths at the checkout hosting the change (the
         // worktree checkout when discovery injects a hosting worktree path).
-        // Metadata read failures — e.g. a change dir with no .metta.yaml, or
-        // a name that doesn't exist — fall back to the project root so the
-        // canonical not_found error below stays intact.
+        // Only not-found metadata reads — a change dir with no .metta.yaml,
+        // or a name that doesn't exist — fall back to the project root so
+        // the canonical not_found error below stays intact. Anything else
+        // (e.g. StateValidationError from corrupt/Zod-invalid metadata)
+        // propagates to the outer catch instead of silently degrading to a
+        // main-root resolution with a misleading not_found.
         let changeRoot = ctx.projectRoot
         try {
           changeRoot = resolveChangeRoot(ctx.projectRoot, await ctx.artifactStore.getChange(changeName))
-        } catch {
+        } catch (err) {
+          const code =
+            err instanceof Error && 'code' in err
+              ? (err as NodeJS.ErrnoException).code
+              : undefined
+          if (code !== 'ENOENT' && code !== 'ENOTDIR') throw err
           // Treat as a plain local change.
         }
 

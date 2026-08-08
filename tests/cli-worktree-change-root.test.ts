@@ -49,9 +49,30 @@ describe('CLI: worktree-hosted change-root resolution (no git)', { timeout: 6000
       join(wtChangeDir, 'intent.md'),
       `# ${WT_CHANGE}\n\n## Problem\n\nWorktree-hosted intent body used for context resolution.\n`,
     )
+    // A fully valid stories document (parseable by the stories-valid gate)
+    // that exists ONLY in the worktree change dir.
     await writeFile(
       join(wtChangeDir, 'stories.md'),
-      `# ${WT_CHANGE} stories\n\n## Story: S1 — Root invocation works\n\nAs a developer I want root-invoked commands to see the worktree.\n`,
+      [
+        `# ${WT_CHANGE} stories`,
+        '',
+        '## US-1: Root invocation works',
+        '',
+        '**As a** developer',
+        '',
+        '**I want to** run change-scoped commands from the main checkout root',
+        '',
+        '**So that** worktree-hosted changes behave identically from either root',
+        '',
+        '**Priority:** P1',
+        '',
+        '**Independent Test Criteria:** Invoke the command from the main root and observe worktree-rooted paths.',
+        '',
+        '### Acceptance Criteria',
+        '',
+        '- **Given** a worktree-hosted change **When** the command runs from the main root **Then** the gate reads the worktree copy of stories.md',
+        '',
+      ].join('\n'),
     )
     // A MODIFIED delta targeting a capability that exists ONLY in the
     // worktree's spec/specs tree — the capability-existence gate must
@@ -136,6 +157,23 @@ describe('CLI: worktree-hosted change-root resolution (no git)', { timeout: 6000
         join(tempDir, 'spec', 'changes', 'no-such-change'),
       )
     })
+
+    it('corrupt change metadata propagates as an error, not a misleading not_found', async () => {
+      const corruptDir = join(tempDir, 'spec', 'changes', 'corrupt-change')
+      await mkdir(corruptDir, { recursive: true })
+      // Schema-invalid metadata: `workflow` must be a string and required
+      // fields are missing — getChange throws StateValidationError, which
+      // must NOT be swallowed into a projectRoot fallback.
+      await writeFile(join(corruptDir, '.metta.yaml'), 'workflow: [not, a, string]\n')
+      const { stdout, code } = await runCli(
+        ['--json', 'context', 'stats', '--change', 'corrupt-change'],
+        tempDir,
+      )
+      expect(code).toBe(4)
+      const data = JSON.parse(stdout)
+      expect(data.error.type).toBe('context_stats_error')
+      expect(String(data.error.message)).toContain('Schema validation failed')
+    })
   })
 
   describe('metta instructions', () => {
@@ -174,7 +212,7 @@ describe('CLI: worktree-hosted change-root resolution (no git)', { timeout: 6000
   })
 
   describe('metta complete', () => {
-    it('spec gates read the worktree artifacts and capability specs from the main root', async () => {
+    it('spec gates, invoked from the main root, read worktree artifacts and capability specs', async () => {
       const { stderr, code } = await runCli(
         ['complete', 'spec', '--change', WT_CHANGE],
         tempDir,
@@ -187,6 +225,24 @@ describe('CLI: worktree-hosted change-root resolution (no git)', { timeout: 6000
       // The completion landed on the worktree copy of the change state.
       const meta = await readFile(join(wtChangeDir, '.metta.yaml'), 'utf8')
       expect(meta).toContain('spec: complete')
+      // Nothing leaked into the main checkout.
+      expect(existsSync(join(tempDir, 'spec', 'changes', WT_CHANGE))).toBe(false)
+    })
+
+    it('stories-valid gate, invoked from the main root, reads stories.md/spec.md from the worktree', async () => {
+      const { stderr, code } = await runCli(
+        ['complete', 'stories', '--change', WT_CHANGE],
+        tempDir,
+      )
+      // Before re-rooting the gate parsed a main-checkout path with no
+      // stories.md and failed with "stories.md not found".
+      expect(stderr).not.toContain('stories.md not found')
+      expect(stderr).not.toContain('parse error')
+      expect(code).toBe(0)
+
+      // The completion landed on the worktree copy of the change state.
+      const meta = await readFile(join(wtChangeDir, '.metta.yaml'), 'utf8')
+      expect(meta).toContain('stories: complete')
       // Nothing leaked into the main checkout.
       expect(existsSync(join(tempDir, 'spec', 'changes', WT_CHANGE))).toBe(false)
     })
