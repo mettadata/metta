@@ -1,5 +1,5 @@
 import { Command } from 'commander'
-import { createCliContext, outputJson, color, agentBanner, askYesNo, getErrorMessage } from '../helpers.js'
+import { createCliContext, outputJson, color, agentBanner, askYesNo, getErrorMessage, resolveChangeRoot } from '../helpers.js'
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { execFile } from 'node:child_process'
@@ -109,6 +109,13 @@ export function registerCompleteCommand(program: Command): void {
           throw new Error(`Artifact '${artifactId}' not in workflow. Available: ${Object.keys(metadata.artifacts).join(', ')}`)
         }
 
+        // Change-scoped paths — gate reads, the capability spec existence
+        // check, and the auto-commit target — root at the checkout hosting
+        // the change: the worktree checkout for worktree-hosted changes
+        // (a worktree carries its own full spec/ tree), the project root
+        // otherwise. Workflow loading below stays main-root-anchored.
+        const changeRoot = resolveChangeRoot(ctx.projectRoot, metadata)
+
         // Look up the generates field from the workflow definition
         const builtinWorkflows = new URL('../../templates/workflows', import.meta.url).pathname
         const projectWorkflows = join(ctx.projectRoot, '.metta', 'workflows')
@@ -154,10 +161,10 @@ export function registerCompleteCommand(program: Command): void {
 
           // Pre-complete stories-valid gate
           if (artifactId === 'stories') {
-            const storiesPath = join(ctx.projectRoot, 'spec', 'changes', changeName, generates)
+            const storiesPath = join(changeRoot, 'spec', 'changes', changeName, generates)
             try {
               const stories = await parseStories(storiesPath)
-              const specPath = join(ctx.projectRoot, 'spec', 'changes', changeName, 'spec.md')
+              const specPath = join(changeRoot, 'spec', 'changes', changeName, 'spec.md')
               if (existsSync(specPath)) {
                 const spec = await parseSpec(specPath)
                 const allRefs = spec.requirements.flatMap(r => r.fulfills ?? [])
@@ -179,11 +186,11 @@ export function registerCompleteCommand(program: Command): void {
 
           // Pre-complete spec-delta target-capability gate
           if (artifactId === 'spec') {
-            const specPath = join(ctx.projectRoot, 'spec', 'changes', changeName, generates)
+            const specPath = join(changeRoot, 'spec', 'changes', changeName, generates)
             const deltaContent = await readFile(specPath, 'utf8')
             const deltaSpec = parseDeltaSpec(deltaContent)
             const capabilityName = toSlug(deltaSpec.title.replace(/\s*\(Delta\)\s*$/, ''))
-            const capSpecPath = join(ctx.projectRoot, 'spec', 'specs', capabilityName, 'spec.md')
+            const capSpecPath = join(changeRoot, 'spec', 'specs', capabilityName, 'spec.md')
             const capExists = existsSync(capSpecPath)
             // Capability-target refusal gate: an H1 that still resolves to the
             // change's own slug, with no existing capability of that name,
@@ -602,12 +609,15 @@ export function registerCompleteCommand(program: Command): void {
             console.log(`Next: metta finalize --change ${changeName}`)
           }
         }
-        // Auto-commit all spec changes (artifacts + .metta.yaml state)
+        // Auto-commit all spec changes (artifacts + .metta.yaml state). The
+        // commit targets the checkout hosting the change — the worktree
+        // branch for worktree-hosted changes — never the main checkout's
+        // index when invoked from the main root.
         try {
           const changePath = join('spec', 'changes', changeName)
-          await execAsync('git', ['add', changePath], { cwd: ctx.projectRoot })
-          await execAsync('git', ['diff', '--cached', '--quiet'], { cwd: ctx.projectRoot }).catch(async () => {
-            await execAsync('git', ['commit', '-m', `docs(${changeName}): complete ${artifactId}`], { cwd: ctx.projectRoot })
+          await execAsync('git', ['add', changePath], { cwd: changeRoot })
+          await execAsync('git', ['diff', '--cached', '--quiet'], { cwd: changeRoot }).catch(async () => {
+            await execAsync('git', ['commit', '-m', `docs(${changeName}): complete ${artifactId}`], { cwd: changeRoot })
           })
         } catch {
           // Git not available or nothing to commit
