@@ -48,6 +48,12 @@ export const UatConfigSchema = z.object({
 
 export type UatConfig = z.infer<typeof UatConfigSchema>
 
+export const TokensConfigSchema = z.object({
+  enabled: z.boolean().default(true),
+}).strict()
+
+export type TokensConfig = z.infer<typeof TokensConfigSchema>
+
 export const AutoConfigSchema = z.object({
   max_cycles: z.number().int().positive().default(10),
   ship_on_success: z.boolean().default(false),
@@ -106,6 +112,7 @@ export const ProjectConfigSchema = z.object({
   git: GitConfigSchema.optional(),
   docs: DocsConfigSchema.default({}),
   uat: UatConfigSchema.default({}),
+  tokens: TokensConfigSchema.default({}),
   auto: AutoConfigSchema.optional(),
   context_sections: z.array(z.string()).optional(),
   adapters: z.array(z.string()).optional(),

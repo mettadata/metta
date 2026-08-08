@@ -26,6 +26,8 @@ import {
   ModelAliasEnum,
   ModelsConfigSchema,
   GitConfigSchema,
+  TokenUsageRecordSchema,
+  TokensConfigSchema,
 } from '../src/schemas/index.js'
 import type { ComplexityScore } from '../src/schemas/index.js'
 
@@ -1790,6 +1792,114 @@ describe('ChangeMetadataSchema worktree field', () => {
 
   it('rejects a non-string worktree value', () => {
     const result = ChangeMetadataSchema.safeParse({ ...base, worktree: 42 })
+    expect(result.success).toBe(false)
+  })
+})
+
+
+describe('TokenUsageRecordSchema', () => {
+  const baseMetadata = {
+    workflow: 'standard',
+    created: '2026-04-04T12:00:00Z',
+    status: 'active',
+    current_artifact: 'spec',
+    base_versions: {},
+    artifacts: {},
+  }
+
+  const validRecord = {
+    task: '1.1',
+    agent: 'metta-executor',
+    model: 'haiku',
+    tokens: 12345,
+    timestamp: '2026-08-08T12:00:00Z',
+  }
+
+  it('round-trips a valid record through ChangeMetadataSchema token_usage', () => {
+    const result = ChangeMetadataSchema.safeParse({
+      ...baseMetadata,
+      token_usage: [validRecord],
+    })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.token_usage).toEqual([validRecord])
+      expect(result.data.token_usage?.[0]?.model).toBe('haiku')
+    }
+  })
+
+  it('rejects tokens: 0', () => {
+    const result = TokenUsageRecordSchema.safeParse({ ...validRecord, tokens: 0 })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects non-integer tokens (12.5)', () => {
+    const result = TokenUsageRecordSchema.safeParse({ ...validRecord, tokens: 12.5 })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects negative tokens (-5)', () => {
+    const result = TokenUsageRecordSchema.safeParse({ ...validRecord, tokens: -5 })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects a model outside ModelAliasEnum', () => {
+    const result = TokenUsageRecordSchema.safeParse({ ...validRecord, model: 'gpt-4' })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects unknown extra keys (.strict())', () => {
+    const result = TokenUsageRecordSchema.safeParse({ ...validRecord, cost: 1.23 })
+    expect(result.success).toBe(false)
+  })
+
+  it('accepts metadata without token_usage (backward compat)', () => {
+    const result = ChangeMetadataSchema.safeParse(baseMetadata)
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.token_usage).toBeUndefined()
+    }
+  })
+
+  it('leaves existing artifact_tokens fixture behavior unchanged', () => {
+    const result = ChangeMetadataSchema.safeParse({
+      ...baseMetadata,
+      artifact_tokens: {
+        intent: { context: 775, budget: 20000 },
+        spec: { context: 4086, budget: 40000 },
+      },
+    })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.artifact_tokens?.spec?.budget).toBe(40000)
+      expect(result.data.token_usage).toBeUndefined()
+    }
+  })
+})
+
+describe('TokensConfigSchema', () => {
+  it('defaults tokens to { enabled: true } when omitted from ProjectConfigSchema', () => {
+    const result = ProjectConfigSchema.safeParse({})
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.tokens).toEqual({ enabled: true })
+    }
+  })
+
+  it('accepts an explicit enabled: false', () => {
+    const result = TokensConfigSchema.safeParse({ enabled: false })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.enabled).toBe(false)
+    }
+  })
+
+  it('rejects unknown keys (.strict())', () => {
+    const result = TokensConfigSchema.safeParse({ enabled: true, budget: 1000 })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects a non-boolean enabled value', () => {
+    const result = TokensConfigSchema.safeParse({ enabled: 'yes' })
     expect(result.success).toBe(false)
   })
 })

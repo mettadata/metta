@@ -64,6 +64,21 @@ export const ModelEscalationSchema = z.object({
 
 export type ModelEscalation = z.infer<typeof ModelEscalationSchema>
 
+/**
+ * A single reported token-usage entry for one agent run on one task.
+ * Not to be confused with `ArtifactTokensSchema` / `artifact_tokens`,
+ * which tracks context size vs budget per artifact.
+ */
+export const TokenUsageRecordSchema = z.object({
+  task: z.string().min(1),
+  agent: z.string().min(1),
+  model: ModelAliasEnum,
+  tokens: z.number().int().positive(),
+  timestamp: z.string().datetime(),
+}).strict()
+
+export type TokenUsageRecord = z.infer<typeof TokenUsageRecordSchema>
+
 export const ModelRunSchema = z.object({
   task: z.string().min(1),
   model: ModelAliasEnum,
@@ -84,6 +99,7 @@ export const ChangeMetadataSchema = z.object({
   auto_accept_recommendation: z.boolean().optional(),
   workflow_locked: z.boolean().optional(),
   artifact_timings: z.record(z.string(), ArtifactTimingSchema).optional(),
+  // Per-artifact context-size-vs-budget tracking. Distinct from `token_usage` below.
   artifact_tokens: z.record(z.string(), ArtifactTokensSchema).optional(),
   review_iterations: z.number().int().nonnegative().optional(),
   verify_iterations: z.number().int().nonnegative().optional(),
@@ -92,6 +108,9 @@ export const ChangeMetadataSchema = z.object({
   escalation: EscalationSchema.optional(),
   model_escalations: z.array(ModelEscalationSchema).optional(),
   model_runs: z.array(ModelRunSchema).optional(),
+  // Reported token consumption per agent run (task/agent/model/tokens/timestamp).
+  // Distinct from `artifact_tokens` above, which tracks context size vs budget per artifact.
+  token_usage: z.array(TokenUsageRecordSchema).optional(),
 }).strict()
 
 export type ChangeMetadata = z.infer<typeof ChangeMetadataSchema>
