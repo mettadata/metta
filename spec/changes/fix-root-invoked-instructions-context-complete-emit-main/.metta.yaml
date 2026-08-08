@@ -16,8 +16,17 @@ artifact_timings:
   intent:
     started: 2026-08-08T09:29:34.595Z
     completed: 2026-08-08T09:31:12.610Z
+  implementation:
+    started: 2026-08-08T09:31:29.205Z
 artifact_tokens:
   intent:
     context: 759
     budget: 20000
+  implementation:
+    context: 0
+    budget: 10000
 worktree: /home/utx0/Code/metta/.metta/worktrees/fix-root-invoked-instructions-context-complete-emit-main
+model_runs:
+  - task: implementation
+    model: sonnet
+    timestamp: 2026-08-08T09:31:29.206Z
