@@ -1,0 +1,41 @@
+workflow: quick
+created: 2026-08-08T13:17:06.931Z
+status: active
+current_artifact: verification
+base_versions: {}
+artifacts:
+  intent: complete
+  implementation: complete
+  verification: complete
+complexity_score:
+  score: 1
+  signals:
+    file_count: 2
+  recommended_workflow: quick
+artifact_timings:
+  intent:
+    started: 2026-08-08T13:17:24.022Z
+    completed: 2026-08-08T13:18:28.409Z
+  implementation:
+    started: 2026-08-08T13:18:41.084Z
+    completed: 2026-08-08T13:25:47.850Z
+  verification:
+    started: 2026-08-08T13:32:25.007Z
+    completed: 2026-08-08T13:32:46.831Z
+artifact_tokens:
+  intent:
+    context: 759
+    budget: 20000
+  implementation:
+    context: 0
+    budget: 10000
+  verification:
+    context: 292
+    budget: 50000
+review_iterations: 1
+verify_iterations: 1
+worktree: /home/utx0/Code/metta/.metta/worktrees/fix-set-up-github-ci-metta-repo-no-ci-currently-exists
+model_runs:
+  - task: implementation
+    model: sonnet
+    timestamp: 2026-08-08T13:18:41.084Z
