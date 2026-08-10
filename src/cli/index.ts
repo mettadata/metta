@@ -49,6 +49,7 @@ import { registerCheckConstitutionCommand } from './commands/check-constitution.
 import { registerValidateStoriesCommand } from './commands/validate-stories.js'
 import { registerReconcileCommand } from './commands/reconcile.js'
 import { registerDocsCommand } from './commands/docs.js'
+import { registerReleaseCommand } from './commands/release.js'
 
 const program = new Command()
 
@@ -102,6 +103,7 @@ registerCheckConstitutionCommand(program)
 registerValidateStoriesCommand(program)
 registerReconcileCommand(program)
 registerDocsCommand(program)
+registerReleaseCommand(program)
 
 // Commands that must still run even when .metta/config.yaml is corrupt.
 // These are the repair/bootstrap surfaces that the user needs access to
