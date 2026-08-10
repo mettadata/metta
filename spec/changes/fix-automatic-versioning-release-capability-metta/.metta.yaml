@@ -36,6 +36,8 @@ artifact_timings:
   tasks:
     started: 2026-08-08T15:13:56.831Z
     completed: 2026-08-08T15:17:50.577Z
+  implementation:
+    started: 2026-08-10T21:31:28.309Z
 artifact_tokens:
   intent:
     context: 759
@@ -55,4 +57,7 @@ artifact_tokens:
   tasks:
     context: 11115
     budget: 40000
+  implementation:
+    context: 5653
+    budget: 10000
 worktree: /home/utx0/Code/metta/.metta/worktrees/fix-automatic-versioning-release-capability-metta
