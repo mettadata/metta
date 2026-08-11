@@ -7,6 +7,9 @@ import { tmpdir } from 'node:os'
 
 // metta-session-mint PreToolUse hook tests: the Tier-2 credential-minting half
 // of the two-tier trust model (metta-guard-bash.mjs is the validating half).
+// Each skill's hook mints its OWN token file at
+// .metta/scratch/skill-session/<slug>.token — hooks accumulated from previously
+// invoked skills never clobber or suppress the active skill's credential.
 // The source template and the deployed mirror must stay byte-identical; tests
 // run against both.
 
@@ -61,17 +64,25 @@ function bashEvent(command: string, cwd: string, toolName = 'Bash'): Record<stri
   return { tool_name: toolName, tool_input: { command }, cwd }
 }
 
-function tokenPath(cwd: string): string {
+function tokenDir(cwd: string): string {
+  return join(cwd, '.metta', 'scratch', 'skill-session')
+}
+
+function tokenPath(cwd: string, slug: string): string {
+  return join(tokenDir(cwd), `${slug}.token`)
+}
+
+function legacyTokenPath(cwd: string): string {
   return join(cwd, '.metta', 'scratch', 'skill-session.token')
 }
 
-function readToken(cwd: string): TokenFile {
-  return JSON.parse(readFileSync(tokenPath(cwd), 'utf8')) as TokenFile
+function readToken(cwd: string, slug: string): TokenFile {
+  return JSON.parse(readFileSync(tokenPath(cwd, slug), 'utf8')) as TokenFile
 }
 
 function seedToken(cwd: string, token: TokenFile): void {
-  mkdirSync(join(cwd, '.metta', 'scratch'), { recursive: true })
-  writeFileSync(tokenPath(cwd), JSON.stringify(token), { mode: 0o600 })
+  mkdirSync(tokenDir(cwd), { recursive: true })
+  writeFileSync(tokenPath(cwd, token.skill), JSON.stringify(token), { mode: 0o600 })
 }
 
 describe('metta-session-mint hook', { timeout: 30_000 }, () => {
@@ -96,17 +107,19 @@ describe('metta-session-mint hook', { timeout: 30_000 }, () => {
     const label = hookPath.includes('.claude') ? 'deployed' : 'source'
 
     describe(`${label} hook (${hookPath})`, () => {
-      it('fires and writes a token file with mode 0600 for a valid Bash event', () => {
+      it('fires and writes a per-skill token file with mode 0600 for a valid Bash event', () => {
         const cwd = makeTempCwd()
         const { code } = runHook(hookPath, 'metta-next', bashEvent('metta status --json', cwd), {
           cwd,
         })
         expect(code).toBe(0)
-        expect(existsSync(tokenPath(cwd))).toBe(true)
-        const mode = statSync(tokenPath(cwd)).mode & 0o777
+        expect(existsSync(tokenPath(cwd, 'metta-next'))).toBe(true)
+        const mode = statSync(tokenPath(cwd, 'metta-next')).mode & 0o777
         expect(mode).toBe(0o600)
         // Valid JSON
-        expect(() => readToken(cwd)).not.toThrow()
+        expect(() => readToken(cwd, 'metta-next')).not.toThrow()
+        // The retired single-file credential path is never written.
+        expect(existsSync(legacyTokenPath(cwd))).toBe(false)
       })
 
       it('mints a payload with exactly the expected keys and values', () => {
@@ -117,7 +130,7 @@ describe('metta-session-mint hook', { timeout: 30_000 }, () => {
         })
         const after = Date.now()
         expect(code).toBe(0)
-        const tok = readToken(cwd)
+        const tok = readToken(cwd, 'metta-next')
         expect(Object.keys(tok).sort()).toEqual(
           ['mintedAt', 'skill', 'subcommands', 'token', 'ttlMs'].sort(),
         )
@@ -145,7 +158,7 @@ describe('metta-session-mint hook', { timeout: 30_000 }, () => {
           cwd,
         })
         expect(code).toBe(0)
-        const tok = readToken(cwd)
+        const tok = readToken(cwd, 'metta-next')
         expect(tok.token).not.toBe(seeded.token)
         expect(tok.mintedAt).toBeGreaterThanOrEqual(before)
         expect(tok.mintedAt).toBeLessThanOrEqual(Date.now())
@@ -165,9 +178,105 @@ describe('metta-session-mint hook', { timeout: 30_000 }, () => {
           cwd,
         })
         expect(code).toBe(0)
-        const tok = readToken(cwd)
+        const tok = readToken(cwd, 'metta-next')
         expect(tok.token).toBe(seeded.token)
         expect(tok.mintedAt).toBe(seeded.mintedAt)
+      })
+
+      // Regression (session-mint token clobbering after context compaction): a fresh
+      // token minted by a previously invoked skill's accumulated hook must neither
+      // suppress this skill's mint nor be overwritten by it.
+      it('two skills minting concurrently do not clobber each other', () => {
+        const cwd = makeTempCwd()
+        const first = runHook(hookPath, 'metta-refresh', bashEvent('metta status --json', cwd), {
+          cwd,
+        })
+        expect(first.code).toBe(0)
+        const refreshTok = readToken(cwd, 'metta-refresh')
+
+        const second = runHook(hookPath, 'metta-verify', bashEvent('metta status --json', cwd), {
+          cwd,
+        })
+        expect(second.code).toBe(0)
+
+        // Both per-skill tokens coexist, each with its own scope.
+        const verifyTok = readToken(cwd, 'metta-verify')
+        expect(verifyTok.skill).toBe('metta-verify')
+        expect(verifyTok.subcommands).toEqual(['verify', 'complete'])
+        const refreshTokAfter = readToken(cwd, 'metta-refresh')
+        expect(refreshTokAfter.skill).toBe('metta-refresh')
+        expect(refreshTokAfter.subcommands).toEqual(['refresh'])
+        // The first skill's fresh token was left untouched (not rotated or overwritten).
+        expect(refreshTokAfter.token).toBe(refreshTok.token)
+        expect(refreshTokAfter.mintedAt).toBe(refreshTok.mintedAt)
+      })
+
+      it("another skill's fresh token does not suppress this skill's own mint", () => {
+        const cwd = makeTempCwd()
+        // A fresh token for a different skill is already present (previously invoked
+        // skill's hook fired first at this rotation window).
+        seedToken(cwd, {
+          token: '22222222-2222-4222-8222-222222222222',
+          skill: 'metta-refresh',
+          subcommands: ['refresh'],
+          mintedAt: Date.now(),
+          ttlMs: TTL_MS,
+        })
+        const { code } = runHook(hookPath, 'metta-next', bashEvent('metta status --json', cwd), {
+          cwd,
+        })
+        expect(code).toBe(0)
+        // metta-next minted its own token despite the fresh metta-refresh token.
+        const tok = readToken(cwd, 'metta-next')
+        expect(tok.skill).toBe('metta-next')
+        expect(tok.subcommands).toEqual(['complete', 'finalize'])
+      })
+
+      it('deletes expired sibling token files on mint, keeps fresh ones', () => {
+        const cwd = makeTempCwd()
+        seedToken(cwd, {
+          token: '33333333-3333-4333-8333-333333333333',
+          skill: 'metta-refresh',
+          subcommands: ['refresh'],
+          mintedAt: Date.now() - TTL_MS - 1000, // expired
+          ttlMs: TTL_MS,
+        })
+        seedToken(cwd, {
+          token: '44444444-4444-4444-8444-444444444444',
+          skill: 'metta-verify',
+          subcommands: ['verify', 'complete'],
+          mintedAt: Date.now(), // fresh
+          ttlMs: TTL_MS,
+        })
+        const { code } = runHook(hookPath, 'metta-next', bashEvent('metta status --json', cwd), {
+          cwd,
+        })
+        expect(code).toBe(0)
+        expect(existsSync(tokenPath(cwd, 'metta-refresh'))).toBe(false) // expired sibling removed
+        expect(existsSync(tokenPath(cwd, 'metta-verify'))).toBe(true) // fresh sibling kept
+        expect(existsSync(tokenPath(cwd, 'metta-next'))).toBe(true) // own token minted
+      })
+
+      it('removes a lingering legacy single-file token on mint', () => {
+        const cwd = makeTempCwd()
+        mkdirSync(join(cwd, '.metta', 'scratch'), { recursive: true })
+        writeFileSync(
+          legacyTokenPath(cwd),
+          JSON.stringify({
+            token: '55555555-5555-4555-8555-555555555555',
+            skill: 'metta-refresh',
+            subcommands: ['refresh'],
+            mintedAt: Date.now(),
+            ttlMs: TTL_MS,
+          }),
+          { mode: 0o600 },
+        )
+        const { code } = runHook(hookPath, 'metta-next', bashEvent('metta status --json', cwd), {
+          cwd,
+        })
+        expect(code).toBe(0)
+        expect(existsSync(legacyTokenPath(cwd))).toBe(false)
+        expect(existsSync(tokenPath(cwd, 'metta-next'))).toBe(true)
       })
 
       describe('scope table: each Tier-2 slug mints its exact subcommand scope', () => {
@@ -178,7 +287,7 @@ describe('metta-session-mint hook', { timeout: 30_000 }, () => {
               cwd,
             })
             expect(code).toBe(0)
-            const tok = readToken(cwd)
+            const tok = readToken(cwd, slug)
             expect(tok.skill).toBe(slug)
             expect(tok.subcommands).toEqual(scope)
           })
@@ -194,7 +303,7 @@ describe('metta-session-mint hook', { timeout: 30_000 }, () => {
           { cwd },
         )
         expect(code).toBe(0)
-        expect(existsSync(tokenPath(cwd))).toBe(false)
+        expect(existsSync(tokenDir(cwd))).toBe(false)
       })
 
       it('non-Bash tool_name is a no-op: exit 0, no token file written', () => {
@@ -206,7 +315,7 @@ describe('metta-session-mint hook', { timeout: 30_000 }, () => {
           { cwd },
         )
         expect(code).toBe(0)
-        expect(existsSync(tokenPath(cwd))).toBe(false)
+        expect(existsSync(tokenDir(cwd))).toBe(false)
       })
     })
   }

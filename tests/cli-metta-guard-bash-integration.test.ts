@@ -256,7 +256,7 @@ describe('metta-guard-bash integration', { timeout: 60_000 }, () => {
         ttlMs: number
       }> = {},
     ): void {
-      mkdirSync(join(tempDir, '.metta', 'scratch'), { recursive: true })
+      mkdirSync(join(tempDir, '.metta', 'scratch', 'skill-session'), { recursive: true })
       const tok = {
         token: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
         skill: 'metta-next',
@@ -266,7 +266,7 @@ describe('metta-guard-bash integration', { timeout: 60_000 }, () => {
         ...overrides,
       }
       writeFileSync(
-        join(tempDir, '.metta', 'scratch', 'skill-session.token'),
+        join(tempDir, '.metta', 'scratch', 'skill-session', `${tok.skill}.token`),
         JSON.stringify(tok),
         { mode: 0o600 },
       )
@@ -421,7 +421,13 @@ describe('metta-guard-bash integration', { timeout: 60_000 }, () => {
       })
       expect(mint.status).toBe(0)
 
-      const tokenPath = join(tempDir, '.metta', 'scratch', 'skill-session.token')
+      const tokenPath = join(
+        tempDir,
+        '.metta',
+        'scratch',
+        'skill-session',
+        'metta-roadmap.token',
+      )
       expect(existsSync(tokenPath)).toBe(true)
       const token = JSON.parse(readFileSync(tokenPath, 'utf8')) as {
         skill: string
@@ -491,7 +497,13 @@ describe('metta-guard-bash integration', { timeout: 60_000 }, () => {
       })
       expect(mint.status).toBe(0)
 
-      const tokenPath = join(tempDir, '.metta', 'scratch', 'skill-session.token')
+      const tokenPath = join(
+        tempDir,
+        '.metta',
+        'scratch',
+        'skill-session',
+        'metta-release.token',
+      )
       expect(existsSync(tokenPath)).toBe(true)
       const token = JSON.parse(readFileSync(tokenPath, 'utf8')) as {
         skill: string
