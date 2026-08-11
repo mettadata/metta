@@ -26,3 +26,18 @@ Commit `fe717be01` — `fix(finalize): resolve specDir from the change's host ch
 ## Scope notes
 
 - Gates and config still run against the session projectRoot per the intent's "path derivations only" scope; the broader worktree-blind gate/doc execution class is out of scope.
+
+## Verification results (final)
+
+- Full suite: 119 files, 2122/2122 tests passed, 0 failures.
+- `npx tsc --noEmit`: clean. `npm run lint`: clean. `npm run build`: succeeded.
+- Intent coverage: all 3 proposal items COVERED with passing, load-bearing tests:
+  1. Host-checkout specDir resolution — tests/artifact-store.test.ts:281 (specDirFor worktree vs local), tests/finalizer.test.ts:357 (all finalize writes land in the worktree).
+  2. Non-stranding gates.yaml ordering — tests/finalizer.test.ts:315 (pre-archive staging swept into archive), :335 (staging failure aborts pre-move, change stays fully active, no orphan archive).
+  3. Regression from main cwd over a real git worktree — tests/cli-finalize.test.ts:403 (archive/gates/paths/auto-commit in worktree, main untouched), :492 (spec-delta merge: spec.md AND spec.lock land in the worktree).
+
+## Review outcome
+
+- Round 1: 1 critical (session-rooted SpecLockManager → split-root spec merge), fixed in commit 8c7fa8f0a.
+- Round 2: Correctness PASS, Security PASS_WITH_WARNINGS, Quality PASS.
+- Non-blocking warnings carried as follow-up candidates: gates execute against session projectRoot; finalize lock session-rooted; DocGenerator mixed roots.
