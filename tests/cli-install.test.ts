@@ -261,6 +261,47 @@ describe("CLI: install / init / stack detection", { timeout: 30000 }, () => {
       expect(installed.equals(template)).toBe(true)
     })
 
+    it('registers metta-tokens-record SubagentStop entry in settings.json', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      const { readFile } = await import('node:fs/promises')
+      const hookPath = join(tempDir, '.claude', 'hooks', 'metta-tokens-record.mjs')
+      const settingsPath = join(tempDir, '.claude', 'settings.json')
+      const hookContents = await readFile(hookPath, 'utf8')
+      expect(hookContents.length).toBeGreaterThan(0)
+      const settings = JSON.parse(await readFile(settingsPath, 'utf8'))
+      const subagentStop = settings.hooks?.SubagentStop ?? []
+      const hasTokensRecord = subagentStop.some((e: { hooks?: Array<{ command?: string }> }) =>
+        (e.hooks ?? []).some((h) => h.command?.includes('metta-tokens-record.mjs')),
+      )
+      expect(hasTokensRecord).toBe(true)
+    })
+
+    it('is idempotent for metta-tokens-record — second install does not duplicate the SubagentStop entry', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      await runCli(['install'], tempDir)
+      const { readFile } = await import('node:fs/promises')
+      const settings = JSON.parse(await readFile(join(tempDir, '.claude', 'settings.json'), 'utf8'))
+      const subagentStop = settings.hooks?.SubagentStop ?? []
+      const tokensRecordEntries = subagentStop.filter((e: { hooks?: Array<{ command?: string }> }) =>
+        (e.hooks ?? []).some((h) => h.command?.includes('metta-tokens-record.mjs')),
+      )
+      expect(tokensRecordEntries.length).toBe(1)
+    })
+
+    it('preserves existing PreToolUse guard entries when registering the SubagentStop entry', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      const { readFile } = await import('node:fs/promises')
+      const settings = JSON.parse(await readFile(join(tempDir, '.claude', 'settings.json'), 'utf8'))
+      const preToolUse = settings.hooks?.PreToolUse ?? []
+      const subagentStop = settings.hooks?.SubagentStop ?? []
+      expect(preToolUse.length).toBe(2)
+      expect(subagentStop.length).toBe(1)
+      const entry = subagentStop[0] as { matcher?: string; hooks?: Array<{ type?: string; command?: string }> }
+      expect(entry.matcher).toBeUndefined()
+      expect(entry.hooks?.[0]?.type).toBe('command')
+      expect(entry.hooks?.[0]?.command).toBe('.claude/hooks/metta-tokens-record.mjs')
+    })
+
     it('inventory completeness: installed .claude/hooks/ exactly matches src/templates/hooks/, byte-identical and executable', async () => {
       const { readFile, readdir, stat } = await import('node:fs/promises')
       await runCli(['install', '--git-init'], tempDir)
