@@ -3,7 +3,9 @@ import { existsSync } from 'node:fs'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { createInterface } from 'node:readline'
+import { ZodError } from 'zod'
 import { getErrorMessage } from '../util/errors.js'
+import { formatZodError } from '../util/format-zod-error.js'
 import { DEFAULT_WORKTREE_DIR } from '../util/git-worktree.js'
 import { ConfigLoader, ConfigParseError } from '../config/config-loader.js'
 import { getVersionDrift } from '../config/version-drift.js'
@@ -256,7 +258,9 @@ export function handleError(err: unknown, json: boolean): never {
     }
     process.exit(4)
   }
-  const message = getErrorMessage(err)
+  // A raw ZodError's `.message` is the JSON-serialized issues array — render
+  // it as friendly `path: message` lines instead (same envelope, same exit 4).
+  const message = err instanceof ZodError ? formatZodError(err) : getErrorMessage(err)
   if (json) {
     outputJson({ error: { code: 4, type: 'validation_error', message } })
   } else {

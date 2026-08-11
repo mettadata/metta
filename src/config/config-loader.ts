@@ -5,6 +5,7 @@ import YAML from 'yaml'
 import { ZodError } from 'zod'
 import { ProjectConfigSchema, type ProjectConfig, type ProjectInfo } from '../schemas/project-config.js'
 import { getErrorMessage } from '../util/errors.js'
+import { formatZodError } from '../util/format-zod-error.js'
 
 export class ConfigParseError extends Error {
   readonly parserMessage: string
@@ -151,7 +152,7 @@ export class ConfigLoader {
         try {
           ProjectConfigSchema.parse(fileOnly)
           // File-only config is valid — the env vars caused the failure.
-          const issues = err.issues.map(i => `  - ${i.path.join('.')}: ${i.message}`).join('\n')
+          const issues = formatZodError(err, { prefix: '  - ' })
           process.stderr.write(`Warning: METTA_* environment variable(s) caused config validation errors (ignored):\n${issues}\n`)
           result = ProjectConfigSchema.parse(fileOnly)
         } catch {
