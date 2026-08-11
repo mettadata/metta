@@ -30,6 +30,8 @@ artifact_timings:
   research:
     started: 2026-08-11T10:08:00.189Z
     completed: 2026-08-11T10:16:35.957Z
+  design:
+    started: 2026-08-11T10:16:39.430Z
 artifact_tokens:
   intent:
     context: 763
@@ -43,6 +45,9 @@ artifact_tokens:
   research:
     context: 2848
     budget: 60000
+  design:
+    context: 3871
+    budget: 80000
 worktree: /home/utx0/Code/metta/.metta/worktrees/fix-ci-only-test-setup-failures-runcli-swallows-install
 token_usage:
   - task: metta-skill-host
