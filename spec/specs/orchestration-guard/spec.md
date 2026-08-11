@@ -55,6 +55,13 @@ it MUST be absent or treated as invalid whenever no sanctioned skill is currentl
 session, so idle sessions carry no standing authorization. A call to one of these subcommands
 without a valid credential meeting all three properties MUST be rejected.
 
+Credentials MUST be stored per skill: each sanctioned skill mints and rotates its own credential
+file, scoped to its own subcommands, and minting or rotating one skill's credential MUST NOT
+overwrite, suppress, or invalidate another skill's credential. The guard MUST accept a call when
+any currently valid credential's scope covers the invoked subcommand, so a fresh credential left
+by a previously invoked skill can never block the genuinely active skill's own authorization. A
+retired shared single-credential storage location MUST NOT be honored as authorization.
+
 ### Scenario: Sanctioned skill-driven call with a valid credential is accepted
 - GIVEN a main-session lifecycle subcommand is invoked from within a sanctioned skill's body after that skill has acquired its session credential through the sanctioned mechanism
 - WHEN the guard evaluates the call
@@ -74,6 +81,11 @@ without a valid credential meeting all three properties MUST be rejected.
 - GIVEN a main-session lifecycle subcommand is invoked with no session credential present at all
 - WHEN the guard evaluates the call
 - THEN the call is rejected and the rejection message names the sanctioned skill entry point that would have acquired the credential
+
+### Scenario: Concurrent skill credentials do not interfere
+- GIVEN two sanctioned skills have been invoked in the same session and each holds its own currently valid credential, and a main-session lifecycle subcommand covered only by the second skill's credential scope is invoked
+- WHEN the guard evaluates the call
+- THEN the call is accepted, and the presence of the first skill's still-valid credential neither authorizes subcommands outside its own scope nor blocks the second skill's authorization
 
 
 ## Requirement: Unrecognized metta Subcommands Fail Closed

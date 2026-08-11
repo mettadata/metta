@@ -157,10 +157,10 @@ The roadmap command group MUST be registered in the CLI entry point via `registe
 
 ## Requirement: Guard hook tiers roadmap forms — mutations Tier 2, status view unguarded
 
-The `.claude/hooks/metta-guard-bash.mjs` hook MUST add the two-word mutating forms `roadmap add`, `roadmap reorder`, and `roadmap next` to the Tier 2 session-tier blocked-forms allowlist (the `BLOCKED_TWO_WORD` table alongside the existing `backlog add/done/promote` entries, with matching `"<sub>:<third>"` scope-key handling), so that from an AI session these Bash calls are blocked unless a valid session credential exists at `.metta/scratch/skill-session.token`. The bare read-only `metta roadmap` view MUST join the unguarded read-only pattern like `backlog list/show`, requiring no credential. Existing backlog and changes guard entries MUST remain untouched. Inline command text MUST never contribute authorization; only the minted session credential authorizes a Tier 2 roadmap mutation.
+The `.claude/hooks/metta-guard-bash.mjs` hook MUST add the two-word mutating forms `roadmap add`, `roadmap reorder`, and `roadmap next` to the Tier 2 session-tier blocked-forms allowlist (the `BLOCKED_TWO_WORD` table alongside the existing `backlog add/done/promote` entries, with matching `"<sub>:<third>"` scope-key handling), so that from an AI session these Bash calls are blocked unless a valid per-skill session credential under `.metta/scratch/skill-session/` covers them. The bare read-only `metta roadmap` view MUST join the unguarded read-only pattern like `backlog list/show`, requiring no credential. Existing backlog and changes guard entries MUST remain untouched. Inline command text MUST never contribute authorization; only the minted session credential authorizes a Tier 2 roadmap mutation.
 
 ### Scenario: Uncredentialed AI session is blocked from roadmap mutations
-- GIVEN an AI orchestrator session with no valid credential at `.metta/scratch/skill-session.token`
+- GIVEN an AI orchestrator session with no valid per-skill credential under `.metta/scratch/skill-session/`
 - WHEN it issues direct Bash calls `metta roadmap add foo`, `metta roadmap reorder a b`, and `metta roadmap next`
 - THEN the `metta-guard-bash` hook blocks each call via the Tier 2 `roadmap` allowlist entries with a rejection pointing at the skill path
 
