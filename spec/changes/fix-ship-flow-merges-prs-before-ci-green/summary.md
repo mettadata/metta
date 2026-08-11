@@ -29,3 +29,16 @@ PR #66 was merged while its `gates` check was still IN_PROGRESS — the ship flo
 
 - Grep confirms all 12 create→checks→merge sequences are in place and deployed/template pairs are identical.
 - Gates (tests, typecheck, build, lint) run at finalize; no TypeScript code was touched.
+
+## Verification results (2026-08-11)
+
+Three verification passes (run inline in the skill-host context — session subagent limit exhausted):
+
+1. **Tests:** `npm test` — 116 files, 2053 tests, all passed.
+2. **Typecheck / build / lint:** `npx tsc --noEmit` clean, `npm run build` clean (dist/ templates regenerated — all 6 dist skill templates carry the new step), `npm run lint` clean.
+3. **Intent compliance (trivial workflow — no spec.md):**
+   - 12/12 deployed+template SKILL.md files contain `gh pr checks <pr-number> --watch --fail-fast`; scripted check confirms create → checks → merge ordering in every ship section.
+   - `.github/workflows/ci.yml:16` — `cancel-in-progress: ${{ github.event_name == 'pull_request' }}`.
+   - Deployed/template pairs byte-identical for all six skills.
+
+All gates green.
