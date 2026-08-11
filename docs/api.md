@@ -675,68 +675,6 @@ Scenarios:
 - command appears in --help output
 - registerFixIssueCommand is called in index.ts
 
-### fix-issue-cli-command
-
-Scenarios:
-- no-args prints usage
-- single-slug prints details and delegate hint
-- single-slug not found exits non-zero
-- --all lists issues sorted severity-first
-- --all --severity filters to matching tier
-- --remove-issue archives and commits
-
-### issues-store-archival
-
-Scenarios:
-- archive moves content to resolved directory
-- archive on missing slug throws
-- archive is idempotent when resolved copy already exists
-- remove deletes the open issue file
-
-### skill-template
-
-Scenarios:
-- template file exists with correct frontmatter name
-- deployed skill is byte-identical to template
-- skill body references all four CLI invocation modes
-
-### cli-registration
-
-Scenarios:
-- command appears in --help output
-- registerFixIssueCommand is called in index.ts
-
-### fix-issue-cli-command
-
-Scenarios:
-- no-args prints usage
-- single-slug prints details and delegate hint
-- single-slug not found exits non-zero
-- --all lists issues sorted severity-first
-- --all --severity filters to matching tier
-- --remove-issue archives and commits
-
-### issues-store-archival
-
-Scenarios:
-- archive moves content to resolved directory
-- archive on missing slug throws
-- archive is idempotent when resolved copy already exists
-- remove deletes the open issue file
-
-### skill-template
-
-Scenarios:
-- template file exists with correct frontmatter name
-- deployed skill is byte-identical to template
-- skill body references all four CLI invocation modes
-
-### cli-registration
-
-Scenarios:
-- command appears in --help output
-- registerFixIssueCommand is called in index.ts
-
 ## gate-runner
 
 ### Gate execution MUST honor all three `on_failure` policies uniformly
@@ -790,20 +728,6 @@ Scenarios:
 - install on a project that already has .metta
 - install without a git repository
 - human-readable install output points at init
-
-### init-command-drives-discovery
-
-Scenarios:
-- init after install in a brownfield project
-- init on a greenfield project
-- init before install is blocked
-- init does not mutate the repository
-
-### init-skill-invokes-init-command
-
-Scenarios:
-- skill template references init command
-- skill propagates to installed projects
 
 ### install-stamps-installed-version
 
@@ -1392,57 +1316,6 @@ Scenarios:
 - Archive answers the acceptance question months later
 
 ## user-stories
-
-### Stories Artifact Phase in Standard Workflow
-
-Scenarios:
-- Standard workflow lists stories between intent and spec
-- Spec artifact requires stories in standard workflow
-- Quick workflow has no stories artifact
-
-### Stories Document Format
-
-Scenarios:
-- Well-formed multi-story document is accepted
-- Internal sentinel document is accepted
-- Missing required field causes rejection
-
-### Stories Zod Schema and Parser
-
-Scenarios:
-- Parser returns three stories from valid document
-- Parser returns sentinel document
-- Parser throws StoriesParseError on missing field
-- Parser throws on duplicate US-N
-- Parser throws on non-monotonic IDs
-
-### validate-stories CLI Command
-
-Scenarios:
-- Valid stories exits 0
-- Invalid stories exits 4 with error detail
-- Missing change directory exits 4 not_found
-
-### Spec Parser Fulfills Field
-
-Scenarios:
-- Requirement with Fulfills line exposes fulfills array
-- Requirement without Fulfills line has empty array
-- Malformed Fulfills produces warning not error
-
-### Finalize Stories Gate
-
-Scenarios:
-- Clean change with valid stories passes gate
-- Missing stories.md fails gate
-- Broken Fulfills reference fails gate
-- Drift warning does not block finalize
-
-### metta-product Agent
-
-Scenarios:
-- Agent file exists with correct frontmatter
-- Deployed copy is byte-identical to source template
 
 ### Stories Artifact Phase in Standard Workflow
 

@@ -35,13 +35,13 @@
 35 requirements
 
 ### fix-issues-command
-12 requirements
+4 requirements
 
 ### gate-runner
 4 requirements
 
 ### install-init
-11 requirements
+9 requirements
 
 ### instruction-contracts
 13 requirements
@@ -74,7 +74,7 @@
 10 requirements
 
 ### user-stories
-14 requirements
+7 requirements
 
 ### WorkflowEngine — Specification
 0 requirements
