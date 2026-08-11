@@ -21,3 +21,25 @@ No TypeScript source, tests, or templates. The merger idempotency guard at `src/
 - `fix(specs): dedupe user-stories spec`
 - `fix(specs): regenerate spec.locks for deduped capabilities`
 - `chore(refresh): regenerate CLAUDE.md` (by metta refresh)
+
+## Verification results (2026-08-11)
+
+Note: verifier lenses executed inline by the skill-host (subagent spawn limit 200/200 exhausted); all evidence is mechanical.
+
+### Spec scenarios
+
+- [x] fix-issues-command spec is deduplicated — `grep -c '^## Requirement:'` = 4 (`fix-issue-cli-command`, `issues-store-archival`, `skill-template`, `cli-registration`); diff vs main shows pure deletion of 294 lines
+- [x] install-init spec is deduplicated — 9 headings, `uniq -d` over names empty, untouched requirements bit-identical
+- [x] user-stories spec is deduplicated — 7 headings, `uniq -d` empty, pure deletion of 187 lines
+- [x] locks match repaired specs — regenerated via `SpecLockManager.update()`: 4/9/7 entries, versions 13/12/15, zero per-requirement hash mismatches; only the three target locks changed on the branch
+- [x] refreshed counts — CLAUDE.md rows: fix-issues-command 78→26, install-init 46→39, user-stories 84→42; no other rows changed
+- [x] gates still pass — see below
+
+### Gate results
+
+- `npm test` — 118 files, **2085/2085 passed** (310s)
+- `npx tsc --noEmit` — clean
+- `npm run lint` — exit 0 (tsc --noEmit)
+- Repo-wide duplicate scan across all `spec/specs/*/spec.md` — zero duplicated requirement names remain
+
+Verdict: **PASS** (3/3 verification lenses — tests, static checks, spec-content evidence).
