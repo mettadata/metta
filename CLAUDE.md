@@ -114,9 +114,9 @@ Cite the source URL when presenting findings so the user can verify the answer.
 | constitution-check | 17 |
 | context-engine | 78 |
 | finalize-ship | 181 |
-| fix-issues-command | 78 |
+| fix-issues-command | 26 |
 | gate-runner | 10 |
-| install-init | 46 |
+| install-init | 39 |
 | instruction-contracts | 44 |
 | issue-logging | 40 |
 | orchestration-guard | 46 |
@@ -127,7 +127,7 @@ Cite the source URL when presenting findings so the user can verify the answer.
 | spec-model | 26 |
 | state-store | 73 |
 | uat-execution | 46 |
-| user-stories | 84 |
+| user-stories | 42 |
 | workflow-engine | 46 |
 | workflow-parallelism-discipline | 37 |
 <!-- metta:specs-end -->

@@ -65,46 +65,6 @@ The  command MUST scaffold Metta files into the project and MUST NOT emit discov
 - THEN the final line of stdout directs them to run  next
 
 
-## Requirement: init-command-drives-discovery
-
-The  command MUST produce the discovery payload consumed by AI agents to run project discovery. It MUST detect brownfield versus greenfield mode by scanning for language/framework marker files and non-empty source directories. It MUST emit the  object (agent persona, mode, detected stack, questions, output paths, constitution and context templates) to stdout when  is set. It MUST require a prior  and MUST NOT scaffold any files, install any commands, or create commits.
-
-### Scenario: init after install in a brownfield project
-- GIVEN a project where  has been run and  plus a non-empty  exist
-- WHEN the user runs
-- THEN the command emits JSON containing a  object with ,  including Rust,  including , the brownfield question set, and absolute  for constitution, context_file, and config
-
-### Scenario: init on a greenfield project
-- GIVEN a project where  has been run and no stack marker files or source directories are present
-- WHEN the user runs
-- THEN the command emits  with the greenfield question set and empty  and
-
-### Scenario: init before install is blocked
-- GIVEN a project with no  directory
-- WHEN the user runs
-- THEN the command exits with code 3, emits an error JSON whose message instructs the user to run  first, and writes nothing to the filesystem
-
-### Scenario: init does not mutate the repository
-- GIVEN an installed project with a clean working tree
-- WHEN the user runs
-- THEN after the command the working tree remains clean, no new commits are created,  and  are byte-identical to their pre-run state
-
-
-## Requirement: init-skill-invokes-init-command
-
-The  Claude Code skill MUST invoke  (not ) as its first step, parse the  object from the response, and spawn a  agent with the parsed fields. The skill template in  MUST match the skill installed into target projects under  via the command installer.
-
-### Scenario: skill template references init command
-- GIVEN the skill template at
-- WHEN a reader inspects the bash command on the first numbered step
-- THEN the command is , not
-
-### Scenario: skill propagates to installed projects
-- GIVEN a project where  has been run
-- WHEN the installer copies  from the template
-- THEN the installed copy also invokes
-
-
 ## Requirement: install-stamps-installed-version
 
 The `metta install` command MUST write the running package version (as reported by `getPackageVersion`) to the top-level `installed_version` field in `.metta/config.yaml` using the validated `setProjectField` write path in `src/config/config-writer.ts`. The write MUST occur on every run of `metta install`, overwriting any existing `installed_version` value, so that re-running install after a binary upgrade or downgrade always refreshes the stamp. The stamped value MUST be the exact version string of the binary that performed the install.

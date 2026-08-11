@@ -1,6 +1,6 @@
-version: 11
-hash: sha256:d916dc48393e
-updated: 2026-07-26T04:51:04.337Z
+version: 12
+hash: sha256:5693ecc90a68
+updated: 2026-08-11T05:15:25.764Z
 status: draft
 source: change
 requirements:
@@ -23,18 +23,6 @@ requirements:
       - install-on-a-project-that-already-has-metta
       - install-without-a-git-repository
       - human-readable-install-output-points-at-init
-  - id: init-command-drives-discovery
-    hash: sha256:414ca1f26d3e
-    scenarios:
-      - init-after-install-in-a-brownfield-project
-      - init-on-a-greenfield-project
-      - init-before-install-is-blocked
-      - init-does-not-mutate-the-repository
-  - id: init-skill-invokes-init-command
-    hash: sha256:906f7cb9e6ba
-    scenarios:
-      - skill-template-references-init-command
-      - skill-propagates-to-installed-projects
   - id: install-stamps-installed-version
     hash: sha256:140a11098911
     scenarios:

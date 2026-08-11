@@ -1,0 +1,52 @@
+workflow: standard
+created: 2026-08-11T05:09:36.994Z
+status: active
+current_artifact: verification
+base_versions: {}
+artifacts:
+  intent: complete
+  stories: complete
+  spec: complete
+  research: complete
+  design: complete
+  tasks: complete
+  implementation: complete
+  verification: complete
+complexity_score:
+  score: 2
+  signals:
+    file_count: 4
+  recommended_workflow: standard
+artifact_timings:
+  intent:
+    started: 2026-08-11T05:09:45.805Z
+    completed: 2026-08-11T05:11:03.721Z
+  stories:
+    started: 2026-08-11T05:11:09.340Z
+    completed: 2026-08-11T05:11:19.008Z
+  spec:
+    completed: 2026-08-11T05:11:39.321Z
+  research:
+    completed: 2026-08-11T05:12:55.095Z
+  design:
+    completed: 2026-08-11T05:13:19.533Z
+  tasks:
+    completed: 2026-08-11T05:13:37.465Z
+  implementation:
+    completed: 2026-08-11T05:16:19.860Z
+  verification:
+    started: 2026-08-11T05:22:53.842Z
+    completed: 2026-08-11T05:23:06.039Z
+artifact_tokens:
+  intent:
+    context: 763
+    budget: 20000
+  stories:
+    context: 1496
+    budget: 20000
+  verification:
+    context: 2804
+    budget: 50000
+review_iterations: 1
+verify_iterations: 1
+worktree: /home/utx0/Code/metta/.metta/worktrees/fix-repo-wide-duplicate-requirement-scan
