@@ -4,7 +4,7 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { Command } from 'commander'
-import { runCli, execAsync, CLI_PATH, disableWorktrees } from './helpers/cli.js'
+import { runCli, execAsync, CLI_PATH, disableWorktrees, installFixture } from './helpers/cli.js'
 import { registerCompleteCommand } from '../src/cli/commands/complete.js'
 
 // Scripted TTY prompt state for the in-process interactive downscale tests.
@@ -67,7 +67,7 @@ describe("CLI: instructions banners / complete tier downscale & upscale", { time
     }
 
     it('agreement banner: scored workflow matches chosen workflow', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
       await runCli(['propose', 'agreement banner'], tempDir)
       // standard propose → workflow=standard; score recommendation=standard
@@ -82,7 +82,7 @@ describe("CLI: instructions banners / complete tier downscale & upscale", { time
     })
 
     it('downscale banner: scored tier lower than chosen tier', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
       await runCli(['propose', 'downscale banner'], tempDir)
       // propose → standard; recommended=trivial (lower)
@@ -97,7 +97,7 @@ describe("CLI: instructions banners / complete tier downscale & upscale", { time
     })
 
     it('upscale banner: scored tier higher than chosen tier', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
       await runCli(['quick', 'upscale banner'], tempDir)
       // quick workflow → quick; recommended=standard (higher)
@@ -112,7 +112,7 @@ describe("CLI: instructions banners / complete tier downscale & upscale", { time
     })
 
     it('suppressed: no complexity_score produces no Advisory prefix', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
       await runCli(['propose', 'suppressed banner'], tempDir)
       const { stderr, code } = await runCli(
@@ -124,7 +124,7 @@ describe("CLI: instructions banners / complete tier downscale & upscale", { time
     })
 
     it('--json mode: stdout remains valid JSON when banner is printed', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
       await runCli(['propose', 'json banner'], tempDir)
       await writeComplexityField('json-banner', 'trivial', 0, 1)
@@ -145,7 +145,7 @@ describe("CLI: instructions banners / complete tier downscale & upscale", { time
 
   describe('metta instructions verification context', { timeout: 30000 }, () => {
     it('strategy present: emits configured values in context', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
       await runCli(['propose', 'ver ctx present'], tempDir)
 
@@ -171,7 +171,7 @@ describe("CLI: instructions banners / complete tier downscale & upscale", { time
     })
 
     it('strategy absent: emits null for both fields', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
       await runCli(['propose', 'ver ctx absent'], tempDir)
 
@@ -248,7 +248,7 @@ describe("CLI: instructions banners / complete tier downscale & upscale", { time
     }
 
     it('auto_accept: downscale fires and mutates workflow without prompting', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
       await runCli(['propose', 'downscale auto', '--auto'], tempDir)
       const changeDir = join(tempDir, 'spec', 'changes', 'downscale-auto')
@@ -291,7 +291,7 @@ describe("CLI: instructions banners / complete tier downscale & upscale", { time
       // execFile gives a non-TTY stdin. With workflow_locked absent the
       // downscale default is Yes, so askYesNo resolves Yes without prompting
       // and the collapse happens silently.
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
       await runCli(['propose', 'downscale no'], tempDir)
       const changeDir = join(tempDir, 'spec', 'changes', 'downscale-no')
@@ -323,7 +323,7 @@ describe("CLI: instructions banners / complete tier downscale & upscale", { time
     })
 
     it('json mode with downscale condition: no prompt, workflow collapses, stdout stays valid JSON', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
       await runCli(['propose', 'downscale json'], tempDir)
       const changeDir = join(tempDir, 'spec', 'changes', 'downscale-json')
@@ -345,7 +345,7 @@ describe("CLI: instructions banners / complete tier downscale & upscale", { time
     })
 
     it('three-file impact under standard: downscale to quick fires by default', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
       await runCli(['propose', 'three file impact'], tempDir)
       const changeDir = join(tempDir, 'spec', 'changes', 'three-file-impact')
@@ -374,7 +374,7 @@ describe("CLI: instructions banners / complete tier downscale & upscale", { time
     })
 
     it('workflow_locked, non-TTY: workflow kept, escalation recorded with workflow_locked justification', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
       // Explicit --workflow sets workflow_locked: true, which flips the
       // downscale default back to No.
@@ -456,7 +456,7 @@ describe("CLI: instructions banners / complete tier downscale & upscale", { time
     }
 
     it('interactive decline (answer n): [Y/n] prompt, workflow kept, declined-downscale escalation', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
       await runCli(['propose', 'downscale decline'], tempDir)
       const changeDir = join(tempDir, 'spec', 'changes', 'downscale-decline')
@@ -490,7 +490,7 @@ describe("CLI: instructions banners / complete tier downscale & upscale", { time
     })
 
     it('interactive empty answer: Yes default collapses workflow, no escalation', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
       await runCli(['propose', 'downscale accept enter'], tempDir)
       const changeDir = join(tempDir, 'spec', 'changes', 'downscale-accept-enter')
@@ -517,7 +517,7 @@ describe("CLI: instructions banners / complete tier downscale & upscale", { time
     })
 
     it('recommendation matches current workflow: no prompt, no banner, no change', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
       // Quick workflow + 1 file -> trivial. That is lower than quick, so downscale would fire.
       // Use quick + 3 files -> quick. Same tier, no prompt, no banner.
@@ -546,7 +546,7 @@ describe("CLI: instructions banners / complete tier downscale & upscale", { time
       // smallest named interactive workflow. A quick run scoring trivial
       // is handled by the intra-quick fan-out gate in the skill template,
       // not by re-prompting at intent-complete time.
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
       await runCli(['quick', 'quick trivial noop'], tempDir)
       const changeDir = join(tempDir, 'spec', 'changes', 'quick-trivial-noop')
@@ -582,7 +582,7 @@ describe("CLI: instructions banners / complete tier downscale & upscale", { time
       // Regression: exercise the code path where auto_accept_recommendation was
       // enabled via a separate metadata write rather than the propose flag, to
       // verify the complete command reads the field fresh from disk.
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
       await runCli(['propose', 'fixture auto'], tempDir)
       await setAutoAccept('fixture-auto')
@@ -705,7 +705,7 @@ describe("CLI: instructions banners / complete tier downscale & upscale", { time
     }
 
     it('auto_accept: upscale from quick to standard fires and inserts planning artifacts', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
       await runCli(['quick', 'upscale auto', '--auto'], tempDir)
       const changeDir = join(tempDir, 'spec', 'changes', 'upscale-auto')
@@ -747,7 +747,7 @@ describe("CLI: instructions banners / complete tier downscale & upscale", { time
 
     it('non-TTY (no path): quick + 5-file impact leaves workflow unchanged and emits advisory', async () => {
       // execFile gives a non-TTY stdin, so askYesNo returns its default (false).
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
       await runCli(['quick', 'upscale no'], tempDir)
       const changeDir = join(tempDir, 'spec', 'changes', 'upscale-no')
@@ -778,7 +778,7 @@ describe("CLI: instructions banners / complete tier downscale & upscale", { time
     })
 
     it('full-tier hard cap: quick + 15-file impact emits advisory, no prompt, no workflow change', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
       // Use --auto to prove that auto-accept does NOT bypass the full-tier cap.
       await runCli(['quick', 'upscale full', '--auto'], tempDir)
@@ -810,7 +810,7 @@ describe("CLI: instructions banners / complete tier downscale & upscale", { time
     })
 
     it('same tier: quick + 2-file impact does not fire upscale', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
       await runCli(['quick', 'upscale same', '--auto'], tempDir)
       const changeDir = join(tempDir, 'spec', 'changes', 'upscale-same')
@@ -834,7 +834,7 @@ describe("CLI: instructions banners / complete tier downscale & upscale", { time
     })
 
     it('standard workflow + 3-file impact: downscale fires by default, upscale does NOT fire', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
       await runCli(['propose', 'downscale not upscale'], tempDir)
       const changeDir = join(tempDir, 'spec', 'changes', 'downscale-not-upscale')
@@ -930,7 +930,7 @@ describe("CLI: instructions banners / complete tier downscale & upscale", { time
     }
 
     it('auto_accept + 5-file summary: upscale fires, stories+spec marked pending, directive on stdout', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
       await runCli(['quick', 'post impl auto', '--auto'], tempDir)
       const changeDir = join(tempDir, 'spec', 'changes', 'post-impl-auto')
@@ -966,7 +966,7 @@ describe("CLI: instructions banners / complete tier downscale & upscale", { time
 
     it('non-TTY (no path): 5-file summary persists score, leaves workflow unchanged, emits warning', async () => {
       // execFile gives a non-TTY stdin -> askYesNo returns default (false).
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
       await runCli(['quick', 'post impl no'], tempDir)
       const changeDir = join(tempDir, 'spec', 'changes', 'post-impl-no')
@@ -1002,7 +1002,7 @@ describe("CLI: instructions banners / complete tier downscale & upscale", { time
     })
 
     it('same tier: quick + 2-file summary persists score, no prompt, no warning', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
       await runCli(['quick', 'post impl same'], tempDir)
       const changeDir = join(tempDir, 'spec', 'changes', 'post-impl-same')
@@ -1028,7 +1028,7 @@ describe("CLI: instructions banners / complete tier downscale & upscale", { time
     })
 
     it('full-tier hard cap: quick + 15-file summary persists score, emits advisory, no prompt, no workflow change', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
       // --auto to confirm that auto-accept does NOT bypass the full-tier cap.
       await runCli(['quick', 'post impl full', '--auto'], tempDir)
@@ -1061,7 +1061,7 @@ describe("CLI: instructions banners / complete tier downscale & upscale", { time
     })
 
     it('yes path + stories already complete: skip re-marking stories pending, directive still printed', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
       // Start on quick + --auto so the yes path is taken without a prompt.
       await runCli(['quick', 'post impl stories', '--auto'], tempDir)
@@ -1092,7 +1092,7 @@ describe("CLI: instructions banners / complete tier downscale & upscale", { time
     })
 
     it('missing summary.md: post-impl block is skipped, no error, exit 0', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
       await runCli(['quick', 'post impl none', '--auto'], tempDir)
       // No summary.md written.
@@ -1201,7 +1201,7 @@ describe("CLI: instructions banners / complete tier downscale & upscale", { time
     }
 
     it('self-slug ADDED delta without marker: refuses completion, no capability folder created', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
       await runCli(['propose', 'landfill no marker'], tempDir)
       const changeDir = join(tempDir, 'spec', 'changes', 'landfill-no-marker')
@@ -1227,7 +1227,7 @@ describe("CLI: instructions banners / complete tier downscale & upscale", { time
     })
 
     it('self-slug ADDED delta with marker: completes, and finalize merges the new capability', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
       // Note: 'with' is a createChange stop word, so the fixture name avoids it.
       await runCli(['propose', 'landfill marker case'], tempDir)
@@ -1259,7 +1259,7 @@ describe("CLI: instructions banners / complete tier downscale & upscale", { time
     })
 
     it('delta whose H1 names a pre-existing capability: completes and merges as before', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
       // Pre-existing capability spec, unrelated to the change's slug.
       const capDir = join(tempDir, 'spec', 'specs', 'authcap')
@@ -1295,7 +1295,7 @@ describe("CLI: instructions banners / complete tier downscale & upscale", { time
     })
 
     it('MODIFIED delta against a nonexistent capability hard-fails with or without the marker', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
       await runCli(['propose', 'modified ghost target'], tempDir)
       const changeDir = join(tempDir, 'spec', 'changes', 'modified-ghost-target')
@@ -1355,7 +1355,7 @@ describe("CLI: instructions banners / complete tier downscale & upscale", { time
     }
 
     it('rejects a traversal-shaped change name with a slug error (exit 4), no path join attempted', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
 
       const { stderr, code } = await runCli(
@@ -1370,7 +1370,7 @@ describe("CLI: instructions banners / complete tier downscale & upscale", { time
     })
 
     it('rejects an embedded-separator change name (foo/../bar) with a slug error', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
 
       const { stderr, code } = await runCli(
@@ -1382,7 +1382,7 @@ describe("CLI: instructions banners / complete tier downscale & upscale", { time
     })
 
     it('--json mode: traversal-shaped change name yields a structured error payload with code 4', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
 
       const { stdout, code } = await runCli(
@@ -1396,7 +1396,7 @@ describe("CLI: instructions banners / complete tier downscale & upscale", { time
     })
 
     it('accepts a legitimate slug: complete intent succeeds with exit 0', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
       await runCli(['propose', 'slug pass ok'], tempDir)
       const changeDir = join(tempDir, 'spec', 'changes', 'slug-pass-ok')

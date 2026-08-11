@@ -1,6 +1,6 @@
-version: 4
-hash: sha256:de084a8a6fc5
-updated: 2026-08-11T01:28:50.001Z
+version: 10
+hash: sha256:738381160be1
+updated: 2026-08-11T11:29:43.333Z
 status: draft
 source: change
 requirements:
@@ -25,3 +25,35 @@ requirements:
       - timeout-budget-covers-only-cli-work
       - timeout-failure-is-diagnosable
       - no-contradictory-guidance-survives
+  - id: fail-fast-setup-helper-with-full-diagnostics
+    hash: sha256:48032bd6ae75
+    scenarios:
+      - non-zero-exit-throws-with-full-diagnostics
+      - signal-kill-throws-with-signal-named
+      - successful-invocation-does-not-throw
+  - id: install-fixture-verifies-resulting-state
+    hash: sha256:d18454894ea7
+    scenarios:
+      - zero-exit-but-missing-config-throws
+      - successful-install-passes-the-post-check
+  - id: runcli-return-value-contract-preserved
+    hash: sha256:ca5afa23920b
+    scenarios:
+      - deliberate-failure-assertion-still-receives-a-return-value
+  - id: setup-phase-call-sites-fail-fast
+    hash: sha256:05500d5eeffc
+    scenarios:
+      - no-discarded-setup-result-in-the-minimum-files
+      - setup-failure-surfaces-at-the-failing-command
+      - happy-path-suite-behavior-is-unchanged
+  - id: ci-vitest-concurrency-cap
+    hash: sha256:f7e139ae7337
+    scenarios:
+      - heavy-fixture-files-do-not-run-concurrently-in-ci
+      - gates-job-passes-on-a-constrained-runner
+      - residual-ci-failure-self-diagnoses
+  - id: local-test-runs-retain-current-parallelism
+    hash: sha256:8b5bae56a20c
+    scenarios:
+      - local-run-is-not-constrained-by-the-ci-cap
+      - full-local-suite-passes-after-the-change
