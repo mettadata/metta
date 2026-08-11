@@ -1,7 +1,7 @@
 # Add automatic versioning and release capability for metta-consuming projects
 
 **Captured**: 2026-08-08
-**Status**: logged
+**Status**: resolved
 **Severity**: minor
 
 ## Symptom
@@ -20,3 +20,7 @@ The framework was designed around the change lifecycle (propose → plan → exe
 2. **Finalize/ship integration (release-on-ship)** — Extend `finalize`/`ship` so each shipped change records its bump signal in archive metadata, and ship offers (or a config flag auto-triggers) a release cut when changes have accumulated, keeping versioning inside the existing lifecycle with no new entry point. Tradeoff: couples release cadence to individual change shipping — batching several changes into one release becomes awkward, and it complicates the already safety-critical ship path.
 3. **Changelog-anchored minimal version tracking** — Skip tagging/releasing initially: add a `version` field to project config and teach `generateChangelog` to group archived changes under version headings, with a small `metta version bump` helper that updates the version file and changelog only, leaving tags and GitHub releases manual. Tradeoff: does not actually automate the release chore (tags and `gh` remain manual), so the original pain is only partially addressed and a second change is needed later.
 
+
+## Resolution
+
+**Resolved**: 2026-08-11 — shipped as PR #66 (change fix-automatic-versioning-release-capability-metta, archived 2026-08-11; release-versioning living spec, metta release CLI + skill). Issue file cleanup was missed at ship time because the original fix fork died at the spend limit.
