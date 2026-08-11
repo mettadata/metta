@@ -16,8 +16,17 @@ artifact_timings:
   intent:
     started: 2026-08-11T02:23:01.133Z
     completed: 2026-08-11T02:24:22.063Z
+  implementation:
+    started: 2026-08-11T02:24:36.835Z
 artifact_tokens:
   intent:
     context: 763
     budget: 20000
+  implementation:
+    context: 0
+    budget: 10000
 worktree: /home/utx0/Code/metta/.metta/worktrees/fix-statusline-reports-idle-while-forked-work-running
+model_runs:
+  - task: implementation
+    model: sonnet
+    timestamp: 2026-08-11T02:24:36.835Z
