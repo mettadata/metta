@@ -7,3 +7,8 @@ models:
   # Model-tier routing: planning/review always top-tier; executors on
   # trivial/quick changes run sonnet. Alternatives: quality (all top-tier), budget (haiku/sonnet).
   profile: balanced
+release:
+  scheme: semver
+  version_file: package.json
+  tag_prefix: v
+  github_release: true
