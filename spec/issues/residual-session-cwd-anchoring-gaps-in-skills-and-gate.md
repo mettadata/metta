@@ -1,0 +1,22 @@
+# Residual session-cwd anchoring gaps in skills and gate commands after the change_root anchoring change (PR #60)
+
+**Captured**: 2026-08-11
+**Status**: logged
+**Severity**: minor
+
+## Symptom
+After the change_root anchoring pass merged in PR #60 (66a4cddcb, `fix-remaining-skills-still-direct-subagents-session-cwd`), reviewers flagged three residual spots where skill instructions still run from the session cwd instead of the change's checkout: (1) the metta-propose verifier step tells Agent 3 to "Read spec.md" with no `{change_root}` prefix; (2) metta-ship step 4 runs `git push -u origin metta/<change-name>` without `git -C "{change_root}"`; (3) the reviewer/verifier gate commands (`npm test`, `npx tsc --noEmit`, `npm run lint`) carry no working-directory anchoring. A main-root session verifying a worktree-hosted change can therefore read the wrong spec, push from the wrong checkout, or run gates against main instead of the change's worktree — producing false verification results.
+
+## Root Cause Analysis
+PR #60 anchored artifact writes and git add/commit paths (`git -C "{change_root}"`, absolute `output_path`) across the skill templates, and a follow-up review commit (a0dbbbf75) anchored some verifier reads — but the pass was scoped to the spots the original issue enumerated. The verifier fan-out section of metta-propose predates the anchoring work and its example agent prompts were copied verbatim into the anchored file; because they are literal example strings inside a fenced instruction block rather than templated paths, the mechanical `{change_root}` substitution pass never touched them. Similarly, metta-ship's push step was rewritten by the PR-based shipping change (04c58aa1d) in parallel with the anchoring work and never picked up the `git -C` convention. Both template trees (`.claude/skills/` and `src/templates/skills/`) carry identical copies of the gaps, so the installed skills and the shipped templates are equally affected.
+
+### Evidence
+- `.claude/skills/metta-propose/SKILL.md:269` — Agent 3 verifier prompt reads: "Read spec.md, check each Given/When/Then scenario has a passing test" with no `{change_root}` prefix, while lines 296-339 of the same file mandate change_root-anchored paths for artifact authoring; the identical text exists at `src/templates/skills/metta-propose/SKILL.md:269`.
+- `.claude/skills/metta-ship/SKILL.md:16` — step 4 is a bare `git push -u origin metta/<change-name>`; from a main-root session this pushes whatever checkout the session cwd resolves to, not the worktree hosting the change branch (mirrored at `src/templates/skills/metta-ship/SKILL.md:16`).
+- `.claude/skills/metta-propose/SKILL.md:227` — the verifier scope list assigns `npm test`, `npx tsc --noEmit`, and `npm run lint` (repeated as literal agent prompts at lines 267-268) with no working-directory anchoring, and the output/precondition paths at lines 256 and 261 (`test -s spec/changes/<change>/verify/...`) are session-cwd-relative.
+
+## Candidate Solutions
+1. **Inline anchoring pass over both template trees** — Edit each flagged spot in both `.claude/skills/` and `src/templates/skills/`: prefix verifier reads with `{change_root}/spec/changes/<change>/`, change the push step to `git -C "{change_root}" push -u origin metta/<change-name>`, and anchor gate commands (e.g. `cd "{change_root}" && npm test`, `npx tsc --noEmit -p "{change_root}"`, or `npm --prefix "{change_root}" test`), including the relative `test -s` preconditions. Tradeoff: many-line mechanical edit across two trees with differing shell semantics per command (`npm --prefix` vs `cd &&`), so a spot can still be missed without a checker.
+2. **Blanket working-directory rule per skill** — Add one rule to the affected skills' Rules sections: "Every verifier/gate command and every file read in this skill MUST run from `{change_root}`; never rely on the session cwd", leaving the example prompts untouched. Tradeoff: instruction-only mitigation — agents demonstrably copy the literal example strings, so unanchored examples remain a live footgun.
+3. **Fix plus regression lint** — Do option 1, and add a small test that scans both template trees for unanchored patterns (bare `git push`, bare `npm test`/`npx tsc`, `Read spec.md` without `{change_root}`) so future skill edits cannot reintroduce the gap. Tradeoff: the pattern heuristics need maintenance and can false-positive on prose or intentionally-unanchored examples, adding friction to skill authoring.
+
