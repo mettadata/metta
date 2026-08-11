@@ -189,7 +189,7 @@ describe('metta-guard-bash hook', { timeout: 30_000 }, () => {
       it('allows `metta verify --json` with a valid metta-verify-scoped session token (exit 0)', () => {
         const dir = mkdtempSync(join(tmpdir(), 'metta-guard-verify-'))
         try {
-          mkdirSync(join(dir, '.metta', 'scratch'), { recursive: true })
+          mkdirSync(join(dir, '.metta', 'scratch', 'skill-session'), { recursive: true })
           const tok = {
             token: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
             skill: 'metta-verify',
@@ -197,9 +197,11 @@ describe('metta-guard-bash hook', { timeout: 30_000 }, () => {
             mintedAt: Date.now(),
             ttlMs: 300000,
           }
-          writeFileSync(join(dir, '.metta', 'scratch', 'skill-session.token'), JSON.stringify(tok), {
-            mode: 0o600,
-          })
+          writeFileSync(
+            join(dir, '.metta', 'scratch', 'skill-session', 'metta-verify.token'),
+            JSON.stringify(tok),
+            { mode: 0o600 },
+          )
           const { code, stderr } = runHook(hookPath, bashEvent('metta verify --json', { cwd: dir }), {
             cwd: dir,
           })
@@ -569,6 +571,8 @@ describe('metta-guard-bash hook', { timeout: 30_000 }, () => {
           tempDirs.push(dir)
           return dir
         }
+        // Per-skill token files: each seeded token lands at
+        // .metta/scratch/skill-session/<skill>.token, mirroring the mint hook.
         function seedToken(
           cwd: string,
           overrides: Partial<{
@@ -579,7 +583,7 @@ describe('metta-guard-bash hook', { timeout: 30_000 }, () => {
             ttlMs: number
           }> = {},
         ): void {
-          mkdirSync(join(cwd, '.metta', 'scratch'), { recursive: true })
+          mkdirSync(join(cwd, '.metta', 'scratch', 'skill-session'), { recursive: true })
           const tok = {
             token: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
             skill: 'metta-next',
@@ -588,9 +592,11 @@ describe('metta-guard-bash hook', { timeout: 30_000 }, () => {
             ttlMs: TTL_MS,
             ...overrides,
           }
-          writeFileSync(join(cwd, '.metta', 'scratch', 'skill-session.token'), JSON.stringify(tok), {
-            mode: 0o600,
-          })
+          writeFileSync(
+            join(cwd, '.metta', 'scratch', 'skill-session', `${tok.skill}.token`),
+            JSON.stringify(tok),
+            { mode: 0o600 },
+          )
         }
         function readAuditEntries(cwd: string): Array<Record<string, unknown>> {
           const logPath = join(cwd, '.metta', 'logs', 'guard-bypass.log')
@@ -659,6 +665,86 @@ describe('metta-guard-bash hook', { timeout: 30_000 }, () => {
           const last = entries[entries.length - 1]
           expect(last.verdict).toBe('block')
           expect(last.reason).toBe('subcommand-not-in-scope')
+          expect(last.tier).toBe('session')
+        })
+
+        // Regression (session-mint token clobbering): a fresh token minted earlier by a
+        // DIFFERENT skill must not block the active skill whose own token is also present.
+        it('authorizes via the active skill token even when an older different-skill fresh token coexists (exit 0)', () => {
+          const cwd = makeTempCwd()
+          seedToken(cwd, {
+            token: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+            skill: 'metta-refresh',
+            subcommands: ['refresh'],
+            mintedAt: Date.now() - 60_000, // older but still fresh
+          })
+          seedToken(cwd, { skill: 'metta-next', subcommands: ['complete', 'finalize'] })
+          const { code, stderr } = runHook(hookPath, bashEvent('metta finalize', { cwd }), { cwd })
+          expect(code).toBe(0)
+          expect(stderr).toBe('')
+        })
+
+        it('denies a subcommand covered by no unexpired token — expired in-scope token does not authorize (exit 2)', () => {
+          const cwd = makeTempCwd()
+          // In-scope token for finalize is expired…
+          seedToken(cwd, {
+            skill: 'metta-next',
+            subcommands: ['complete', 'finalize'],
+            mintedAt: Date.now() - TTL_MS - 1000,
+          })
+          // …and the only fresh token does not cover finalize.
+          seedToken(cwd, { skill: 'metta-refresh', subcommands: ['refresh'] })
+          const { code } = runHook(hookPath, bashEvent('metta finalize', { cwd }), { cwd })
+          expect(code).toBe(2)
+          const entries = readAuditEntries(cwd)
+          const last = entries[entries.length - 1]
+          expect(last.verdict).toBe('block')
+          expect(last.reason).toBe('subcommand-not-in-scope')
+          expect(last.tier).toBe('session')
+        })
+
+        it('blocks when every token file in the directory is expired — reason credential-expired (exit 2)', () => {
+          const cwd = makeTempCwd()
+          seedToken(cwd, {
+            skill: 'metta-next',
+            subcommands: ['complete', 'finalize'],
+            mintedAt: Date.now() - TTL_MS - 1000,
+          })
+          seedToken(cwd, {
+            skill: 'metta-refresh',
+            subcommands: ['refresh'],
+            mintedAt: Date.now() - TTL_MS - 5000,
+          })
+          const { code } = runHook(hookPath, bashEvent('metta finalize', { cwd }), { cwd })
+          expect(code).toBe(2)
+          const entries = readAuditEntries(cwd)
+          const last = entries[entries.length - 1]
+          expect(last.verdict).toBe('block')
+          expect(last.reason).toBe('credential-expired')
+          expect(last.tier).toBe('session')
+        })
+
+        // Clean cutover: the retired single-file credential is not honored.
+        it('ignores a legacy .metta/scratch/skill-session.token single-file credential — missing-credential (exit 2)', () => {
+          const cwd = makeTempCwd()
+          mkdirSync(join(cwd, '.metta', 'scratch'), { recursive: true })
+          writeFileSync(
+            join(cwd, '.metta', 'scratch', 'skill-session.token'),
+            JSON.stringify({
+              token: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+              skill: 'metta-next',
+              subcommands: ['complete', 'finalize'],
+              mintedAt: Date.now(),
+              ttlMs: TTL_MS,
+            }),
+            { mode: 0o600 },
+          )
+          const { code } = runHook(hookPath, bashEvent('metta finalize', { cwd }), { cwd })
+          expect(code).toBe(2)
+          const entries = readAuditEntries(cwd)
+          const last = entries[entries.length - 1]
+          expect(last.verdict).toBe('block')
+          expect(last.reason).toBe('missing-credential')
           expect(last.tier).toBe('session')
         })
 
@@ -749,7 +835,7 @@ describe('metta-guard-bash hook', { timeout: 30_000 }, () => {
 
         it('allows `metta release cut` with a valid release:cut-scoped session token (exit 0)', () => {
           const cwd = makeTempCwd()
-          mkdirSync(join(cwd, '.metta', 'scratch'), { recursive: true })
+          mkdirSync(join(cwd, '.metta', 'scratch', 'skill-session'), { recursive: true })
           const tok = {
             token: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
             skill: 'metta-release',
@@ -757,9 +843,11 @@ describe('metta-guard-bash hook', { timeout: 30_000 }, () => {
             mintedAt: Date.now(),
             ttlMs: TTL_MS,
           }
-          writeFileSync(join(cwd, '.metta', 'scratch', 'skill-session.token'), JSON.stringify(tok), {
-            mode: 0o600,
-          })
+          writeFileSync(
+            join(cwd, '.metta', 'scratch', 'skill-session', 'metta-release.token'),
+            JSON.stringify(tok),
+            { mode: 0o600 },
+          )
           const { code, stderr } = runHook(
             hookPath,
             bashEvent('metta release cut --bump minor --yes --json', { cwd }),
@@ -771,7 +859,7 @@ describe('metta-guard-bash hook', { timeout: 30_000 }, () => {
 
         it('blocks `metta release cut` when the token scope does not include release:cut (exit 2)', () => {
           const cwd = makeTempCwd()
-          mkdirSync(join(cwd, '.metta', 'scratch'), { recursive: true })
+          mkdirSync(join(cwd, '.metta', 'scratch', 'skill-session'), { recursive: true })
           const tok = {
             token: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
             skill: 'metta-backlog',
@@ -779,9 +867,11 @@ describe('metta-guard-bash hook', { timeout: 30_000 }, () => {
             mintedAt: Date.now(),
             ttlMs: TTL_MS,
           }
-          writeFileSync(join(cwd, '.metta', 'scratch', 'skill-session.token'), JSON.stringify(tok), {
-            mode: 0o600,
-          })
+          writeFileSync(
+            join(cwd, '.metta', 'scratch', 'skill-session', 'metta-backlog.token'),
+            JSON.stringify(tok),
+            { mode: 0o600 },
+          )
           const { code } = runHook(hookPath, bashEvent('metta release cut', { cwd }), { cwd })
           expect(code).toBe(2)
         })

@@ -6,13 +6,15 @@
 //   `metta-skill-host` subagent fires the tool. Not forgeable from command text.
 // - Tier 2 (session-tier): main-session lifecycle subcommands (`complete`, `finalize`,
 //   `refresh`, `import`, `init`, `fix-gap`, `verify`, plus the scoped two-word forms
-//   `backlog add/done/promote` and `changes abandon`) are authorized by the session
-//   credential at `.metta/scratch/skill-session.token`, minted by
-//   `.claude/hooks/metta-session-mint.mjs` when a Tier-2 skill is invoked and rotated on a
-//   sliding TTL. Not derivable from reading any skill file.
+//   `backlog add/done/promote` and `changes abandon`) are authorized by per-skill session
+//   credentials at `.metta/scratch/skill-session/<slug>.token`, each minted by
+//   `.claude/hooks/metta-session-mint.mjs` when the matching Tier-2 skill is invoked and
+//   rotated on a sliding TTL. A call is authorized when ANY structurally valid, unexpired
+//   token's scope covers the subcommand — so one skill's credential never blocks another
+//   active skill's. Not derivable from reading any skill file.
 // Emergency bypass (humans/CI): disable this hook in .claude/settings.local.json.
 
-import { readFileSync, appendFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, appendFileSync, mkdirSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
 // Explicit ALLOW list: known safe read-only single-subcommand forms.
@@ -137,25 +139,42 @@ function isTrustedSkillCaller(event) {
   return typeof event.agent_type === 'string' && event.agent_type.startsWith('metta-');
 }
 
-// Read + structurally validate the Tier-2 session credential minted by
-// .claude/hooks/metta-session-mint.mjs at <cwd>/.metta/scratch/skill-session.token.
-// Returns null on any I/O or parse error, AND on any shape mismatch (token must be a
-// non-empty string, skill a string, subcommands an array of strings, mintedAt/ttlMs
-// finite numbers) — so a valid-JSON-wrong-shape file fails closed as missing-credential
-// and this helper never throws inside the offender predicate.
-function readSessionToken(cwd) {
-  try {
-    const tokenPath = join(cwd ?? process.cwd(), '.metta', 'scratch', 'skill-session.token');
-    const tok = JSON.parse(readFileSync(tokenPath, 'utf8'));
-    if (typeof tok !== 'object' || tok === null || Array.isArray(tok)) return null;
-    if (typeof tok.token !== 'string' || tok.token.length === 0) return null;
-    if (typeof tok.skill !== 'string') return null;
-    if (!Array.isArray(tok.subcommands) || !tok.subcommands.every((s) => typeof s === 'string')) return null;
-    if (!Number.isFinite(tok.mintedAt) || !Number.isFinite(tok.ttlMs)) return null;
-    return tok;
-  } catch {
-    return null;
+// Structurally validate one Tier-2 session credential. Returns null on any shape
+// mismatch (token must be a non-empty string, skill a string, subcommands an array of
+// strings, mintedAt/ttlMs finite numbers) — so a valid-JSON-wrong-shape file fails
+// closed as if absent.
+function validateToken(tok) {
+  if (typeof tok !== 'object' || tok === null || Array.isArray(tok)) return null;
+  if (typeof tok.token !== 'string' || tok.token.length === 0) return null;
+  if (typeof tok.skill !== 'string') return null;
+  if (!Array.isArray(tok.subcommands) || !tok.subcommands.every((s) => typeof s === 'string')) return null;
+  if (!Number.isFinite(tok.mintedAt) || !Number.isFinite(tok.ttlMs)) return null;
+  return tok;
+}
+
+// Read + structurally validate ALL per-skill Tier-2 session credentials minted by
+// .claude/hooks/metta-session-mint.mjs under <cwd>/.metta/scratch/skill-session/.
+// Each Tier-2 skill's mint hook writes its own <slug>.token file, so several skills
+// invoked in one Claude Code session coexist without clobbering each other. Returns
+// the array of structurally valid tokens (possibly expired — expiry is judged at the
+// call site); unreadable, unparsable, or malformed files are skipped. Never throws
+// inside the offender predicate. The retired single-file credential at
+// <cwd>/.metta/scratch/skill-session.token is deliberately NOT honored.
+function readSessionTokens(cwd) {
+  const tokenDir = join(cwd ?? process.cwd(), '.metta', 'scratch', 'skill-session');
+  let names = [];
+  try { names = readdirSync(tokenDir); } catch { return []; }
+  const tokens = [];
+  for (const name of names) {
+    if (!name.endsWith('.token')) continue;
+    try {
+      const tok = validateToken(JSON.parse(readFileSync(join(tokenDir, name), 'utf8')));
+      if (tok !== null) tokens.push(tok);
+    } catch {
+      // skip unreadable/unparsable files
+    }
   }
+  return tokens;
 }
 
 // Append one JSON line to <cwd>/.metta/logs/guard-bypass.log. Swallows all I/O errors so
@@ -224,9 +243,11 @@ async function main() {
       tier2Accepted.push(inv);
       return false;
     }
-    const tok = readSessionToken(event.cwd);
-    if (!tok) { tier2Reason = 'missing-credential'; return true; }
-    if (Date.now() - tok.mintedAt >= tok.ttlMs) { tier2Reason = 'credential-expired'; return true; }
+    const tokens = readSessionTokens(event.cwd);
+    if (tokens.length === 0) { tier2Reason = 'missing-credential'; return true; }
+    const now = Date.now();
+    const fresh = tokens.filter((tok) => now - tok.mintedAt < tok.ttlMs);
+    if (fresh.length === 0) { tier2Reason = 'credential-expired'; return true; }
     // Scope key: two-word blocked forms (e.g. `backlog add`) are keyed "<sub>:<third>";
     // single-word blocked subcommands keep their bare name even when followed by an
     // argument (e.g. `complete intent` -> key "complete"), mirroring classify().
@@ -234,7 +255,10 @@ async function main() {
     const key = blockedTwo && inv.third && blockedTwo.has(inv.third)
       ? `${inv.sub}:${inv.third}`
       : inv.sub;
-    if (!tok.subcommands.includes(key)) { tier2Reason = 'subcommand-not-in-scope'; return true; }
+    // Any-valid-token authorization: a call is in scope if ANY unexpired per-skill
+    // token covers it — a stale-but-fresh token from a different skill never blocks
+    // the genuinely active skill's own credential.
+    if (!fresh.some((tok) => tok.subcommands.includes(key))) { tier2Reason = 'subcommand-not-in-scope'; return true; }
     tier2Accepted.push(inv);
     return false;
   });
@@ -283,8 +307,9 @@ async function main() {
   process.stderr.write(
     `metta-guard-bash: Blocked direct CLI call '${subDisplay}' from AI orchestrator session.\n` +
     `Use the matching /metta-<skill> skill via the Skill tool; see CLAUDE.md for the mapping.\n` +
-    `Skill-internal lifecycle calls are authorized by the session credential the skill's entry\n` +
-    `point mints at .metta/scratch/skill-session.token — never by inline command text.\n` +
+    `Skill-internal lifecycle calls are authorized by the per-skill session credential the\n` +
+    `skill's entry point mints at .metta/scratch/skill-session/<skill>.token — never by\n` +
+    `inline command text.\n` +
     `Emergency bypass: disable this hook in .claude/settings.local.json.\n`
   );
   process.exit(2);

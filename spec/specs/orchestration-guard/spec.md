@@ -51,9 +51,30 @@ following properties: (a) its value MUST NOT be derivable by an orchestrator rea
 definition or documentation file alone — it MUST be produced by a mechanism outside the
 orchestrator's own authored text; (b) it MUST have a bounded lifetime or be rotated such that a
 single credential value cannot authorize an unbounded number of calls over an unbounded period; (c)
-it MUST be absent or treated as invalid whenever no sanctioned skill is currently driving the main
-session, so idle sessions carry no standing authorization. A call to one of these subcommands
-without a valid credential meeting all three properties MUST be rejected.
+every credential MUST expire and be treated as invalid once the session goes idle — one bounded
+lifetime after Bash activity ceases — so idle sessions carry no standing authorization. This
+idle-session property is explicitly scoped to idle sessions; it MUST NOT be read as a claim about
+active sessions, whose exposure is described below. A call to one of these subcommands without a
+valid credential meeting all three properties MUST be rejected.
+
+Credentials MUST be stored per skill: each sanctioned skill mints and rotates its own credential
+file, scoped to its own subcommands, and minting or rotating one skill's credential MUST NOT
+overwrite, suppress, or invalidate another skill's credential. The guard MUST accept a call when
+any currently valid credential's scope covers the invoked subcommand, so a fresh credential left
+by a previously invoked skill can never block the genuinely active skill's own authorization. A
+retired shared single-credential storage location MUST NOT be honored as authorization.
+
+This per-skill design carries an explicitly accepted threat-model tradeoff: because each invoked
+skill's mint hook remains registered and continues to fire on subsequent Bash calls, re-minting
+that skill's credential before it expires, an active session's effective session-tier authority is
+the union of the scopes of every sanctioned skill invoked during that session — and that union
+persists for the session's lifetime while Bash activity continues, not merely for one credential
+lifetime. The bounded-lifetime property (b) and the idle-session property (c) bound this exposure
+only once Bash activity stops: all credentials then expire one bounded lifetime after the last
+Bash call, and the session again carries no standing authorization. This session-lifetime union of
+invoked skills' scopes in active sessions is the accepted cost of eliminating cross-skill
+credential clobbering, and any future change that narrows or widens it MUST update this threat
+model in the same change.
 
 ### Scenario: Sanctioned skill-driven call with a valid credential is accepted
 - GIVEN a main-session lifecycle subcommand is invoked from within a sanctioned skill's body after that skill has acquired its session credential through the sanctioned mechanism
@@ -74,6 +95,11 @@ without a valid credential meeting all three properties MUST be rejected.
 - GIVEN a main-session lifecycle subcommand is invoked with no session credential present at all
 - WHEN the guard evaluates the call
 - THEN the call is rejected and the rejection message names the sanctioned skill entry point that would have acquired the credential
+
+### Scenario: Concurrent skill credentials do not interfere
+- GIVEN two sanctioned skills have been invoked in the same session and each holds its own currently valid credential, and a main-session lifecycle subcommand covered only by the second skill's credential scope is invoked
+- WHEN the guard evaluates the call
+- THEN the call is accepted, and the presence of the first skill's still-valid credential neither authorizes subcommands outside its own scope nor blocks the second skill's authorization
 
 
 ## Requirement: Unrecognized metta Subcommands Fail Closed
