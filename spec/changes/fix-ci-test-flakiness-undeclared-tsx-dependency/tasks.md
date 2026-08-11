@@ -2,7 +2,7 @@
 
 ## Batch 1 (no dependencies)
 
-- [ ] **Task 1.1: Declare tsx as a devDependency**
+- [x] **Task 1.1: Declare tsx as a devDependency**
   - **Files**: `package.json`, `package-lock.json`
   - **Action**: Run `npm install --save-dev tsx@^4.23.12` at the repo root so
     `devDependencies` gains `"tsx": "^4.23.12"` and the lockfile is
@@ -15,7 +15,7 @@
 
 ## Batch 2 (depends on Batch 1)
 
-- [ ] **Task 2.1: Reconcile runCli helper comment and add timeout kill marker**
+- [x] **Task 2.1: Reconcile runCli helper comment and add timeout kill marker**
   - **Depends on**: Task 1.1
   - **Files**: `tests/helpers/cli.ts`
   - **Action**: (a) Replace the header comment above `CLI_PATH` (the
@@ -34,7 +34,7 @@
   - **Done**: No stale "do NOT switch to dist" guidance survives; a
     timeout-killed subprocess yields a stderr marker identifying the kill.
 
-- [ ] **Task 2.2: Reconcile constitution and CLAUDE.md dev-loop wording**
+- [x] **Task 2.2: Reconcile constitution and CLAUDE.md dev-loop wording**
   - **Depends on**: Task 1.1
   - **Files**: `spec/project.md`, `CLAUDE.md`
   - **Action**: In `spec/project.md`, replace the Toolchain parenthetical
@@ -49,7 +49,7 @@
 
 ## Batch 3 (depends on Batch 2)
 
-- [ ] **Task 3.1: Add regression guard test**
+- [x] **Task 3.1: Add regression guard test**
   - **Depends on**: Task 1.1, Task 2.1
   - **Files**: `tests/cli-runtime-declared.test.ts`
   - **Action**: New Vitest file with two tests: (1) read `package.json` (via
