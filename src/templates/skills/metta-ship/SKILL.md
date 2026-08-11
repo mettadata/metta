@@ -10,10 +10,12 @@ Two-step process: **finalize** (archive + merge specs on branch) then **ship** (
 
 ## Steps
 
+Resolve `{change_root}` first: `metta status --json --change <name>` returns `worktree` — when non-null, that value is `{change_root}`; when null, the main checkout root is. Every git command below runs as `git -C "{change_root}"` — never plain git from the session cwd, which for a worktree-hosted change targets the wrong checkout.
+
 1. `metta finalize --dry-run --json --change <name>` → preview what will change. This call blocks; wait for it to exit before proceeding — do not treat it as backgrounded.
 2. If clean: `metta finalize --json --change <name>` → archives change to spec/archive/, merges delta specs into living specs
 3. If spec conflicts: stop and tell the user to resolve them
-4. `git push -u origin metta/<change-name>` → push the feature branch to the remote
+4. `git -C "{change_root}" push -u origin metta/<change-name>` → push the feature branch to the remote
 5. `gh pr create --title "<conventional-commit-style title from the change>" --body "<summary from summary.md or intent.md highlights>"` → open a PR. The body MUST end with `🤖 Generated with [Claude Code](https://claude.com/claude-code)`
 6. `gh pr checks <pr-number> --watch --fail-fast` → wait for all CI checks on the PR to complete before merging. If any check fails or is cancelled, do NOT merge — report the failing check(s) and the PR URL to the user and stop. If gh reports that no checks are reported yet (checks can lag PR creation by a few seconds), wait ~10s and retry the command
 7. `gh pr merge <pr-number> --merge` → land the PR immediately, unless the user asked to leave it open for review — in that case stop here and report the PR URL instead of merging

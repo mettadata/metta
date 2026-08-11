@@ -16,13 +16,15 @@ You are the **orchestrator** for verification. Spawn a verifier subagent.
 
 ## Steps
 
+Resolve `{change_root}` first: `metta status --json --change <name>` returns `worktree` — when non-null, that value is `{change_root}`; when null, the main checkout root is. Every path and git command below is anchored to `{change_root}` — never rely on the session cwd, which for a worktree-hosted change resolves to the wrong checkout.
+
 1. `metta verify --json --change <name>` → runs gates, returns results
 2. **Spawn a metta-verifier agent** (subagent_type: "metta-verifier") with:
-   - The spec from `spec/changes/<change>/spec.md`
+   - The spec from `{change_root}/spec/changes/<change>/spec.md`
    - The gate results
    - Task: check each Given/When/Then scenario against tests and code
-   - Write results to `spec/changes/<change>/summary.md`
-   - Commit: `git commit -m "docs(<change>): verification summary"`
+   - Write results to `{change_root}/spec/changes/<change>/summary.md`
+   - Commit: `git -C "{change_root}" add "{change_root}/spec/changes/<change>/summary.md" && git -C "{change_root}" commit -m "docs(<change>): verification summary"`
 3. Token recording is automatic — a SubagentStop hook records each subagent's harness-measured usage; do not run `metta tokens record` after subagent returns. Only if the hook is unavailable, record manually: `metta tokens record --task <artifact-or-task-id> --agent <subagent-type> --model <alias> --tokens <count> --change <name> --source prose`.
 4. `metta complete verification --json --change <name>`
 5. When all_complete: true, tell the user to run `/metta:ship` to finalize and merge

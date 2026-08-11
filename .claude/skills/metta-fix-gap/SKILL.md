@@ -75,8 +75,8 @@ For a given `<gap-slug>`:
 
 8. **Verify — spawn 3 metta-verifier agents in parallel** (fan-out — single message):
    - Before spawning verifier agents, run: `metta iteration record --phase verify --change <name>`
-   - Agent 1 (subagent_type: "metta-verifier"): "Run `npm test` — report pass/fail count and failures"
-   - Agent 2 (subagent_type: "metta-verifier"): "Run `npx tsc --noEmit` and `npm run lint` — report errors"
+   - Agent 1 (subagent_type: "metta-verifier"): "Run `cd "{change_root}" && npm test` — report pass/fail count and failures"
+   - Agent 2 (subagent_type: "metta-verifier"): "Run `cd "{change_root}" && npx tsc --noEmit` and `cd "{change_root}" && npm run lint` — report errors"
    - Agent 3 (subagent_type: "metta-verifier"): "Read {change_root}/spec/changes/<change>/spec.md, check each scenario has a passing test — cite evidence"
    - Merge results into `{change_root}/spec/changes/<change>/summary.md` and commit it with `git -C "{change_root}"`
    - If any gate fails: run `metta iteration record --phase verify --change <name>` again, then spawn parallel metta-executors to fix, then re-verify
