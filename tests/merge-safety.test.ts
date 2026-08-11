@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { mkdtemp, mkdir, rm } from 'node:fs/promises'
+import { access, mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { exec } from 'node:child_process'
@@ -8,6 +8,12 @@ import { MergeSafetyPipeline } from '../src/ship/merge-safety.js'
 import type { GateRegistry } from '../src/gates/gate-registry.js'
 
 const execAsync = promisify(exec)
+
+async function writePackageJson(dir: string, buildScript?: string): Promise<void> {
+  const manifest: Record<string, unknown> = { name: 'merge-safety-fixture', version: '0.0.0' }
+  if (buildScript !== undefined) manifest.scripts = { build: buildScript }
+  await writeFile(join(dir, 'package.json'), JSON.stringify(manifest, null, 2))
+}
 
 describe('MergeSafetyPipeline', () => {
   let tempDir: string
@@ -30,6 +36,7 @@ describe('MergeSafetyPipeline', () => {
     await execAsync('git checkout -b feature', { cwd: tempDir })
     await execAsync('echo "feature" > feature.txt && git add . && git commit -m "add feature"', { cwd: tempDir })
     await execAsync('git checkout main || git checkout master', { cwd: tempDir })
+    await writePackageJson(tempDir, 'node -e "process.exit(0)"')
 
     const mainBranch = (await execAsync('git branch --show-current', { cwd: tempDir })).stdout.trim()
 
@@ -56,6 +63,8 @@ describe('MergeSafetyPipeline', () => {
     // Merge and post-merge should be skipped
     const mergeStep = result.steps.find(s => s.step === 'merge')
     expect(mergeStep?.status).toBe('skip')
+    // No merge happened, so nothing to rebuild
+    expect(result.steps.find(s => s.step === 'rebuild-dist')).toBeUndefined()
   })
 
   it('detects base drift', async () => {
@@ -222,5 +231,106 @@ describe('MergeSafetyPipeline', () => {
     expect(result.status).toBe('conflict')
     const mergeStep = result.steps.find(s => s.step === 'dry-run-merge')
     expect(mergeStep?.status).toBe('fail')
+  })
+
+  describe('rebuild-dist', () => {
+    async function setupFeatureBranch(name: string): Promise<string> {
+      await execAsync(`git checkout -b ${name}`, { cwd: tempDir })
+      await execAsync(`echo "${name}" > ${name}.txt && git add . && git commit -m "${name}"`, { cwd: tempDir })
+      await execAsync('git checkout main || git checkout master', { cwd: tempDir })
+      return (await execAsync('git branch --show-current', { cwd: tempDir })).stdout.trim()
+    }
+
+    it('runs npm run build in the target checkout after a successful merge', async () => {
+      const mainBranch = await setupFeatureBranch('rebuild-ok')
+      // Build script drops a marker file so we can prove it actually ran
+      await writePackageJson(tempDir, 'node -e "require(\'fs\').writeFileSync(\'build-marker.txt\', \'built\')"')
+
+      const pipeline = new MergeSafetyPipeline(tempDir)
+      const result = await pipeline.run('rebuild-ok', mainBranch)
+
+      expect(result.status).toBe('success')
+      const rebuildStep = result.steps.find(s => s.step === 'rebuild-dist')
+      expect(rebuildStep?.status).toBe('pass')
+      expect(rebuildStep?.detail).toBe('npm run build')
+      await expect(access(join(tempDir, 'build-marker.txt'))).resolves.toBeUndefined()
+    })
+
+    it('surfaces a loud failure without failing the merge when the build fails', async () => {
+      const mainBranch = await setupFeatureBranch('rebuild-broken')
+      await writePackageJson(tempDir, 'node -e "process.exit(1)"')
+      const headBefore = (await execAsync(`git rev-parse ${mainBranch}`, { cwd: tempDir })).stdout.trim()
+
+      const pipeline = new MergeSafetyPipeline(tempDir)
+      const result = await pipeline.run('rebuild-broken', mainBranch)
+
+      // Merge still completes and is NOT rolled back
+      expect(result.status).toBe('success')
+      expect(result.mergeCommit).toBeDefined()
+      const headAfter = (await execAsync(`git rev-parse ${mainBranch}`, { cwd: tempDir })).stdout.trim()
+      expect(headAfter).not.toBe(headBefore)
+      expect(headAfter).toBe(result.mergeCommit)
+
+      const rebuildStep = result.steps.find(s => s.step === 'rebuild-dist')
+      expect(rebuildStep?.status).toBe('fail')
+      expect(rebuildStep?.detail).toContain('npm run build failed')
+      expect(rebuildStep?.detail).toContain('stale')
+    })
+
+    it('skips the rebuild with an explanation when the target checkout has no package.json', async () => {
+      const mainBranch = await setupFeatureBranch('rebuild-missing')
+
+      const pipeline = new MergeSafetyPipeline(tempDir)
+      const result = await pipeline.run('rebuild-missing', mainBranch)
+
+      expect(result.status).toBe('success')
+      const rebuildStep = result.steps.find(s => s.step === 'rebuild-dist')
+      expect(rebuildStep?.status).toBe('skip')
+      expect(rebuildStep?.detail).toContain('no package.json')
+      expect(rebuildStep?.detail).toContain('not an npm project')
+    })
+
+    it('fails loudly when package.json is not valid JSON', async () => {
+      const mainBranch = await setupFeatureBranch('rebuild-corrupt')
+      await writeFile(join(tempDir, 'package.json'), '{ not valid json')
+
+      const pipeline = new MergeSafetyPipeline(tempDir)
+      const result = await pipeline.run('rebuild-corrupt', mainBranch)
+
+      expect(result.status).toBe('success')
+      const rebuildStep = result.steps.find(s => s.step === 'rebuild-dist')
+      expect(rebuildStep?.status).toBe('fail')
+      expect(rebuildStep?.detail).toContain('not valid JSON')
+      expect(rebuildStep?.detail).toContain('stale')
+    })
+
+    it('skips the rebuild when package.json declares no build script', async () => {
+      const mainBranch = await setupFeatureBranch('rebuild-noscript')
+      await writePackageJson(tempDir)
+
+      const pipeline = new MergeSafetyPipeline(tempDir)
+      const result = await pipeline.run('rebuild-noscript', mainBranch)
+
+      expect(result.status).toBe('success')
+      const rebuildStep = result.steps.find(s => s.step === 'rebuild-dist')
+      expect(rebuildStep?.status).toBe('skip')
+      expect(rebuildStep?.detail).toBe('no build script in package.json')
+    })
+
+    it('does not run the rebuild when post-merge gates fail and roll back', async () => {
+      const mainBranch = await setupFeatureBranch('rebuild-gatefail')
+      await writePackageJson(tempDir, 'node -e "process.exit(0)"')
+
+      const mockRegistry = {
+        list: () => [{ name: 'tests' }],
+        runAll: async (names: string[]) => names.map(name => ({ gate: name, status: 'fail' as const, duration_ms: 1 })),
+      } as unknown as GateRegistry
+
+      const pipeline = new MergeSafetyPipeline(tempDir, mockRegistry)
+      const result = await pipeline.run('rebuild-gatefail', mainBranch)
+
+      expect(result.status).toBe('failure')
+      expect(result.steps.find(s => s.step === 'rebuild-dist')).toBeUndefined()
+    })
   })
 })

@@ -48,6 +48,14 @@ export function registerShipCommand(program: Command): void {
           }
           console.log('')
           console.log(`Ship: ${result.status}`)
+
+          const rebuildStep = result.steps.find(s => s.step === 'rebuild-dist')
+          if (rebuildStep?.status === 'fail') {
+            console.error('')
+            console.error('WARNING: the merge completed, but rebuilding dist in the target checkout failed.')
+            console.error(`  ${rebuildStep.detail ?? 'unknown build error'}`)
+            console.error('  The globally-linked metta CLI (hooks, statusline) is stale until you run: npm run build')
+          }
         }
 
         if (result.status === 'failure') process.exit(1)
