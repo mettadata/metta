@@ -198,7 +198,7 @@ You are the **orchestrator** for a quick change (intent → implementation → r
 10. `metta finalize --json --change <name>` → runs gates, archives, merges specs
 11. `git -C "{change_root}" push -u origin metta/<change-name>` → push the feature branch to the remote
 12. `gh pr create --title "<conventional-commit-style title from the change>" --body "<summary from summary.md or intent.md highlights>"` → open a PR. The body MUST end with `🤖 Generated with [Claude Code](https://claude.com/claude-code)`
-13. `gh pr checks <pr-number> --watch --fail-fast` → wait for all CI checks on the PR to complete before merging. If any check fails or is cancelled, do NOT merge — report the failing check(s) and the PR URL to the user and stop
+13. `gh pr checks <pr-number> --watch --fail-fast` → wait for all CI checks on the PR to complete before merging. If any check fails or is cancelled, do NOT merge — report the failing check(s) and the PR URL to the user and stop. If gh reports that no checks are reported yet (checks can lag PR creation by a few seconds), wait ~10s and retry the command
 14. `gh pr merge <pr-number> --merge` → land the PR immediately, unless the user asked to leave it open for review — in that case stop here and report the PR URL instead of merging
 15. Back on `main`: `git pull --ff-only`, then clean up the change branch and worktree
 16. Report to user what was done
