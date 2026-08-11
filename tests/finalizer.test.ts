@@ -26,7 +26,7 @@ describe('Finalizer', () => {
   })
 
   afterEach(async () => {
-    await rm(specDir, { recursive: true, force: true })
+    await rm(specDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   })
 
   // The finalizer's completeness gate requires every workflow-required
@@ -316,7 +316,7 @@ The system MUST apply this requirement exactly once across retries.
 
     afterEach(async () => {
       vi.restoreAllMocks()
-      await rm(projectRoot, { recursive: true, force: true })
+      await rm(projectRoot, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
     })
 
     it('invokes DocGenerator when .metta/config.yaml omits docs block', async () => {
@@ -447,7 +447,7 @@ The system MUST apply this requirement exactly once across retries.
 
     afterEach(async () => {
       vi.restoreAllMocks()
-      await rm(projectRoot, { recursive: true, force: true })
+      await rm(projectRoot, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
     })
 
     // docs.generate_on: manual keeps DocGenerator out of these tests so Step 7
@@ -635,7 +635,7 @@ The system MUST conflict on this delta.
 
     afterEach(async () => {
       vi.restoreAllMocks()
-      await rm(projectRoot, { recursive: true, force: true })
+      await rm(projectRoot, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
     })
 
     // docs.generate_on: manual keeps DocGenerator out of these tests so Step 7

@@ -14,7 +14,7 @@ describe('CLI: propose / quick create git worktrees', { timeout: 30000 }, () => 
   })
 
   afterEach(async () => {
-    await rm(tempDir, { recursive: true, force: true })
+    await rm(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   })
 
   async function currentBranch(cwd: string): Promise<string> {

@@ -33,7 +33,7 @@ describe('ContextEngine', () => {
   })
 
   afterEach(async () => {
-    await rm(tempDir, { recursive: true, force: true })
+    await rm(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   })
 
   describe('getManifest', () => {

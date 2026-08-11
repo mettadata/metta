@@ -171,7 +171,7 @@ describe('resolveProjectRoot', () => {
   })
 
   afterEach(async () => {
-    await rm(rootDir, { recursive: true, force: true })
+    await rm(rootDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   })
 
   it('returns cwd when it has its own spec/changes', async () => {

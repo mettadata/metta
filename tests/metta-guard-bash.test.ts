@@ -22,7 +22,7 @@ const HOOK_SOURCES = [
 const SHARED_SANDBOX = mkdtempSync(join(tmpdir(), 'metta-guard-shared-'))
 afterAll(() => {
   try {
-    rmSync(SHARED_SANDBOX, { recursive: true, force: true })
+    rmSync(SHARED_SANDBOX, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   } catch {
     // best-effort
   }
@@ -208,7 +208,7 @@ describe('metta-guard-bash hook', { timeout: 30_000 }, () => {
           expect(code).toBe(0)
           expect(stderr).toBe('')
         } finally {
-          rmSync(dir, { recursive: true, force: true })
+          rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
         }
       })
 
@@ -304,7 +304,7 @@ describe('metta-guard-bash hook', { timeout: 30_000 }, () => {
           while (tempDirs.length) {
             const dir = tempDirs.pop()!
             try {
-              rmSync(dir, { recursive: true, force: true })
+              rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
             } catch {
               // best-effort cleanup
             }
@@ -449,7 +449,7 @@ describe('metta-guard-bash hook', { timeout: 30_000 }, () => {
           while (tempDirs.length) {
             const dir = tempDirs.pop()!
             try {
-              rmSync(dir, { recursive: true, force: true })
+              rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
             } catch {
               // best-effort cleanup
             }
@@ -560,7 +560,7 @@ describe('metta-guard-bash hook', { timeout: 30_000 }, () => {
           while (tempDirs.length) {
             const dir = tempDirs.pop()!
             try {
-              rmSync(dir, { recursive: true, force: true })
+              rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
             } catch {
               // best-effort cleanup
             }
@@ -794,7 +794,7 @@ describe('metta-guard-bash hook', { timeout: 30_000 }, () => {
           while (tempDirs.length) {
             const dir = tempDirs.pop()!
             try {
-              rmSync(dir, { recursive: true, force: true })
+              rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
             } catch {
               // best-effort cleanup
             }

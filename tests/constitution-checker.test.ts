@@ -39,7 +39,7 @@ async function setupProject(specBody: string): Promise<{
   return {
     projectRoot: root,
     changeName,
-    cleanup: () => rm(root, { recursive: true, force: true }),
+    cleanup: () => rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }),
   }
 }
 
@@ -99,7 +99,7 @@ describe('constitution checker', () => {
 
     it('BCC-2: rejects when the change has no spec.md', async () => {
       const root = await mkdtemp(join(tmpdir(), 'metta-checker-'))
-      cleanup = () => rm(root, { recursive: true, force: true })
+      cleanup = () => rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
       await mkdir(join(root, 'spec', 'changes', 'empty-change'), { recursive: true })
       await writeFile(join(root, 'spec', 'project.md'), PROJECT_MD, 'utf8')
 

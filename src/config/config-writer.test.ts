@@ -15,7 +15,7 @@ describe('setProjectField', () => {
   })
 
   afterEach(() => {
-    rmSync(tmpDir, { recursive: true, force: true })
+    rmSync(tmpDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   })
 
   it('is idempotent: re-writing the same value produces byte-identical output', async () => {

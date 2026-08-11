@@ -17,7 +17,7 @@ describe('refresh auto-commit', () => {
   })
 
   afterEach(async () => {
-    await rm(tempDir, { recursive: true, force: true })
+    await rm(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   })
 
   async function git(args: string[], cwd: string = tempDir): Promise<string> {

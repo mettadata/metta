@@ -43,7 +43,7 @@ describe('metta propose --stop-after', { timeout: 30000 }, () => {
   })
 
   afterEach(async () => {
-    await rm(tempDir, { recursive: true, force: true })
+    await rm(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   })
 
   it('persists stop_after when --stop-after is a valid planning artifact id', async () => {

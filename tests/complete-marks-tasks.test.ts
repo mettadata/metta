@@ -66,7 +66,7 @@ describe('metta complete implementation -- ticks tasks.md checkboxes', { timeout
   })
 
   afterEach(async () => {
-    await rm(tempDir, { recursive: true, force: true })
+    await rm(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   })
 
   it('marks every Task N.M as complete in tasks.md when implementation is completed', async () => {

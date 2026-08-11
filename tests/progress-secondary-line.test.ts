@@ -167,7 +167,7 @@ describe('buildSecondaryLine (metta progress human output)', () => {
       const plain = stripAnsi(line)
       expect(plain).toContain('intent 1h 30m')
     } finally {
-      rmSync(tmp, { recursive: true, force: true })
+      rmSync(tmp, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
     }
   })
 })

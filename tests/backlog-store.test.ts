@@ -14,7 +14,7 @@ describe('BacklogStore', () => {
   })
 
   afterEach(async () => {
-    await rm(tempDir, { recursive: true, force: true })
+    await rm(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   })
 
   it('adds and retrieves a backlog item', async () => {

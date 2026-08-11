@@ -64,7 +64,7 @@ describe('metta check-constitution — absolute change-rooted contract paths', {
   })
 
   afterEach(async () => {
-    await rm(tempDir, { recursive: true, force: true })
+    await rm(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   })
 
   it('emits absolute output_path, spec_path, and change_root for a local change', async () => {

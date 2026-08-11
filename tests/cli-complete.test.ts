@@ -43,7 +43,7 @@ describe("CLI: instructions banners / complete tier downscale & upscale", { time
   })
 
   afterEach(async () => {
-    await rm(tempDir, { recursive: true, force: true })
+    await rm(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   })
 
   describe('metta instructions advisory banner', () => {

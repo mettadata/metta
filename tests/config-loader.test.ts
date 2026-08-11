@@ -18,7 +18,7 @@ describe('ConfigLoader', () => {
   })
 
   afterEach(async () => {
-    await rm(tempDir, { recursive: true, force: true })
+    await rm(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
     // Clean up env vars
     for (const key of Object.keys(process.env)) {
       if (key.startsWith('METTA_')) delete process.env[key]

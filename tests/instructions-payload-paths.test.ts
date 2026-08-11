@@ -47,7 +47,7 @@ describe('metta instructions — absolute change-rooted payload paths', { timeou
   })
 
   afterEach(async () => {
-    await rm(tempDir, { recursive: true, force: true })
+    await rm(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   })
 
   it('emits absolute output_path and change_root rooted at the project root for a local change', async () => {

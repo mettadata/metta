@@ -54,7 +54,7 @@ beforeEach(async () => {
 })
 
 afterEach(async () => {
-  await rm(projectRoot, { recursive: true, force: true })
+  await rm(projectRoot, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
 })
 
 // ---------------------------------------------------------------------------

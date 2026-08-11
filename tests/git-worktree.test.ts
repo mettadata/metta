@@ -23,7 +23,7 @@ describe('setupChangeWorktree', () => {
   })
 
   afterEach(async () => {
-    await rm(tempDir, { recursive: true, force: true })
+    await rm(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   })
 
   async function git(args: string[], cwd: string = tempDir): Promise<string> {
@@ -205,7 +205,7 @@ describe('ensureGitignoreEntry', () => {
   })
 
   afterEach(async () => {
-    await rm(tempDir, { recursive: true, force: true })
+    await rm(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   })
 
   it('creates .gitignore when missing', async () => {

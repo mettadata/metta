@@ -98,7 +98,7 @@ describe('CLI: worktree-hosted change-root resolution (no git)', { timeout: 6000
   })
 
   afterEach(async () => {
-    await rm(tempDir, { recursive: true, force: true })
+    await rm(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   })
 
   describe('metta context stats', () => {
@@ -260,7 +260,7 @@ describe('CLI: worktree-hosted change git side effects target the hosting checko
   })
 
   afterEach(async () => {
-    await rm(tempDir, { recursive: true, force: true })
+    await rm(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   })
 
   async function gitLog(cwd: string): Promise<string> {

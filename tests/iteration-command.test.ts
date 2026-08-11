@@ -44,7 +44,7 @@ describe('metta iteration record', { timeout: 30000 }, () => {
   })
 
   afterEach(async () => {
-    await rm(tempDir, { recursive: true, force: true })
+    await rm(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   })
 
   it('first record sets review_iterations to 1', async () => {

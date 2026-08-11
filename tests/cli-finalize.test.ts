@@ -12,7 +12,7 @@ describe('CLI: finalize exit-code ordering', { timeout: 30000 }, () => {
   })
 
   afterEach(async () => {
-    await rm(tempDir, { recursive: true, force: true })
+    await rm(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   })
 
   // Mark every artifact in the change's .metta.yaml complete so the
@@ -85,7 +85,7 @@ describe('CLI: finalize UAT output', { timeout: 60000 }, () => {
   })
 
   afterEach(async () => {
-    await rm(tempDir, { recursive: true, force: true })
+    await rm(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   })
 
   async function markAllArtifactsComplete(changeName: string): Promise<void> {
@@ -259,7 +259,7 @@ describe('CLI: finalize tokens output', { timeout: 60000 }, () => {
   })
 
   afterEach(async () => {
-    await rm(tempDir, { recursive: true, force: true })
+    await rm(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   })
 
   async function markAllArtifactsComplete(changeName: string): Promise<void> {

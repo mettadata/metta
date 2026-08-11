@@ -13,7 +13,7 @@ describe("CLI: issue / fix-issue / backlog / branch-safety / check-constitution"
   })
 
   afterEach(async () => {
-    await rm(tempDir, { recursive: true, force: true })
+    await rm(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   })
 
   describe('metta issue', () => {

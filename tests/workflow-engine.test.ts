@@ -228,7 +228,7 @@ describe('WorkflowEngine', () => {
         const second = await engine.loadWorkflow('cacheable', [tmpDir])
         expect(second).toBe(first) // same object reference
       } finally {
-        await rm(tmpDir, { recursive: true, force: true })
+        await rm(tmpDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
       }
     })
 

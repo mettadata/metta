@@ -68,7 +68,7 @@ describe('loadAgentDefinition', () => {
     })
 
     afterEach(async () => {
-      await rm(fixtureDir, { recursive: true, force: true })
+      await rm(fixtureDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
     })
 
     it('throws AgentResolutionError when the body opens directly with a heading (empty persona)', async () => {

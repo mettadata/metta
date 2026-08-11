@@ -16,7 +16,7 @@ describe('CLI: roadmap', { timeout: 300000 }, () => {
   }, 60000)
 
   afterEach(async () => {
-    await rm(tempDir, { recursive: true, force: true })
+    await rm(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   })
 
   async function seedBacklog(title: string): Promise<string> {

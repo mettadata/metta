@@ -107,7 +107,7 @@ describe('GateRegistry', () => {
     })
 
     afterEach(async () => {
-      await rm(tempDir, { recursive: true, force: true })
+      await rm(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
     })
 
     it('retry_once — retries on first fail, passes on retry', async () => {
@@ -202,7 +202,7 @@ describe('GateRegistry', () => {
     })
 
     afterEach(async () => {
-      await rm(tempDir, { recursive: true, force: true })
+      await rm(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
     })
 
     it('stop — subsequent gates get skip with reference to failing gate', async () => {
@@ -237,7 +237,7 @@ describe('GateRegistry', () => {
     })
 
     afterEach(async () => {
-      await rm(tempDir, { recursive: true, force: true })
+      await rm(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
     })
 
     it('runWithRetry is a back-compat alias for runWithPolicy', async () => {
@@ -305,7 +305,7 @@ describe('GateRegistry', () => {
     })
 
     afterEach(async () => {
-      await rm(tempDir, { recursive: true, force: true })
+      await rm(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
     })
 
     it('project-local gate overrides built-in gate with same name', async () => {

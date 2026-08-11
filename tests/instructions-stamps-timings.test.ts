@@ -42,7 +42,7 @@ describe('metta instructions stamps timings + tokens', { timeout: 30000 }, () =>
   })
 
   afterEach(async () => {
-    await rm(tempDir, { recursive: true, force: true })
+    await rm(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   })
 
   it('stamps artifact_timings[intent].started and artifact_tokens[intent] on first call', async () => {

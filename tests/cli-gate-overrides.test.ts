@@ -37,7 +37,7 @@ describe('CLI: gate commands load project-local gate overrides', () => {
   afterEach(async () => {
     cwdSpy.mockRestore()
     logSpy.mockRestore()
-    await rm(projectRoot, { recursive: true, force: true })
+    await rm(projectRoot, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   })
 
   async function runGate(args: string[]): Promise<void> {

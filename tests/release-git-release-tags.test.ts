@@ -46,7 +46,7 @@ describe('git-release-tags', { timeout: 30000 }, () => {
   })
 
   afterEach(async () => {
-    await rm(repo, { recursive: true, force: true })
+    await rm(repo, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   })
 
   describe('listReleaseTags', () => {

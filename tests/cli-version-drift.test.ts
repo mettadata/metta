@@ -29,7 +29,7 @@ describe('CLI: version drift detection', { timeout: 30000 }, () => {
   })
 
   afterEach(async () => {
-    await rm(tempDir, { recursive: true, force: true })
+    await rm(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   })
 
   const configPath = (): string => join(tempDir, '.metta', 'config.yaml')

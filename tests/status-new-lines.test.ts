@@ -47,7 +47,7 @@ describe('metta status — Tokens: / Iterations: lines', { timeout: 30000 }, () 
   })
 
   afterEach(async () => {
-    await rm(tempDir, { recursive: true, force: true })
+    await rm(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   })
 
   it('legacy change (no new fields) prints no Tokens:/Iterations: lines', async () => {

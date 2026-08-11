@@ -100,7 +100,7 @@ describe('ceremony-metrics', () => {
   })
 
   afterEach(() => {
-    rmSync(tmp, { recursive: true, force: true })
+    rmSync(tmp, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   })
 
   describe('getCeremonyCommitRatio', () => {
