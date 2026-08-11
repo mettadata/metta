@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { mkdtemp, mkdir, rm, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { runCli, disableWorktrees } from './helpers/cli.js'
+import { runCli, disableWorktrees, installFixture } from './helpers/cli.js'
 
 describe('CLI: finalize exit-code ordering', { timeout: 30000 }, () => {
   let tempDir: string
@@ -30,7 +30,7 @@ describe('CLI: finalize exit-code ordering', { timeout: 30000 }, () => {
   }
 
   it('spec-merge conflict exits 2 with conflict output, never a gate-failure report', async () => {
-    await runCli(['install', '--git-init'], tempDir)
+    await installFixture(tempDir)
     await disableWorktrees(tempDir)
     await runCli(['quick', 'conflict case'], tempDir)
     await markAllArtifactsComplete('conflict-case')
@@ -64,7 +64,7 @@ The system MUST do ghostly things.
   })
 
   it('incomplete artifact exits 3 and lists the incomplete artifact by name', async () => {
-    await runCli(['install', '--git-init'], tempDir)
+    await installFixture(tempDir)
     await disableWorktrees(tempDir)
     await runCli(['quick', 'incomplete case'], tempDir)
     // Artifacts left in their initial statuses — none are complete.
@@ -120,7 +120,7 @@ describe('CLI: finalize UAT output', { timeout: 60000 }, () => {
   }
 
   it('success: JSON payload carries uatPath into the archive plus all pre-existing fields; human mode prints the UAT script line', async () => {
-    await runCli(['install', '--git-init'], tempDir)
+    await installFixture(tempDir)
     await disableWorktrees(tempDir)
     await runCli(['quick', 'uat success json'], tempDir)
     await runCli(['quick', 'uat success human'], tempDir)
@@ -167,7 +167,7 @@ describe('CLI: finalize UAT output', { timeout: 60000 }, () => {
   })
 
   it('uat.enabled false: uatPath null, no uatWarning key, no human UAT script line', async () => {
-    await runCli(['install', '--git-init'], tempDir)
+    await installFixture(tempDir)
     await disableWorktrees(tempDir)
     const configPath = join(tempDir, '.metta', 'config.yaml')
     const config = await readFile(configPath, 'utf8')
@@ -194,7 +194,7 @@ describe('CLI: finalize UAT output', { timeout: 60000 }, () => {
   })
 
   it('degraded: uatWarning present with success shape and exit 0; human warning on stderr', async () => {
-    await runCli(['install', '--git-init'], tempDir)
+    await installFixture(tempDir)
     await disableWorktrees(tempDir)
     await runCli(['quick', 'uat degraded json'], tempDir)
     await runCli(['quick', 'uat degraded human'], tempDir)
@@ -232,7 +232,7 @@ describe('CLI: finalize UAT output', { timeout: 60000 }, () => {
   })
 
   it('error payloads unchanged: incomplete artifacts exits 3 with the exact prior shape and no uatPath', async () => {
-    await runCli(['install', '--git-init'], tempDir)
+    await installFixture(tempDir)
     await disableWorktrees(tempDir)
     await runCli(['quick', 'uat err shape'], tempDir)
     // Artifacts left incomplete on purpose.
@@ -295,7 +295,7 @@ describe('CLI: finalize tokens output', { timeout: 60000 }, () => {
   }
 
   it('tokens.enabled false: tokensPath null, no tokensWarning key, no human tokens line; UAT unaffected', async () => {
-    await runCli(['install', '--git-init'], tempDir)
+    await installFixture(tempDir)
     await disableWorktrees(tempDir)
     const configPath = join(tempDir, '.metta', 'config.yaml')
     const config = await readFile(configPath, 'utf8')
@@ -324,7 +324,7 @@ describe('CLI: finalize tokens output', { timeout: 60000 }, () => {
   })
 
   it('degraded: tokensWarning present with success shape and exit 0; UAT unaffected', async () => {
-    await runCli(['install', '--git-init'], tempDir)
+    await installFixture(tempDir)
     await disableWorktrees(tempDir)
     await runCli(['quick', 'tokens degraded json'], tempDir)
     await runCli(['quick', 'tokens degraded human'], tempDir)
@@ -363,7 +363,7 @@ describe('CLI: finalize tokens output', { timeout: 60000 }, () => {
   })
 
   it('gates_failed payload unchanged: exact prior shape with no tokensPath or tokensWarning keys', async () => {
-    await runCli(['install', '--git-init'], tempDir)
+    await installFixture(tempDir)
     await disableWorktrees(tempDir)
     await runCli(['quick', 'tokens gate shape'], tempDir)
     await markAllArtifactsComplete('tokens-gate-shape')
