@@ -6,7 +6,7 @@ Resolved issue `session-mint-token-clobbering-after-context-compaction` (major):
 
 ## Design decision
 
-Workflow tier was **trivial** (engine recommendation matched), so no research/design artifacts exist. The orchestrator selected **Candidate 3 — per-skill token files with any-valid-token authorization** because it is the only candidate that eliminates the clobbering race outright (candidates 1 and 2 only narrow it or weaken least-privilege by ratcheting scopes). Tradeoff accepted: every recently invoked skill's scope stays live for its full TTL; bounded by the existing sliding TTL.
+Workflow tier was **trivial** (engine recommendation matched), so no research/design artifacts exist. The orchestrator selected **Candidate 3 — per-skill token files with any-valid-token authorization** because it is the only candidate that eliminates the clobbering race outright (candidates 1 and 2 only narrow it or weaken least-privilege by ratcheting scopes). Tradeoff accepted: because each invoked skill's accumulated mint hook keeps re-minting its credential on every subsequent Bash call, an active session's effective Tier-2 authority is the **union of all Tier-2 skills invoked during the session, for the session's lifetime**; exposure is TTL-bounded only once the session goes idle (all credentials expire one TTL after Bash activity stops).
 
 ## Implementation
 
