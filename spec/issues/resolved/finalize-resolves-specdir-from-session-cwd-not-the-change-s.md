@@ -17,7 +17,7 @@ src/cli/commands/finalize.ts constructs the Finalizer with 'join(ctx.projectRoot
 3. Guard rail: finalize detects that the change is worktree-hosted and its resolved specDir is not under the change root, and aborts up front with a clear error before mutating anything. Tradeoff: turns silent corruption into a loud pre-flight failure but still requires the user to rerun from the right cwd.
 
 **Captured**: 2026-08-11
-**Status**: logged
+**Status**: resolved
 **Severity**: major
 
 Finalize resolves specDir from session cwd, not the change's worktree — gates.yaml write and archive paths break for worktree-hosted changes when finalize runs from the main checkout.
@@ -37,3 +37,7 @@ src/cli/commands/finalize.ts constructs the Finalizer with 'join(ctx.projectRoot
 1. Resolve specDir from the change's host checkout: have finalize.ts derive the Finalizer's specDir from the artifact store's per-change base dir (or pass the change_root through), so all finalizer paths and the archive move agree regardless of cwd. Tradeoff: touches the Finalizer constructor contract; needs a regression test running finalize from outside the worktree.
 2. Make finalize atomic/recoverable: write gates.yaml and all post-archive artifacts before or during the archive move (or stage in the change dir and let the move sweep them, as UAT/TOKENS already do), so a path failure cannot strand a half-archived change. Tradeoff: does not fix the wrong-root reads (generateUat changeDir), only the stranding.
 3. Guard rail: finalize detects that the change is worktree-hosted and its resolved specDir is not under the change root, and aborts up front with a clear error before mutating anything. Tradeoff: turns silent corruption into a loud pre-flight failure but still requires the user to rerun from the right cwd.
+
+## Resolution
+
+**Resolved**: 2026-08-11 — shipped as PR #79 (change fix-finalize-resolves-specdir-session-cwd, archived): Finalizer specDir/SpecLockManager resolve via worktree-aware ArtifactStore.specDirFor; gates.yaml staged pre-archive; e2e finalize-from-main-cwd regression tests. Merge was delayed behind the CI setup fix (PR #80).
