@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { mkdtemp, rm, mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { runCli, execAsync } from './helpers/cli.js'
+import { runCli, execAsync, installFixture } from './helpers/cli.js'
 
 interface MetadataOpts {
   modelRuns?: number
@@ -114,7 +114,7 @@ describe('CLI: progress ceremony metrics', { timeout: 60000 }, () => {
   })
 
   it('--json includes ceremony_commit_ratio and null artifacts_per_small_change when archive is empty', async () => {
-    await runCli(['install', '--git-init'], tempDir)
+    await installFixture(tempDir)
     const { stdout, code } = await runCli(['--json', 'progress'], tempDir)
     expect(code).toBe(0)
     const data = JSON.parse(stdout)
@@ -141,7 +141,7 @@ describe('CLI: progress ceremony metrics', { timeout: 60000 }, () => {
   })
 
   it('--json reports model_escalation_rate over recorded model_runs and model_escalations', async () => {
-    await runCli(['install', '--git-init'], tempDir)
+    await installFixture(tempDir)
     await writeArchiveMetadata(tempDir, '2026-07-01-cheap-runs', 'quick', ['intent', 'implementation'], {
       modelRuns: 4,
       modelEscalations: 1,
@@ -154,7 +154,7 @@ describe('CLI: progress ceremony metrics', { timeout: 60000 }, () => {
   })
 
   it('--json reports mean/sample_size over archived quick/trivial changes', async () => {
-    await runCli(['install', '--git-init'], tempDir)
+    await installFixture(tempDir)
     await writeArchiveMetadata(tempDir, '2026-07-01-quick-one', 'quick', ['intent', 'implementation', 'verification'])
     await writeArchiveMetadata(tempDir, '2026-07-02-trivial-one', 'trivial', ['intent', 'implementation'])
     await writeArchiveMetadata(tempDir, '2026-07-03-standard-one', 'standard', ['intent', 'spec', 'design', 'tasks'])
@@ -176,7 +176,7 @@ describe('CLI: progress ceremony metrics', { timeout: 60000 }, () => {
   })
 
   it('human output renders the ceremony line and explicit no-data wording', async () => {
-    await runCli(['install', '--git-init'], tempDir)
+    await installFixture(tempDir)
     const { stdout, code } = await runCli(['progress'], tempDir)
     expect(code).toBe(0)
     expect(stdout).toMatch(/Ceremony commits: \d+% \(\d+\/\d+ chore\/docs\)/)
@@ -185,7 +185,7 @@ describe('CLI: progress ceremony metrics', { timeout: 60000 }, () => {
   })
 
   it('human output renders the numeric model escalation rate when model_runs exist', async () => {
-    await runCli(['install', '--git-init'], tempDir)
+    await installFixture(tempDir)
     await writeArchiveMetadata(tempDir, '2026-07-01-cheap-runs', 'quick', ['intent', 'implementation'], {
       modelRuns: 4,
       modelEscalations: 1,
@@ -209,7 +209,7 @@ describe('CLI: progress ceremony metrics', { timeout: 60000 }, () => {
   })
 
   it('--json and human output include the windowed ceremony ratio when a tag is present', async () => {
-    await runCli(['install', '--git-init'], tempDir)
+    await installFixture(tempDir)
     await execAsync('git', ['tag', 'v1.0.0'], { cwd: tempDir })
     await execAsync('git', ['commit', '--allow-empty', '-m', 'chore: post-tag ceremony'], { cwd: tempDir })
     await execAsync('git', ['commit', '--allow-empty', '-m', 'feat: post-tag functional'], { cwd: tempDir })
@@ -231,7 +231,7 @@ describe('CLI: progress ceremony metrics', { timeout: 60000 }, () => {
   })
 
   it('--json and human output omit the windowed ceremony ratio when no tag exists and no override is given', async () => {
-    await runCli(['install', '--git-init'], tempDir)
+    await installFixture(tempDir)
 
     const { stdout: jsonStdout, code: jsonCode } = await runCli(['--json', 'progress'], tempDir)
     expect(jsonCode).toBe(0)
@@ -248,7 +248,7 @@ describe('CLI: progress ceremony metrics', { timeout: 60000 }, () => {
   })
 
   it('--ceremony-since overrides the default window ref', async () => {
-    await runCli(['install', '--git-init'], tempDir)
+    await installFixture(tempDir)
     await execAsync('git', ['tag', 'v1.0.0'], { cwd: tempDir })
     await execAsync('git', ['commit', '--allow-empty', '-m', 'chore: a'], { cwd: tempDir })
     await execAsync('git', ['tag', 'v2.0.0'], { cwd: tempDir })
@@ -273,7 +273,7 @@ describe('CLI: progress ceremony metrics', { timeout: 60000 }, () => {
   })
 
   it('--json averages token_usage per tier across active and archived changes, null for no-data tiers', async () => {
-    await runCli(['install', '--git-init'], tempDir)
+    await installFixture(tempDir)
     // Active quick change: 30k total; archived quick change: 10k total.
     await writeActiveChangeMetadata(tempDir, 'active-quick', 'quick', ['intent', 'implementation'], {
       tokenUsage: [20000, 10000],
@@ -299,7 +299,7 @@ describe('CLI: progress ceremony metrics', { timeout: 60000 }, () => {
   })
 
   it('human output renders all four tiers in order with formatted values and no-data wording', async () => {
-    await runCli(['install', '--git-init'], tempDir)
+    await installFixture(tempDir)
     await writeActiveChangeMetadata(tempDir, 'active-quick', 'quick', ['intent', 'implementation'], {
       tokenUsage: [30000],
     })
@@ -320,7 +320,7 @@ describe('CLI: progress ceremony metrics', { timeout: 60000 }, () => {
   })
 
   it('human output shows no data for every tier when nothing reports token_usage', async () => {
-    await runCli(['install', '--git-init'], tempDir)
+    await installFixture(tempDir)
     const { stdout, code } = await runCli(['progress'], tempDir)
     expect(code).toBe(0)
     expect(stdout).toContain(
@@ -329,7 +329,7 @@ describe('CLI: progress ceremony metrics', { timeout: 60000 }, () => {
   })
 
   it('--ceremony-since with an unknown ref reports no data, names the ref, and exits 0', async () => {
-    await runCli(['install', '--git-init'], tempDir)
+    await installFixture(tempDir)
 
     const { stdout: jsonStdout, code: jsonCode } = await runCli(
       ['--json', 'progress', '--ceremony-since', 'nonexistent-ref'],

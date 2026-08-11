@@ -3,7 +3,7 @@ import { mkdtemp, rm, readFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { runCli, execAsync } from './helpers/cli.js'
+import { runCli, execAsync, installFixture } from './helpers/cli.js'
 
 describe('CLI: roadmap', { timeout: 300000 }, () => {
   let tempDir: string
@@ -12,7 +12,7 @@ describe('CLI: roadmap', { timeout: 300000 }, () => {
 
   beforeEach(async () => {
     tempDir = await mkdtemp(join(tmpdir(), 'metta-cli-roadmap-'))
-    await runCli(['install', '--git-init'], tempDir)
+    await installFixture(tempDir)
   }, 60000)
 
   afterEach(async () => {

@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import { disableWorktrees } from './helpers/cli.js'
+import { disableWorktrees, installFixture } from './helpers/cli.js'
 
 const execAsync = promisify(execFile)
 
@@ -38,7 +38,7 @@ describe('metta propose --stop-after', { timeout: 30000 }, () => {
 
   beforeEach(async () => {
     tempDir = await mkdtemp(join(tmpdir(), 'metta-propose-stop-after-'))
-    await runCli(['install', '--git-init'], tempDir)
+    await installFixture(tempDir)
     await disableWorktrees(tempDir)
   })
 
