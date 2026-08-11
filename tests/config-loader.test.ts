@@ -186,6 +186,24 @@ project:
     stderrSpy.mockRestore()
   })
 
+  it('renders env-override warning issues via the shared formatter as "  - path: message" lines', async () => {
+    const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+    await writeFile(join(projectDir, '.metta', 'config.yaml'), `
+project:
+  name: "Test"
+`)
+    // Invalid enum value at a nested path so the line carries `path: message`.
+    process.env.METTA_DEFAULTS__MODE = 'bogus-mode'
+    const loader = new ConfigLoader(projectDir, globalDir)
+    const config = await loader.load()
+    expect(config.project?.name).toBe('Test')
+    const written = stderrSpy.mock.calls.map(c => String(c[0])).join('')
+    expect(written).toMatch(/^ {2}- defaults\.mode: .+$/m)
+    // No raw Zod issue objects leak into the warning.
+    expect(written).not.toContain('"code"')
+    stderrSpy.mockRestore()
+  })
+
   it('defaults globalDir to ~/.metta when not provided', () => {
     const loader = new ConfigLoader(projectDir)
     expect(loader.globalPath).toBe(join(homedir(), '.metta'))

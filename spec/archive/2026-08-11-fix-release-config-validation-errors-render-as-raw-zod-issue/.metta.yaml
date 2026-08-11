@@ -1,0 +1,151 @@
+workflow: quick
+created: 2026-08-11T12:00:30.717Z
+status: active
+current_artifact: verification
+base_versions: {}
+artifacts:
+  intent: complete
+  implementation: complete
+  verification: complete
+complexity_score:
+  score: 1
+  signals:
+    file_count: 3
+  recommended_workflow: quick
+actual_complexity_score:
+  score: 2
+  signals:
+    file_count: 6
+  recommended_workflow: standard
+artifact_timings:
+  intent:
+    started: 2026-08-11T12:00:35.000Z
+    completed: 2026-08-11T12:01:38.168Z
+  implementation:
+    started: 2026-08-11T12:01:45.685Z
+    completed: 2026-08-11T12:11:07.297Z
+  verification:
+    completed: 2026-08-11T12:28:14.743Z
+artifact_tokens:
+  intent:
+    context: 763
+    budget: 20000
+  implementation:
+    context: 0
+    budget: 10000
+review_iterations: 1
+verify_iterations: 1
+worktree: /home/utx0/Code/metta/.metta/worktrees/fix-release-config-validation-errors-render-as-raw-zod-issue
+model_runs:
+  - task: implementation
+    model: sonnet
+    timestamp: 2026-08-11T12:01:45.685Z
+token_usage:
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 3540
+    timestamp: 2026-08-11T12:01:01.825Z
+    source: hook
+  - task: intent
+    agent: metta-proposer
+    model: fable
+    tokens: 2896
+    timestamp: 2026-08-11T12:01:31.709Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 5245
+    timestamp: 2026-08-11T12:02:04.858Z
+    source: hook
+  - task: implementation
+    agent: metta-executor
+    model: fable
+    tokens: 13306
+    timestamp: 2026-08-11T12:10:41.114Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 9454
+    timestamp: 2026-08-11T12:11:34.900Z
+    source: hook
+  - task: implementation
+    agent: metta-reviewer
+    model: fable
+    tokens: 3550
+    timestamp: 2026-08-11T12:12:37.559Z
+    source: hook
+  - task: implementation
+    agent: metta-reviewer
+    model: fable
+    tokens: 4599
+    timestamp: 2026-08-11T12:12:40.014Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 9556
+    timestamp: 2026-08-11T12:12:41.573Z
+    source: hook
+  - task: implementation
+    agent: metta-reviewer
+    model: fable
+    tokens: 4239
+    timestamp: 2026-08-11T12:12:44.556Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 9582
+    timestamp: 2026-08-11T12:12:44.879Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 11945
+    timestamp: 2026-08-11T12:13:19.055Z
+    source: hook
+  - task: implementation
+    agent: metta-executor
+    model: fable
+    tokens: 4438
+    timestamp: 2026-08-11T12:20:15.789Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 14462
+    timestamp: 2026-08-11T12:20:47.960Z
+    source: hook
+  - task: verification
+    agent: metta-verifier
+    model: fable
+    tokens: 340
+    timestamp: 2026-08-11T12:21:26.468Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 14503
+    timestamp: 2026-08-11T12:21:31.297Z
+    source: hook
+  - task: verification
+    agent: metta-verifier
+    model: fable
+    tokens: 213
+    timestamp: 2026-08-11T12:26:18.454Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 14508
+    timestamp: 2026-08-11T12:26:23.898Z
+    source: hook
+  - task: verification
+    agent: metta-verifier
+    model: fable
+    tokens: 4688
+    timestamp: 2026-08-11T12:27:59.664Z
+    source: hook

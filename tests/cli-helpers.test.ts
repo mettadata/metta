@@ -1,8 +1,9 @@
 import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest'
-import { askYesNo, outputJson, resolveChangeRoot, resolveProjectRoot } from '../src/cli/helpers.js'
+import { askYesNo, handleError, outputJson, resolveChangeRoot, resolveProjectRoot } from '../src/cli/helpers.js'
 import { mkdtemp, rm, mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
+import { z } from 'zod'
 import { recordVersionDrift, resetVersionDrift } from '../src/config/version-drift.js'
 
 describe('askYesNo', () => {
@@ -109,6 +110,65 @@ describe('outputJson', () => {
     }
     outputJson(payload)
     expect(printed()).toBe(JSON.stringify(payload, null, 2))
+  })
+})
+
+describe('handleError with a raw ZodError', () => {
+  let logSpy: ReturnType<typeof vi.spyOn>
+  let errorSpy: ReturnType<typeof vi.spyOn>
+  let exitSpy: ReturnType<typeof vi.spyOn>
+
+  beforeEach(() => {
+    resetVersionDrift()
+    logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+    errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    exitSpy = vi.spyOn(process, 'exit').mockImplementation(((code?: number) => {
+      throw new Error(`process.exit(${code ?? 0}) called`)
+    }) as never)
+  })
+
+  afterEach(() => {
+    resetVersionDrift()
+    logSpy.mockRestore()
+    errorSpy.mockRestore()
+    exitSpy.mockRestore()
+  })
+
+  function releaseSchemeError(): z.ZodError {
+    const schema = z.object({ release: z.object({ scheme: z.literal('semver') }) })
+    const result = schema.safeParse({ release: { scheme: 'calver' } })
+    if (result.success) throw new Error('expected schema to reject value')
+    return result.error
+  }
+
+  it('text mode prints Error: path: message lines, not the raw issues array', () => {
+    const err = releaseSchemeError()
+    expect(() => handleError(err, false)).toThrow('process.exit(4) called')
+    expect(errorSpy).toHaveBeenCalledTimes(1)
+    const printed = errorSpy.mock.calls[0][0] as string
+    expect(printed).toBe(`Error: release.scheme: ${err.issues[0].message}`)
+    expect(printed).not.toContain('[')
+    expect(printed).not.toContain('"code"')
+    expect(exitSpy).toHaveBeenCalledWith(4)
+  })
+
+  it('json mode keeps the validation_error envelope with a formatted message', () => {
+    const err = releaseSchemeError()
+    expect(() => handleError(err, true)).toThrow('process.exit(4) called')
+    expect(logSpy).toHaveBeenCalledTimes(1)
+    const payload = JSON.parse(logSpy.mock.calls[0][0] as string) as {
+      error: { code: number; type: string; message: string }
+    }
+    expect(payload.error.code).toBe(4)
+    expect(payload.error.type).toBe('validation_error')
+    expect(payload.error.message).toBe(`release.scheme: ${err.issues[0].message}`)
+    expect(payload.error.message).not.toContain('[')
+    expect(exitSpy).toHaveBeenCalledWith(4)
+  })
+
+  it('non-Zod errors still render via getErrorMessage (generic fallback unchanged)', () => {
+    expect(() => handleError(new Error('plain failure'), false)).toThrow('process.exit(4) called')
+    expect(errorSpy).toHaveBeenCalledWith('Error: plain failure')
   })
 })
 
