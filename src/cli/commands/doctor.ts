@@ -1,8 +1,10 @@
 import { Command } from 'commander'
 import { readFile, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { autoCommitFile, createCliContext, outputJson, color, getPackageVersion } from '../helpers.js'
 import { repairProjectConfig } from '../../config/repair-config.js'
+import { distFreshnessCheck } from '../../config/build-stamp.js'
 import { readInstalledVersion, templateFreshnessCheck } from '../../config/version-drift.js'
 
 export function registerDoctorCommand(program: Command): void {
@@ -103,6 +105,17 @@ export function registerDoctorCommand(program: Command): void {
       checks.push({
         check: 'Template freshness',
         ...templateFreshnessCheck(await readInstalledVersion(ctx.projectRoot), runningVersion),
+      })
+
+      // Dist freshness — the globally-linked CLI executes the checkout's
+      // dist/, which can silently drift behind that checkout's HEAD. Compare
+      // the build stamp (dist/.build-stamp) against the checkout's current
+      // HEAD. Package root sits three levels up from {src,dist}/cli/commands/
+      // in both layouts. Tolerant check: never errors the doctor run.
+      const packageRoot = fileURLToPath(new URL('../../..', import.meta.url))
+      checks.push({
+        check: 'Dist freshness',
+        ...(await distFreshnessCheck(packageRoot)),
       })
 
       // .metta directory
