@@ -277,7 +277,7 @@ describe('MergeSafetyPipeline', () => {
       expect(rebuildStep?.detail).toContain('stale')
     })
 
-    it('reports explicitly when the target checkout has no package.json', async () => {
+    it('skips the rebuild with an explanation when the target checkout has no package.json', async () => {
       const mainBranch = await setupFeatureBranch('rebuild-missing')
 
       const pipeline = new MergeSafetyPipeline(tempDir)
@@ -285,8 +285,22 @@ describe('MergeSafetyPipeline', () => {
 
       expect(result.status).toBe('success')
       const rebuildStep = result.steps.find(s => s.step === 'rebuild-dist')
-      expect(rebuildStep?.status).toBe('fail')
+      expect(rebuildStep?.status).toBe('skip')
       expect(rebuildStep?.detail).toContain('no package.json')
+      expect(rebuildStep?.detail).toContain('not an npm project')
+    })
+
+    it('fails loudly when package.json is not valid JSON', async () => {
+      const mainBranch = await setupFeatureBranch('rebuild-corrupt')
+      await writeFile(join(tempDir, 'package.json'), '{ not valid json')
+
+      const pipeline = new MergeSafetyPipeline(tempDir)
+      const result = await pipeline.run('rebuild-corrupt', mainBranch)
+
+      expect(result.status).toBe('success')
+      const rebuildStep = result.steps.find(s => s.step === 'rebuild-dist')
+      expect(rebuildStep?.status).toBe('fail')
+      expect(rebuildStep?.detail).toContain('not valid JSON')
       expect(rebuildStep?.detail).toContain('stale')
     })
 

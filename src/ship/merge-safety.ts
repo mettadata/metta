@@ -41,10 +41,12 @@ export class MergeSafetyPipeline {
     try {
       manifest = await readFile(join(this.cwd, 'package.json'), 'utf8')
     } catch {
+      // Not an npm project (metta ships non-npm projects too) — nothing to
+      // rebuild, so this is a normal skip rather than a failure.
       steps.push({
         step: 'rebuild-dist',
-        status: 'fail',
-        detail: `cannot rebuild dist: no package.json found in ${this.cwd} — the checkout hosting ${targetBranch} may be missing or not an npm project; its dist is now stale until you run the build manually`,
+        status: 'skip',
+        detail: `no package.json in ${this.cwd} — the checkout hosting ${targetBranch} is not an npm project, nothing to rebuild`,
       })
       return
     }
@@ -65,7 +67,7 @@ export class MergeSafetyPipeline {
       return
     }
     try {
-      await execAsync('npm run build', { cwd: this.cwd })
+      await execAsync('npm run build', { cwd: this.cwd, maxBuffer: 10 * 1024 * 1024 })
       steps.push({ step: 'rebuild-dist', status: 'pass', detail: 'npm run build' })
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
@@ -259,11 +261,12 @@ export class MergeSafetyPipeline {
     }
 
     // Step 9: Post-merge gates (real execution)
-    const gateNames = this.gateRegistry ? this.gateRegistry.list().map(g => g.name) : []
-    if (gateNames.length === 0) {
+    const registry = this.gateRegistry
+    const gateNames = registry ? registry.list().map(g => g.name) : []
+    if (!registry || gateNames.length === 0) {
       steps.push({ step: 'post-merge-gates', status: 'pass', detail: 'no gates configured' })
     } else {
-      const results = await this.gateRegistry!.runAll(gateNames, this.cwd)
+      const results = await registry.runAll(gateNames, this.cwd)
       const failed = results.find(r => r.status === 'fail')
       if (failed) {
         // Failure path: roll back
