@@ -1,9 +1,10 @@
 import { Command } from 'commander'
-import { join } from 'node:path'
+import { dirname } from 'node:path'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { createCliContext, outputJson, color, getErrorMessage } from '../helpers.js'
 import { Finalizer } from '../../finalize/finalizer.js'
+import { SpecLockManager } from '../../specs/spec-lock-manager.js'
 import { loadGatesWithOverrides } from '../../gates/gate-registry.js'
 import { WorkflowEngine } from '../../workflow/workflow-engine.js'
 import { acquireFinalizeLock, FinalizeLockError } from '../../finalize/finalize-lock.js'
@@ -40,10 +41,29 @@ export function registerFinalizeCommand(program: Command): void {
         const workflowEngine = new WorkflowEngine()
         const workflowPaths = [new URL('../../templates/workflows', import.meta.url).pathname]
 
+        // Resolve the spec dir from the checkout that HOSTS the change
+        // (worktree-aware), never from the session cwd: a worktree-hosted
+        // change finalized from the main checkout must archive, stage
+        // gates.yaml, and report paths inside its worktree — identical to an
+        // in-worktree invocation. `hostRoot` is that checkout's root, used
+        // below to scope the auto-commit to the tree that received the archive.
+        const specDir = await ctx.artifactStore.specDirFor(name)
+        const hostRoot = dirname(specDir)
+
+        // The lock manager must be rooted at the SAME spec dir as the merge
+        // writes: SpecMerger writes merged spec.md under `specDir` but reads
+        // and writes spec.lock through the lock manager. Reusing the
+        // session-cwd-rooted ctx.specLockManager would split those across
+        // checkouts for a worktree-hosted change — dirtying the main checkout
+        // with an orphan spec.lock and running conflict detection against the
+        // wrong lock. For non-worktree changes specDirFor returns the session
+        // spec dir, so this is identical to ctx.specLockManager there.
+        const specLockManager = new SpecLockManager(specDir)
+
         const finalizer = new Finalizer(
-          join(ctx.projectRoot, 'spec'),
+          specDir,
           ctx.artifactStore,
-          ctx.specLockManager,
+          specLockManager,
           ctx.gateRegistry,
           ctx.projectRoot,
           workflowEngine,
@@ -182,6 +202,8 @@ export function registerFinalizeCommand(program: Command): void {
         // Auto-commit archive (rename already moved changes → archive)
         // Scope the add to paths touched by this finalize only — never `-A spec/` which
         // would sweep in unrelated untracked backlog/issue/idea files into this commit.
+        // The commit runs against the checkout that RECEIVED the archive (the
+        // change's host root — its worktree when hosted), not the session cwd.
         if (!options.dryRun && result.archiveName) {
           try {
             const paths: string[] = [
@@ -191,9 +213,9 @@ export function registerFinalizeCommand(program: Command): void {
             for (const cap of result.specMerge.merged) {
               paths.push(`spec/specs/${cap.split('/')[0]}`)
             }
-            await execAsync('git', ['add', '--', ...paths], { cwd: ctx.projectRoot })
-            await execAsync('git', ['diff', '--cached', '--quiet'], { cwd: ctx.projectRoot }).catch(async () => {
-              await execAsync('git', ['commit', '-m', `chore(${name}): archive and finalize`], { cwd: ctx.projectRoot })
+            await execAsync('git', ['add', '--', ...paths], { cwd: hostRoot })
+            await execAsync('git', ['diff', '--cached', '--quiet'], { cwd: hostRoot }).catch(async () => {
+              await execAsync('git', ['commit', '-m', `chore(${name}): archive and finalize`], { cwd: hostRoot })
             })
           } catch {
             // Nothing to commit or git not available

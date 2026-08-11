@@ -278,6 +278,13 @@ describe('ArtifactStore worktree discovery', () => {
     expect(metadata.worktree).toBe(host)
   })
 
+  it('specDirFor resolves the hosting worktree spec dir; local changes stay on the local spec dir', async () => {
+    await store.createChange('local change', 'quick', ['intent'])
+    const { host } = await createHostedChange('hosted change')
+    expect(await store.specDirFor('local-change')).toBe(join(rootDir, 'spec'))
+    expect(await store.specDirFor('hosted-change')).toBe(join(host, 'spec'))
+  })
+
   it('routes artifact reads and writes to the hosting worktree', async () => {
     const { host } = await createHostedChange('hosted change')
     await store.writeArtifact('hosted-change', 'intent.md', '# Hosted intent')

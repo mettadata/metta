@@ -40,6 +40,13 @@ export interface FinalizeResult {
 
 export class Finalizer {
   constructor(
+    /**
+     * Spec dir of the checkout that HOSTS the change (worktree-aware) — must
+     * agree with `ArtifactStore.specDirFor(change)`, never a session-cwd
+     * derivation. Every path join below (gates.yaml staging, generateUat's
+     * changeDir, cleanup rm paths, reported uatPath/tokensPath) lands in the
+     * same checkout the archive move operates on.
+     */
     private specDir: string,
     private artifactStore: ArtifactStore,
     private specLockManager: SpecLockManager,
@@ -232,17 +239,15 @@ export class Finalizer {
       }
     }
 
-    // Step 6: Archive the change
-    const archiveName = await this.artifactStore.archive(changeName)
-    const uatPath = uatGenerated ? join(this.specDir, 'archive', archiveName, 'UAT.md') : null
-    const tokensPath = tokensGenerated ? join(this.specDir, 'archive', archiveName, 'TOKENS.md') : null
-
-    // Step 6b: Write gate results to archive
+    // Step 5d: Stage gate results in the change dir (pre-archive) so the
+    // archive move sweeps gates.yaml in — the same pattern UAT.md and
+    // TOKENS.md use. Writing into the archive dir AFTER the move could fail
+    // (e.g. a wrong-root path) and strand a half-archived change: change dir
+    // gone, required archive artifact missing. Staged pre-move, a write
+    // failure aborts finalize while the change is still fully active.
     if (gates.length > 0) {
-      const { writeFile } = await import('node:fs/promises')
       const YAML = (await import('yaml')).default
-      const gateResultsPath = join(this.specDir, 'archive', archiveName, 'gates.yaml')
-      await writeFile(gateResultsPath, YAML.stringify({
+      await this.artifactStore.writeArtifact(changeName, 'gates.yaml', YAML.stringify({
         finalized_at: new Date().toISOString(),
         all_passed: gatesPassed,
         results: gates.map(g => ({
@@ -252,6 +257,12 @@ export class Finalizer {
         })),
       }))
     }
+
+    // Step 6: Archive the change (the move sweeps UAT.md, TOKENS.md, and
+    // gates.yaml into the archive dir).
+    const archiveName = await this.artifactStore.archive(changeName)
+    const uatPath = uatGenerated ? join(this.specDir, 'archive', archiveName, 'UAT.md') : null
+    const tokensPath = tokensGenerated ? join(this.specDir, 'archive', archiveName, 'TOKENS.md') : null
 
     // Step 7: Generate docs (if configured)
     let docsGenerated: string[] = []

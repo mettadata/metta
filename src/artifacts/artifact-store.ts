@@ -306,8 +306,13 @@ export class ArtifactStore {
     )
   }
 
-  /** Spec dir that actually hosts `name` (worktree copy wins collisions). */
-  private async specDirFor(name: string): Promise<string> {
+  /**
+   * Spec dir that actually hosts `name` (worktree copy wins collisions).
+   * Public so callers that derive change-relative paths (e.g. the finalizer's
+   * archive paths) resolve against the SAME checkout the store's own
+   * archive/move operations use — never against the session cwd.
+   */
+  async specDirFor(name: string): Promise<string> {
     const host = await this.findWorktreeHost(name)
     return host === undefined ? this.specDir : join(host, 'spec')
   }
