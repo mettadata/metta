@@ -95,7 +95,7 @@ describe('generateUat', () => {
   })
 
   afterEach(async () => {
-    await rm(dir, { recursive: true, force: true })
+    await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   })
 
   // --- Tier-1 mapping ---------------------------------------------------------

@@ -49,7 +49,7 @@ describe('metta instructions — durable auto-commit of the instruction-time met
   })
 
   afterEach(async () => {
-    await rm(tempDir, { recursive: true, force: true })
+    await rm(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   })
 
   async function initGitFixture(configYaml: string): Promise<void> {

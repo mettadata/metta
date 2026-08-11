@@ -109,7 +109,7 @@ describe('metta-guard-bash integration', { timeout: 60_000 }, () => {
       tempDir = mkdtempSync(join(tmpdir(), 'metta-guard-legacy-int-'))
     })
     afterEach(() => {
-      rmSync(tempDir, { recursive: true, force: true })
+      rmSync(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
     })
 
     it('blocks metta propose even with METTA_SKILL=1 set on the hook process (exit 2)', () => {
@@ -171,7 +171,7 @@ describe('metta-guard-bash integration', { timeout: 60_000 }, () => {
     })
 
     afterEach(() => {
-      rmSync(tempDir, { recursive: true, force: true })
+      rmSync(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
     })
 
     it('blocks main-session direct call with inline METTA_SKILL=1 and no agent_type — exit 2, stderr names /metta-issue', () => {
@@ -244,7 +244,7 @@ describe('metta-guard-bash integration', { timeout: 60_000 }, () => {
     })
 
     afterEach(() => {
-      rmSync(tempDir, { recursive: true, force: true })
+      rmSync(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
     })
 
     function seedToken(
@@ -359,7 +359,7 @@ describe('metta-guard-bash integration', { timeout: 60_000 }, () => {
     })
 
     afterEach(() => {
-      rmSync(tempDir, { recursive: true, force: true })
+      rmSync(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
     })
 
     it.each([
@@ -458,7 +458,7 @@ describe('metta-guard-bash integration', { timeout: 60_000 }, () => {
     })
 
     afterEach(() => {
-      rmSync(tempDir, { recursive: true, force: true })
+      rmSync(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
     })
 
     it.each([
@@ -532,7 +532,7 @@ describe('metta-guard-bash integration', { timeout: 60_000 }, () => {
     })
 
     afterEach(() => {
-      rmSync(tempDir, { recursive: true, force: true })
+      rmSync(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
     })
 
     it('blocks run_in_background from a forked metta agent — exit 2, stderr points at the synchronous-completion rule', () => {
@@ -599,7 +599,7 @@ describe('metta-guard-bash integration', { timeout: 60_000 }, () => {
     })
 
     afterEach(async () => {
-      await rm(tempDir, { recursive: true, force: true })
+      await rm(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
     })
 
     it('first install registers exactly one Bash PreToolUse entry pointing at metta-guard-bash.mjs', async () => {

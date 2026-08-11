@@ -110,7 +110,7 @@ describe('CLI: progress ceremony metrics', { timeout: 60000 }, () => {
   })
 
   afterEach(async () => {
-    await rm(tempDir, { recursive: true, force: true })
+    await rm(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   })
 
   it('--json includes ceremony_commit_ratio and null artifacts_per_small_change when archive is empty', async () => {

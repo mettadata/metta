@@ -101,7 +101,7 @@ describe('ReleasePipeline', { timeout: 60000 }, () => {
   })
 
   afterEach(async () => {
-    await rm(root, { recursive: true, force: true })
+    await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   })
 
   describe('cut — full successful cut (first release, no prior tags)', () => {

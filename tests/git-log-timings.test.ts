@@ -28,7 +28,7 @@ describe('getGitLogTimings', () => {
   })
 
   afterEach(() => {
-    rmSync(tmp, { recursive: true, force: true })
+    rmSync(tmp, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   })
 
   it('returns first/last timestamps for a file with two commits', async () => {

@@ -61,7 +61,7 @@ describe('metta instructions sources agent identity from agent files', { timeout
   })
 
   afterEach(async () => {
-    await rm(tempDir, { recursive: true, force: true })
+    await rm(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   })
 
   it('emits persona and tools from metta-executor.md frontmatter/body, not literals', async () => {

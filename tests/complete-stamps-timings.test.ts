@@ -65,7 +65,7 @@ describe('metta complete stamps artifact_timings.completed', { timeout: 30000 },
   })
 
   afterEach(async () => {
-    await rm(tempDir, { recursive: true, force: true })
+    await rm(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   })
 
   it('stamps artifact_timings[intent].completed on mark-complete', async () => {

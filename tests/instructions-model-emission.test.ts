@@ -44,7 +44,7 @@ describe('metta instructions model emission, ratchet, and model_runs denominator
   })
 
   afterEach(async () => {
-    await rm(tempDir, { recursive: true, force: true })
+    await rm(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   })
 
   it('first executor generation resolves sonnet and appends exactly one model_runs record', async () => {

@@ -12,7 +12,7 @@ describe("CLI: status / next / changes / doctor / gate / validate-stories", { ti
   })
 
   afterEach(async () => {
-    await rm(tempDir, { recursive: true, force: true })
+    await rm(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   })
 
   describe('metta status', () => {

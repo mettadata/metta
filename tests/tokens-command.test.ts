@@ -44,7 +44,7 @@ describe('metta tokens record', { timeout: 30000 }, () => {
   })
 
   afterEach(async () => {
-    await rm(tempDir, { recursive: true, force: true })
+    await rm(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   })
 
   it('first record sets token_usage to a one-element array with the correct fields', async () => {

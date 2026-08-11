@@ -41,7 +41,7 @@ describe('metta-guard-edit hook init-phase allow-list', { timeout: 30_000 }, () 
   })
 
   afterEach(async () => {
-    await rm(tempDir, { recursive: true, force: true })
+    await rm(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   })
 
   for (const hookPath of HOOK_SOURCES) {
@@ -248,7 +248,7 @@ describe('metta-guard-edit hook worktree awareness', { timeout: 60_000 }, () => 
   })
 
   afterEach(async () => {
-    await rm(repoDir, { recursive: true, force: true })
+    await rm(repoDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   })
 
   for (const hookPath of HOOK_SOURCES) {
@@ -311,7 +311,7 @@ describe('metta-guard-edit hook worktree awareness', { timeout: 60_000 }, () => 
           expect(code).toBe(2)
           expect(stderr).toContain('metta-guard')
         } finally {
-          await rm(linkParent, { recursive: true, force: true })
+          await rm(linkParent, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
         }
       })
     })

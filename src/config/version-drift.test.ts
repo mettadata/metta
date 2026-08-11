@@ -67,7 +67,7 @@ describe('readInstalledVersion', () => {
   })
 
   afterEach(() => {
-    rmSync(tmpDir, { recursive: true, force: true })
+    rmSync(tmpDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   })
 
   it('returns the stamp when installed_version is a string', async () => {
@@ -85,7 +85,7 @@ describe('readInstalledVersion', () => {
   })
 
   it('returns undefined when the .metta directory is missing', async () => {
-    rmSync(join(tmpDir, '.metta'), { recursive: true, force: true })
+    rmSync(join(tmpDir, '.metta'), { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
     await expect(readInstalledVersion(tmpDir)).resolves.toBeUndefined()
   })
 
@@ -142,7 +142,7 @@ describe('stampInstalledVersion', () => {
   })
 
   afterEach(() => {
-    rmSync(tmpDir, { recursive: true, force: true })
+    rmSync(tmpDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   })
 
   it('writes a fresh stamp that parses back as the version string', async () => {

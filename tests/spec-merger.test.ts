@@ -22,7 +22,7 @@ describe('SpecMerger', () => {
   })
 
   afterEach(async () => {
-    await rm(specDir, { recursive: true, force: true })
+    await rm(specDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   })
 
   it('merges ADDED requirement into new capability', async () => {

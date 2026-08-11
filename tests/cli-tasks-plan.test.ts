@@ -70,7 +70,7 @@ describe('metta tasks plan (integration)', { timeout: 60000 }, () => {
   })
 
   afterEach(async () => {
-    await rm(tempDir, { recursive: true, force: true })
+    await rm(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   })
 
   it('happy path: disjoint tasks parallelize into one wave', async () => {

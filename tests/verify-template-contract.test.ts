@@ -53,7 +53,7 @@ describe('verification artifact contract agreement', () => {
     })
 
     afterEach(async () => {
-      await rm(tempDir, { recursive: true, force: true })
+      await rm(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
     })
 
     it('output_path ends in summary.md and the rendered template names summary.md', async () => {

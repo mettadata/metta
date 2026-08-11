@@ -30,7 +30,7 @@ describe('runCli timeout diagnosability', () => {
   })
 
   afterAll(async () => {
-    await rm(dir, { recursive: true, force: true })
+    await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   })
 
   it('marks a timeout-killed subprocess in stderr', async () => {

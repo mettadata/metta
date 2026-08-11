@@ -30,7 +30,7 @@ describe('InstructionGenerator', () => {
   })
 
   afterEach(async () => {
-    await rm(tempDir, { recursive: true, force: true })
+    await rm(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   })
 
   it('generates instruction output with all required fields', async () => {

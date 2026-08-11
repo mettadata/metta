@@ -31,7 +31,7 @@ describe('finalize-lock', () => {
   })
 
   afterEach(() => {
-    rmSync(projectRoot, { recursive: true, force: true })
+    rmSync(projectRoot, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   })
 
   it('acquire writes a valid lock file containing the current pid', async () => {

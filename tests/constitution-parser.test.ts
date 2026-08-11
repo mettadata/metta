@@ -20,7 +20,7 @@ describe('parseConstitution', () => {
 
   afterEach(async () => {
     for (const d of dirs) {
-      await rm(d, { recursive: true, force: true })
+      await rm(d, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
     }
   })
 

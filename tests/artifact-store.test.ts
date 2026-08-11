@@ -14,7 +14,7 @@ describe('ArtifactStore', () => {
   })
 
   afterEach(async () => {
-    await rm(tempDir, { recursive: true, force: true })
+    await rm(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   })
 
   describe('createChange', () => {
@@ -237,7 +237,7 @@ describe('ArtifactStore worktree discovery', () => {
   })
 
   afterEach(async () => {
-    await rm(rootDir, { recursive: true, force: true })
+    await rm(rootDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   })
 
   // Simulate a worktree-per-change checkout: `.metta/worktrees/<name>/` with
