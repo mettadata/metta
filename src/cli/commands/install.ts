@@ -104,6 +104,30 @@ async function registerGuardBashHook(root: string): Promise<void> {
   }
 }
 
+async function registerTokensRecordHook(root: string): Promise<void> {
+  const settingsPath = join(root, '.claude', 'settings.json')
+  const settings = await readSettingsJson(settingsPath)
+
+  const rawHooks = settings.hooks
+  const hooks: Record<string, unknown> = rawHooks && typeof rawHooks === 'object' && !Array.isArray(rawHooks)
+    ? (rawHooks as Record<string, unknown>)
+    : {}
+  const rawStop = hooks.SubagentStop
+  const subagentStop: Array<Record<string, unknown>> = Array.isArray(rawStop) ? rawStop : []
+  const alreadyRegistered = subagentStop.some((entry) => {
+    const hooksArr = Array.isArray(entry?.hooks) ? (entry.hooks as Array<Record<string, unknown>>) : []
+    return hooksArr.some((h) => typeof h?.command === 'string' && h.command.includes('metta-tokens-record.mjs'))
+  })
+  if (!alreadyRegistered) {
+    subagentStop.push({
+      hooks: [{ type: 'command', command: '.claude/hooks/metta-tokens-record.mjs' }],
+    })
+    hooks.SubagentStop = subagentStop
+    settings.hooks = hooks
+    await writeFile(settingsPath, JSON.stringify(settings, null, 2) + '\n')
+  }
+}
+
 async function installMettaStatusline(root: string): Promise<void> {
   const statuslineDir = join(root, '.claude', 'statusline')
   const statuslinePath = join(statuslineDir, 'statusline.mjs')
@@ -352,8 +376,10 @@ Banned patterns and forbidden operations.
           console.error(`Warning: failed to install metta hooks — ${message}`)
         }
 
-        // Register the PreToolUse guard hook + settings.json entry. Only
-        // metta-guard-edit and metta-guard-bash are settings-registered;
+        // Register settings.json entries for hooks that require them. Three
+        // hooks are settings-registered: metta-guard-edit and metta-guard-bash
+        // (PreToolUse) plus metta-tokens-record (SubagentStop — Claude Code
+        // only fires SubagentStop hooks that are settings-registered).
         // metta-session-mint and metta-guard-agent-dispatch are
         // frontmatter-scoped by design and must not be registered here.
         let guardInstalled = false
@@ -376,6 +402,18 @@ Banned patterns and forbidden operations.
           } catch (err) {
             const message = getErrorMessage(err)
             console.error(`Warning: failed to register metta-guard-bash hook — ${message}`)
+          }
+        }
+
+        // Register the SubagentStop tokens-record hook + settings.json entry
+        let tokensRecordInstalled = false
+        if (hooksInstalled.includes('metta-tokens-record.mjs')) {
+          try {
+            await registerTokensRecordHook(root)
+            tokensRecordInstalled = true
+          } catch (err) {
+            const message = getErrorMessage(err)
+            console.error(`Warning: failed to register metta-tokens-record hook — ${message}`)
           }
         }
 
@@ -415,6 +453,7 @@ Banned patterns and forbidden operations.
             hooks_installed: hooksInstalled,
             guard_hook_installed: guardInstalled,
             bash_guard_hook_installed: bashGuardInstalled,
+            tokens_record_hook_installed: tokensRecordInstalled,
             statusline_installed: statuslineInstalled,
             stacks: stacks === 'skip' ? [] : stacks,
             scaffolded_gates: scaffoldedGates,
@@ -445,6 +484,9 @@ Banned patterns and forbidden operations.
           }
           if (bashGuardInstalled) {
             console.log('  Installed: PreToolUse Bash guard hook (.claude/hooks/metta-guard-bash.mjs)')
+          }
+          if (tokensRecordInstalled) {
+            console.log('  Installed: SubagentStop tokens-record hook (.claude/hooks/metta-tokens-record.mjs)')
           }
           if (statuslineInstalled) {
             console.log('  Installed: statusline (.claude/statusline/statusline.mjs)')

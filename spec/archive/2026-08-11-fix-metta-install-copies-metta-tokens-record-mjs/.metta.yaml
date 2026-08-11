@@ -1,0 +1,41 @@
+workflow: trivial
+created: 2026-08-11T03:41:01.275Z
+status: active
+current_artifact: verification
+base_versions: {}
+artifacts:
+  intent: complete
+  implementation: complete
+  verification: complete
+complexity_score:
+  score: 0
+  signals:
+    file_count: 1
+  recommended_workflow: trivial
+artifact_timings:
+  intent:
+    started: 2026-08-11T03:41:12.193Z
+    completed: 2026-08-11T03:42:07.235Z
+  implementation:
+    started: 2026-08-11T03:42:20.872Z
+    completed: 2026-08-11T03:46:10.165Z
+  verification:
+    started: 2026-08-11T03:52:09.933Z
+    completed: 2026-08-11T03:52:21.683Z
+artifact_tokens:
+  intent:
+    context: 763
+    budget: 20000
+  implementation:
+    context: 0
+    budget: 10000
+  verification:
+    context: 416
+    budget: 50000
+review_iterations: 1
+verify_iterations: 1
+worktree: /home/utx0/Code/metta/.metta/worktrees/fix-metta-install-copies-metta-tokens-record-mjs
+model_runs:
+  - task: implementation
+    model: sonnet
+    timestamp: 2026-08-11T03:42:20.873Z
