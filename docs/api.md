@@ -227,14 +227,19 @@ Scenarios:
 ### Context window resolution
 
 Scenarios:
+- Payload declares the window size
+- 1M-family model id resolves to 1M without payload window
+- Haiku model id resolves to 200k
 - Model id contains [1m] substring
-- Model id present but does not contain [1m]
+- Unrecognized model id falls back to 200k
 - Model field absent
 - Model field contains [1m] as part of a longer string
 
 ### Context utilization calculation
 
 Scenarios:
+- Harness-computed percentage preferred
+- Percentage above 100 renders the overflow marker
 - Transcript present with assistant usage entry
 - Transcript present but no assistant usage entry found
 - Transcript file does not exist
@@ -244,7 +249,9 @@ Scenarios:
 
 Scenarios:
 - metta status returns active artifact
-- metta status returns no active change
+- aggregated changes array yields the active change
+- worktree-hosted change is detected when root status shows none
+- metta status returns no active change and no worktrees exist
 - metta binary not found on PATH
 - metta status --json times out
 
@@ -298,14 +305,19 @@ Scenarios:
 ### Context window resolution
 
 Scenarios:
+- Payload declares the window size
+- 1M-family model id resolves to 1M without payload window
+- Haiku model id resolves to 200k
 - Model id contains [1m] substring
-- Model id present but does not contain [1m]
+- Unrecognized model id falls back to 200k
 - Model field absent
 - Model field contains [1m] as part of a longer string
 
 ### Context utilization calculation
 
 Scenarios:
+- Harness-computed percentage preferred
+- Percentage above 100 renders the overflow marker
 - Transcript present with assistant usage entry
 - Transcript present but no assistant usage entry found
 - Transcript file does not exist
@@ -315,7 +327,9 @@ Scenarios:
 
 Scenarios:
 - metta status returns active artifact
-- metta status returns no active change
+- aggregated changes array yields the active change
+- worktree-hosted change is detected when root status shows none
+- metta status returns no active change and no worktrees exist
 - metta binary not found on PATH
 - metta status --json times out
 

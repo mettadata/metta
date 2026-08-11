@@ -27,15 +27,30 @@ The statusline script MUST read all bytes from stdin and attempt to parse them a
 
 ## Requirement: Context window resolution
 
-The script MUST resolve a context window size in tokens from the `model` field of the stdin payload. The script MUST return `1000000` when the model string contains the substring `[1m]` (case-sensitive). The script MUST return `200000` for any other non-empty model string that does not contain `[1m]`. The script MUST return `200000` when the `model` field is absent or not a string.
+The script MUST resolve a context window size in tokens for the fallback utilization calculation. The script MUST use `context_window.context_window_size` from the stdin payload when it is a positive finite number, regardless of the model id. When that field is absent or not a positive finite number, the script MUST fall back to a model-id lookup against `model.id`: it MUST return `1000000` when the id contains the substring `[1m]` (case-sensitive); it MUST return `200000` when the id contains `haiku`; it MUST return `1000000` when the id starts with one of the documented 1M-window family prefixes (`claude-fable-5`, `claude-mythos-5`, `claude-opus-5`, `claude-opus-4-6`, `claude-opus-4-7`, `claude-opus-4-8`, `claude-sonnet-5`, `claude-sonnet-4-6`). The script MUST return `200000` for any other id and when the model id is absent or not a string.
 
-### Scenario: Model id contains [1m] substring
-- GIVEN the parsed stdin payload contains `"model":"claude-opus-4-6[1m]"`
+### Scenario: Payload declares the window size
+- GIVEN the parsed stdin payload contains `"context_window":{"context_window_size":1000000}` and `"model":{"id":"claude-haiku-4-5"}`
+- WHEN context window size is resolved
+- THEN the resolved window size is `1000000` (the payload value wins over the model-id lookup)
+
+### Scenario: 1M-family model id resolves to 1M without payload window
+- GIVEN the parsed stdin payload contains `"model":{"id":"claude-fable-5"}` and no `context_window` field
 - WHEN context window size is resolved
 - THEN the resolved window size is `1000000`
 
-### Scenario: Model id present but does not contain [1m]
-- GIVEN the parsed stdin payload contains `"model":"claude-sonnet-4-6"`
+### Scenario: Haiku model id resolves to 200k
+- GIVEN the parsed stdin payload contains `"model":{"id":"claude-haiku-4-5"}` and no `context_window` field
+- WHEN context window size is resolved
+- THEN the resolved window size is `200000`
+
+### Scenario: Model id contains [1m] substring
+- GIVEN the parsed stdin payload contains `"model":{"id":"claude-opus-4-6[1m]"}`
+- WHEN context window size is resolved
+- THEN the resolved window size is `1000000`
+
+### Scenario: Unrecognized model id falls back to 200k
+- GIVEN the parsed stdin payload contains `"model":{"id":"some-unknown-model"}`
 - WHEN context window size is resolved
 - THEN the resolved window size is `200000`
 
@@ -52,10 +67,20 @@ The script MUST resolve a context window size in tokens from the `model` field o
 
 ## Requirement: Context utilization calculation
 
-The script MUST read the JSONL file at `transcript_path` when that field is present and is a string. The script MUST parse each newline-delimited line as a JSON object and identify the most recent line where `message.role` is `"assistant"` and `message.usage.input_tokens` is a number. The script MUST compute the utilization percentage as `Math.round(input_tokens / window_size * 100)`. The script MUST omit the percentage from the output (not append `<ctx>%`) when the JSONL file cannot be read, when it contains no lines matching the criteria, or when `transcript_path` is absent. The script MUST NOT throw an unhandled exception if the file does not exist or if individual JSONL lines are malformed; malformed lines MUST be skipped silently.
+The script MUST use `context_window.used_percentage` from the stdin payload, rounded to the nearest integer, as the utilization percentage when that field is a finite non-negative number — this harness-computed value reflects effective context after compaction and MUST take precedence over any transcript arithmetic. When that field is absent or invalid, the script MUST fall back to reading the JSONL file at `transcript_path` when that field is present and is a string: it MUST parse each newline-delimited line as a JSON object, identify the most recent line where `message.role` is `"assistant"` and `message.usage.input_tokens` is a number, and compute the utilization percentage as `Math.round((input_tokens + cache_read_input_tokens + cache_creation_input_tokens) / window_size * 100)` (treating absent cache fields as `0`). The script MUST render a computed percentage above `100` as the literal overflow marker `>100%!` instead of the raw value, so a wrong window denominator is visible rather than absurd. The script MUST omit the percentage from the output entirely when no percentage can be resolved from either source. The script MUST NOT throw an unhandled exception if the file does not exist or if individual JSONL lines are malformed; malformed lines MUST be skipped silently.
+
+### Scenario: Harness-computed percentage preferred
+- GIVEN the parsed stdin payload contains `"context_window":{"used_percentage":58.6}`
+- WHEN the script resolves context utilization
+- THEN the rendered percentage is `59%` and the transcript file is not consulted for the percentage
+
+### Scenario: Percentage above 100 renders the overflow marker
+- GIVEN the resolved utilization percentage computes to `297`
+- WHEN the script renders the output line
+- THEN the line ends with `] >100%!` and does not contain `297`
 
 ### Scenario: Transcript present with assistant usage entry
-- GIVEN `transcript_path` points to a JSONL file whose last assistant message has `message.usage.input_tokens` equal to `100000` and the resolved window size is `200000`
+- GIVEN the stdin payload carries no `context_window.used_percentage`, `transcript_path` points to a JSONL file whose last assistant message has `message.usage.input_tokens` equal to `100000` (no cache fields), and the resolved window size is `200000`
 - WHEN the script calculates context utilization
 - THEN the computed percentage is `50` and the output line ends with `] 50%`
 
@@ -77,15 +102,25 @@ The script MUST read the JSONL file at `transcript_path` when that field is pres
 
 ## Requirement: Metta artifact resolution
 
-The script MUST execute `metta status --json` as a subprocess with a timeout of `5000` milliseconds. The script MUST parse the stdout of that subprocess as JSON and extract the `current_artifact` string field. The script MUST use the literal string `idle` as the artifact label when: stdout is empty, the subprocess exits with a non-zero code within the timeout, the subprocess stdout cannot be parsed as JSON, or the parsed JSON does not contain a non-empty `current_artifact` string. The script MUST use `idle` when no active change exists (i.e. `metta status --json` succeeds but returns no active change). The script MUST NOT use `unknown` for artifact resolution failures alone; `unknown` is reserved for unrecoverable errors that prevent producing any output (see Output Format requirement).
+The script MUST execute `metta status --json` as a subprocess with a timeout of `5000` milliseconds and parse its stdout as JSON. The script MUST resolve activity from every JSON shape that command emits: the single-change shape (a top-level non-empty `current_artifact` string, with optional `change` and `workflow` strings) and the aggregated shape (a top-level `changes` array, from which the script MUST select the first entry whose `status` is `"active"` and whose `current_artifact` is a non-empty string). When the subprocess fails, times out, emits unparseable output, or yields no active change, the script MUST then scan `.metta/worktrees/<slug>/spec/changes/<slug>/.metta.yaml` under the current working directory and resolve activity from the first worktree change whose top-level `status` is `active` and whose top-level `current_artifact` is non-empty, using the worktree directory name as the change slug. The script MUST use the literal string `idle` as the artifact label only when neither the subprocess output nor the worktree scan yields an active change. The script MUST NOT use `unknown` for artifact resolution failures alone; `unknown` is reserved for unrecoverable errors that prevent producing any output (see Output Format requirement).
 
 ### Scenario: metta status returns active artifact
 - GIVEN `metta status --json` exits 0 and its stdout is `{"current_artifact":"implementation","change":"some-slug"}`
 - WHEN the script resolves the artifact label
 - THEN the resolved artifact is `implementation`
 
-### Scenario: metta status returns no active change
-- GIVEN `metta status --json` exits 0 and its stdout is `{"changes":[],"message":"No active change"}`
+### Scenario: aggregated changes array yields the active change
+- GIVEN `metta status --json` exits 0 and its stdout is `{"changes":[{"change":"done","status":"complete","current_artifact":"verification"},{"change":"live","status":"active","current_artifact":"tasks","workflow":"standard"}]}`
+- WHEN the script resolves the artifact label
+- THEN the resolved artifact is `tasks` with change slug `live` and workflow `standard`
+
+### Scenario: worktree-hosted change is detected when root status shows none
+- GIVEN `metta status --json` returns `{"changes":[],"message":"No active changes"}` and `.metta/worktrees/my-fix/spec/changes/my-fix/.metta.yaml` contains top-level lines `status: active` and `current_artifact: implementation`
+- WHEN the script resolves the artifact label
+- THEN the resolved artifact is `implementation` with change slug `my-fix` (not `idle`)
+
+### Scenario: metta status returns no active change and no worktrees exist
+- GIVEN `metta status --json` exits 0 with stdout `{"changes":[],"message":"No active change"}` and no `.metta/worktrees/` directory exists
 - WHEN the script resolves the artifact label
 - THEN the resolved artifact is `idle`
 
@@ -102,7 +137,7 @@ The script MUST execute `metta status --json` as a subprocess with a timeout of 
 
 ## Requirement: Output format
 
-The script MUST print exactly one line to stdout, terminated with a single newline character. When context utilization percentage is available the line MUST match the pattern `[metta: <artifact>] <pct>%` where `<artifact>` is the resolved artifact label (possibly ANSI-wrapped per the coloring requirement) and `<pct>` is the rounded integer. When context utilization is not available the line MUST match the pattern `[metta: <artifact>]` with no trailing space or percent. When any unrecoverable error prevents producing the above output the line MUST be exactly `[metta: unknown]` with no ANSI codes and no trailing content. The exit code MUST always be `0` regardless of any error condition.
+The script MUST print exactly one line to stdout, terminated with a single newline character. When context utilization percentage is available the line MUST match the pattern `[metta: <artifact>] <pct>%` where `<artifact>` is the resolved artifact label (possibly ANSI-wrapped per the coloring requirement) and `<pct>` is the rounded integer when it is at most `100`, or the literal overflow marker `>100%!` in place of `<pct>%` when the computed value exceeds `100`. When context utilization is not available the line MUST match the pattern `[metta: <artifact>]` with no trailing space or percent. When any unrecoverable error prevents producing the above output the line MUST be exactly `[metta: unknown]` with no ANSI codes and no trailing content. The exit code MUST always be `0` regardless of any error condition.
 
 ### Scenario: Full output with artifact and context percentage
 - GIVEN the resolved artifact is `spec` and the computed context percentage is `43`
@@ -247,15 +282,30 @@ The statusline script MUST read all bytes from stdin and attempt to parse them a
 
 ## Requirement: Context window resolution
 
-The script MUST resolve a context window size in tokens from the `model` field of the stdin payload. The script MUST return `1000000` when the model string contains the substring `[1m]` (case-sensitive). The script MUST return `200000` for any other non-empty model string that does not contain `[1m]`. The script MUST return `200000` when the `model` field is absent or not a string.
+The script MUST resolve a context window size in tokens for the fallback utilization calculation. The script MUST use `context_window.context_window_size` from the stdin payload when it is a positive finite number, regardless of the model id. When that field is absent or not a positive finite number, the script MUST fall back to a model-id lookup against `model.id`: it MUST return `1000000` when the id contains the substring `[1m]` (case-sensitive); it MUST return `200000` when the id contains `haiku`; it MUST return `1000000` when the id starts with one of the documented 1M-window family prefixes (`claude-fable-5`, `claude-mythos-5`, `claude-opus-5`, `claude-opus-4-6`, `claude-opus-4-7`, `claude-opus-4-8`, `claude-sonnet-5`, `claude-sonnet-4-6`). The script MUST return `200000` for any other id and when the model id is absent or not a string.
 
-### Scenario: Model id contains [1m] substring
-- GIVEN the parsed stdin payload contains `"model":"claude-opus-4-6[1m]"`
+### Scenario: Payload declares the window size
+- GIVEN the parsed stdin payload contains `"context_window":{"context_window_size":1000000}` and `"model":{"id":"claude-haiku-4-5"}`
+- WHEN context window size is resolved
+- THEN the resolved window size is `1000000` (the payload value wins over the model-id lookup)
+
+### Scenario: 1M-family model id resolves to 1M without payload window
+- GIVEN the parsed stdin payload contains `"model":{"id":"claude-fable-5"}` and no `context_window` field
 - WHEN context window size is resolved
 - THEN the resolved window size is `1000000`
 
-### Scenario: Model id present but does not contain [1m]
-- GIVEN the parsed stdin payload contains `"model":"claude-sonnet-4-6"`
+### Scenario: Haiku model id resolves to 200k
+- GIVEN the parsed stdin payload contains `"model":{"id":"claude-haiku-4-5"}` and no `context_window` field
+- WHEN context window size is resolved
+- THEN the resolved window size is `200000`
+
+### Scenario: Model id contains [1m] substring
+- GIVEN the parsed stdin payload contains `"model":{"id":"claude-opus-4-6[1m]"}`
+- WHEN context window size is resolved
+- THEN the resolved window size is `1000000`
+
+### Scenario: Unrecognized model id falls back to 200k
+- GIVEN the parsed stdin payload contains `"model":{"id":"some-unknown-model"}`
 - WHEN context window size is resolved
 - THEN the resolved window size is `200000`
 
@@ -272,10 +322,20 @@ The script MUST resolve a context window size in tokens from the `model` field o
 
 ## Requirement: Context utilization calculation
 
-The script MUST read the JSONL file at `transcript_path` when that field is present and is a string. The script MUST parse each newline-delimited line as a JSON object and identify the most recent line where `message.role` is `"assistant"` and `message.usage.input_tokens` is a number. The script MUST compute the utilization percentage as `Math.round(input_tokens / window_size * 100)`. The script MUST omit the percentage from the output (not append `<ctx>%`) when the JSONL file cannot be read, when it contains no lines matching the criteria, or when `transcript_path` is absent. The script MUST NOT throw an unhandled exception if the file does not exist or if individual JSONL lines are malformed; malformed lines MUST be skipped silently.
+The script MUST use `context_window.used_percentage` from the stdin payload, rounded to the nearest integer, as the utilization percentage when that field is a finite non-negative number — this harness-computed value reflects effective context after compaction and MUST take precedence over any transcript arithmetic. When that field is absent or invalid, the script MUST fall back to reading the JSONL file at `transcript_path` when that field is present and is a string: it MUST parse each newline-delimited line as a JSON object, identify the most recent line where `message.role` is `"assistant"` and `message.usage.input_tokens` is a number, and compute the utilization percentage as `Math.round((input_tokens + cache_read_input_tokens + cache_creation_input_tokens) / window_size * 100)` (treating absent cache fields as `0`). The script MUST render a computed percentage above `100` as the literal overflow marker `>100%!` instead of the raw value, so a wrong window denominator is visible rather than absurd. The script MUST omit the percentage from the output entirely when no percentage can be resolved from either source. The script MUST NOT throw an unhandled exception if the file does not exist or if individual JSONL lines are malformed; malformed lines MUST be skipped silently.
+
+### Scenario: Harness-computed percentage preferred
+- GIVEN the parsed stdin payload contains `"context_window":{"used_percentage":58.6}`
+- WHEN the script resolves context utilization
+- THEN the rendered percentage is `59%` and the transcript file is not consulted for the percentage
+
+### Scenario: Percentage above 100 renders the overflow marker
+- GIVEN the resolved utilization percentage computes to `297`
+- WHEN the script renders the output line
+- THEN the line ends with `] >100%!` and does not contain `297`
 
 ### Scenario: Transcript present with assistant usage entry
-- GIVEN `transcript_path` points to a JSONL file whose last assistant message has `message.usage.input_tokens` equal to `100000` and the resolved window size is `200000`
+- GIVEN the stdin payload carries no `context_window.used_percentage`, `transcript_path` points to a JSONL file whose last assistant message has `message.usage.input_tokens` equal to `100000` (no cache fields), and the resolved window size is `200000`
 - WHEN the script calculates context utilization
 - THEN the computed percentage is `50` and the output line ends with `] 50%`
 
@@ -297,15 +357,25 @@ The script MUST read the JSONL file at `transcript_path` when that field is pres
 
 ## Requirement: Metta artifact resolution
 
-The script MUST execute `metta status --json` as a subprocess with a timeout of `5000` milliseconds. The script MUST parse the stdout of that subprocess as JSON and extract the `current_artifact` string field. The script MUST use the literal string `idle` as the artifact label when: stdout is empty, the subprocess exits with a non-zero code within the timeout, the subprocess stdout cannot be parsed as JSON, or the parsed JSON does not contain a non-empty `current_artifact` string. The script MUST use `idle` when no active change exists (i.e. `metta status --json` succeeds but returns no active change). The script MUST NOT use `unknown` for artifact resolution failures alone; `unknown` is reserved for unrecoverable errors that prevent producing any output (see Output Format requirement).
+The script MUST execute `metta status --json` as a subprocess with a timeout of `5000` milliseconds and parse its stdout as JSON. The script MUST resolve activity from every JSON shape that command emits: the single-change shape (a top-level non-empty `current_artifact` string, with optional `change` and `workflow` strings) and the aggregated shape (a top-level `changes` array, from which the script MUST select the first entry whose `status` is `"active"` and whose `current_artifact` is a non-empty string). When the subprocess fails, times out, emits unparseable output, or yields no active change, the script MUST then scan `.metta/worktrees/<slug>/spec/changes/<slug>/.metta.yaml` under the current working directory and resolve activity from the first worktree change whose top-level `status` is `active` and whose top-level `current_artifact` is non-empty, using the worktree directory name as the change slug. The script MUST use the literal string `idle` as the artifact label only when neither the subprocess output nor the worktree scan yields an active change. The script MUST NOT use `unknown` for artifact resolution failures alone; `unknown` is reserved for unrecoverable errors that prevent producing any output (see Output Format requirement).
 
 ### Scenario: metta status returns active artifact
 - GIVEN `metta status --json` exits 0 and its stdout is `{"current_artifact":"implementation","change":"some-slug"}`
 - WHEN the script resolves the artifact label
 - THEN the resolved artifact is `implementation`
 
-### Scenario: metta status returns no active change
-- GIVEN `metta status --json` exits 0 and its stdout is `{"changes":[],"message":"No active change"}`
+### Scenario: aggregated changes array yields the active change
+- GIVEN `metta status --json` exits 0 and its stdout is `{"changes":[{"change":"done","status":"complete","current_artifact":"verification"},{"change":"live","status":"active","current_artifact":"tasks","workflow":"standard"}]}`
+- WHEN the script resolves the artifact label
+- THEN the resolved artifact is `tasks` with change slug `live` and workflow `standard`
+
+### Scenario: worktree-hosted change is detected when root status shows none
+- GIVEN `metta status --json` returns `{"changes":[],"message":"No active changes"}` and `.metta/worktrees/my-fix/spec/changes/my-fix/.metta.yaml` contains top-level lines `status: active` and `current_artifact: implementation`
+- WHEN the script resolves the artifact label
+- THEN the resolved artifact is `implementation` with change slug `my-fix` (not `idle`)
+
+### Scenario: metta status returns no active change and no worktrees exist
+- GIVEN `metta status --json` exits 0 with stdout `{"changes":[],"message":"No active change"}` and no `.metta/worktrees/` directory exists
 - WHEN the script resolves the artifact label
 - THEN the resolved artifact is `idle`
 
@@ -322,7 +392,7 @@ The script MUST execute `metta status --json` as a subprocess with a timeout of 
 
 ## Requirement: Output format
 
-The script MUST print exactly one line to stdout, terminated with a single newline character. When context utilization percentage is available the line MUST match the pattern `[metta: <artifact>] <pct>%` where `<artifact>` is the resolved artifact label (possibly ANSI-wrapped per the coloring requirement) and `<pct>` is the rounded integer. When context utilization is not available the line MUST match the pattern `[metta: <artifact>]` with no trailing space or percent. When any unrecoverable error prevents producing the above output the line MUST be exactly `[metta: unknown]` with no ANSI codes and no trailing content. The exit code MUST always be `0` regardless of any error condition.
+The script MUST print exactly one line to stdout, terminated with a single newline character. When context utilization percentage is available the line MUST match the pattern `[metta: <artifact>] <pct>%` where `<artifact>` is the resolved artifact label (possibly ANSI-wrapped per the coloring requirement) and `<pct>` is the rounded integer when it is at most `100`, or the literal overflow marker `>100%!` in place of `<pct>%` when the computed value exceeds `100`. When context utilization is not available the line MUST match the pattern `[metta: <artifact>]` with no trailing space or percent. When any unrecoverable error prevents producing the above output the line MUST be exactly `[metta: unknown]` with no ANSI codes and no trailing content. The exit code MUST always be `0` regardless of any error condition.
 
 ### Scenario: Full output with artifact and context percentage
 - GIVEN the resolved artifact is `spec` and the computed context percentage is `43`
