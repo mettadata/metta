@@ -20,7 +20,8 @@ Resolve `{change_root}` first: `metta status --json --change <name>` returns `wo
 6. `gh pr checks <pr-number> --watch --fail-fast` → wait for all CI checks on the PR to complete before merging. If any check fails or is cancelled, do NOT merge — report the failing check(s) and the PR URL to the user and stop. If gh reports that no checks are reported yet (checks can lag PR creation by a few seconds), wait ~10s and retry the command
 7. `gh pr merge <pr-number> --merge` → land the PR immediately, unless the user asked to leave it open for review — in that case stop here and report the PR URL instead of merging
 8. Back on `main`: `git pull --ff-only`, then clean up the change branch and worktree
-9. Report result to user
+9. Rebuild the main checkout's dist so the globally-linked CLI (hooks, statusline) serves the just-merged code: run `npm run build` from the main checkout root. If the build fails or cannot run, do NOT undo the merge — report loudly to the user that main's dist is stale/partially built and they must run `npm run build` manually, including the build error output. Never swallow this failure silently
+10. Report result to user, including the dist rebuild outcome
 
 ## Rules
 
