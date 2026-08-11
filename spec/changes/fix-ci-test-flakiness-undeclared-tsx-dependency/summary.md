@@ -36,3 +36,22 @@ and local runs exercise the identical path.
 - `npx vitest run tests/cli-runtime-declared.test.ts` — 2/2 passed
 - `npm ls tsx` — resolves tsx@4.23.12 locally; `node_modules/.bin/tsx --version` -> v4.23.12
 - grep confirms no "not currently part of the dev loop" text survives
+
+## Verification (verify phase, iteration 1)
+
+- Gate 1 — tests: `npm test` → 116 files, 2053/2053 passed (311s)
+- Gate 2 — types/lint: `npx tsc --noEmit` clean; `npm run lint` (tsc --noEmit) clean
+- Gate 3 — spec scenario coverage (ci-test-infrastructure):
+  - Deterministic CLI Test Execution Path: tsx declared (`package.json`
+    devDependencies, locked); guard test `tests/cli-runtime-declared.test.ts`
+    asserts declaration; `npm ls tsx` resolves locally — both scenarios covered
+  - CI Ordering Consistent With Execution Path: mechanism runs from source, so
+    the spec's build-before-test clause is N/A by its own GIVEN; CI and local
+    both run `npm test` → same `runCli` path — covered without workflow edits
+  - Fresh-Clone Test Runs Without Manual Pre-Steps: `npm ci`-equivalent install
+    + full `npm test` passed in this checkout with scripts alone; stale-build
+    scenario N/A (no built output executed)
+  - Actionable Failures and Consistent Runtime Policy: kill marker asserted by
+    guard test (`timeout=1ms` path); grep confirms no contradictory guidance
+    survives in `tests/helpers/cli.ts`, `spec/project.md`, `CLAUDE.md`
+- Review: PASS / PASS / PASS_WITH_WARNINGS (see review.md); no critical issues
