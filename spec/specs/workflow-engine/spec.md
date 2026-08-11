@@ -188,8 +188,10 @@ intent → implementation → verification
 | ID | Type | Agents | Gates |
 |----|------|--------|-------|
 | `intent` | `intent` | `[proposer]` | `[]` |
-| `implementation` | `execution` | `[executor]` | `[tests, lint, typecheck]` |
-| `verification` | `verification` | `[verifier]` | `[uat]` |
+| `implementation` | `execution` | `[executor]` | `[tests, lint, typecheck, build]` |
+| `verification` | `verification` | `[verifier]` | `[]` |
+
+Note: registered gates cover only mechanical checks (`tests`, `lint`, `typecheck`, `build`, `stories-valid`). Quality rigor for the spec, design, task, and UAT/verification stages is enforced by AI reviewer/verifier subagent personas orchestrated by the metta skills — not by registered gates. Workflow YAMLs MUST NOT reference gate names that have no registered gate definition (see the gate-runner spec).
 
 #### `standard` (8 artifacts)
 
