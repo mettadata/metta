@@ -1,0 +1,68 @@
+workflow: standard
+created: 2026-08-11T01:01:44.543Z
+status: active
+current_artifact: verification
+base_versions: {}
+artifacts:
+  intent: complete
+  stories: complete
+  spec: complete
+  research: complete
+  design: complete
+  tasks: complete
+  implementation: complete
+  verification: complete
+complexity_score:
+  score: 2
+  signals:
+    file_count: 5
+  recommended_workflow: standard
+artifact_timings:
+  intent:
+    started: 2026-08-11T01:01:54.828Z
+    completed: 2026-08-11T01:03:03.680Z
+  stories:
+    started: 2026-08-11T01:03:07.748Z
+    completed: 2026-08-11T01:03:55.697Z
+  spec:
+    started: 2026-08-11T01:04:00.566Z
+    completed: 2026-08-11T01:05:10.160Z
+  research:
+    started: 2026-08-11T01:05:19.090Z
+    completed: 2026-08-11T01:09:22.007Z
+  design:
+    started: 2026-08-11T01:09:26.078Z
+    completed: 2026-08-11T01:10:33.287Z
+  tasks:
+    started: 2026-08-11T01:10:37.805Z
+    completed: 2026-08-11T01:11:25.957Z
+  implementation:
+    completed: 2026-08-11T01:16:38.748Z
+  verification:
+    started: 2026-08-11T01:23:20.057Z
+    completed: 2026-08-11T01:23:25.503Z
+artifact_tokens:
+  intent:
+    context: 759
+    budget: 20000
+  stories:
+    context: 2219
+    budget: 20000
+  spec:
+    context: 3213
+    budget: 40000
+  research:
+    context: 2260
+    budget: 60000
+  design:
+    context: 3073
+    budget: 80000
+  tasks:
+    context: 2853
+    budget: 40000
+  verification:
+    context: 4574
+    budget: 50000
+review_iterations: 1
+verify_iterations: 1
+worktree: /home/utx0/Code/metta/.metta/worktrees/fix-ci-test-flakiness-undeclared-tsx-dependency
