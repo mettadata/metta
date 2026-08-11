@@ -74,9 +74,10 @@ You are the **orchestrator** for the full Metta lifecycle. Spawn subagents for e
 9. `metta finalize --json --change <name>` → runs gates, archives, merges specs
 10. `git -C "{change_root}" push -u origin metta/<change-name>` → push the feature branch to the remote
 11. `gh pr create --title "<conventional-commit-style title from the change>" --body "<summary from summary.md or intent.md highlights>"` → open a PR. The body MUST end with `🤖 Generated with [Claude Code](https://claude.com/claude-code)`
-12. `gh pr merge <pr-number> --merge` → land the PR immediately, unless the user asked to leave it open for review — in that case stop here and report the PR URL instead of merging
-13. Back on `main`: `git pull --ff-only`, then clean up the change branch and worktree
-14. Report results to user
+12. `gh pr checks <pr-number> --watch --fail-fast` → wait for all CI checks on the PR to complete before merging. If any check fails or is cancelled, do NOT merge — report the failing check(s) and the PR URL to the user and stop. If gh reports that no checks are reported yet (checks can lag PR creation by a few seconds), wait ~10s and retry the command
+13. `gh pr merge <pr-number> --merge` → land the PR immediately, unless the user asked to leave it open for review — in that case stop here and report the PR URL instead of merging
+14. Back on `main`: `git pull --ff-only`, then clean up the change branch and worktree
+15. Report results to user
 
 ## Critical: You MUST review, verify, finalize, and ship
 

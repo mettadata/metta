@@ -15,9 +15,10 @@ Two-step process: **finalize** (archive + merge specs on branch) then **ship** (
 3. If spec conflicts: stop and tell the user to resolve them
 4. `git push -u origin metta/<change-name>` → push the feature branch to the remote
 5. `gh pr create --title "<conventional-commit-style title from the change>" --body "<summary from summary.md or intent.md highlights>"` → open a PR. The body MUST end with `🤖 Generated with [Claude Code](https://claude.com/claude-code)`
-6. `gh pr merge <pr-number> --merge` → land the PR immediately, unless the user asked to leave it open for review — in that case stop here and report the PR URL instead of merging
-7. Back on `main`: `git pull --ff-only`, then clean up the change branch and worktree
-8. Report result to user
+6. `gh pr checks <pr-number> --watch --fail-fast` → wait for all CI checks on the PR to complete before merging. If any check fails or is cancelled, do NOT merge — report the failing check(s) and the PR URL to the user and stop. If gh reports that no checks are reported yet (checks can lag PR creation by a few seconds), wait ~10s and retry the command
+7. `gh pr merge <pr-number> --merge` → land the PR immediately, unless the user asked to leave it open for review — in that case stop here and report the PR URL instead of merging
+8. Back on `main`: `git pull --ff-only`, then clean up the change branch and worktree
+9. Report result to user
 
 ## Rules
 

@@ -273,8 +273,9 @@ Routing decision:
    a. `metta finalize --json --change <name>` → runs gates, archives, merges specs
    b. `git push -u origin metta/<change-name>` → push the feature branch to the remote
    c. `gh pr create --title "<conventional-commit-style title from the change>" --body "<summary from summary.md or intent.md highlights>"` → open a PR. The body MUST end with `🤖 Generated with [Claude Code](https://claude.com/claude-code)`
-   d. `gh pr merge <pr-number> --merge` → land the PR immediately, unless the user asked to leave it open for review — in that case stop here and report the PR URL instead of merging
-   e. Back on `main`: `git pull --ff-only`, then clean up the change branch and worktree
+   d. `gh pr checks <pr-number> --watch --fail-fast` → wait for all CI checks on the PR to complete before merging. If any check fails or is cancelled, do NOT merge — report the failing check(s) and the PR URL to the user and stop. If gh reports that no checks are reported yet (checks can lag PR creation by a few seconds), wait ~10s and retry the command
+   e. `gh pr merge <pr-number> --merge` → land the PR immediately, unless the user asked to leave it open for review — in that case stop here and report the PR URL instead of merging
+   f. Back on `main`: `git pull --ff-only`, then clean up the change branch and worktree
 9. Report to user what was done
 
 ## Critical: You MUST verify, finalize, and ship
