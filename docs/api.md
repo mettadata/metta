@@ -1035,6 +1035,7 @@ Scenarios:
 - Expired, out-of-scope, or malformed credential is rejected
 - Credential forgery requires an audit-visible act outside command text
 - No credential present is rejected with skill guidance
+- Concurrent skill credentials do not interfere
 
 ### Unrecognized metta Subcommands Fail Closed
 
