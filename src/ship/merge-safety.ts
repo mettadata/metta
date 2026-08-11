@@ -1,5 +1,5 @@
 import { exec } from 'node:child_process'
-import { readdir } from 'node:fs/promises'
+import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 import type { GateRegistry } from '../gates/gate-registry.js'
@@ -25,6 +25,56 @@ export class MergeSafetyPipeline {
   private async git(args: string): Promise<string> {
     const { stdout } = await execAsync(`git ${args}`, { cwd: this.cwd })
     return stdout.trim()
+  }
+
+  /**
+   * Rebuild the target checkout's dist after a successful merge so the
+   * globally-linked CLI (and the hooks/statusline that exec it) serve code
+   * matching the new target HEAD instead of a stale dist.
+   *
+   * Failures are reported loudly via a `rebuild-dist` step but NEVER change
+   * the overall pipeline status — the merge has already landed and must not
+   * be undone or masked by a build problem.
+   */
+  private async rebuildDist(steps: MergeSafetyStep[], targetBranch: string): Promise<void> {
+    let manifest: string
+    try {
+      manifest = await readFile(join(this.cwd, 'package.json'), 'utf8')
+    } catch {
+      steps.push({
+        step: 'rebuild-dist',
+        status: 'fail',
+        detail: `cannot rebuild dist: no package.json found in ${this.cwd} — the checkout hosting ${targetBranch} may be missing or not an npm project; its dist is now stale until you run the build manually`,
+      })
+      return
+    }
+    let hasBuildScript = false
+    try {
+      const parsed = JSON.parse(manifest) as { scripts?: Record<string, string> }
+      hasBuildScript = typeof parsed.scripts?.build === 'string'
+    } catch {
+      steps.push({
+        step: 'rebuild-dist',
+        status: 'fail',
+        detail: `cannot rebuild dist: package.json in ${this.cwd} is not valid JSON — dist is now stale until you run npm run build manually`,
+      })
+      return
+    }
+    if (!hasBuildScript) {
+      steps.push({ step: 'rebuild-dist', status: 'skip', detail: 'no build script in package.json' })
+      return
+    }
+    try {
+      await execAsync('npm run build', { cwd: this.cwd })
+      steps.push({ step: 'rebuild-dist', status: 'pass', detail: 'npm run build' })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      steps.push({
+        step: 'rebuild-dist',
+        status: 'fail',
+        detail: `npm run build failed — dist in ${this.cwd} is stale or partially built; run npm run build there manually. ${message}`,
+      })
+    }
   }
 
   async run(
@@ -209,37 +259,38 @@ export class MergeSafetyPipeline {
     }
 
     // Step 9: Post-merge gates (real execution)
-    if (!this.gateRegistry) {
-      steps.push({ step: 'post-merge-gates', status: 'pass', detail: 'no gates configured' })
-      return { status: 'success', steps, mergeCommit, snapshotTag }
-    }
-    const gateNames = this.gateRegistry.list().map(g => g.name)
+    const gateNames = this.gateRegistry ? this.gateRegistry.list().map(g => g.name) : []
     if (gateNames.length === 0) {
       steps.push({ step: 'post-merge-gates', status: 'pass', detail: 'no gates configured' })
-      return { status: 'success', steps, mergeCommit, snapshotTag }
-    }
-    const results = await this.gateRegistry.runAll(gateNames, this.cwd)
-    const failed = results.find(r => r.status === 'fail')
-    if (!failed) {
+    } else {
+      const results = await this.gateRegistry!.runAll(gateNames, this.cwd)
+      const failed = results.find(r => r.status === 'fail')
+      if (failed) {
+        // Failure path: roll back
+        steps.push({
+          step: 'post-merge-gates',
+          status: 'fail',
+          detail: `${failed.gate} failed; rolled back to ${snapshotTag}`,
+        })
+        try {
+          await this.git(`reset --hard ${snapshotTag}`)
+          steps.push({ step: 'rollback', status: 'pass' })
+        } catch {
+          steps.push({
+            step: 'rollback',
+            status: 'fail',
+            detail: 'rollback also failed — manual intervention required',
+          })
+        }
+        return { status: 'failure', steps, snapshotTag }
+      }
       steps.push({ step: 'post-merge-gates', status: 'pass', detail: `${results.length} gates passed` })
-      return { status: 'success', steps, mergeCommit, snapshotTag }
     }
-    // Failure path: roll back
-    steps.push({
-      step: 'post-merge-gates',
-      status: 'fail',
-      detail: `${failed.gate} failed; rolled back to ${snapshotTag}`,
-    })
-    try {
-      await this.git(`reset --hard ${snapshotTag}`)
-      steps.push({ step: 'rollback', status: 'pass' })
-    } catch {
-      steps.push({
-        step: 'rollback',
-        status: 'fail',
-        detail: 'rollback also failed — manual intervention required',
-      })
-    }
-    return { status: 'failure', steps, snapshotTag }
+
+    // Step 10: Rebuild dist in the target checkout so the globally-linked CLI
+    // is not left serving pre-merge code. A rebuild failure is surfaced loudly
+    // but never fails or rolls back the already-completed merge.
+    await this.rebuildDist(steps, targetBranch)
+    return { status: 'success', steps, mergeCommit, snapshotTag }
   }
 }
