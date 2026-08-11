@@ -1,0 +1,9 @@
+# Project-local override of the built-in tests gate.
+# The full suite (115 files / 2051 tests) runs ~310s on dev hardware,
+# which exceeded the built-in 300s ceiling and failed finalize on timeout.
+name: tests
+description: Run project test suite
+command: npm test
+timeout: 600000
+required: true
+on_failure: stop
