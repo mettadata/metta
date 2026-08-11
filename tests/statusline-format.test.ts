@@ -109,4 +109,9 @@ describe('formatStatusLine', () => {
     expect(result).toContain('[metta: ')
     expect(result).toMatch(/\] 10%$/)
   })
+
+  it('ctxPct above 100 renders the clamped overflow marker', () => {
+    const result = formatStatusLine({ artifact: 'idle', slug: null, ctxPct: 297 })
+    expect(result).toBe('[metta: idle] >100%!')
+  })
 })

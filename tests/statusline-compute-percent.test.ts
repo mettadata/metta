@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { computePercent } from '../src/templates/statusline/statusline.mjs'
+import { computePercent, formatPercent } from '../src/templates/statusline/statusline.mjs'
 
 describe('computePercent', () => {
   it('returns 50 for half usage', () => {
@@ -24,5 +24,18 @@ describe('computePercent', () => {
 
   it('returns >100 without clamping when over limit', () => {
     expect(computePercent(210_000, 200_000)).toBe(105)
+  })
+})
+
+describe('formatPercent', () => {
+  it('renders values at or below 100 as N%', () => {
+    expect(formatPercent(0)).toBe('0%')
+    expect(formatPercent(59)).toBe('59%')
+    expect(formatPercent(100)).toBe('100%')
+  })
+
+  it('renders values above 100 as the clamped overflow marker', () => {
+    expect(formatPercent(101)).toBe('>100%!')
+    expect(formatPercent(297)).toBe('>100%!')
   })
 })
