@@ -32,3 +32,13 @@ Workflow tier was **trivial** (engine recommendation matched), so no research/de
 
 - Clean cutover: any in-flight session holding only a legacy token must re-invoke its skill to mint a per-skill token.
 - `spec.lock` hashes for the two edited specs are stale by design; finalize regenerates locks and no gate validates lock freshness.
+
+## Verification (3 parallel verifiers, iteration 1)
+
+- Full suite: `npm test` — 115 files, 2051/2051 passed, no failures.
+- Static gates: `npx tsc --noEmit` clean; `npm run lint` clean; `npm run build` succeeded (templates copied to `dist/templates/`).
+- Spec scenario coverage vs amended `spec/specs/orchestration-guard/spec.md`: COVERAGE: COMPLETE — every amended clause and the new "Concurrent skill credentials do not interfere" scenario has cited passing test evidence across `tests/metta-session-mint.test.ts`, `tests/metta-guard-bash.test.ts`, `tests/cli-metta-guard-bash-integration.test.ts` (229 tests). One pre-existing observation: the "structurally malformed credential" scenario variant has no dedicated test; guard behavior (skip unparseable file → missing-credential) is spec-compliant.
+
+## Review outcome
+
+Reviewers: correctness PASS_WITH_WARNINGS, security PASS_WITH_WARNINGS, quality PASS — no critical findings. The one major (documentation/threat-model) finding — understated tradeoff wording and a contradicting "no standing authorization" clause — was fixed in commit `287e11aa3` (spec now documents session-lifetime union scope for active sessions explicitly). Minor findings recorded as accepted warnings in `review.md`.
