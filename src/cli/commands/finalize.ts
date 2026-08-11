@@ -4,6 +4,7 @@ import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { createCliContext, outputJson, color, getErrorMessage } from '../helpers.js'
 import { Finalizer } from '../../finalize/finalizer.js'
+import { SpecLockManager } from '../../specs/spec-lock-manager.js'
 import { loadGatesWithOverrides } from '../../gates/gate-registry.js'
 import { WorkflowEngine } from '../../workflow/workflow-engine.js'
 import { acquireFinalizeLock, FinalizeLockError } from '../../finalize/finalize-lock.js'
@@ -49,10 +50,20 @@ export function registerFinalizeCommand(program: Command): void {
         const specDir = await ctx.artifactStore.specDirFor(name)
         const hostRoot = dirname(specDir)
 
+        // The lock manager must be rooted at the SAME spec dir as the merge
+        // writes: SpecMerger writes merged spec.md under `specDir` but reads
+        // and writes spec.lock through the lock manager. Reusing the
+        // session-cwd-rooted ctx.specLockManager would split those across
+        // checkouts for a worktree-hosted change — dirtying the main checkout
+        // with an orphan spec.lock and running conflict detection against the
+        // wrong lock. For non-worktree changes specDirFor returns the session
+        // spec dir, so this is identical to ctx.specLockManager there.
+        const specLockManager = new SpecLockManager(specDir)
+
         const finalizer = new Finalizer(
           specDir,
           ctx.artifactStore,
-          ctx.specLockManager,
+          specLockManager,
           ctx.gateRegistry,
           ctx.projectRoot,
           workflowEngine,

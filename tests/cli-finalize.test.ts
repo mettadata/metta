@@ -482,4 +482,104 @@ describe('CLI: finalize worktree-hosted change from the main checkout', { timeou
     ).stdout.trim()
     expect(mainHeadAfter).toBe(mainHeadBefore)
   })
+
+  // Regression: the spec-MERGE path for a worktree-hosted change. The old code
+  // passed the session-cwd-rooted ctx.specLockManager into the Finalizer while
+  // SpecMerger wrote merged spec.md via a StateStore rooted at the worktree's
+  // spec dir — so spec.md landed in the worktree but spec.lock landed in the
+  // MAIN checkout, dirtying it with an orphan lock and leaving the worktree's
+  // merged capability without one. Both files must land in the worktree.
+  it('spec merge writes spec.md AND spec.lock into the worktree; main checkout spec/specs untouched', async () => {
+    await runCli(['install', '--git-init'], tempDir)
+    // Worktrees stay ENABLED: quick hosts the change in .metta/worktrees/<name>.
+    const quick = await runCli(['--json', 'quick', 'wt lock case'], tempDir, 30000)
+    expect(quick.code).toBe(0)
+    const worktreePath = join(tempDir, '.metta', 'worktrees', 'wt-lock-case')
+    expect(existsSync(join(worktreePath, 'spec', 'changes', 'wt-lock-case', '.metta.yaml'))).toBe(true)
+
+    // Mark every artifact complete in the WORKTREE copy of the metadata.
+    const YAML = (await import('yaml')).default
+    const metaPath = join(worktreePath, 'spec', 'changes', 'wt-lock-case', '.metta.yaml')
+    const doc = YAML.parse(await readFile(metaPath, 'utf8')) as Record<string, unknown>
+    const artifacts = doc.artifacts as Record<string, string>
+    for (const id of Object.keys(artifacts)) artifacts[id] = 'complete'
+    await writeFile(metaPath, YAML.stringify(doc, { lineWidth: 0 }), 'utf8')
+
+    // A clean ADDED delta targeting a net-new capability — the merge writes
+    // spec/specs/lockcap/spec.md AND spec/specs/lockcap/spec.lock.
+    const deltaContent = `# lockcap (Delta)
+
+## ADDED: Requirement: Lock Placement
+
+The system MUST write the capability lock next to the merged spec.
+
+### Scenario: Lock lands in the host checkout
+- GIVEN a worktree-hosted change with a spec delta
+- WHEN finalize merges the delta
+- THEN spec.lock is written under the worktree's spec dir
+`
+    await writeFile(
+      join(worktreePath, 'spec', 'changes', 'wt-lock-case', 'spec.md'),
+      deltaContent,
+      'utf8',
+    )
+
+    // Track the change dir on the worktree branch so finalize's auto-commit
+    // can stage the archive rename and the merged capability.
+    await execAsync('git', ['add', '-A'], { cwd: worktreePath })
+    await execAsync('git', ['commit', '-m', 'chore: change artifacts'], { cwd: worktreePath })
+
+    // Project-local passing gate stubs (loaded from the session projectRoot).
+    await mkdir(join(tempDir, '.metta', 'gates'), { recursive: true })
+    for (const name of ['tests', 'lint', 'typecheck', 'build', 'stories-valid']) {
+      const yaml = [
+        `name: ${name}`,
+        `description: passing stub for ${name}`,
+        'command: "true"',
+        'timeout: 10000',
+        'required: true',
+        'on_failure: stop',
+        '',
+      ].join('\n')
+      await writeFile(join(tempDir, '.metta', 'gates', `${name}.yaml`), yaml, 'utf8')
+    }
+
+    // Only spec/ paths matter for this invariant: finalize legitimately
+    // writes generated docs/ at the session project root.
+    const specDirt = (porcelain: string): string[] =>
+      porcelain.split('\n').filter((line) => line.slice(3).startsWith('spec/'))
+    const mainSpecDirtBefore = specDirt(
+      (await execAsync('git', ['status', '--porcelain'], { cwd: tempDir })).stdout,
+    )
+
+    // The regression: finalize runs with cwd at the MAIN checkout root.
+    const run = await runCli(['--json', 'finalize', 'wt-lock-case'], tempDir, 60000)
+    expect(run.code).toBe(0)
+    const payload = JSON.parse(run.stdout) as Record<string, unknown>
+    expect(payload.status).toBe('finalized')
+    expect(payload.merged).toContain('lockcap')
+
+    // Merged spec.md AND its spec.lock both land in the WORKTREE's spec/specs.
+    const wtCapDir = join(worktreePath, 'spec', 'specs', 'lockcap')
+    expect(existsSync(join(wtCapDir, 'spec.md'))).toBe(true)
+    expect(existsSync(join(wtCapDir, 'spec.lock'))).toBe(true)
+    expect(await readFile(join(wtCapDir, 'spec.md'), 'utf8')).toContain('Lock Placement')
+
+    // The main checkout's spec/specs is untouched — no capability dir, no
+    // orphan spec.lock, and finalize introduced no new dirt in the main
+    // working tree (pre-existing untracked fixture files aside).
+    const mainSpecs = await readdir(join(tempDir, 'spec', 'specs')).catch(() => [] as string[])
+    expect(mainSpecs).not.toContain('lockcap')
+    const mainSpecDirtAfter = specDirt(
+      (await execAsync('git', ['status', '--porcelain'], { cwd: tempDir })).stdout,
+    )
+    expect(mainSpecDirtAfter).toEqual(mainSpecDirtBefore)
+
+    // The worktree's auto-commit captured both merged files.
+    const wtCommitFiles = (
+      await execAsync('git', ['show', '--name-only', '--format=', 'HEAD'], { cwd: worktreePath })
+    ).stdout.trim().split('\n')
+    expect(wtCommitFiles).toContain('spec/specs/lockcap/spec.md')
+    expect(wtCommitFiles).toContain('spec/specs/lockcap/spec.lock')
+  })
 })
