@@ -1,22 +1,36 @@
-workflow: standard
+workflow: trivial
 created: 2026-08-11T07:24:30.196Z
 status: active
-current_artifact: intent
+current_artifact: implementation
 base_versions: {}
 artifacts:
-  intent: ready
-  stories: pending
-  spec: pending
-  research: pending
-  design: pending
-  tasks: pending
-  implementation: pending
+  intent: complete
+  implementation: ready
   verification: pending
+complexity_score:
+  score: 0
+  signals:
+    file_count: 0
+  recommended_workflow: trivial
 artifact_timings:
   intent:
     started: 2026-08-11T07:24:44.875Z
+    completed: 2026-08-11T07:25:52.379Z
 artifact_tokens:
   intent:
     context: 763
     budget: 20000
 worktree: /home/utx0/Code/metta/.metta/worktrees/fix-hooks-statusline-execute-stale-main-checkout-dist-via
+token_usage:
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 1302
+    timestamp: 2026-08-11T07:25:11.474Z
+    source: hook
+  - task: intent
+    agent: metta-proposer
+    model: fable
+    tokens: 196
+    timestamp: 2026-08-11T07:25:42.499Z
+    source: hook
