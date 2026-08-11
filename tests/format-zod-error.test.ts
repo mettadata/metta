@@ -41,6 +41,15 @@ describe('formatZodError', () => {
     expect(formatted.startsWith(':')).toBe(false)
   })
 
+  it('escapes raw control characters from hostile values as \\uXXXX sequences', () => {
+    const schema = z.object({ release: z.object({ scheme: z.enum(['semver', 'calver']) }) })
+    const hostile = '\x1b[31mevil\x1b[0m'
+    const err = zodErrorFrom(schema, { release: { scheme: hostile } })
+    const formatted = formatZodError(err)
+    expect(formatted).toContain('\\u001b')
+    expect(formatted).not.toMatch(/[\x00-\x08\x0b-\x1f\x7f]/)
+  })
+
   it('prepends the prefix option to every line', () => {
     const schema = z.object({ a: z.string(), b: z.number() })
     const err = zodErrorFrom(schema, { a: 1, b: 'x' })
