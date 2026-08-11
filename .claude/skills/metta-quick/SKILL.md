@@ -155,14 +155,14 @@ You are the **orchestrator** for a quick change (intent → implementation → r
    Tests (`npm test -- --run`) and type-check (`npx tsc --noEmit`) run on every change regardless of tier.
 
    **Trivial path (1 verifier):**
-   - Spawn 1 metta-verifier agent (subagent_type: "metta-verifier") with prompt: "Run `npm test -- --run` and `npx tsc --noEmit && npm run lint` — report pass/fail count and any type/lint errors."
+   - Spawn 1 metta-verifier agent (subagent_type: "metta-verifier") with prompt: "Run `cd "{change_root}" && npm test -- --run` and `cd "{change_root}" && npx tsc --noEmit && npm run lint` — report pass/fail count and any type/lint errors."
    - Merge results into `{change_root}/spec/changes/<change>/summary.md` and commit with `git -C "{change_root}"`.
 
    **Standard path — you MUST spawn all 3 metta-verifier agents in a SINGLE orchestrator message** (fan-out — parallel, one message, three `Agent(...)` calls):
 
    **Pre-batch self-check — you MUST complete every bullet before emitting any verifier `Agent(...)` call. SHALL NOT skip. No hedge words:**
 
-   1. You MUST list each verifier's command/scope: Agent 1 runs `npm test`; Agent 2 runs `npx tsc --noEmit` and `npm run lint`; Agent 3 reads `{change_root}/spec/changes/<change>/intent.md` and cross-references code. None of them writes a file that another writes.
+   1. You MUST list each verifier's command/scope: Agent 1 runs `cd "{change_root}" && npm test`; Agent 2 runs `cd "{change_root}" && npx tsc --noEmit` and `cd "{change_root}" && npm run lint`; Agent 3 reads `{change_root}/spec/changes/<change>/intent.md` and cross-references code. None of them writes a file that another writes. Every gate command runs from `{change_root}` — never from the session cwd.
    2. You MUST classify the verifier fan-out as **disjoint** — all three read the repo; only the orchestrator writes summary.md afterward.
    3. You MUST declare all 3 verifiers **Parallel**.
    4. Sequential is forbidden here unless you can name a specific conflicting file path that two verifiers both write to. No such path exists in the default configuration; sequential verification in the default configuration is therefore forbidden.
@@ -188,8 +188,8 @@ You are the **orchestrator** for a quick change (intent → implementation → r
    ```
 
    - Before spawning verifier agents, run: `metta iteration record --phase verify --change <name>`
-   - Agent 1 (subagent_type: "metta-verifier"): "Run `npm test` — report pass/fail count and any failures"
-   - Agent 2 (subagent_type: "metta-verifier"): "Run `npx tsc --noEmit` and `npm run lint` — report any type or lint errors"
+   - Agent 1 (subagent_type: "metta-verifier"): "Run `cd "{change_root}" && npm test` — report pass/fail count and any failures"
+   - Agent 2 (subagent_type: "metta-verifier"): "Run `cd "{change_root}" && npx tsc --noEmit` and `cd "{change_root}" && npm run lint` — report any type or lint errors"
    - Agent 3 (subagent_type: "metta-verifier"): "Read {change_root}/spec/changes/<change>/intent.md and check each stated goal is implemented in the code — cite file:line evidence"
    - Merge results into `{change_root}/spec/changes/<change>/summary.md` and commit with `git -C "{change_root}"`.
 
