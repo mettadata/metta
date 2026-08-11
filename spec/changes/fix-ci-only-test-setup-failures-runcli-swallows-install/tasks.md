@@ -2,7 +2,7 @@
 
 ## Batch 1 (no dependencies)
 
-- [ ] **Task 1.1: Refactor tests/helpers/cli.ts around execCliRaw with fail-fast helpers**
+- [x] **Task 1.1: Refactor tests/helpers/cli.ts around execCliRaw with fail-fast helpers**
   - **Files**: `tests/helpers/cli.ts`
   - **Action**: Implement the helper layer exactly per design.md (Components item 1, Data Model, API Design):
     1. Add internal (not exported) `execCliRaw(args: string[], cwd: string, timeoutMs: number): Promise<RawResult>` — sole owner of the try/catch around `execAsync('npx', ['tsx', CLI_PATH, ...args], { cwd, timeout: timeoutMs })`; never throws; resolves `RawResult { stdout, stderr, code, signal, killed }` with `code: 0, signal: null, killed: false` on success and the exec error's fields preserved on failure (`code` as numeric exec code, `signal` NOT coerced into `code`).
@@ -15,7 +15,7 @@
   - **Verify**: `npx tsc --noEmit` passes. `npm test -- tests/cli-finalize.test.ts tests/cli-complete.test.ts` passes unmigrated (proves `runCli` contract unchanged, including any tests grepping the kill marker).
   - **Done**: All five helper surfaces (`runCli` unchanged contract, `CliSetupError`, `runCliOrThrow`, post-check function, `installFixture`) exist with the exact signatures and error format from design.md; existing suite behavior identical; `execCliRaw` is the only try/catch around `execAsync`.
 
-- [ ] **Task 1.2: CI-only vitest file serialization**
+- [x] **Task 1.2: CI-only vitest file serialization**
   - **Files**: `vitest.config.ts`
   - **Action**: Apply the exact resulting file from design.md "vitest.config.ts (exact resulting file — Track 2)": add `const isCI = process.env.CI !== undefined && process.env.CI !== '' && process.env.CI !== 'false'` with the explanatory comment about 4-core runners collapsing under concurrent `npx tsx` exec chains and `CI=1 npm test` reproduction, and add `fileParallelism: !isCI` inside `test`. No other lines change; no `package.json` or `.github/workflows/ci.yml` edits.
   - **Verify**: `npx tsc --noEmit` passes. `CI=1 npx vitest run tests/helpers/ --reporter=verbose 2>&1 | head -5` (or any small file subset) runs without config errors; a quick `CI=1 npx vitest run tests/cli-roadmap.test.ts tests/cli-worktree-change-root.test.ts` confirms serialized execution works.
@@ -23,7 +23,7 @@
 
 ## Batch 2 (depends on Batch 1)
 
-- [ ] **Task 2.1: Helper unit tests (tests/helpers/cli.test.ts)**
+- [x] **Task 2.1: Helper unit tests (tests/helpers/cli.test.ts)**
   - **Depends on**: Task 1.1
   - **Files**: `tests/helpers/cli.test.ts` (new)
   - **Action**: Write unit tests covering the five cases in design.md "Test plan for the helpers":
@@ -36,21 +36,21 @@
   - **Verify**: `npx vitest run tests/helpers/cli.test.ts` — all tests pass. `npx tsc --noEmit` passes.
   - **Done**: New test file exercises all four spec scenarios plus the runCli regression net and is green; no flaky timing assertions (signal asserted non-null, not exact).
 
-- [ ] **Task 2.2: MUST-tier migration — cli-finalize and cli-complete**
+- [x] **Task 2.2: MUST-tier migration — cli-finalize and cli-complete**
   - **Depends on**: Task 1.1
   - **Files**: `tests/cli-finalize.test.ts`, `tests/cli-complete.test.ts`
   - **Action**: In each file, replace ONLY lines matching the bare-await shape `^\s*await runCli\(\['install'` — concretely `await runCli(['install', '--git-init'], tempDir)` → `await installFixture(tempDir)` (9 sites in cli-finalize, 36 in cli-complete; preserve indentation and any variable name other than `tempDir` as-is in the argument). Add `installFixture` to each file's existing named import from `./helpers/cli.js`. Do NOT touch result-captured `const { ... } = await runCli(['install', ...])` sites or any non-install `runCli` calls.
   - **Verify**: `grep -n "await runCli(\['install'" tests/cli-finalize.test.ts tests/cli-complete.test.ts` returns only result-captured lines (assignment shapes), no bare awaits. `npx vitest run tests/cli-finalize.test.ts tests/cli-complete.test.ts` passes with the same test counts as before.
   - **Done**: Zero discarded-result install `runCli` calls remain in the two MUST-tier files (spec scenario "No discarded setup result in the minimum files"); both files green; imports updated.
 
-- [ ] **Task 2.3: SHOULD-tier migration group A — status, issue-backlog, propose**
+- [x] **Task 2.3: SHOULD-tier migration group A — status, issue-backlog, propose**
   - **Depends on**: Task 1.1
   - **Files**: `tests/cli-status.test.ts`, `tests/cli-issue-backlog.test.ts`, `tests/cli-propose.test.ts`
   - **Action**: Same mechanical rule as Task 2.2: replace bare-await `await runCli(['install', '--git-init'], <dir>)` lines with `await installFixture(<dir>)` (29 / 24 / 17 sites respectively) and add `installFixture` to each file's existing `./helpers/cli.js` named import. Exclude result-captured sites by construction; leave all other `runCli` calls untouched.
   - **Verify**: `grep -n "await runCli(\['install'" tests/cli-status.test.ts tests/cli-issue-backlog.test.ts tests/cli-propose.test.ts` shows no bare-await lines. `npx vitest run tests/cli-status.test.ts tests/cli-issue-backlog.test.ts tests/cli-propose.test.ts` passes with unchanged test counts.
   - **Done**: All bare install setup calls in the three files use `installFixture`; files green; imports updated.
 
-- [ ] **Task 2.4: SHOULD-tier migration group B — remaining 7 files**
+- [x] **Task 2.4: SHOULD-tier migration group B — remaining 7 files**
   - **Depends on**: Task 1.1
   - **Files**: `tests/progress-ceremony-metrics.test.ts`, `tests/complexity-tracking.test.ts`, `tests/cli-propose-worktree.test.ts`, `tests/complete-marks-tasks.test.ts`, `tests/cli-propose-stop-after.test.ts`, `tests/cli-roadmap.test.ts`, `tests/cli-worktree-change-root.test.ts`
   - **Action**: Same mechanical rule as Task 2.2 across the seven files (12 / 8 / 6 / 3 / 1 / 1 / 1 sites): bare-await `await runCli(['install', '--git-init'], <dir>)` → `await installFixture(<dir>)`, plus `installFixture` added to each existing `./helpers/cli.js` import. Do NOT add `disableWorktrees` anywhere it isn't already present — `cli-propose-worktree.test.ts` deliberately keeps worktree mode on (design: installFixture does not fold it in). Do NOT touch `tests/cli-install.test.ts` (excluded wholesale, ADR-3) or result-captured sites.
@@ -59,7 +59,7 @@
 
 ## Batch 3 (depends on Batch 2)
 
-- [ ] **Task 3.1: Full-suite verification (local and CI-mode)**
+- [x] **Task 3.1: Full-suite verification (local and CI-mode)**
   - **Depends on**: Task 2.1, Task 2.2, Task 2.3, Task 2.4
   - **Files**: none (verification only; fix-forward edits allowed to files from prior tasks if a regression surfaces)
   - **Action**: Run the full verification battery from the design:
