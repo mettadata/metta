@@ -29,3 +29,17 @@ were intentionally left untouched — they are not exposed to the directory-walk
 ## Commit
 
 - `3c98965c0` `fix: harden CI/test teardown against git auto-gc ENOTEMPTY rmdir race`
+
+## Verification (iteration #1, post-review)
+
+Verifiers ran inline in the skill-host context (subagent spawn cap reached).
+
+1. **Tests** — `npm test`: 116 files, **2053/2053 passed** (fresh run on the reviewed tree, 308s).
+2. **Typecheck & lint** — `npx tsc --noEmit` clean; `npm run lint` clean.
+3. **Intent-scenario evidence** (quick workflow — intent.md is the spec):
+   - CI writer disabled: `.github/workflows/ci.yml` lines 34-35 set `gc.auto 0` and `gc.autoDetach false`.
+   - Teardown tolerant: `cli-complete.test.ts` teardown carries `maxRetries: 5, retryDelay: 100`;
+     grep confirms zero remaining recursive `rm`/`rmSync` without retry options across `tests/` and `src/`.
+   - Out-of-scope respected: no `src/` production file modified.
+
+All verification gates PASS.
