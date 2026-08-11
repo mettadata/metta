@@ -28,6 +28,7 @@ import {
   GitConfigSchema,
   TokenUsageRecordSchema,
   TokensConfigSchema,
+  ReleaseConfigSchema,
 } from '../src/schemas/index.js'
 import type { ComplexityScore } from '../src/schemas/index.js'
 
@@ -1105,6 +1106,105 @@ describe('ProjectConfigSchema', () => {
       models: { executor: { standard: 'haiku' } },
     })
     expect(result.success).toBe(false)
+  })
+})
+
+describe('ReleaseConfigSchema', () => {
+  it('accepts a valid semver config with all four keys', () => {
+    const result = ReleaseConfigSchema.parse({
+      scheme: 'semver',
+      version_file: 'package.json',
+      tag_prefix: 'v',
+      github_release: false,
+    })
+    expect(result).toEqual({
+      scheme: 'semver',
+      version_file: 'package.json',
+      tag_prefix: 'v',
+      github_release: false,
+    })
+  })
+
+  it('rejects an unsupported scheme with a message naming release.scheme', () => {
+    const result = ReleaseConfigSchema.safeParse({
+      scheme: 'calver',
+      version_file: 'package.json',
+    })
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      const issue = result.error.issues.find((i) => i.path.join('.') === 'scheme')
+      expect(issue).toBeDefined()
+      expect(issue?.message).toBe("release.scheme: only 'semver' is supported")
+    }
+  })
+
+  it('rejects an empty version_file with a message naming release.version_file', () => {
+    const result = ReleaseConfigSchema.safeParse({
+      scheme: 'semver',
+      version_file: '',
+    })
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      const issue = result.error.issues.find((i) => i.path.join('.') === 'version_file')
+      expect(issue).toBeDefined()
+      expect(issue?.message).toContain('release.version_file')
+    }
+  })
+
+  it('defaults tag_prefix to v and github_release to false when only scheme and version_file are given', () => {
+    const result = ReleaseConfigSchema.parse({
+      scheme: 'semver',
+      version_file: 'package.json',
+    })
+    expect(result.tag_prefix).toBe('v')
+    expect(result.github_release).toBe(false)
+  })
+
+  it('rejects unknown keys (.strict())', () => {
+    const result = ReleaseConfigSchema.safeParse({
+      scheme: 'semver',
+      version_file: 'package.json',
+      push: true,
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('is accepted under ProjectConfigSchema as the optional release key', () => {
+    const result = ProjectConfigSchema.safeParse({
+      release: { scheme: 'semver', version_file: 'package.json' },
+    })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.release).toEqual({
+        scheme: 'semver',
+        version_file: 'package.json',
+        tag_prefix: 'v',
+        github_release: false,
+      })
+    }
+  })
+
+  it('surfaces nested issues under the release path via ProjectConfigSchema', () => {
+    const result = ProjectConfigSchema.safeParse({
+      release: { scheme: 'calver', version_file: 'package.json' },
+    })
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      const issue = result.error.issues.find((i) => i.path.join('.') === 'release.scheme')
+      expect(issue).toBeDefined()
+      expect(issue?.message).toBe("release.scheme: only 'semver' is supported")
+    }
+  })
+
+  it('existing configs without a release key still parse unchanged', () => {
+    const result = ProjectConfigSchema.safeParse({
+      project: { name: 'legacy' },
+      installed_version: '0.4.0',
+    })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.release).toBeUndefined()
+    }
   })
 })
 

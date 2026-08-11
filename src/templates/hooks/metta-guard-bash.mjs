@@ -35,6 +35,9 @@ const ALLOWED_TWO_WORD = new Map([
   // side effects, matching the issues/changes/backlog read-only pattern above.
   // `gaps remove` is deliberately NOT listed here — it mutates state and stays fail-closed.
   ['gaps', new Set(['list', 'show'])],
+  // `release status` is a pure read-only report (version, pending changes, recommended
+  // bump); the mutating `release cut` stays Tier-2 blocked below.
+  ['release', new Set(['status'])],
 ]);
 
 // Explicit BLOCK list: state-mutating single-subcommand forms.
@@ -51,13 +54,17 @@ const BLOCKED_TWO_WORD = new Map([
   ['backlog', new Set(['add', 'done', 'promote'])],
   ['changes', new Set(['abandon'])],
   ['roadmap', new Set(['add', 'reorder', 'next'])],
+  // `release cut` mutates state (version bump, tag, release commit) — Tier-2 scope
+  // key 'release:cut', minted only by the metta-release skill.
+  ['release', new Set(['cut'])],
 ]);
 
 // Explicit ALLOW list for bare (no-third-word) read-only command groups: the
 // bare form (optionally with flags, e.g. `metta roadmap --json`) is a read-only
 // status view, while its two-word mutating forms stay Tier-2 blocked above.
-// `roadmap <any-unknown-word>` remains 'unknown' → fail-closed.
-const ALLOWED_BARE = new Set(['roadmap']);
+// `roadmap <any-unknown-word>` / `release <any-unknown-word>` remain 'unknown' → fail-closed.
+// Bare `metta release` defaults to the read-only status view (roadmap precedent).
+const ALLOWED_BARE = new Set(['roadmap', 'release']);
 
 // Subcommands that require a trusted agent_type (caller identity set by the Claude Code
 // runtime when a forked metta-* subagent fires the tool). Verified caller identity is the

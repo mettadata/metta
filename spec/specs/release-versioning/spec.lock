@@ -1,0 +1,83 @@
+version: 14
+hash: sha256:d2c33de78655
+updated: 2026-08-11T00:12:53.800Z
+status: draft
+source: change
+requirements:
+  - id: release-configuration-schema
+    hash: sha256:fe668687876c
+    scenarios:
+      - valid-semver-config-accepted
+      - unsupported-scheme-rejected-with-key-named
+      - malformed-version-file-path-rejected
+      - defaults-applied-for-omitted-optional-keys
+  - id: product-version-distinct-from-installed-version
+    hash: sha256:b953d9d844fb
+    scenarios:
+      - current-product-version-read-from-configured-file
+      - version-file-missing-yields-distinguishing-error
+      - version-drift-stamp-untouched-by-release-operations
+  - id: purely-additive-when-unconfigured
+    hash: sha256:9153ebc3eeb9
+    scenarios:
+      - existing-lifecycle-unchanged-without-release-config
+      - release-command-without-config-fails-actionably
+  - id: bump-derivation-from-shipped-changes
+    hash: sha256:0a26f8cd8dc8
+    scenarios:
+      - only-fixes-recommend-patch
+      - feature-present-recommends-minor
+      - breaking-marker-recommends-major
+      - derivation-is-deterministic-and-pure
+  - id: user-override-of-recommended-bump
+    hash: sha256:997832ed5a60
+    scenarios:
+      - override-recommendation-with-explicit-level
+      - accepting-the-recommendation
+  - id: release-cut-operation
+    hash: sha256:917d302a91d8
+    scenarios:
+      - one-invocation-produces-consistent-release-artifacts
+      - tag-annotation-carries-release-identity
+  - id: release-cut-safety-constraints
+    hash: sha256:3ea0963e3af8
+    scenarios:
+      - nothing-pushed-without-explicit-confirmation
+      - existing-tag-aborts-without-force
+      - mid-cut-failure-is-reported-with-the-failing-step
+  - id: first-release-without-prior-tag
+    hash: sha256:219dd47fbd64
+    scenarios:
+      - first-release-derives-from-all-shipped-changes
+      - manual-tag-treated-as-release-boundary
+  - id: version-anchored-changelog-generation
+    hash: sha256:13d7443dc622
+    scenarios:
+      - changes-split-across-release-boundary
+      - multiple-versions-render-in-release-order
+      - versioned-shape-survives-finalize-regeneration
+  - id: pre-existing-manual-release-history-rendering
+    hash: sha256:b344185d08b7
+    scenarios:
+      - manual-tags-render-without-losing-entries
+  - id: opt-in-github-release-publication
+    hash: sha256:b1a426719cce
+    scenarios:
+      - no-confirmation-means-no-gh-invocation
+      - confirmed-opt-in-publishes-release-notes
+  - id: graceful-degradation-when-gh-unavailable
+    hash: sha256:af9c78d53b64
+    scenarios:
+      - missing-gh-binary-degrades-gracefully
+      - unauthenticated-gh-degrades-gracefully
+  - id: release-cli-command-surface
+    hash: sha256:654dd397033a
+    scenarios:
+      - human-runs-release-cli-directly
+      - version-status-command-reports-version-and-recommendation
+  - id: release-skill-and-guard-authorization
+    hash: sha256:bea6e8cc9f23
+    scenarios:
+      - skill-mediated-release-is-authorized
+      - unauthorized-ai-invocation-is-blocked
+      - skill-delivered-as-template-file

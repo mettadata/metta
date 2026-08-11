@@ -1,0 +1,66 @@
+workflow: standard
+created: 2026-08-08T14:57:46.185Z
+status: active
+current_artifact: verification
+base_versions: {}
+artifacts:
+  intent: complete
+  stories: complete
+  spec: complete
+  research: complete
+  design: complete
+  tasks: complete
+  implementation: complete
+  verification: complete
+complexity_score:
+  score: 2
+  signals:
+    file_count: 5
+  recommended_workflow: standard
+artifact_timings:
+  intent:
+    started: 2026-08-08T14:57:56.690Z
+    completed: 2026-08-08T14:59:21.164Z
+  stories:
+    started: 2026-08-08T14:59:25.086Z
+    completed: 2026-08-08T15:00:39.275Z
+  spec:
+    started: 2026-08-08T15:00:43.393Z
+    completed: 2026-08-08T15:02:35.985Z
+  research:
+    started: 2026-08-08T15:02:41.483Z
+    completed: 2026-08-08T15:08:50.183Z
+  design:
+    started: 2026-08-08T15:08:54.476Z
+    completed: 2026-08-08T15:13:51.891Z
+  tasks:
+    started: 2026-08-08T15:13:56.831Z
+    completed: 2026-08-08T15:17:50.577Z
+  implementation:
+    started: 2026-08-10T21:31:28.309Z
+    completed: 2026-08-10T21:45:05.765Z
+  verification:
+    completed: 2026-08-10T21:55:01.829Z
+artifact_tokens:
+  intent:
+    context: 759
+    budget: 20000
+  stories:
+    context: 2860
+    budget: 20000
+  spec:
+    context: 5097
+    budget: 40000
+  research:
+    context: 5297
+    budget: 60000
+  design:
+    context: 6831
+    budget: 80000
+  tasks:
+    context: 11115
+    budget: 40000
+  implementation:
+    context: 5653
+    budget: 10000
+worktree: /home/utx0/Code/metta/.metta/worktrees/fix-automatic-versioning-release-capability-metta
