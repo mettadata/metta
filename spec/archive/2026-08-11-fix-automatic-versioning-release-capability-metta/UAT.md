@@ -151,7 +151,7 @@ and never check a box for behavior that was not actually observed.
 - **Setup**: an AI orchestrator session
 - **Do**: the release skill is invoked
 - **Observe**: the release flow runs with the correct authorization tier and completes without the orchestrator calling the CLI directly
-- [ ] Pass
+- [x] Pass
 
 #### Step 6.2
 - **Setup**: an AI session without the required authorization
@@ -173,7 +173,7 @@ and never check a box for behavior that was not actually observed.
 - **Setup**: metta's repo with manual tags v0.2.0–v0.4.0
 - **Do**: the changelog regenerates under the new format
 - **Observe**: those versions appear sanely — via best-effort anchoring or an explicit prior-history section — and no existing entries are lost
-- [ ] Pass
+- [x] Pass
 
 #### Step 7.2
 - **Setup**: the last release was a manual tag
@@ -443,3 +443,10 @@ and never check a box for behavior that was not actually observed.
   - 6.3 — requires a human terminal
   - 7.1 — metta repo has not yet adopted release config; to be observed at the real cut
 - **Note**: bad-scheme config error (1.2/8.2) names the key and constraint correctly but renders as a raw Zod issue array — cosmetic, logged separately
+
+## UAT run — 2026-08-11 (deferred-step closure)
+
+- **Runner**: inline orchestrator, closing the two steps deferred to the real release
+- **Observed during the live v0.5.0 cut**: Step 6.1 PASS — /metta-release skill drove `release status` + `release cut --bump minor --yes --github` end-to-end; guard authorized via the skill-minted per-skill credential, no direct unauthorized CLI use. Step 7.1 PASS — regenerated versioned changelog renders manual-tag history sanely (0.4.0 and 0.3.0 sections present with entries preserved; 142 unreleased entries attributed to 0.5.0).
+- **Note**: the cut's GitHub step degraded gracefully (tag not yet on remote); release created manually post-push at https://github.com/mettadata/metta/releases/tag/v0.5.0 — consistent with the graceful-degradation contract (8.29/8.30 family).
+- **Results**: 54 pass / 0 fail / 4 skip (remaining skips: 4.3, 5.2, 5.3, 6.3 — environment-bound)
