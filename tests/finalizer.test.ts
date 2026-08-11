@@ -298,6 +298,127 @@ The system MUST apply this requirement exactly once across retries.
     expect(headers.length).toBe(1)
   })
 
+  describe('gate results staging (Step 5d)', () => {
+    function passingRegistry(): GateRegistry {
+      const registry = new GateRegistry()
+      registry.register({
+        name: 'tests',
+        description: 'passing gate',
+        command: 'true',
+        timeout: 5000,
+        required: true,
+        on_failure: 'stop',
+      })
+      return registry
+    }
+
+    it('stages gates.yaml in the change dir pre-archive so the move sweeps it in', async () => {
+      const gatedFinalizer = new Finalizer(specDir, artifactStore, lockManager, passingRegistry(), specDir)
+
+      await artifactStore.createChange('gates sweep test', 'quick', ['intent', 'implementation', 'verification'])
+      await markAllComplete(artifactStore, 'gates-sweep-test', ['intent', 'implementation', 'verification'])
+
+      const result = await gatedFinalizer.finalize('gates-sweep-test')
+
+      expect(result.archiveName).toMatch(/^\d{4}-\d{2}-\d{2}-gates-sweep-test$/)
+      const raw = await readFile(join(specDir, 'archive', result.archiveName, 'gates.yaml'), 'utf-8')
+      const YAML = (await import('yaml')).default
+      const parsed = YAML.parse(raw) as { all_passed: boolean; results: Array<{ gate: string; status: string }> }
+      expect(parsed.all_passed).toBe(true)
+      expect(parsed.results.map(r => r.gate)).toEqual(['tests'])
+
+      // The move took the whole change dir — nothing left behind.
+      const remaining = await readdir(join(specDir, 'changes')).catch(() => [] as string[])
+      expect(remaining).not.toContain('gates-sweep-test')
+    })
+
+    it('a gates.yaml staging failure aborts BEFORE the archive move — change stays fully active', async () => {
+      const gatedFinalizer = new Finalizer(specDir, artifactStore, lockManager, passingRegistry(), specDir)
+
+      await artifactStore.createChange('gates strand test', 'quick', ['intent', 'implementation', 'verification'])
+      await markAllComplete(artifactStore, 'gates-strand-test', ['intent', 'implementation', 'verification'])
+
+      // A directory squatting on the gates.yaml path makes the staging write
+      // fail deterministically (EISDIR) — the same injection the UAT
+      // degradation tests use for write-adjacent failures.
+      await mkdir(join(specDir, 'changes', 'gates-strand-test', 'gates.yaml'))
+
+      await expect(gatedFinalizer.finalize('gates-strand-test')).rejects.toThrow()
+
+      // Not half-archived: the change is still active with its metadata, and
+      // no orphan archive dir was created. Under the old post-archive write
+      // ordering this failure left the change dir gone and unrecoverable.
+      const changes = await artifactStore.listChanges()
+      expect(changes).toContain('gates-strand-test')
+      const archived = await readdir(join(specDir, 'archive'))
+      expect(archived.filter(name => name.includes('gates-strand-test'))).toEqual([])
+    })
+
+    it('worktree-hosted change: all finalize writes land in the hosting worktree, main checkout untouched', async () => {
+      // Simulated worktree-per-change layout (filesystem-based, no real git):
+      // the store is rooted at the MAIN spec dir; the change lives in
+      // `.metta/worktrees/<name>/spec/changes/<name>`.
+      const rootDir = await mkdtemp(join(tmpdir(), 'metta-final-wt-'))
+      try {
+        const mainSpecDir = join(rootDir, 'spec')
+        await mkdir(join(mainSpecDir, 'specs'), { recursive: true })
+        await mkdir(join(mainSpecDir, 'archive'), { recursive: true })
+        const worktreesDir = join(rootDir, '.metta', 'worktrees')
+        const store = new ArtifactStore(mainSpecDir, { worktreesDir })
+
+        const host = join(worktreesDir, 'wt-hosted-final')
+        await mkdir(join(host, 'spec'), { recursive: true })
+        // docs.generate_on: manual keeps DocGenerator out; uat/tokens omitted
+        // → enabled by schema default, so uatPath/tokensPath are exercised.
+        await writeFile(
+          join(rootDir, '.metta', 'config.yaml'),
+          'project:\n  name: x\ndocs:\n  generate_on: manual\n',
+        )
+        const hostStore = new ArtifactStore(join(host, 'spec'))
+        await hostStore.createChange('wt hosted final', 'quick', ['intent', 'implementation', 'verification'])
+        await markAllComplete(store, 'wt-hosted-final', ['intent', 'implementation', 'verification'])
+
+        // The finalizer's specDir comes from the store's per-change resolution
+        // (what the CLI now does) — the worktree's spec dir, not the main one.
+        const wtSpecDir = await store.specDirFor('wt-hosted-final')
+        expect(wtSpecDir).toBe(join(host, 'spec'))
+        const finalizer = new Finalizer(
+          wtSpecDir,
+          store,
+          new SpecLockManager(wtSpecDir),
+          passingRegistry(),
+          rootDir,
+        )
+
+        const result = await finalizer.finalize('wt-hosted-final')
+
+        // (a) finalize succeeds
+        expect(result.archiveName).toMatch(/^\d{4}-\d{2}-\d{2}-wt-hosted-final$/)
+        // (b) gates.yaml lands in the WORKTREE's archive dir
+        const archiveDir = join(host, 'spec', 'archive', result.archiveName)
+        const archivedFiles = await readdir(archiveDir)
+        expect(archivedFiles).toContain('gates.yaml')
+        expect(archivedFiles).toContain('.metta.yaml')
+        // (c) the main checkout's spec/archive is untouched
+        expect(await readdir(join(mainSpecDir, 'archive'))).toEqual([])
+        const mainChanges = await readdir(join(mainSpecDir, 'changes')).catch(() => [] as string[])
+        expect(mainChanges).not.toContain('wt-hosted-final')
+        // (d) reported paths point into the worktree's archive dir
+        expect(result.uatError).toBeUndefined()
+        expect(result.tokensError).toBeUndefined()
+        expect(result.uatPath).toBe(join(archiveDir, 'UAT.md'))
+        expect(result.tokensPath).toBe(join(archiveDir, 'TOKENS.md'))
+        expect(archivedFiles).toContain('UAT.md')
+        expect(archivedFiles).toContain('TOKENS.md')
+        // The change is gone from the worktree's active changes.
+        const wtChanges = await readdir(join(host, 'spec', 'changes')).catch(() => [] as string[])
+        expect(wtChanges).not.toContain('wt-hosted-final')
+      } finally {
+        await rm(rootDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
+      }
+    })
+  })
+
   describe('doc generation gating', () => {
     let projectRoot: string
     let scopedSpecDir: string

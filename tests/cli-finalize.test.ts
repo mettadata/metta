@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { mkdtemp, mkdir, rm, readFile, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, rm, readFile, readdir, writeFile } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { runCli, disableWorktrees } from './helpers/cli.js'
+import { runCli, disableWorktrees, execAsync } from './helpers/cli.js'
 
 describe('CLI: finalize exit-code ordering', { timeout: 30000 }, () => {
   let tempDir: string
@@ -379,5 +380,106 @@ describe('CLI: finalize tokens output', { timeout: 60000 }, () => {
     expect('uatPath' in payload).toBe(false)
     // Byte-for-byte shape: exactly the pre-existing keys, nothing added.
     expect(Object.keys(payload).sort()).toEqual(['change', 'gates', 'message', 'status'])
+  })
+})
+
+// Regression: `metta finalize` for a WORKTREE-hosted change invoked from the
+// MAIN checkout root must resolve every path against the change's hosting
+// worktree — archive move, gates.yaml, uatPath/tokensPath, and the
+// auto-commit. The old session-cwd specDir derivation wrote gates.yaml into
+// the main checkout's spec/archive (ENOENT, exit 4) AFTER the archive move
+// had already run in the worktree, stranding the change half-archived.
+describe('CLI: finalize worktree-hosted change from the main checkout', { timeout: 120000 }, () => {
+  let tempDir: string
+
+  beforeEach(async () => {
+    tempDir = await mkdtemp(join(tmpdir(), 'metta-cli-finalize-wt-'))
+  })
+
+  afterEach(async () => {
+    await rm(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
+  })
+
+  it('archives, stages gates.yaml, reports paths, and auto-commits inside the worktree; main checkout untouched', async () => {
+    await runCli(['install', '--git-init'], tempDir)
+    // Worktrees stay ENABLED: quick hosts the change in .metta/worktrees/<name>.
+    const quick = await runCli(['--json', 'quick', 'wt finalize case'], tempDir, 30000)
+    expect(quick.code).toBe(0)
+    const worktreePath = join(tempDir, '.metta', 'worktrees', 'wt-finalize-case')
+    expect(existsSync(join(worktreePath, 'spec', 'changes', 'wt-finalize-case', '.metta.yaml'))).toBe(true)
+
+    // Mark every artifact complete in the WORKTREE copy of the metadata.
+    const YAML = (await import('yaml')).default
+    const metaPath = join(worktreePath, 'spec', 'changes', 'wt-finalize-case', '.metta.yaml')
+    const doc = YAML.parse(await readFile(metaPath, 'utf8')) as Record<string, unknown>
+    const artifacts = doc.artifacts as Record<string, string>
+    for (const id of Object.keys(artifacts)) artifacts[id] = 'complete'
+    await writeFile(metaPath, YAML.stringify(doc, { lineWidth: 0 }), 'utf8')
+
+    // Track the change dir on the worktree branch (in real usage the change
+    // artifacts are committed during the lifecycle) so finalize's auto-commit
+    // can stage the archive rename as a deletion + addition.
+    await execAsync('git', ['add', '-A'], { cwd: worktreePath })
+    await execAsync('git', ['commit', '-m', 'chore: change artifacts'], { cwd: worktreePath })
+
+    // Project-local passing gate stubs (loaded from the session projectRoot)
+    // so Step 4 passes fast and gates.yaml has content.
+    await mkdir(join(tempDir, '.metta', 'gates'), { recursive: true })
+    for (const name of ['tests', 'lint', 'typecheck', 'build', 'stories-valid']) {
+      const yaml = [
+        `name: ${name}`,
+        `description: passing stub for ${name}`,
+        'command: "true"',
+        'timeout: 10000',
+        'required: true',
+        'on_failure: stop',
+        '',
+      ].join('\n')
+      await writeFile(join(tempDir, '.metta', 'gates', `${name}.yaml`), yaml, 'utf8')
+    }
+
+    const mainHeadBefore = (
+      await execAsync('git', ['rev-parse', 'HEAD'], { cwd: tempDir })
+    ).stdout.trim()
+
+    // The regression: finalize runs with cwd at the MAIN checkout root.
+    const run = await runCli(['--json', 'finalize', 'wt-finalize-case'], tempDir, 60000)
+    expect(run.code).toBe(0)
+    const payload = JSON.parse(run.stdout) as Record<string, unknown>
+    expect(payload.status).toBe('finalized')
+    const archive = payload.archive as string
+    expect(archive).toMatch(/^\d{4}-\d{2}-\d{2}-wt-finalize-case$/)
+
+    // (b) gates.yaml lands in the WORKTREE's archive dir, swept in by the move.
+    const archiveDir = join(worktreePath, 'spec', 'archive', archive)
+    expect((payload.gates as unknown[]).length).toBeGreaterThan(0)
+    expect(existsSync(join(archiveDir, 'gates.yaml'))).toBe(true)
+    expect(existsSync(join(archiveDir, '.metta.yaml'))).toBe(true)
+
+    // (d) reported uatPath/tokensPath point into the worktree's archive dir.
+    expect(payload.uatPath).toBe(join(archiveDir, 'UAT.md'))
+    expect(payload.tokensPath).toBe(join(archiveDir, 'TOKENS.md'))
+    expect(existsSync(payload.uatPath as string)).toBe(true)
+    expect(existsSync(payload.tokensPath as string)).toBe(true)
+
+    // (c) the main checkout's spec/archive and spec/changes are untouched.
+    const mainArchive = await readdir(join(tempDir, 'spec', 'archive')).catch(() => [] as string[])
+    expect(mainArchive).not.toContain(archive)
+    const mainChanges = await readdir(join(tempDir, 'spec', 'changes')).catch(() => [] as string[])
+    expect(mainChanges).not.toContain('wt-finalize-case')
+    // The change is gone from the worktree's active changes (fully archived).
+    const wtChanges = await readdir(join(worktreePath, 'spec', 'changes')).catch(() => [] as string[])
+    expect(wtChanges).not.toContain('wt-finalize-case')
+
+    // The auto-commit ran against the checkout that received the archive —
+    // the worktree's branch — while the main checkout's HEAD is unchanged.
+    const wtSubject = (
+      await execAsync('git', ['log', '-1', '--format=%s'], { cwd: worktreePath })
+    ).stdout.trim()
+    expect(wtSubject).toBe('chore(wt-finalize-case): archive and finalize')
+    const mainHeadAfter = (
+      await execAsync('git', ['rev-parse', 'HEAD'], { cwd: tempDir })
+    ).stdout.trim()
+    expect(mainHeadAfter).toBe(mainHeadBefore)
   })
 })
