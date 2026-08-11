@@ -16,8 +16,17 @@ artifact_timings:
   intent:
     started: 2026-08-11T03:14:37.804Z
     completed: 2026-08-11T03:15:45.374Z
+  implementation:
+    started: 2026-08-11T03:16:00.134Z
 artifact_tokens:
   intent:
     context: 763
     budget: 20000
+  implementation:
+    context: 0
+    budget: 10000
 worktree: /home/utx0/Code/metta/.metta/worktrees/fix-residual-session-cwd-anchoring-gaps-skills-gate
+model_runs:
+  - task: implementation
+    model: sonnet
+    timestamp: 2026-08-11T03:16:00.135Z
