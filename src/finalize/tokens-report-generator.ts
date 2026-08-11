@@ -109,11 +109,35 @@ function computeGaps(
   return sortedKeys(artifactTimings).filter(k => !tokenUsage.some(r => r.task === k))
 }
 
-function renderGaps(gaps: string[]): string {
-  if (gaps.length === 0) return NO_GAPS
-  return gaps
-    .map(gap => `- \`${gap}\` — run evidence with no token record; the recording hook missed this run`)
-    .join('\n')
+/**
+ * Loss-detection tripwire: zero hook-sourced records while >= 1 artifact has a
+ * `completed` timing (i.e. metta-* subagents demonstrably ran) means the
+ * SubagentStop recording hook never reached the CLI — the report must fail
+ * loudly instead of rendering a quiet, empty-looking one. Returns the GAPS
+ * entry to emit, or null when hook recording is healthy or nothing ran.
+ */
+function computeHookHealthFailure(
+  records: TokenUsageRecord[],
+  artifactTimings: Record<string, ArtifactTiming>,
+): string | null {
+  if (records.some(r => r.source === 'hook')) return null
+  const completed = Object.values(artifactTimings).filter(t => t.completed !== undefined).length
+  if (completed === 0) return null
+  return (
+    `- **Hook health failure**: 0 automatic (hook-sourced) token records despite ` +
+    `${completed} completed artifact(s) — the SubagentStop token-recording hook likely ` +
+    `failed to reach the CLI (stale globally-linked dist or hook-to-CLI path failure). ` +
+    `Token data for this change was not captured automatically.`
+  )
+}
+
+function renderGaps(gaps: string[], hookHealthFailure: string | null): string {
+  const lines = [
+    ...(hookHealthFailure === null ? [] : [hookHealthFailure]),
+    ...gaps.map(gap => `- \`${gap}\` — run evidence with no token record; the recording hook missed this run`),
+  ]
+  if (lines.length === 0) return NO_GAPS
+  return lines.join('\n')
 }
 
 // --- Orchestration -----------------------------------------------------------
@@ -126,6 +150,7 @@ export async function generateTokensReport(input: TokensReportInput): Promise<To
   const records = dedupeTokenUsage(input.tokenUsage)
   const total = records.reduce((sum, record) => sum + record.tokens, 0)
   const gaps = computeGaps(records, input.artifactTimings)
+  const hookHealthFailure = computeHookHealthFailure(records, input.artifactTimings)
 
   const engine = new TemplateEngine([new URL('../templates/artifacts', import.meta.url).pathname])
   const markdown = await engine.render('tokens.md', {
@@ -136,7 +161,7 @@ export async function generateTokensReport(input: TokensReportInput): Promise<To
     per_role_rollup: renderRollup('Agent', rollup(records, r => r.agent)),
     per_model_rollup: renderRollup('Model', rollup(records, r => r.model)),
     split: renderSplit(records),
-    gaps: renderGaps(gaps),
+    gaps: renderGaps(gaps, hookHealthFailure),
   })
 
   return { markdown }

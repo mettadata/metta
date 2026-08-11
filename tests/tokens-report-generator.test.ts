@@ -232,6 +232,65 @@ describe('generateTokensReport', () => {
     expect(markdown).toContain('No gaps found.')
   })
 
+  // --- Hook health tripwire ---------------------------------------------------
+
+  const TRIPWIRE_MARK = '- **Hook health failure**: 0 automatic (hook-sourced) token records despite'
+
+  it('flags a hook health failure when usage is empty but artifacts completed', async () => {
+    const { markdown } = await gen({
+      tokenUsage: [],
+      artifactTimings: { spec: timing(), intent: timing() },
+    })
+    const section = markdown.slice(markdown.indexOf('## Gaps'))
+    expect(section).toContain(
+      `${TRIPWIRE_MARK} 2 completed artifact(s) — the SubagentStop token-recording hook likely ` +
+      `failed to reach the CLI (stale globally-linked dist or hook-to-CLI path failure). ` +
+      `Token data for this change was not captured automatically.`,
+    )
+    expect(section).not.toContain('No gaps found.')
+  })
+
+  it('flags a hook health failure when only prose records exist for completed artifacts', async () => {
+    const { markdown } = await gen({
+      tokenUsage: [record({ task: 'intent', source: 'prose' })],
+      artifactTimings: { intent: timing() },
+    })
+    expect(markdown).toContain(`${TRIPWIRE_MARK} 1 completed artifact(s)`)
+  })
+
+  it('stays silent when at least one hook-sourced record exists', async () => {
+    const { markdown } = await gen({
+      tokenUsage: [record({ task: 'intent', source: 'hook' })],
+      artifactTimings: { intent: timing(), spec: timing() },
+    })
+    expect(markdown).not.toContain(TRIPWIRE_MARK)
+  })
+
+  it('stays silent when no artifacts completed (genuinely zero subagent activity)', async () => {
+    const { markdown } = await gen({ tokenUsage: [], artifactTimings: {} })
+    expect(markdown).not.toContain(TRIPWIRE_MARK)
+    expect(markdown).toContain('No gaps found.')
+  })
+
+  it('does not count a started-but-uncompleted timing toward the tripwire', async () => {
+    const { markdown } = await gen({
+      tokenUsage: [],
+      artifactTimings: { intent: { started: '2026-01-15T09:00:00.000Z' } },
+    })
+    expect(markdown).not.toContain(TRIPWIRE_MARK)
+  })
+
+  it('renders the tripwire entry above per-artifact coverage gap lines', async () => {
+    const { markdown } = await gen({
+      tokenUsage: [],
+      artifactTimings: { intent: timing() },
+    })
+    const tripwire = markdown.indexOf(TRIPWIRE_MARK)
+    const coverageGap = markdown.indexOf(GAP_LINE('intent'))
+    expect(tripwire).toBeGreaterThan(-1)
+    expect(coverageGap).toBeGreaterThan(tripwire)
+  })
+
   // --- Report-time dedupe -----------------------------------------------------
 
   it('counts a duplicate hook+prose pair for the same task+agent once, at the hook figure', async () => {
