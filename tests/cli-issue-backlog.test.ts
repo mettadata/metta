@@ -3,7 +3,7 @@ import { mkdtemp, rm, mkdir, writeFile, readFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { runCli, execAsync, CLI_PATH } from './helpers/cli.js'
+import { runCli, execAsync, CLI_PATH, installFixture } from './helpers/cli.js'
 
 describe("CLI: issue / fix-issue / backlog / branch-safety / check-constitution", { timeout: 30000 }, () => {
   let tempDir: string
@@ -18,7 +18,7 @@ describe("CLI: issue / fix-issue / backlog / branch-safety / check-constitution"
 
   describe('metta issue', () => {
     it('logs an issue with severity', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       const { stdout, code } = await runCli(['--json', 'issue', 'login flash', '--severity', 'major'], tempDir)
       expect(code).toBe(0)
       const data = JSON.parse(stdout)
@@ -30,7 +30,7 @@ describe("CLI: issue / fix-issue / backlog / branch-safety / check-constitution"
 
   describe('metta fix-issue', () => {
     it('no args emits skill-usage hint', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       const { stdout, code } = await runCli(['fix-issue'], tempDir)
       expect(code).toBe(0)
       expect(stdout).toContain('Usage: metta fix-issue')
@@ -38,7 +38,7 @@ describe("CLI: issue / fix-issue / backlog / branch-safety / check-constitution"
     })
 
     it('errors with exit 4 on unknown slug', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       const { stdout, stderr, code } = await runCli(['--json', 'fix-issue', 'does-not-exist'], tempDir)
       expect(code).toBe(4)
       const combined = stdout + stderr
@@ -49,7 +49,7 @@ describe("CLI: issue / fix-issue / backlog / branch-safety / check-constitution"
     })
 
     it('single-slug prints pipeline instructions', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       const seed = await runCli(['--json', 'issue', 'foo problem', '--severity', 'minor'], tempDir)
       const seedData = JSON.parse(seed.stdout)
       const slug = seedData.slug
@@ -62,7 +62,7 @@ describe("CLI: issue / fix-issue / backlog / branch-safety / check-constitution"
     })
 
     it('single-slug prose output includes delegate hint', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await runCli(['issue', 'spec merger strips inline backticks', '--severity', 'major'], tempDir)
       const { stdout, code } = await runCli(['fix-issue', 'spec-merger-strips-inline-backticks'], tempDir)
       expect(code).toBe(0)
@@ -72,7 +72,7 @@ describe("CLI: issue / fix-issue / backlog / branch-safety / check-constitution"
     })
 
     it('--all sorts by severity critical then major then minor', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       // Seed out of order: minor, critical, major
       await runCli(['issue', 'zeta minor thing', '--severity', 'minor'], tempDir)
       await runCli(['issue', 'alpha critical thing', '--severity', 'critical'], tempDir)
@@ -89,7 +89,7 @@ describe("CLI: issue / fix-issue / backlog / branch-safety / check-constitution"
     })
 
     it('--all --severity major filters to major only', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await runCli(['issue', 'zeta minor thing', '--severity', 'minor'], tempDir)
       await runCli(['issue', 'alpha critical thing', '--severity', 'critical'], tempDir)
       await runCli(['issue', 'mu major thing', '--severity', 'major'], tempDir)
@@ -103,7 +103,7 @@ describe("CLI: issue / fix-issue / backlog / branch-safety / check-constitution"
     })
 
     it('--remove-issue archives to spec/issues/resolved/ and deletes original', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await runCli(['issue', 'stale issue', '--severity', 'minor'], tempDir)
       const { existsSync } = await import('node:fs')
       // Precondition
@@ -117,7 +117,7 @@ describe("CLI: issue / fix-issue / backlog / branch-safety / check-constitution"
     })
 
     it('--remove-issue errors with exit 4 on unknown slug', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       const { stdout, code } = await runCli(['--json', 'fix-issue', '--remove-issue', 'does-not-exist'], tempDir)
       expect(code).toBe(4)
       const data = JSON.parse(stdout)
@@ -126,7 +126,7 @@ describe("CLI: issue / fix-issue / backlog / branch-safety / check-constitution"
     })
 
     it('--remove-issue commits the archive move', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await runCli(['issue', 'stale issue', '--severity', 'minor'], tempDir)
       const { code } = await runCli(['fix-issue', '--remove-issue', 'stale-issue'], tempDir)
       expect(code).toBe(0)
@@ -138,7 +138,7 @@ describe("CLI: issue / fix-issue / backlog / branch-safety / check-constitution"
 
   describe('branch-safety guard', () => {
     async function initAndCheckoutFeature(): Promise<void> {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       const { execFile: ef } = await import('node:child_process')
       const { promisify: p } = await import('node:util')
       const exec = p(ef)
@@ -172,7 +172,7 @@ describe("CLI: issue / fix-issue / backlog / branch-safety / check-constitution"
 
     it('metta backlog done blocks on feature branch', async () => {
       // Create a backlog item on main first
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await runCli(['backlog', 'add', 'shippable'], tempDir)
       // Switch to feature branch
       const { execFile: ef } = await import('node:child_process')
@@ -189,7 +189,7 @@ describe("CLI: issue / fix-issue / backlog / branch-safety / check-constitution"
 
   describe('metta backlog add --description', () => {
     it('populates the body with the provided description instead of the title', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       const { code } = await runCli(
         ['backlog', 'add', 'Dark mode', '--description', 'Toggle in settings panel'],
         tempDir,
@@ -203,7 +203,7 @@ describe("CLI: issue / fix-issue / backlog / branch-safety / check-constitution"
     })
 
     it('defaults description to title when flag is omitted', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       const { code } = await runCli(['backlog', 'add', 'Dark mode'], tempDir)
       expect(code).toBe(0)
 
@@ -216,7 +216,7 @@ describe("CLI: issue / fix-issue / backlog / branch-safety / check-constitution"
 
   describe('metta backlog done', () => {
     it('happy path — archives item, --json reports archived slug', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await runCli(['backlog', 'add', 'foo', '--priority', 'medium'], tempDir)
 
       const { stdout, code } = await runCli(['--json', 'backlog', 'done', 'foo'], tempDir)
@@ -230,7 +230,7 @@ describe("CLI: issue / fix-issue / backlog / branch-safety / check-constitution"
     })
 
     it('--change stamps Shipped-in metadata into archived file', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await runCli(['backlog', 'add', 'bar'], tempDir)
 
       const { code } = await runCli(['backlog', 'done', 'bar', '--change', 'my-change'], tempDir)
@@ -242,7 +242,7 @@ describe("CLI: issue / fix-issue / backlog / branch-safety / check-constitution"
     })
 
     it('unknown slug exits 4 with not_found error', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       const { stdout, code } = await runCli(['--json', 'backlog', 'done', 'does-not-exist'], tempDir)
       expect(code).toBe(4)
       const data = JSON.parse(stdout)
@@ -250,7 +250,7 @@ describe("CLI: issue / fix-issue / backlog / branch-safety / check-constitution"
     })
 
     it('hostile --change value exits 4 with invalid_change error', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await runCli(['backlog', 'add', 'baz'], tempDir)
 
       const { stdout, code } = await runCli(
@@ -263,7 +263,7 @@ describe("CLI: issue / fix-issue / backlog / branch-safety / check-constitution"
     })
 
     it('commits archive with conventional message', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await runCli(['backlog', 'add', 'qux'], tempDir)
 
       const { code } = await runCli(['backlog', 'done', 'qux'], tempDir)
@@ -338,7 +338,7 @@ describe("CLI: issue / fix-issue / backlog / branch-safety / check-constitution"
     }
 
     it('errors with exit 4 on missing change', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       const { stdout, code } = await runCli(
         ['--json', 'check-constitution', '--change', 'does-not-exist'],
         tempDir,
@@ -351,7 +351,7 @@ describe("CLI: issue / fix-issue / backlog / branch-safety / check-constitution"
     })
 
     it('emits the check contract with no ANTHROPIC_API_KEY set (emission mode)', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await createChangeFixture('probe-change')
       const { stdout, code } = await runCliWithEnv(
         ['--json', 'check-constitution', '--change', 'probe-change'],
@@ -373,7 +373,7 @@ describe("CLI: issue / fix-issue / backlog / branch-safety / check-constitution"
     })
 
     it('records a clean verdict and exits 0', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await createChangeFixture('probe-change')
       const verdictFile = join(tempDir, 'verdict.json')
       await writeFile(verdictFile, '{"violations":[]}', 'utf8')
@@ -390,7 +390,7 @@ describe("CLI: issue / fix-issue / backlog / branch-safety / check-constitution"
     })
 
     it('records a blocking verdict and exits 4', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await createChangeFixture('probe-change')
       const verdictFile = join(tempDir, 'verdict.json')
       await writeFile(
@@ -419,7 +419,7 @@ describe("CLI: issue / fix-issue / backlog / branch-safety / check-constitution"
     })
 
     it('rejects malformed verdict JSON with exit 4 and does not write violations.md', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await createChangeFixture('malformed-change')
       const verdictFile = join(tempDir, 'verdict.json')
       await writeFile(verdictFile, 'this is not JSON at all', 'utf8')

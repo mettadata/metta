@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { mkdtemp, rm, mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { runCli, execAsync, CLI_PATH, disableWorktrees } from './helpers/cli.js'
+import { runCli, execAsync, CLI_PATH, disableWorktrees, installFixture } from './helpers/cli.js'
 
 describe("CLI: status / next / changes / doctor / gate / validate-stories", { timeout: 30000 }, () => {
   let tempDir: string
@@ -17,7 +17,7 @@ describe("CLI: status / next / changes / doctor / gate / validate-stories", { ti
 
   describe('metta status', () => {
     it('reports no active changes', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
       const { stdout } = await runCli(['--json', 'status'], tempDir)
       const data = JSON.parse(stdout)
@@ -25,7 +25,7 @@ describe("CLI: status / next / changes / doctor / gate / validate-stories", { ti
     })
 
     it('aggregates worktree-hosted changes when run from the main root', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
       // Simulate a worktree-per-change checkout hosting the only active
       // change — the main checkout's own spec/changes stays empty.
@@ -113,7 +113,7 @@ describe("CLI: status / next / changes / doctor / gate / validate-stories", { ti
 
   describe('metta status after propose', () => {
     it('shows the active change', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
       await runCli(['propose', 'test change'], tempDir)
       const { stdout } = await runCli(['--json', 'status'], tempDir)
@@ -123,7 +123,7 @@ describe("CLI: status / next / changes / doctor / gate / validate-stories", { ti
     })
 
     it('surfaces stop_after from the change record when propose --stop-after was used', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
       await runCli(['propose', 'status stop after probe', '--stop-after', 'tasks'], tempDir)
       const { stdout } = await runCli(['--json', 'status'], tempDir)
@@ -132,7 +132,7 @@ describe("CLI: status / next / changes / doctor / gate / validate-stories", { ti
     })
 
     it('omits stop_after from status JSON when no --stop-after was used', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
       await runCli(['propose', 'status no stop probe'], tempDir)
       const { stdout } = await runCli(['--json', 'status'], tempDir)
@@ -144,7 +144,7 @@ describe("CLI: status / next / changes / doctor / gate / validate-stories", { ti
 
   describe('metta doctor', () => {
     it('runs health checks', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
       const { stdout, code } = await runCli(['--json', 'doctor'], tempDir)
       expect(code).toBe(0)
@@ -157,7 +157,7 @@ describe("CLI: status / next / changes / doctor / gate / validate-stories", { ti
       const pkg = JSON.parse(
         await readFile(join(import.meta.dirname, '..', 'package.json'), 'utf8'),
       ) as { version: string }
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
       const { stdout, code } = await runCli(['--json', 'doctor'], tempDir)
       expect(code).toBe(0)
@@ -171,7 +171,7 @@ describe("CLI: status / next / changes / doctor / gate / validate-stories", { ti
 
   describe('metta doctor --fix', { timeout: 30000 }, () => {
     it('dedupes three duplicate stacks: entries and auto-commits', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
       const configPath = join(tempDir, '.metta', 'config.yaml')
       const corrupt = [
@@ -200,7 +200,7 @@ describe("CLI: status / next / changes / doctor / gate / validate-stories", { ti
     })
 
     it('drops a schema-invalid top-level key', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
       const configPath = join(tempDir, '.metta', 'config.yaml')
       const { readFile } = await import('node:fs/promises')
@@ -219,7 +219,7 @@ describe("CLI: status / next / changes / doctor / gate / validate-stories", { ti
     })
 
     it('is a no-op on an already-valid config', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
       const configPath = join(tempDir, '.metta', 'config.yaml')
       const { readFile } = await import('node:fs/promises')
@@ -248,7 +248,7 @@ describe("CLI: status / next / changes / doctor / gate / validate-stories", { ti
     }
 
     it('blocks metta status with actionable doctor --fix remedy', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
       await corruptConfig()
       const { stdout, stderr, code } = await runCli(['--json', 'status'], tempDir)
@@ -265,7 +265,7 @@ describe("CLI: status / next / changes / doctor / gate / validate-stories", { ti
     })
 
     it('emits actionable stderr without --json', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
       await corruptConfig()
       const { stderr, code } = await runCli(['status'], tempDir)
@@ -275,7 +275,7 @@ describe("CLI: status / next / changes / doctor / gate / validate-stories", { ti
     })
 
     it('does not block metta doctor on corrupt config', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
       await corruptConfig()
       const { stdout, stderr } = await runCli(['doctor'], tempDir)
@@ -289,7 +289,7 @@ describe("CLI: status / next / changes / doctor / gate / validate-stories", { ti
 
   describe('metta changes list', () => {
     it('lists active changes', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
       await runCli(['propose', 'change one'], tempDir)
       await runCli(['propose', 'change two'], tempDir)
@@ -302,7 +302,7 @@ describe("CLI: status / next / changes / doctor / gate / validate-stories", { ti
 
   describe('metta changes abandon', () => {
     it('abandons a change', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
       await runCli(['propose', 'something to abandon'], tempDir)
       const { stdout, code } = await runCli(['--json', 'changes', 'abandon', 'something-abandon'], tempDir)
@@ -325,7 +325,7 @@ describe("CLI: status / next / changes / doctor / gate / validate-stories", { ti
 
   describe('metta validate-stories', () => {
     it('errors with exit 4 on missing change', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
       const { stdout, code } = await runCli(
         ['--json', 'validate-stories', '--change', 'does-not-exist'],
@@ -339,7 +339,7 @@ describe("CLI: status / next / changes / doctor / gate / validate-stories", { ti
     })
 
     it('errors with exit 4 when stories.md is missing', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
       const changeDir = join(tempDir, 'spec', 'changes', 'my-feature')
       await mkdir(changeDir, { recursive: true })
@@ -386,7 +386,7 @@ describe("CLI: status / next / changes / doctor / gate / validate-stories", { ti
     }
 
     it('JSON mode with no complexity_score emits null fields and exit 0', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
       await runCli(['propose', 'score absent'], tempDir)
       const { stdout, code } = await runCli(
@@ -401,7 +401,7 @@ describe("CLI: status / next / changes / doctor / gate / validate-stories", { ti
     })
 
     it('JSON mode with complexity_score includes object and exit 0', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
       await runCli(['propose', 'score present'], tempDir)
       await writeComplexityField('score-present')
@@ -420,7 +420,7 @@ describe("CLI: status / next / changes / doctor / gate / validate-stories", { ti
     })
 
     it('human mode with no complexity_score shows "not yet scored" and exit 0', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
       await runCli(['propose', 'human absent'], tempDir)
       const { stdout, code } = await runCli(
@@ -432,7 +432,7 @@ describe("CLI: status / next / changes / doctor / gate / validate-stories", { ti
     })
 
     it('human mode with complexity_score shows Complexity line and recommended text', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
       await runCli(['propose', 'human present'], tempDir)
       await writeComplexityField('human-present')
@@ -467,7 +467,7 @@ describe("CLI: status / next / changes / doctor / gate / validate-stories", { ti
     }
 
     it('human mode shows the escalation line with from/to/justification when present', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
       await runCli(['propose', 'escalated change human'], tempDir)
       await writeEscalationField('escalated-change-human')
@@ -480,7 +480,7 @@ describe("CLI: status / next / changes / doctor / gate / validate-stories", { ti
     })
 
     it('JSON mode includes the escalation field verbatim when present', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
       await runCli(['propose', 'escalated change json'], tempDir)
       await writeEscalationField('escalated-change-json')
@@ -494,7 +494,7 @@ describe("CLI: status / next / changes / doctor / gate / validate-stories", { ti
     })
 
     it('renders normally with no escalation section/field in either mode when absent', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
       await runCli(['propose', 'no escalation change'], tempDir)
 
@@ -529,7 +529,7 @@ describe("CLI: status / next / changes / doctor / gate / validate-stories", { ti
     }
 
     it('surfaces a dead-pid lock in human and JSON output', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
       await runCli(['propose', 'stale lock dead pid'], tempDir)
       await writeLockFile('stale-lock-dead-pid', DEAD_PID)
@@ -546,7 +546,7 @@ describe("CLI: status / next / changes / doctor / gate / validate-stories", { ti
     })
 
     it('does not surface a fresh live-owned lock', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
       await runCli(['propose', 'fresh lock live pid'], tempDir)
       await writeLockFile('fresh-lock-live-pid', process.pid)
@@ -562,7 +562,7 @@ describe("CLI: status / next / changes / doctor / gate / validate-stories", { ti
     })
 
     it('leaves output unchanged when no lock file exists', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
       await runCli(['propose', 'no lock at all'], tempDir)
 
@@ -605,7 +605,7 @@ describe("CLI: status / next / changes / doctor / gate / validate-stories", { ti
     }
 
     it('warns on a dead-pid lock while keeping next=finalize', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
       await runCli(['propose', 'next stale lock'], tempDir)
       await markAllArtifactsComplete('next-stale-lock')
@@ -625,7 +625,7 @@ describe("CLI: status / next / changes / doctor / gate / validate-stories", { ti
     })
 
     it('emits no warning and no extra JSON fields for a fresh live-owned lock', async () => {
-      await runCli(['install', '--git-init'], tempDir)
+      await installFixture(tempDir)
       await disableWorktrees(tempDir)
       await runCli(['propose', 'next fresh lock'], tempDir)
       await markAllArtifactsComplete('next-fresh-lock')

@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import { disableWorktrees } from './helpers/cli.js'
+import { disableWorktrees, installFixture } from './helpers/cli.js'
 
 const execAsync = promisify(execFile)
 
@@ -70,7 +70,7 @@ describe('metta complete implementation -- ticks tasks.md checkboxes', { timeout
   })
 
   it('marks every Task N.M as complete in tasks.md when implementation is completed', async () => {
-    await runCli(['install', '--git-init'], tempDir)
+    await installFixture(tempDir)
     await disableWorktrees(tempDir)
     await runCli(['propose', 'mark tasks demo'], tempDir)
 
@@ -97,7 +97,7 @@ describe('metta complete implementation -- ticks tasks.md checkboxes', { timeout
   })
 
   it('does not fail when tasks.md is absent', async () => {
-    await runCli(['install', '--git-init'], tempDir)
+    await installFixture(tempDir)
     await disableWorktrees(tempDir)
     await runCli(['propose', 'no tasks md'], tempDir)
 
@@ -110,7 +110,7 @@ describe('metta complete implementation -- ticks tasks.md checkboxes', { timeout
   })
 
   it('does not fail when tasks.md is malformed (no parseable Task IDs)', async () => {
-    await runCli(['install', '--git-init'], tempDir)
+    await installFixture(tempDir)
     await disableWorktrees(tempDir)
     await runCli(['propose', 'malformed tasks md'], tempDir)
 

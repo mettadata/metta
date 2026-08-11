@@ -3,7 +3,7 @@ import { mkdtemp, rm, mkdir, readFile, realpath, writeFile } from 'node:fs/promi
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { runCli, execAsync } from './helpers/cli.js'
+import { runCli, execAsync, installFixture } from './helpers/cli.js'
 import { ArtifactStore } from '../src/artifacts/artifact-store.js'
 
 // Worktree-aware change-scoped paths: `metta instructions`, `metta context
@@ -254,7 +254,7 @@ describe('CLI: worktree-hosted change git side effects target the hosting checko
 
   beforeEach(async () => {
     tempDir = await realpath(await mkdtemp(join(tmpdir(), 'metta-chroot-git-')))
-    await runCli(['install', '--git-init'], tempDir)
+    await installFixture(tempDir)
     await execAsync('git', ['config', 'user.email', 'test@test.com'], { cwd: tempDir })
     await execAsync('git', ['config', 'user.name', 'Test'], { cwd: tempDir })
   })

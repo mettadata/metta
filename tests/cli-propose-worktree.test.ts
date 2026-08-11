@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { mkdtemp, rm, readFile, realpath, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { runCli, execAsync, disableWorktrees } from './helpers/cli.js'
+import { runCli, execAsync, disableWorktrees, installFixture } from './helpers/cli.js'
 
 describe('CLI: propose / quick create git worktrees', { timeout: 30000 }, () => {
   let tempDir: string
@@ -32,7 +32,7 @@ describe('CLI: propose / quick create git worktrees', { timeout: 30000 }, () => 
   }
 
   it('propose creates the worktree, writes change state inside it, and leaves main alone', async () => {
-    await runCli(['install', '--git-init'], tempDir)
+    await installFixture(tempDir)
     const mainBefore = await currentBranch(tempDir)
 
     const { stdout, code } = await runCli(['--json', 'propose', 'add user profiles'], tempDir)
@@ -66,7 +66,7 @@ describe('CLI: propose / quick create git worktrees', { timeout: 30000 }, () => 
   })
 
   it('quick creates a worktree with the same semantics', async () => {
-    await runCli(['install', '--git-init'], tempDir)
+    await installFixture(tempDir)
     const mainBefore = await currentBranch(tempDir)
 
     const { stdout, code } = await runCli(['--json', 'quick', 'fix typo'], tempDir)
@@ -83,7 +83,7 @@ describe('CLI: propose / quick create git worktrees', { timeout: 30000 }, () => 
   })
 
   it('propose works with a dirty main checkout (no clean-tree precondition)', async () => {
-    await runCli(['install', '--git-init'], tempDir)
+    await installFixture(tempDir)
     // install leaves .metta/config.yaml committed; dirty it up
     const { appendFile } = await import('node:fs/promises')
     await appendFile(join(tempDir, 'spec', 'project.md'), '\ndirty edit\n', 'utf8')
@@ -95,7 +95,7 @@ describe('CLI: propose / quick create git worktrees', { timeout: 30000 }, () => 
   })
 
   it('falls back to in-place checkout when git.worktree.enabled is false', async () => {
-    await runCli(['install', '--git-init'], tempDir)
+    await installFixture(tempDir)
     await disableWorktrees(tempDir)
 
     const { stdout, code } = await runCli(['--json', 'propose', 'opt out change'], tempDir)
@@ -118,7 +118,7 @@ describe('CLI: propose / quick create git worktrees', { timeout: 30000 }, () => 
   })
 
   it('never fails propose when worktree creation fails (graceful fallback)', async () => {
-    await runCli(['install', '--git-init'], tempDir)
+    await installFixture(tempDir)
     // Point the worktree base dir at a path blocked by a regular file
     const { appendFile, writeFile } = await import('node:fs/promises')
     await writeFile(join(tempDir, 'blocker'), 'not a directory\n', 'utf8')
@@ -138,7 +138,7 @@ describe('CLI: propose / quick create git worktrees', { timeout: 30000 }, () => 
   })
 
   it('human output reports the worktree path', async () => {
-    await runCli(['install', '--git-init'], tempDir)
+    await installFixture(tempDir)
     const { stdout, code } = await runCli(['propose', 'human output change'], tempDir)
     expect(code).toBe(0)
     expect(stdout).toContain(`Worktree: ${join(tempDir, '.metta', 'worktrees', 'human-output-change')}`)
