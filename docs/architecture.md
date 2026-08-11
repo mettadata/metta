@@ -17,7 +17,7 @@
 4 requirements
 
 ### claude-statusline
-18 requirements
+9 requirements
 
 ### ConfigLoader — Specification
 0 requirements

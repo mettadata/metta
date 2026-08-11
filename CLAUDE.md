@@ -50,7 +50,7 @@ Primary entry points:
 
 Skill authorization is enforced by the `metta-guard-bash` PreToolUse hook via a two-tier trust model:
 - **Tier 1 (fork-tier)** — `propose`, `quick`, `auto`, `ship`, `issue`, `fix-issue`: authorized by the caller identity (`agent_type`) the Claude Code runtime attaches when a forked `metta-skill-host` subagent issues the Bash call. The runtime sets this field itself, so it cannot be forged from command text.
-- **Tier 2 (session-tier)** — `complete`, `finalize`, `refresh`, `import`, `init`, `fix-gap`, plus the scoped two-word forms `backlog add/done/promote` and `changes abandon`: authorized by per-skill session credentials at `.metta/scratch/skill-session/<slug>.token`, each minted by `.claude/hooks/metta-session-mint.mjs` when the matching skill is invoked and rotated on a sliding TTL; a call is authorized when any unexpired credential's scope covers it. Each credential is a random server-minted value that never appears in any skill file, so it cannot be derived from reading skill instructions.
+- **Tier 2 (session-tier)** — `complete`, `finalize`, `refresh`, `import`, `init`, `fix-gap`, plus the scoped two-word forms `backlog add/done/promote` and `changes abandon`: authorized by the session credential at `.metta/scratch/skill-session.token`, minted by `.claude/hooks/metta-session-mint.mjs` when the matching skill is invoked and rotated on a sliding TTL. The credential is a random server-minted value that never appears in any skill file, so it cannot be derived from reading skill instructions.
 - **Emergency bypass (humans/CI)** — disable the guard hook in `.claude/settings.local.json`.
 
 Quick mode is the default routing decision for small, bounded changes (single-file edits, typo/text fixes, small self-contained utilities, bug fixes with an obvious localized cause). Choosing or keeping `--workflow standard` or `--workflow full` above the scored recommendation requires a recorded justification — the escalation record written to the change's `.metta.yaml`.
@@ -77,6 +77,7 @@ Cite the source URL when presenting findings so the user can verify the answer.
 - `/metta-plan` — build planning artifacts for the active change
 - `/metta-execute` — run implementation for the active change
 - `/metta-verify` — verify implementation against spec
+- `/metta-uat` — execute a change's generated UAT.md acceptance script
 - `/metta-ship` — finalize, merge specs, merge branch to main
 
 ### Status skills
@@ -106,26 +107,28 @@ Cite the source URL when presenting findings so the user can verify the answer.
 |------------|-------------|
 | adaptive-workflow-tier-selection | 109 |
 | artifact-store | 19 |
-| claude-statusline | 86 |
+| ci-test-infrastructure | 12 |
+| claude-statusline | 49 |
 | config-loader | 59 |
 | config-writer | 38 |
 | constitution-check | 17 |
-| context-engine | 72 |
-| finalize-ship | 94 |
+| context-engine | 78 |
+| finalize-ship | 181 |
 | fix-issues-command | 78 |
 | gate-runner | 10 |
-| install-init | 20 |
+| install-init | 46 |
 | instruction-contracts | 44 |
 | issue-logging | 40 |
-| orchestration-guard | 40 |
+| orchestration-guard | 46 |
 | propose-stop-after | 71 |
+| release-versioning | 47 |
 | roadmap-feature | 73 |
 | schemas | 126 |
 | spec-model | 26 |
 | state-store | 73 |
 | uat-execution | 46 |
 | user-stories | 84 |
-| workflow-engine | 45 |
+| workflow-engine | 46 |
 | workflow-parallelism-discipline | 37 |
 <!-- metta:specs-end -->
 
