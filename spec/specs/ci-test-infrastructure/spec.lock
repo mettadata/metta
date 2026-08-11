@@ -1,0 +1,27 @@
+version: 4
+hash: sha256:de084a8a6fc5
+updated: 2026-08-11T01:28:50.001Z
+status: draft
+source: change
+requirements:
+  - id: deterministic-cli-test-execution-path
+    hash: sha256:7d8442c3c33a
+    scenarios:
+      - cold-runner-passes-with-only-declared-dependencies
+      - test-runtime-is-declared-not-implicit
+  - id: ci-ordering-consistent-with-execution-path
+    hash: sha256:712d5c6dbcd3
+    scenarios:
+      - required-artifacts-exist-before-tests-run-in-ci
+      - ci-and-local-runs-exercise-the-same-path
+  - id: fresh-clone-test-runs-without-manual-pre-steps
+    hash: sha256:da116667844f
+    scenarios:
+      - fresh-clone-passes-with-scripts-alone
+      - stale-build-cannot-mask-source-changes
+  - id: actionable-failures-and-consistent-runtime-policy
+    hash: sha256:b2ee0c9dacd5
+    scenarios:
+      - timeout-budget-covers-only-cli-work
+      - timeout-failure-is-diagnosable
+      - no-contradictory-guidance-survives
