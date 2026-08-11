@@ -15,7 +15,7 @@ import {
   attributeArchiveDirsToTags,
 } from './git-release-tags.js'
 import { createGithubRelease, type GhExec, type GhOutcome } from './gh-release.js'
-import { DocGenerator } from '../docs/doc-generator.js'
+import { DocGenerator, type DocType } from '../docs/doc-generator.js'
 
 const execFileAsync = promisify(execFile)
 
@@ -62,6 +62,14 @@ export interface ReleaseStatusResult {
   warnings: string[]
 }
 
+/**
+ * Minimal contract for the changelog regeneration collaborator used inside
+ * the mutation group of `cut()`. Satisfied by `DocGenerator`.
+ */
+export interface ChangelogGenerator {
+  generate(types?: DocType[]): Promise<unknown>
+}
+
 export interface ReleaseCutOptions {
   bumpOverride?: BumpLevel
   /** CLI wires askYesNo or `--yes`; tests inject. */
@@ -75,6 +83,8 @@ export interface ReleaseCutOptions {
   dryRun: boolean
   /** Injection seam for the gh subprocess (tests); production uses the default. */
   ghExec?: GhExec
+  /** Injection seam for the changelog generator (tests); production uses the real DocGenerator. */
+  docGenerator?: ChangelogGenerator
 }
 
 export interface ReleaseCutResult {
@@ -448,7 +458,8 @@ export class ReleasePipeline {
 
     // Step: regen-changelog
     try {
-      const generator = new DocGenerator(this.specDir, this.projectRoot, this.config.docs)
+      const generator =
+        opts.docGenerator ?? new DocGenerator(this.specDir, this.projectRoot, this.config.docs)
       await generator.generate(['changelog'])
       steps.push({ step: 'regen-changelog', status: 'pass', detail: relative(this.projectRoot, changelogPath) })
     } catch (error) {

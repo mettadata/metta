@@ -344,6 +344,79 @@ describe('ReleasePipeline', { timeout: 60000 }, () => {
     })
   })
 
+  describe('cut — mid-cut failure restore (fault injection)', () => {
+    const throwingGenerator = {
+      generate: async (): Promise<never> => {
+        throw new Error('injected changelog failure')
+      },
+    }
+
+    it('first release: restores pre-cut state and names the failing step when regen-changelog throws', async () => {
+      await writePackageJson(root, '0.1.0')
+      await addArchiveEntry(root, '2026-01-01-change-a', 'Added change a.')
+      await commitAll(root, 'feat: add change a')
+      const head = await git(root, ['rev-parse', 'HEAD'])
+
+      const pipeline = new ReleasePipeline(root, makeConfig())
+      const result = await pipeline.cut(cutOptions({ docGenerator: throwingGenerator }))
+
+      // Failure is reported with the failing step named.
+      expect(result.status).toBe('failure')
+      expect(stepByName(result.steps, 'regen-changelog')).toMatchObject({
+        status: 'fail',
+        detail: 'injected changelog failure',
+      })
+
+      // The mutation steps before the failure ran; nothing after it did.
+      expect(stepByName(result.steps, 'write-version-file')?.status).toBe('pass')
+      expect(stepByName(result.steps, 'write-releases-record')?.status).toBe('pass')
+      expect(stepByName(result.steps, 'commit')).toBeUndefined()
+      expect(stepByName(result.steps, 'annotated-tag')).toBeUndefined()
+
+      // All three mutation targets are restored to pre-cut state: the version
+      // file matches, and the record/changelog (absent before) are removed.
+      expect(await readPackageVersion(root)).toBe('0.1.0')
+      expect(await fileExists(join(root, 'spec', 'releases.yaml'))).toBe(false)
+      expect(await fileExists(join(root, 'docs', 'changelog.md'))).toBe(false)
+
+      // No commit, no tag, clean working tree.
+      expect(await git(root, ['rev-parse', 'HEAD'])).toBe(head)
+      expect(await git(root, ['tag', '--list'])).toBe('')
+      expect(await git(root, ['status', '--porcelain'])).toBe('')
+    })
+
+    it('subsequent release: restores pre-existing record and changelog byte-for-byte', async () => {
+      // First, a successful cut establishes real pre-cut contents for all
+      // three files (version file, releases record, changelog).
+      await writePackageJson(root, '0.1.0')
+      await addArchiveEntry(root, '2026-01-01-change-a', 'Added change a.')
+      await commitAll(root, 'feat: add change a')
+      const pipeline = new ReleasePipeline(root, makeConfig())
+      expect((await pipeline.cut(cutOptions())).status).toBe('success')
+
+      await addArchiveEntry(root, '2026-02-01-change-b', 'Added change b.')
+      await commitAll(root, 'feat: add change b')
+      const head = await git(root, ['rev-parse', 'HEAD'])
+      const recordBefore = await readFile(join(root, 'spec', 'releases.yaml'), 'utf-8')
+      const changelogBefore = await readFile(join(root, 'docs', 'changelog.md'), 'utf-8')
+
+      const result = await pipeline.cut(cutOptions({ docGenerator: throwingGenerator }))
+
+      expect(result.status).toBe('failure')
+      expect(stepByName(result.steps, 'regen-changelog')?.status).toBe('fail')
+
+      // Pre-existing files restored byte-for-byte, version file rolled back.
+      expect(await readPackageVersion(root)).toBe('0.2.0')
+      expect(await readFile(join(root, 'spec', 'releases.yaml'), 'utf-8')).toBe(recordBefore)
+      expect(await readFile(join(root, 'docs', 'changelog.md'), 'utf-8')).toBe(changelogBefore)
+
+      // No new commit or tag beyond the first successful release.
+      expect(await git(root, ['rev-parse', 'HEAD'])).toBe(head)
+      expect(await git(root, ['tag', '--list'])).toBe('v0.2.0')
+      expect(await git(root, ['status', '--porcelain'])).toBe('')
+    })
+  })
+
   describe('cut — gh isolation', () => {
     async function seed(): Promise<void> {
       await writePackageJson(root, '0.1.0')
