@@ -54,3 +54,36 @@ NEEDS_CHANGES
 
 ### Suggestions (minor)
 - Slug validation on CLI change name; `cap.split('/')[0]` pathspec trust; archive-name collision uniquifier; TOCTOU single-resolution of host root; test-helper duplication.
+
+---
+
+# Code Review Round 2 (quality): fix commit 8c7fa8f0a
+
+## Summary
+
+The round-1 critical is resolved. `finalize.ts` now constructs `new SpecLockManager(specDir)` from the same `specDirFor(name)` result the Finalizer receives, mirroring the wiring convention in `createCliContext` (`src/cli/helpers.ts:124`), and the new CLI regression test exercises the previously untested cross-checkout spec-merge path end to end. Typecheck (`tsc --noEmit`) is clean and the new test passes.
+
+## Critical resolution check
+
+- `src/cli/commands/finalize.ts:52-61` — lock manager rooted at the resolved `specDir`; no remaining wiring of `ctx.specLockManager` in finalize (only comment references). For non-worktree changes `specDirFor` returns the session spec dir, so behavior is unchanged there. The rationale comment at the call site is accurate and explains why `ctx.specLockManager` must not be reused. Resolved.
+- `tests/cli-finalize.test.ts:486-584` — the spec-delta test gap is closed, and the test is load-bearing: on the pre-fix code, `spec.lock` would land in the main checkout, failing at least three independent assertions — `existsSync(wtCapDir/spec.lock)` (line 559), the main-checkout `spec/` dirt diff (`mainSpecDirtAfter` vs before, lines 570-573), and the worktree auto-commit file list containing `spec/specs/lockcap/spec.lock` (lines 576-582). The test also verifies the positive merge outcome (`payload.merged` contains `lockcap`, merged spec.md content), so it cannot pass vacuously on a skipped merge. The round-1 note about the stale unit-test comment (`tests/finalizer.test.ts:382` "what the CLI now does") is now accurate as a side effect of the fix.
+
+## Issues Found
+
+### Critical (must fix)
+- None.
+
+### Warnings (should fix)
+- None new. Round-1 warnings (session-rooted finalize lock at `src/cli/commands/finalize.ts:33`; DocGenerator root mix at `src/finalize/finalizer.ts:280`) remain open as agreed follow-up candidates — the new test's `specDirt` filter deliberately scopes to `spec/` paths precisely because finalize still writes `docs/` at the session root, which keeps the test honest but also documents that the DocGenerator warning is still live.
+
+### Suggestions (nice to have)
+- `src/finalize/finalizer.ts:51-52` — round 1 asked for the constructor doc to state the lock-manager/specDir co-rooting invariant on the `specLockManager` param itself; the fix put the (thorough) rationale at the CLI call site instead. Fine in practice, but a one-line doc on the param would protect future non-CLI constructors of `Finalizer`.
+- `tests/cli-finalize.test.ts:530-542` — the per-gate YAML stub loop duplicates similar stub setup patterns elsewhere in the CLI test suite; a shared `writePassingGateStubs(tempDir)` helper in `tests/helpers/cli.ts` would trim it. Cosmetic.
+
+## Conventions check
+
+`.js` extension on the new `SpecLockManager` import (`finalize.ts:7`); construction pattern consistent with `helpers.ts:124`; camelCase local naming; no dead code introduced; test added to the existing 1:1 counterpart file and placed in the correct describe block (worktrees enabled, 120s timeout); YAML in the test is fixture data via `join('\n')`/`YAML.stringify`, consistent with existing test patterns, not a src template literal.
+
+## Verdict
+
+PASS
