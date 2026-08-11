@@ -35,3 +35,13 @@ Two tracks, per design.md:
 - CI-mode serialized wall time measured ~30 min total on the (fast) local machine across sharded runs — above the design's 12-16 min CI estimate; actual GitHub runner timing should be checked on the first CI run. Fallback pre-approved in design: `maxWorkers: isCI ? 2 : undefined`.
 - `CliSetupError.code` is typed `number | null` (design-consistent; task text said `number`) so signal kills can render `code=null` truthfully.
 - Follow-up candidate recorded in research: drop the `npx tsx` 3-process chain via `node --import <resolved tsx loader>` (~2x faster per call) to claw back CI wall-clock.
+
+## Independent verification (3 parallel metta-verifiers)
+
+| Verifier | Result |
+|---|---|
+| Full test suite (`npm test`) | PASS — 120 files, 2123/2123, 334s wall |
+| Typecheck / lint / build | PASS — all exit 0 (`tsc --noEmit`, `npm run lint`, `npm run build`) |
+| Spec scenario evidence | PASS — all MUST scenarios evidenced by tests or config; one PARTIAL: "gates job passes on a constrained runner" is only provable on the branch's first real CI run (local `CI=1` serialized proxy passes) |
+
+Review verdicts: Correctness PASS, Security PASS, Quality PASS (minor non-blocking notes in review.md).
