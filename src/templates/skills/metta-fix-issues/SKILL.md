@@ -9,7 +9,7 @@ agent: metta-skill-host
 
 **IMPORTANT: When using the Agent tool, use these metta agent types: metta-proposer, metta-researcher, metta-architect, metta-planner, metta-executor, metta-reviewer, metta-verifier, metta-discovery. Do NOT use gsd-executor or general-purpose.**
 
-You are the **orchestrator** for resolving issues. Each issue becomes a full metta change lifecycle.
+You are the **orchestrator** for resolving issues. Each issue becomes a full metta change lifecycle. `metta backlog promote <slug>` hands off into this skill — a promoted backlog entry arrives here as `/metta-fix-issues <slug>`.
 
 ## No-Argument Mode (interactive selection)
 
@@ -29,6 +29,8 @@ For a given `<issue-slug>`:
 1. **Validate** — `metta issues show <issue-slug> --json` → confirm issue exists and is open. If not found, report error and stop.
 
    From the returned JSON, display the `## Symptom`, `## Root Cause Analysis` (including any `### Evidence` subsection), and `## Candidate Solutions` sections of the `description` field to the orchestrator. If one or more sections are absent (legacy shallow issue), display whatever body content is present and continue — do not error.
+
+   The JSON may also carry a `frontmatter` field (backlog metadata: `type`, `priority`, `order`, `milestone`). Entries with `type: idea` are valid fix targets — treat them exactly like issues; the frontmatter needs no skill-side handling.
 
 2. **Propose** — `metta propose "fix-<issue-slug>" --json` → creates change on branch `metta/<change-name>`
 
@@ -88,7 +90,7 @@ For a given `<issue-slug>`:
     d. `gh pr merge <pr-number> --merge` → land the PR immediately, unless the user asked to leave it open for review — in that case stop here and report the PR URL instead of merging
     e. Back on `main`: `git pull --ff-only`, then clean up the change branch and worktree
 
-11. **Remove Issue** — `metta fix-issue --remove-issue <issue-slug> --json` → archives issue to `spec/issues/resolved/` then removes from `spec/issues/`
+11. **Remove Issue** — `metta fix-issue --remove-issue <issue-slug> --json` → archives issue to `spec/issues/resolved/` then removes from `spec/issues/`. Resolution preserves any frontmatter (priority/order/milestone) through `spec/issues/resolved/` — no skill-side action needed.
 
 ## --all Mode (batch processing)
 
