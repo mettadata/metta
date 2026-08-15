@@ -524,6 +524,94 @@ describe('metta-guard-bash integration', { timeout: 60_000 }, () => {
     })
   })
 
+  describe('milestone and backlog migrate classification end-to-end', () => {
+    let tempDir: string
+
+    beforeEach(() => {
+      tempDir = mkdtempSync(join(tmpdir(), 'metta-guard-milestone-int-'))
+    })
+
+    afterEach(() => {
+      rmSync(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
+    })
+
+    it.each([
+      'metta milestone list',
+      'metta milestone show v0.6',
+    ])('allows read-only `%s` without any credential — exit 0', (command) => {
+      const { code, stderr } = runHook(bashEvent(command, { cwd: tempDir }), { cwd: tempDir })
+      expect(code).toBe(0)
+      expect(stderr).toBe('')
+    })
+
+    it.each([
+      'metta milestone create v0.6',
+      'metta backlog migrate',
+    ])('blocks uncredentialed `%s` — exit 2, rejection points at the skill path', (command) => {
+      const { code, stderr } = runHook(bashEvent(command, { cwd: tempDir }), { cwd: tempDir })
+      expect(code).toBe(2)
+      expect(stderr).toContain('/metta-')
+      expect(stderr).toContain('skill')
+    })
+
+    it('keeps bare `metta milestone` fail-closed as unknown (no ALLOWED_BARE entry) — exit 2', () => {
+      const { code, stderr } = runHook(bashEvent('metta milestone', { cwd: tempDir }), {
+        cwd: tempDir,
+      })
+      expect(code).toBe(2)
+      expect(stderr).toContain('unknown')
+    })
+
+    it('keeps `metta milestone frobnicate` fail-closed as unknown — exit 2', () => {
+      const { code, stderr } = runHook(bashEvent('metta milestone frobnicate', { cwd: tempDir }), {
+        cwd: tempDir,
+      })
+      expect(code).toBe(2)
+      expect(stderr).toContain('unknown')
+    })
+
+    it('mint hook scope for metta-backlog grants backlog:add/done/promote/migrate and milestone:create', () => {
+      const mint = spawnSync('node', [MINT_TEMPLATE_PATH, 'metta-backlog'], {
+        input: JSON.stringify(bashEvent('metta backlog list', { cwd: tempDir })),
+        encoding: 'utf8',
+        timeout: 10_000,
+        cwd: tempDir,
+      })
+      expect(mint.status).toBe(0)
+
+      const tokenPath = join(
+        tempDir,
+        '.metta',
+        'scratch',
+        'skill-session',
+        'metta-backlog.token',
+      )
+      expect(existsSync(tokenPath)).toBe(true)
+      const token = JSON.parse(readFileSync(tokenPath, 'utf8')) as {
+        skill: string
+        subcommands: string[]
+      }
+      expect(token.skill).toBe('metta-backlog')
+      expect(token.subcommands).toEqual([
+        'backlog:add',
+        'backlog:done',
+        'backlog:promote',
+        'backlog:migrate',
+        'milestone:create',
+      ])
+
+      // The minted credential authorizes the new Tier-2 mutations…
+      for (const command of ['metta backlog migrate', 'metta milestone create v0.6']) {
+        const { code, stderr } = runHook(bashEvent(command, { cwd: tempDir }), { cwd: tempDir })
+        expect(code, `expected allow for: ${command}\n${stderr}`).toBe(0)
+      }
+
+      // …and nothing outside that scope.
+      const outOfScope = runHook(bashEvent('metta finalize', { cwd: tempDir }), { cwd: tempDir })
+      expect(outOfScope.code).toBe(2)
+    })
+  })
+
   describe('background Bash rejection end-to-end', () => {
     let tempDir: string
 
