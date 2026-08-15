@@ -24,6 +24,8 @@ artifact_timings:
   stories:
     started: 2026-08-15T23:06:36.711Z
     completed: 2026-08-15T23:08:14.324Z
+  spec:
+    started: 2026-08-15T23:08:21.853Z
 artifact_tokens:
   intent:
     context: 763
@@ -31,6 +33,9 @@ artifact_tokens:
   stories:
     context: 2730
     budget: 20000
+  spec:
+    context: 5350
+    budget: 40000
 worktree: /home/utx0/Code/metta/.metta/worktrees/rework-backlog-around-issue-store-as-single-source-truth
 token_usage:
   - task: metta-skill-host
