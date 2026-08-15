@@ -5,6 +5,7 @@ import { createCliContext, outputJson, color, agentBanner, getErrorMessage } fro
 import { formatDuration } from '../../util/duration.js'
 import { getGitLogTimings } from '../../util/git-log-timings.js'
 import { getCeremonyCommitRatio, getArtifactsPerSmallChange, getModelEscalationRate, getAvgTokensPerChangeByTier, getLatestTag } from '../../util/ceremony-metrics.js'
+import { isArchivedChangeDir } from '../../util/archive-dirs.js'
 import type { ArtifactTiming, ArtifactTokens } from '../../schemas/change-metadata.js'
 
 export function registerProgressCommand(program: Command): void {
@@ -91,7 +92,13 @@ export function registerProgressCommand(program: Command): void {
         let archived: string[] = []
         try {
           const entries = await readdir(archiveDir, { withFileTypes: true })
-          archived = entries.filter(e => e.isDirectory()).map(e => e.name).sort().reverse()
+          // Only date-prefixed archived-change dirs count as completed;
+          // non-change archive dirs (e.g. backlog-legacy) are skipped.
+          archived = entries
+            .filter(e => e.isDirectory() && isArchivedChangeDir(e.name))
+            .map(e => e.name)
+            .sort()
+            .reverse()
         } catch {
           // No archive dir
         }
