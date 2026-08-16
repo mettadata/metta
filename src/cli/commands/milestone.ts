@@ -30,8 +30,12 @@ export async function loadMilestoneRollups(
   return computeMilestoneRollups(milestones, openIssues, resolvedIssues)
 }
 
-/** Counts-only row for `milestone list` JSON — per-issue detail is `show`-only. */
-function toCountsRow(rollup: MilestoneRollup): Omit<MilestoneRollup, 'openIssues' | 'resolvedIssues'> {
+/**
+ * Counts-only row for `milestone list` JSON — per-issue detail is `show`-only.
+ * Exported for `status`/`progress`, whose optional `milestones` JSON key
+ * carries the exact same element shape as `milestone list`.
+ */
+export function toMilestoneCountsRow(rollup: MilestoneRollup): Omit<MilestoneRollup, 'openIssues' | 'resolvedIssues'> {
   const { openIssues: _openIssues, resolvedIssues: _resolvedIssues, ...counts } = rollup
   return counts
 }
@@ -105,7 +109,7 @@ export function registerMilestoneCommand(program: Command): void {
       const rollups = loaded?.rollups ?? []
       const warnings = loaded?.warnings ?? []
       if (json) {
-        const payload: Record<string, unknown> = { milestones: rollups.map(toCountsRow) }
+        const payload: Record<string, unknown> = { milestones: rollups.map(toMilestoneCountsRow) }
         // Present only when non-empty — consumers key off absence, not [].
         if (warnings.length > 0) { payload.milestone_warnings = warnings }
         outputJson(payload)
