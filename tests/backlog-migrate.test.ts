@@ -13,6 +13,15 @@ function legacyItem(title: string, opts: { priority?: string; shippedIn?: string
   return content
 }
 
+/** Old-format item with a legacy YAML frontmatter block (slug/title/priority/added). */
+function legacyFrontmatterItem(slug: string, opts: { priority?: string } = {}): { content: string; body: string } {
+  const fields = [`slug: ${slug}`, `title: Some legacy title for ${slug}`]
+  if (opts.priority) fields.push(`priority: ${opts.priority}`)
+  fields.push('added: 2026-04-16')
+  const body = `\nDescription body for ${slug}.\n\n**Shipped-in**: some-change\n`
+  return { content: `---\n${fields.join('\n')}\n---\n${body}`, body }
+}
+
 describe('migrateLegacyBacklog', () => {
   let specDir: string
 
@@ -104,6 +113,41 @@ describe('migrateLegacyBacklog', () => {
 
     const converted = await readFile(join(specDir, 'issues', 'no-priority.md'), 'utf8')
     expect(converted).toBe(`---\ntype: idea\nbacklog: true\n---\n${original}`)
+  })
+
+  it('replaces a legacy YAML frontmatter block on done items, carrying the body verbatim', async () => {
+    const { content, body } = legacyFrontmatterItem('old-format-done', { priority: 'medium' })
+    await seedDone('old-format-done', content)
+
+    const result = await migrateLegacyBacklog(specDir)
+    expect(result.converted).toEqual({ active: 0, done: 1 })
+    expect(result.collisions).toEqual([])
+
+    const converted = await readFile(join(specDir, 'issues', 'resolved', 'old-format-done.md'), 'utf8')
+    expect(converted).toBe(`---\ntype: idea\n---\n${body}`)
+    // Archived original keeps the legacy block byte-identically.
+    const archived = await readFile(join(specDir, 'archive', 'backlog-legacy', 'done', 'old-format-done.md'), 'utf8')
+    expect(archived).toBe(content)
+  })
+
+  it('carries priority out of a legacy YAML frontmatter block on active items', async () => {
+    const { content, body } = legacyFrontmatterItem('old-format-active', { priority: 'high' })
+    await seedActive('old-format-active', content)
+
+    await migrateLegacyBacklog(specDir)
+
+    const converted = await readFile(join(specDir, 'issues', 'old-format-active.md'), 'utf8')
+    expect(converted).toBe(`---\ntype: idea\nbacklog: true\npriority: high\n---\n${body}`)
+  })
+
+  it('omits priority when the legacy frontmatter priority does not parse to high/medium/low', async () => {
+    const { content, body } = legacyFrontmatterItem('old-format-weird', { priority: 'urgent' })
+    await seedActive('old-format-weird', content)
+
+    await migrateLegacyBacklog(specDir)
+
+    const converted = await readFile(join(specDir, 'issues', 'old-format-weird.md'), 'utf8')
+    expect(converted).toBe(`---\ntype: idea\nbacklog: true\n---\n${body}`)
   })
 
   it('archives originals byte-identically, preserving the done/ subpath', async () => {

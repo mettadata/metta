@@ -1,6 +1,7 @@
 import { mkdir, readdir, readFile, rename, rmdir, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { applyFrontmatterPatch } from '../issues/issue-frontmatter.js'
+import YAML from 'yaml'
+import { applyFrontmatterPatch, splitFrontmatter } from '../issues/issue-frontmatter.js'
 import type { IssueFrontmatterPatch } from '../schemas/issue-frontmatter.js'
 
 /**
@@ -16,6 +17,15 @@ import type { IssueFrontmatterPatch } from '../schemas/issue-frontmatter.js'
  * converted originals are fs-renamed intact to `spec/archive/backlog-legacy/`
  * (preserving the `done/` subpath) so every pre-migration byte stays
  * recoverable without git archaeology.
+ *
+ * Legacy items come in two formats: the retired `BacklogStore` bold-label
+ * format (`# Title` + `**Added**`/`**Priority**` lines, no frontmatter) and an
+ * older YAML-frontmatter format (`slug`/`title`/`priority`/`added` keys —
+ * present in real repo data, e.g. metta's own `spec/backlog/done/`). Those
+ * legacy keys are invalid under the strict issue frontmatter schema, so the
+ * legacy block is replaced wholesale by the minted issue block; the body below
+ * the legacy fence is carried byte-verbatim and the archived original keeps
+ * every pre-migration byte, including the replaced block.
  */
 
 export interface MigrationCollision {
@@ -48,6 +58,44 @@ function parseLegacyPriority(content: string): LegacyPriority | undefined {
   const lines = content.split('\n')
   const priorityLine = lines.find(l => l.startsWith('**Priority**:'))?.replace('**Priority**:', '').trim()
   return ['high', 'medium', 'low'].includes(priorityLine ?? '') ? (priorityLine as LegacyPriority) : undefined
+}
+
+interface LegacyItemSplit {
+  /** Content below the legacy frontmatter fence — the whole file when there is none. */
+  body: string
+  /** `priority` carried out of a legacy YAML frontmatter block, when it parses. */
+  frontmatterPriority: LegacyPriority | undefined
+}
+
+/**
+ * Split a legacy item into its byte-verbatim body and any salvageable
+ * `priority` from an old-format YAML frontmatter block. The legacy block's
+ * other keys (`slug`, `title`, `added`) are redundant with the filename or
+ * preserved only in the archived original — they are not carried forward.
+ * Throws (via `splitFrontmatter`) on an opening fence with no closing fence.
+ */
+function splitLegacyItem(original: string): LegacyItemSplit {
+  const { rawFrontmatter, body } = splitFrontmatter(original)
+  if (rawFrontmatter === undefined) {
+    return { body: original, frontmatterPriority: undefined }
+  }
+  let priority: unknown
+  try {
+    const data: unknown = YAML.parse(rawFrontmatter)
+    priority =
+      data !== null && typeof data === 'object' && !Array.isArray(data)
+        ? (data as Record<string, unknown>).priority
+        : undefined
+  } catch {
+    priority = undefined
+  }
+  return {
+    body,
+    frontmatterPriority:
+      typeof priority === 'string' && ['high', 'medium', 'low'].includes(priority)
+        ? (priority as LegacyPriority)
+        : undefined,
+  }
 }
 
 async function pathExists(path: string): Promise<boolean> {
@@ -101,8 +149,8 @@ async function findCollision(
 interface MigrateItemPlan {
   file: string
   legacyPath: string
-  /** Original file content, already read by the caller. */
-  original: string
+  /** Body carried below the minted frontmatter — the legacy content, byte-verbatim. */
+  body: string
   targetDir: string
   targetDisplayPath: string
   archiveDir: string
@@ -111,7 +159,7 @@ interface MigrateItemPlan {
 
 /** Convert one legacy item: write target (create-only), then rename the original to the archive. */
 async function migrateItem(plan: MigrateItemPlan): Promise<void> {
-  const converted = applyFrontmatterPatch(plan.original, plan.patch, plan.targetDisplayPath)
+  const converted = applyFrontmatterPatch(plan.body, plan.patch, plan.targetDisplayPath)
   await mkdir(plan.targetDir, { recursive: true })
   // 'wx' is belt-and-braces on top of the collision check: fail rather than overwrite.
   await writeFile(join(plan.targetDir, plan.file), converted, { encoding: 'utf8', flag: 'wx' })
@@ -127,8 +175,10 @@ async function migrateItem(plan: MigrateItemPlan): Promise<void> {
  *   `**Priority**` line parses to high/medium/low.
  * - Done `spec/backlog/done/<slug>.md` → `spec/issues/resolved/<slug>.md` with
  *   frontmatter `type: idea` only.
- * - Original file content rides below the frontmatter byte-verbatim; originals
- *   are renamed to `spec/archive/backlog-legacy/{,done/}<slug>.md`.
+ * - Legacy content rides below the minted frontmatter byte-verbatim (for
+ *   old-format YAML-frontmatter items, the body below their legacy fence —
+ *   the invalid legacy block is replaced, carrying `priority` when it parses);
+ *   originals are renamed to `spec/archive/backlog-legacy/{,done/}<slug>.md`.
  * - Collisions (target slug already in `spec/issues/`, `spec/issues/resolved/`,
  *   or the archive location) are recorded and skipped — both files untouched.
  * - `spec/backlog/done/` then `spec/backlog/` are removed only when emptied.
@@ -169,14 +219,15 @@ export async function migrateLegacyBacklog(specDir: string): Promise<MigrationRe
       continue
     }
     const original = await readFile(legacyPath, 'utf8')
+    const { body, frontmatterPriority } = splitLegacyItem(original)
     await migrateItem({
       file,
       legacyPath,
-      original,
+      body,
       targetDir: issuesDir,
       targetDisplayPath: `${SPEC_DISPLAY}/issues/${file}`,
       archiveDir,
-      patch: { type: 'idea', backlog: true, priority: parseLegacyPriority(original) },
+      patch: { type: 'idea', backlog: true, priority: frontmatterPriority ?? parseLegacyPriority(body) },
     })
     result.converted.active += 1
   }
@@ -197,7 +248,7 @@ export async function migrateLegacyBacklog(specDir: string): Promise<MigrationRe
     await migrateItem({
       file,
       legacyPath,
-      original: await readFile(legacyPath, 'utf8'),
+      body: splitLegacyItem(await readFile(legacyPath, 'utf8')).body,
       targetDir: resolvedDir,
       targetDisplayPath: `${SPEC_DISPLAY}/issues/resolved/${file}`,
       archiveDir: archiveDoneDir,
