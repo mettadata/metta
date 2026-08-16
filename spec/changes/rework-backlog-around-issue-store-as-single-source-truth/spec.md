@@ -33,7 +33,7 @@ Issue files that carry no YAML frontmatter MUST continue to parse exactly as the
 - WHEN the backlog is listed and milestone rollups are computed
 - THEN the frontmatter-less issue appears in neither the backlog listing nor any milestone's issue set, and no warning or error is emitted for it
 
-## MODIFIED: Requirement: Backlogging an issue mutates the existing issue file in place
+## ADDED: Requirement: Backlogging an issue mutates the existing issue file in place
 
 `metta backlog add <issue-slug>`, when `<issue-slug>` resolves to an existing file at `spec/issues/<slug>.md`, MUST set `backlog: true` in that file's YAML frontmatter (creating the frontmatter block if the file has none) and MUST NOT create any new file under `spec/backlog/`, `spec/issues/`, or anywhere else. The command MUST accept optional `--priority <high|medium|low>`, `--order <number>`, and `--milestone <slug>` options and write them into the same frontmatter block. The markdown content below the frontmatter MUST be byte-preserved by the write. Re-running the command on an already-backlogged issue MUST succeed idempotently, make no content change, and report that the issue was already backlogged. The `BacklogStore` standalone-file mint path (`spec/backlog/<slug>.md` creation from caller-supplied title/description) MUST be removed. (Traces: US-1; intent problem statement — zeus duplicate-data incident, `backlog-feature-duplicates-data-instead-of-referencing`.)
 
@@ -71,7 +71,7 @@ Issue files that carry no YAML frontmatter MUST continue to parse exactly as the
 - WHEN the issue store is listed
 - THEN both entries appear and the idea is identifiable as `type: idea` in the listing output
 
-## MODIFIED: Requirement: Backlog list is a sorted view over issue frontmatter
+## ADDED: Requirement: Backlog list is a sorted view over issue frontmatter
 
 `metta backlog list` MUST be computed exclusively from `spec/issues/*.md` frontmatter: it MUST list every open issue-store entry (any `type`) whose frontmatter contains `backlog: true`, and MUST NOT read from `spec/backlog/` at all. Entries MUST be sorted by priority first (`high` before `medium` before `low`, entries with no priority last), then by numeric `order` ascending (entries with no order after those with one at the same priority), then by captured date ascending. Entries missing optional fields (priority, order) MUST still render using those defaults rather than erroring. Entries whose frontmatter lacks `backlog: true` — including frontmatter-less legacy issues — MUST NOT appear. (Traces: US-5; intent proposal §3.)
 
@@ -90,7 +90,7 @@ Issue files that carry no YAML frontmatter MUST continue to parse exactly as the
 - WHEN the backlog is listed
 - THEN the entry renders successfully with a "no priority" presentation instead of erroring
 
-## MODIFIED: Requirement: Backlog promote hands off to fix-issues
+## ADDED: Requirement: Backlog promote hands off to fix-issues
 
 `metta backlog promote <slug>` MUST resolve `<slug>` against the issue store and emit a handoff instruction targeting `/metta-fix-issues <slug>` for that issue, replacing the previous `buildPromoteHandoff` → `/metta-propose` path. The command MUST NOT create any change-tracking file, duplicate entry, or state mutation of its own — it only routes. Promoting a slug that does not exist in the issue store MUST fail with exit code 4 and a not-found error. (Traces: US-6; intent proposal §3.)
 
@@ -104,7 +104,7 @@ Issue files that carry no YAML frontmatter MUST continue to parse exactly as the
 - WHEN the user runs `metta backlog promote nonexistent-item`
 - THEN the command exits with code 4 and reports the slug as not found
 
-## MODIFIED: Requirement: Backlog done resolves through the issue store archive
+## ADDED: Requirement: Backlog done resolves through the issue store archive
 
 `metta backlog done <slug>` MUST archive the issue through the issue store's standard resolution path: the file MUST be copied to `spec/issues/resolved/<slug>.md` with its frontmatter preserved, and the open file at `spec/issues/<slug>.md` MUST be removed. The command MUST NOT write to `spec/backlog/done/`. The optional `--change <name>` stamp (`**Shipped-in**` metadata) MUST continue to be supported and appended to the archived copy. After completion the entry MUST no longer appear in `metta backlog list`. The auto-commit path MUST stage `spec/issues/` and `spec/issues/resolved/` rather than the retired backlog directories. (Traces: US-6; intent proposal §3.)
 
@@ -170,7 +170,7 @@ Issues MUST be assigned to a milestone by writing `milestone: <slug>` into the i
 - WHEN the user runs `metta milestone show v0-7`
 - THEN the command exits 0 and reports an empty issue list with 0 resolved / 0 open
 
-## MODIFIED: Requirement: Status and progress surfaces include milestone rollups
+## ADDED: Requirement: Status and progress surfaces include milestone rollups
 
 When one or more milestone files exist under `spec/milestones/`, `metta status` and `metta progress` MUST include a per-milestone rollup section reporting each milestone's open and resolved issue counts (computed identically to `metta milestone show`). When no milestone files exist, both commands MUST produce output without a milestone section and otherwise identical in structure to their pre-change output. (Traces: US-4; intent proposal §6.)
 
