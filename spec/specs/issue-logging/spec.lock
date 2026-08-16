@@ -1,6 +1,6 @@
-version: 7
-hash: sha256:882098edfef0
-updated: 2026-04-20T13:57:43.912Z
+version: 20
+hash: sha256:0b365b26c29e
+updated: 2026-08-16T01:42:44.714Z
 status: draft
 source: change
 requirements:
@@ -34,3 +34,75 @@ requirements:
     hash: sha256:097f40d14a74
     scenarios:
       - structured-sections-displayed-before-fix-planning-begins
+  - id: issue-frontmatter-schema-is-zod-validated-and-strict
+    hash: sha256:c4348b4681ea
+    scenarios:
+      - partial-frontmatter-is-accepted-with-documented-defaults
+      - invalid-priority-value-is-rejected-with-a-clear-error
+      - unknown-frontmatter-key-is-rejected
+  - id: frontmatter-less-issue-files-parse-exactly-as-before
+    hash: sha256:4e88f7ea3efa
+    scenarios:
+      - legacy-issue-lists-and-resolves-unchanged
+      - legacy-issue-is-excluded-from-backlog-and-milestone-views
+  - id: backlogging-an-issue-mutates-the-existing-issue-file-in-place
+    hash: sha256:40381b63e89b
+    scenarios:
+      - existing-issue-gains-backlog-frontmatter-with-no-new-file
+      - re-backlogging-is-an-idempotent-no-op
+      - later-body-edits-never-drift-from-the-backlog
+  - id: new-ideas-are-minted-as-typed-entries-in-the-issue-store
+    hash: sha256:9162c190562a
+    scenarios:
+      - new-idea-minted-with-idea-type-and-backlog-flag
+      - mistyped-slug-without-new-fails-instead-of-minting
+      - idea-entries-are-distinguishable-in-issue-listings
+  - id: backlog-list-is-a-sorted-view-over-issue-frontmatter
+    hash: sha256:617378381e0e
+    scenarios:
+      - mixed-priorities-and-orders-sort-deterministically
+      - only-flagged-issues-appear-and-spec-backlog-is-never-read
+      - missing-optional-fields-render-with-defaults
+  - id: backlog-promote-hands-off-to-fix-issues
+    hash: sha256:04889e8c4fcb
+    scenarios:
+      - promote-emits-a-fix-issues-handoff
+      - promoting-an-unknown-slug-fails-cleanly
+  - id: backlog-done-resolves-through-the-issue-store-archive
+    hash: sha256:066bb374554a
+    scenarios:
+      - done-moves-the-issue-to-resolved-and-off-the-backlog
+      - shipped-in-stamp-survives-the-new-archive-path
+  - id: milestone-store-with-zod-validated-frontmatter-and-cli
+    hash: sha256:49b88f48b187
+    scenarios:
+      - milestone-created-with-defaults
+      - creating-a-duplicate-milestone-is-refused
+      - invalid-milestone-status-is-rejected
+  - id: milestone-and-priority-assignment-via-issue-frontmatter
+    hash: sha256:c64f15b00189
+    scenarios:
+      - log-an-issue-with-milestone-and-priority-in-one-step
+      - invalid-priority-at-log-time-is-rejected
+      - dangling-milestone-reference-warns-but-succeeds
+  - id: milestone-show-reports-resolved-vs-open-progress
+    hash: sha256:0b5ee1ea808e
+    scenarios:
+      - rollup-counts-resolved-against-open
+      - empty-milestone-renders-without-failing
+  - id: status-and-progress-surfaces-include-milestone-rollups
+    hash: sha256:c355ba743616
+    scenarios:
+      - progress-shows-per-milestone-counts
+      - no-milestones-means-no-milestone-section
+  - id: idempotent-migration-of-legacy-backlog-data-into-the-issue-store
+    hash: sha256:0f3ef640c4a9
+    scenarios:
+      - active-and-done-items-convert-with-content-preserved
+      - second-run-is-a-no-op
+      - slug-collision-is-reported-not-overwritten
+  - id: frontmatter-writes-round-trip-the-body-and-untouched-fields
+    hash: sha256:4524db0ee4e6
+    scenarios:
+      - targeted-frontmatter-update-leaves-everything-else-intact
+      - archive-preserves-frontmatter-end-to-end
