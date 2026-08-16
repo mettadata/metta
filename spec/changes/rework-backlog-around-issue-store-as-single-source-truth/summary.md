@@ -35,3 +35,10 @@ The issue store (`spec/issues/`) is now the single source of truth for all work 
 
 - `BacklogStore` removed from the public barrel (`src/index.ts`) — intended, flag in release notes.
 - Consumer projects (zeus) must run `metta backlog migrate` once; until then their `spec/backlog/` files are inert legacy input.
+
+## Verification results (final)
+
+- Gate: tests — PASS (127 files, 2292 tests, 0 failures; full report: verify/tests.md)
+- Gate: tsc — PASS; Gate: lint — PASS (npm run lint = tsc --noEmit; report: verify/tsc-lint.md)
+- Gate: scenarios — PASS (33/33 spec scenarios traced to passing tests, 10 spot-check runs, zero gaps; report: verify/scenarios.md)
+- Review: 2 rounds, 3 personas; round-1 critical (silent slug-collision overwrite) fixed in 740bee3eb; final verdicts all PASS_WITH_WARNINGS (non-blocking follow-ups listed in review.md)
