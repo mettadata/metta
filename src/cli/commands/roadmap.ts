@@ -49,7 +49,7 @@ export function registerRoadmapCommand(program: Command): void {
           note: entry.note ?? null,
         }
         try {
-          const item = await ctx.backlogStore.show(entry.slug)
+          const item = await ctx.issuesStore.show(entry.slug)
           row.title = item.title
         } catch {
           row.dangling = true
@@ -81,7 +81,7 @@ export function registerRoadmapCommand(program: Command): void {
       try {
         const config = await ctx.configLoader.load()
         await assertOnMainBranch(ctx.projectRoot, config.git?.pr_base ?? 'main', options.onBranch)
-        const found = await ctx.backlogStore.exists(slug)
+        const found = await ctx.issuesStore.exists(slug)
         if (!found) {
           exitWithError(json, 'not_found', `Backlog item '${slug}' not found`)
         }
@@ -151,7 +151,7 @@ export function registerRoadmapCommand(program: Command): void {
         }
         let title: string
         try {
-          const item = await ctx.backlogStore.show(top.slug)
+          const item = await ctx.issuesStore.show(top.slug)
           title = item.title
         } catch {
           // Dangling top entry (ADR-4): fail with not_found, no pop, no write,
@@ -160,7 +160,7 @@ export function registerRoadmapCommand(program: Command): void {
             json,
             'not_found',
             `Roadmap top entry '${top.slug}' has no backlog item. ` +
-              `Restore spec/backlog/${top.slug}.md, or move it off the top with: metta roadmap reorder <slug...>`,
+              `Restore spec/issues/${top.slug}.md, or move it off the top with: metta roadmap reorder <slug...>`,
           )
         }
         const handoff = buildPromoteHandoff({ title })

@@ -19,8 +19,10 @@ describe('CLI: roadmap', { timeout: 300000 }, () => {
     await rm(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   })
 
+  // Backlog entries live in the issue store: `backlog add --new` mints a
+  // `type: idea` file under spec/issues/.
   async function seedBacklog(title: string): Promise<string> {
-    const res = await runCli(['--json', 'backlog', 'add', title], tempDir)
+    const res = await runCli(['--json', 'backlog', 'add', title, '--new'], tempDir)
     expect(res.code).toBe(0)
     return (JSON.parse(res.stdout) as { slug: string }).slug
   }
@@ -83,7 +85,7 @@ describe('CLI: roadmap', { timeout: 300000 }, () => {
       await seedBacklog('Old idea')
       await runCli(['roadmap', 'add', 'auth-refactor'], tempDir)
       await runCli(['roadmap', 'add', 'old-idea'], tempDir)
-      await rm(join(tempDir, 'spec', 'backlog', 'old-idea.md'))
+      await rm(join(tempDir, 'spec', 'issues', 'old-idea.md'))
 
       const jsonRes = await runCli(['--json', 'roadmap'], tempDir)
       expect(jsonRes.code).toBe(0)
@@ -137,7 +139,7 @@ describe('CLI: roadmap', { timeout: 300000 }, () => {
       expect(stdout).toContain('Committed:')
     })
 
-    it('unknown slug exits 4 with not_found; roadmap.md untouched and spec/backlog/ never written', async () => {
+    it('unknown slug exits 4 with not_found; roadmap.md untouched and spec/issues/ never written', async () => {
       await seedBacklog('Auth refactor')
       await runCli(['roadmap', 'add', 'auth-refactor'], tempDir)
       const before = await readFile(roadmapPath(), 'utf8')
@@ -149,7 +151,7 @@ describe('CLI: roadmap', { timeout: 300000 }, () => {
       expect(data.error.code).toBe(4)
 
       expect(await readFile(roadmapPath(), 'utf8')).toBe(before)
-      expect(existsSync(join(tempDir, 'spec', 'backlog', 'ghost-item.md'))).toBe(false)
+      expect(existsSync(join(tempDir, 'spec', 'issues', 'ghost-item.md'))).toBe(false)
     })
 
     it('duplicate slug exits 4 with duplicate_entry', async () => {
@@ -266,15 +268,15 @@ describe('CLI: roadmap', { timeout: 300000 }, () => {
     it('dangling top entry exits 4 with not_found naming both remedies and does not pop', async () => {
       await seedBacklog('Foo feature')
       await runCli(['roadmap', 'add', 'foo-feature'], tempDir)
-      await rm(join(tempDir, 'spec', 'backlog', 'foo-feature.md'))
+      await rm(join(tempDir, 'spec', 'issues', 'foo-feature.md'))
       const before = await readFile(roadmapPath(), 'utf8')
 
       const { stdout, code } = await runCli(['--json', 'roadmap', 'next'], tempDir)
       expect(code).toBe(4)
       const data = JSON.parse(stdout) as { error: { type: string; message: string } }
       expect(data.error.type).toBe('not_found')
-      // Both remedies: restore the backlog file, or reorder it off the top.
-      expect(data.error.message).toContain('spec/backlog/foo-feature.md')
+      // Both remedies: restore the issue file, or reorder it off the top.
+      expect(data.error.message).toContain('spec/issues/foo-feature.md')
       expect(data.error.message).toContain('metta roadmap reorder')
 
       // No pop: the file is untouched.

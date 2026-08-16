@@ -40,7 +40,7 @@ type LegacyPriority = 'high' | 'medium' | 'low'
 
 /**
  * Legacy `**Priority**` bold-label parser, copied verbatim in spirit from the
- * retired backlog-store's `parseItem` (private pure helper — the store is
+ * retired `BacklogStore.parseItem` (private pure helper — the store is
  * deleted; do not import from it). Unparsable levels yield `undefined` so no
  * `priority` field is carried into frontmatter.
  */
