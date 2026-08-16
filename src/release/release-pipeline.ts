@@ -16,6 +16,7 @@ import {
 } from './git-release-tags.js'
 import { createGithubRelease, type GhExec, type GhOutcome } from './gh-release.js'
 import { DocGenerator, type DocType } from '../docs/doc-generator.js'
+import { isArchivedChangeDir } from '../util/archive-dirs.js'
 
 const execFileAsync = promisify(execFile)
 
@@ -161,8 +162,10 @@ export class ReleasePipeline {
   private async listArchiveDirs(): Promise<string[]> {
     try {
       const entries = await readdir(join(this.specDir, 'archive'), { withFileTypes: true })
+      // Only date-prefixed archived-change dirs are release-claimable;
+      // non-change archive dirs (e.g. backlog-legacy) are skipped.
       return entries
-        .filter(e => e.isDirectory())
+        .filter(e => e.isDirectory() && isArchivedChangeDir(e.name))
         .map(e => e.name)
         .sort()
     } catch {

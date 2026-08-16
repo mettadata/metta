@@ -6,7 +6,8 @@
 //   `metta-skill-host` subagent fires the tool. Not forgeable from command text.
 // - Tier 2 (session-tier): main-session lifecycle subcommands (`complete`, `finalize`,
 //   `refresh`, `import`, `init`, `fix-gap`, `verify`, plus the scoped two-word forms
-//   `backlog add/done/promote` and `changes abandon`) are authorized by per-skill session
+//   `backlog add/done/promote/migrate`, `milestone create`, and `changes abandon`) are
+//   authorized by per-skill session
 //   credentials at `.metta/scratch/skill-session/<slug>.token`, each minted by
 //   `.claude/hooks/metta-session-mint.mjs` when the matching Tier-2 skill is invoked and
 //   rotated on a sliding TTL. A call is authorized when ANY structurally valid, unexpired
@@ -37,6 +38,10 @@ const ALLOWED_TWO_WORD = new Map([
   // side effects, matching the issues/changes/backlog read-only pattern above.
   // `gaps remove` is deliberately NOT listed here — it mutates state and stays fail-closed.
   ['gaps', new Set(['list', 'show'])],
+  // `milestone list` / `milestone show` are pure queries over spec/milestones/ with no
+  // state-mutating side effects. Bare `metta milestone` is deliberately NOT in
+  // ALLOWED_BARE — it stays fail-closed as unknown.
+  ['milestone', new Set(['list', 'show'])],
   // `release status` is a pure read-only report (version, pending changes, recommended
   // bump); the mutating `release cut` stays Tier-2 blocked below.
   ['release', new Set(['status'])],
@@ -53,8 +58,11 @@ const BLOCKED_SUBCOMMANDS = new Set([
 
 // Explicit BLOCK list for two-word mutating forms.
 const BLOCKED_TWO_WORD = new Map([
-  ['backlog', new Set(['add', 'done', 'promote'])],
+  ['backlog', new Set(['add', 'done', 'promote', 'migrate'])],
   ['changes', new Set(['abandon'])],
+  // `milestone create` mutates state (writes spec/milestones/<slug>.md) — Tier-2 scope
+  // key 'milestone:create', minted only by the metta-backlog skill.
+  ['milestone', new Set(['create'])],
   ['roadmap', new Set(['add', 'reorder', 'next'])],
   // `release cut` mutates state (version bump, tag, release commit) — Tier-2 scope
   // key 'release:cut', minted only by the metta-release skill.

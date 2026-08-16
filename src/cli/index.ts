@@ -23,6 +23,7 @@ import { registerSpecsCommand } from './commands/specs.js'
 import { registerIssueCommand } from './commands/issue.js'
 import { registerChangesCommand } from './commands/changes.js'
 import { registerBacklogCommand } from './commands/backlog.js'
+import { registerMilestoneCommand } from './commands/milestone.js'
 import { registerRoadmapCommand } from './commands/roadmap.js'
 import { registerConfigCommand } from './commands/config.js'
 import { registerGateCommand } from './commands/gate.js'
@@ -77,6 +78,7 @@ registerSpecsCommand(program)
 registerIssueCommand(program)
 registerChangesCommand(program)
 registerBacklogCommand(program)
+registerMilestoneCommand(program)
 registerRoadmapCommand(program)
 registerConfigCommand(program)
 registerGateCommand(program)

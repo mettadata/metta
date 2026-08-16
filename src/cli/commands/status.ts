@@ -2,7 +2,39 @@ import { Command } from 'commander'
 import { createCliContext, outputJson, color, getErrorMessage } from '../helpers.js'
 import { renderStatusLine } from '../../complexity/index.js'
 import { checkFinalizeLockStale } from '../../finalize/finalize-lock.js'
+import { loadMilestoneRollups, toMilestoneCountsRow } from './milestone.js'
 import type { ChangeMetadata, ComplexityScore } from '../../schemas/change-metadata.js'
+
+type MilestoneSection = Awaited<ReturnType<typeof loadMilestoneRollups>>
+
+/**
+ * Optional top-level JSON keys appended to whichever status envelope is
+ * emitted. `null` (no milestone files) yields `{}` so the envelope stays
+ * structurally identical to the pre-milestone shape; `milestone_warnings`
+ * is present only when non-empty (conditional-key pattern).
+ */
+function milestoneJsonKeys(section: MilestoneSection): Record<string, unknown> {
+  if (section === null) return {}
+  const keys: Record<string, unknown> = {
+    milestones: section.rollups.map(toMilestoneCountsRow),
+  }
+  if (section.warnings.length > 0) {
+    keys.milestone_warnings = section.warnings
+  }
+  return keys
+}
+
+/** Text `Milestones:` section — omitted entirely when no milestones exist. */
+function printMilestoneSection(section: MilestoneSection): void {
+  if (section === null) return
+  console.log('')
+  console.log('Milestones:')
+  for (const r of section.rollups) {
+    const marker = r.status === 'closed' ? color('✓', 32) : color('▸', 36)
+    const target = r.target !== undefined ? `  target ${r.target}` : ''
+    console.log(`  ${r.slug.padEnd(30)} ${marker} ${r.resolved}/${r.total} resolved (${r.percent}%)${target}`)
+  }
+}
 
 type ChangeStatusJson = Omit<ChangeMetadata, 'complexity_score' | 'actual_complexity_score'> & {
   change: string
@@ -25,12 +57,16 @@ export function registerStatusCommand(program: Command): void {
 
       try {
         const changes = await ctx.artifactStore.listChanges()
+        // Loaded once per invocation; null when spec/milestones/ has no
+        // milestone files — the signal to omit the section/keys entirely.
+        const milestoneSection = await loadMilestoneRollups(ctx)
 
         if (changes.length === 0) {
           if (json) {
-            outputJson({ changes: [], message: 'No active changes' })
+            outputJson({ changes: [], message: 'No active changes', ...milestoneJsonKeys(milestoneSection) })
           } else {
             console.log('No active changes. Run metta propose to start.')
+            printMilestoneSection(milestoneSection)
           }
           return
         }
@@ -38,9 +74,13 @@ export function registerStatusCommand(program: Command): void {
         if (changeName) {
           const metadata = await ctx.artifactStore.getChange(changeName)
           if (json) {
-            outputJson(await toChangeJson(changeName, metadata, ctx.projectRoot))
+            outputJson({
+              ...(await toChangeJson(changeName, metadata, ctx.projectRoot)),
+              ...milestoneJsonKeys(milestoneSection),
+            })
           } else {
             await printChangeStatus(changeName, metadata, ctx.projectRoot)
+            printMilestoneSection(milestoneSection)
           }
           return
         }
@@ -48,9 +88,13 @@ export function registerStatusCommand(program: Command): void {
         if (changes.length === 1) {
           const metadata = await ctx.artifactStore.getChange(changes[0])
           if (json) {
-            outputJson(await toChangeJson(changes[0], metadata, ctx.projectRoot))
+            outputJson({
+              ...(await toChangeJson(changes[0], metadata, ctx.projectRoot)),
+              ...milestoneJsonKeys(milestoneSection),
+            })
           } else {
             await printChangeStatus(changes[0], metadata, ctx.projectRoot)
+            printMilestoneSection(milestoneSection)
           }
           return
         }
@@ -67,12 +111,14 @@ export function registerStatusCommand(program: Command): void {
             changes: await Promise.all(
               allMetadata.map(({ name, metadata }) => toChangeJson(name, metadata, ctx.projectRoot)),
             ),
+            ...milestoneJsonKeys(milestoneSection),
           })
         } else {
           for (const { name, metadata } of allMetadata) {
             await printChangeStatus(name, metadata, ctx.projectRoot)
             console.log('')
           }
+          printMilestoneSection(milestoneSection)
         }
       } catch (err) {
         const message = getErrorMessage(err)
