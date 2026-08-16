@@ -6,6 +6,7 @@ import { formatDuration } from '../../util/duration.js'
 import { getGitLogTimings } from '../../util/git-log-timings.js'
 import { getCeremonyCommitRatio, getArtifactsPerSmallChange, getModelEscalationRate, getAvgTokensPerChangeByTier, getLatestTag } from '../../util/ceremony-metrics.js'
 import { isArchivedChangeDir } from '../../util/archive-dirs.js'
+import { loadMilestoneRollups, toMilestoneCountsRow } from './milestone.js'
 import type { ArtifactTiming, ArtifactTokens } from '../../schemas/change-metadata.js'
 
 export function registerProgressCommand(program: Command): void {
@@ -103,8 +104,13 @@ export function registerProgressCommand(program: Command): void {
           // No archive dir
         }
 
+        // Milestone rollups — null when spec/milestones/ has no milestone
+        // files, which omits the section/keys entirely (back-compat: output
+        // stays structurally identical to the pre-milestone shape).
+        const milestoneSection = await loadMilestoneRollups(ctx)
+
         if (json) {
-          outputJson({
+          const payload: Record<string, unknown> = {
             active: active.map(a => {
               const entry: Record<string, unknown> = {
                 name: a.name,
@@ -131,7 +137,16 @@ export function registerProgressCommand(program: Command): void {
             artifacts_per_small_change: artifactsPerSmall,
             model_escalation_rate: modelEscalationRate,
             avg_tokens_per_change_by_tier: avgTokensByTier,
-          })
+          }
+          // Conditional keys — present only when milestones exist, and
+          // milestone_warnings only when non-empty.
+          if (milestoneSection !== null) {
+            payload.milestones = milestoneSection.rollups.map(toMilestoneCountsRow)
+            if (milestoneSection.warnings.length > 0) {
+              payload.milestone_warnings = milestoneSection.warnings
+            }
+          }
+          outputJson(payload)
           return
         }
 
@@ -189,6 +204,19 @@ export function registerProgressCommand(program: Command): void {
           }
           if (archived.length > 10) {
             console.log(color(`    ... and ${archived.length - 10} more`, 90))
+          }
+          console.log('')
+        }
+
+        // Milestones — section omitted entirely when no milestone files
+        // exist (closed milestones marked ✓, sorted after open by the
+        // rollup function).
+        if (milestoneSection !== null) {
+          console.log(color('  Milestones:', 36))
+          for (const r of milestoneSection.rollups) {
+            const marker = r.status === 'closed' ? color('✓', 32) : color('▸', 36)
+            const target = r.target !== undefined ? `  ${color(`target ${r.target}`, 90)}` : ''
+            console.log(`    ${r.slug.padEnd(30)} ${marker} ${r.resolved}/${r.total} resolved (${r.percent}%)${target}`)
           }
           console.log('')
         }

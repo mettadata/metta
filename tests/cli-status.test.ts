@@ -579,6 +579,191 @@ describe("CLI: status / next / changes / doctor / gate / validate-stories", { ti
   })
 
 
+  describe('milestone rollups in status and progress', () => {
+    async function seedMilestone(
+      slug: string,
+      name: string,
+      opts: { target?: string; status?: 'open' | 'closed' } = {},
+    ): Promise<void> {
+      const dir = join(tempDir, 'spec', 'milestones')
+      await mkdir(dir, { recursive: true })
+      const lines = ['---', `name: ${name}`]
+      if (opts.target !== undefined) lines.push(`target: ${opts.target}`)
+      lines.push(`status: ${opts.status ?? 'open'}`, '---', '')
+      await writeFile(join(dir, `${slug}.md`), lines.join('\n'), 'utf8')
+    }
+
+    async function seedIssue(
+      slug: string,
+      title: string,
+      milestone: string,
+      opts: { resolved?: boolean } = {},
+    ): Promise<void> {
+      const dir = opts.resolved
+        ? join(tempDir, 'spec', 'issues', 'resolved')
+        : join(tempDir, 'spec', 'issues')
+      await mkdir(dir, { recursive: true })
+      const content = [
+        '---',
+        `milestone: ${milestone}`,
+        '---',
+        `# ${title}`,
+        '',
+        '**Captured**: 2026-08-01',
+        '**Status**: logged',
+        '**Severity**: minor',
+        '',
+        'Fixture body.',
+        '',
+      ].join('\n')
+      await writeFile(join(dir, `${slug}.md`), content, 'utf8')
+    }
+
+    describe('absent without milestone files (pre-change envelopes)', () => {
+      it('status zero-changes JSON envelope is structurally identical', async () => {
+        await installFixture(tempDir)
+        await disableWorktrees(tempDir)
+        const { stdout } = await runCli(['--json', 'status'], tempDir)
+        const data = JSON.parse(stdout)
+        expect(Object.keys(data).sort()).toEqual(['changes', 'message'])
+        expect('milestones' in data).toBe(false)
+        expect('milestone_warnings' in data).toBe(false)
+      })
+
+      it('status single-change JSON and text carry no milestone section', async () => {
+        await installFixture(tempDir)
+        await disableWorktrees(tempDir)
+        await runCli(['propose', 'no milestones here'], tempDir)
+
+        const jsonRun = await runCli(['--json', 'status'], tempDir)
+        const data = JSON.parse(jsonRun.stdout)
+        expect(data.change).toBe('no-milestones-here')
+        expect('milestones' in data).toBe(false)
+        expect('milestone_warnings' in data).toBe(false)
+
+        const human = await runCli(['status'], tempDir)
+        expect(human.code).toBe(0)
+        expect(human.stdout).not.toContain('Milestones:')
+      })
+
+      it('progress JSON and text carry no milestone section', async () => {
+        await installFixture(tempDir)
+        await disableWorktrees(tempDir)
+        const jsonRun = await runCli(['--json', 'progress'], tempDir)
+        const data = JSON.parse(jsonRun.stdout)
+        expect('milestones' in data).toBe(false)
+        expect('milestone_warnings' in data).toBe(false)
+
+        const human = await runCli(['progress'], tempDir)
+        expect(human.code).toBe(0)
+        expect(human.stdout).not.toContain('Milestones:')
+      })
+    })
+
+    describe('present with milestones and assigned issues', () => {
+      it('status single-change envelope gains top-level milestones with counts (never per change)', async () => {
+        await installFixture(tempDir)
+        await disableWorktrees(tempDir)
+        await seedMilestone('v0-6', 'v0.6', { target: '2026-09-30' })
+        await seedIssue('open-one', 'Open one', 'v0-6')
+        await seedIssue('done-one', 'Done one', 'v0-6', { resolved: true })
+        await seedIssue('done-two', 'Done two', 'v0-6', { resolved: true })
+        await runCli(['propose', 'rollup single change'], tempDir)
+
+        const { stdout, code } = await runCli(['--json', 'status'], tempDir)
+        expect(code).toBe(0)
+        const data = JSON.parse(stdout)
+        expect(data.change).toBe('rollup-single-change')
+        expect(data.milestones).toHaveLength(1)
+        expect(data.milestones[0]).toMatchObject({
+          slug: 'v0-6',
+          name: 'v0.6',
+          status: 'open',
+          target: '2026-09-30',
+          open: 1,
+          resolved: 2,
+          total: 3,
+          percent: 67,
+        })
+        // Counts-only rows — same element shape as `milestone list`.
+        expect('openIssues' in data.milestones[0]).toBe(false)
+        expect('resolvedIssues' in data.milestones[0]).toBe(false)
+        expect('milestone_warnings' in data).toBe(false)
+
+        const human = await runCli(['status'], tempDir)
+        expect(human.code).toBe(0)
+        expect(human.stdout).toContain('Milestones:')
+        expect(human.stdout).toContain('v0-6')
+        expect(human.stdout).toContain('2/3 resolved (67%)')
+        expect(human.stdout).toContain('target 2026-09-30')
+      })
+
+      it('status multi-change envelope carries milestones at top level only', async () => {
+        await installFixture(tempDir)
+        await disableWorktrees(tempDir)
+        await seedMilestone('v0-6', 'v0.6')
+        await seedIssue('open-one', 'Open one', 'v0-6')
+        await runCli(['propose', 'multi one'], tempDir)
+        await runCli(['propose', 'multi two'], tempDir)
+
+        const { stdout, code } = await runCli(['--json', 'status'], tempDir)
+        expect(code).toBe(0)
+        const data = JSON.parse(stdout)
+        expect(data.changes).toHaveLength(2)
+        expect(data.milestones).toHaveLength(1)
+        expect(data.milestones[0]).toMatchObject({ slug: 'v0-6', open: 1, resolved: 0, total: 1, percent: 0 })
+        for (const change of data.changes) {
+          expect('milestones' in change).toBe(false)
+        }
+      })
+
+      it('status zero-changes envelope gains the milestone keys', async () => {
+        await installFixture(tempDir)
+        await disableWorktrees(tempDir)
+        await seedMilestone('v0-6', 'v0.6')
+        await seedIssue('dangler', 'Dangling ref', 'no-such-milestone')
+
+        const { stdout, code } = await runCli(['--json', 'status'], tempDir)
+        expect(code).toBe(0)
+        const data = JSON.parse(stdout)
+        expect(data.changes).toEqual([])
+        expect(data.message).toBe('No active changes')
+        expect(data.milestones).toHaveLength(1)
+        // Warnings only when non-empty — the dangling reference produces one.
+        expect(data.milestone_warnings).toHaveLength(1)
+        expect(data.milestone_warnings[0]).toContain('no-such-milestone')
+      })
+
+      it('progress JSON gains milestones and text renders the block after Completed', async () => {
+        await installFixture(tempDir)
+        await disableWorktrees(tempDir)
+        await seedMilestone('v0-6', 'v0.6', { target: '2026-09-30' })
+        await seedMilestone('v0-5', 'v0.5', { status: 'closed' })
+        await seedIssue('open-one', 'Open one', 'v0-6')
+        await seedIssue('done-one', 'Done one', 'v0-5', { resolved: true })
+
+        const jsonRun = await runCli(['--json', 'progress'], tempDir)
+        expect(jsonRun.code).toBe(0)
+        const data = JSON.parse(jsonRun.stdout)
+        expect(data.milestones).toHaveLength(2)
+        // Open sorts before closed (rollup ordering).
+        expect(data.milestones[0]).toMatchObject({ slug: 'v0-6', status: 'open', open: 1, resolved: 0, total: 1 })
+        expect(data.milestones[1]).toMatchObject({ slug: 'v0-5', status: 'closed', open: 0, resolved: 1, total: 1, percent: 100 })
+        expect('milestone_warnings' in data).toBe(false)
+
+        const human = await runCli(['progress'], tempDir)
+        expect(human.code).toBe(0)
+        expect(human.stdout).toContain('Milestones:')
+        expect(human.stdout).toContain('v0-6')
+        expect(human.stdout).toContain('0/1 resolved (0%)')
+        expect(human.stdout).toContain('target 2026-09-30')
+        expect(human.stdout).toContain('1/1 resolved (100%)')
+        expect(human.stdout.indexOf('v0-6')).toBeLessThan(human.stdout.indexOf('v0-5'))
+      })
+    })
+  })
+
+
   describe('metta next stale finalize lock', () => {
     const DEAD_PID = 2147483646
 
