@@ -15,6 +15,7 @@ import { ContextEngine } from '../context/context-engine.js'
 import { GateRegistry } from '../gates/gate-registry.js'
 import { IssuesStore } from '../issues/issues-store.js'
 import { BacklogStore } from '../backlog/backlog-store.js'
+import { MilestonesStore } from '../milestones/milestones-store.js'
 import { RoadmapStore } from '../roadmap/roadmap-store.js'
 import { GapsStore } from '../gaps/gaps-store.js'
 import { SpecLockManager } from '../specs/spec-lock-manager.js'
@@ -33,6 +34,7 @@ export interface CliContext {
   gateRegistry: GateRegistry
   issuesStore: IssuesStore
   backlogStore: BacklogStore
+  milestonesStore: MilestonesStore
   roadmapStore: RoadmapStore
   gapsStore: GapsStore
   specLockManager: SpecLockManager
@@ -121,6 +123,7 @@ export function createCliContext(projectRoot?: string): CliContext {
   const gateRegistry = new GateRegistry()
   const issuesStore = new IssuesStore(specDir)
   const backlogStore = new BacklogStore(specDir)
+  const milestonesStore = new MilestonesStore(specDir)
   const roadmapStore = new RoadmapStore(specDir)
   const gapsStore = new GapsStore(specDir)
   const specLockManager = new SpecLockManager(specDir)
@@ -141,6 +144,7 @@ export function createCliContext(projectRoot?: string): CliContext {
     gateRegistry,
     issuesStore,
     backlogStore,
+    milestonesStore,
     roadmapStore,
     gapsStore,
     specLockManager,
