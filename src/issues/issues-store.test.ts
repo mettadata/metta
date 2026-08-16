@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync, readFileSync, writeFileSync, mkdirSync } from 'nod
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { IssuesStore } from './issues-store.js'
+import { IssuesStore, IssueSlugCollisionError } from './issues-store.js'
 
 let tmpDir: string
 let store: IssuesStore
@@ -228,6 +228,72 @@ describe('IssuesStore.createIdea', () => {
     const records = await store.list()
     expect(records[0]).toMatchObject({ slug, type: 'idea', backlog: true })
     expect(records[0].priority).toBeUndefined()
+  })
+})
+
+describe('IssuesStore never-overwrite slug collision guard', () => {
+  it('createIdea refuses a slug colliding with an open issue and leaves it byte-identical', async () => {
+    const slug = await store.create('gate runner swallows timeout', '## Root Cause\nfull RCA body', 'major')
+    const before = readFileSync(issuePath(slug), 'utf-8')
+
+    await expect(store.createIdea('Gate runner swallows timeout', 'one-line idea')).rejects.toThrow(
+      IssueSlugCollisionError,
+    )
+
+    expect(readFileSync(issuePath(slug), 'utf-8')).toBe(before)
+  })
+
+  it('createIdea refuses a slug colliding with a resolved issue and writes nothing', async () => {
+    const resolvedContent =
+      '# old idea\n\n**Captured**: 2026-01-01\n**Status**: logged\n**Severity**: minor\n\nresolved body\n'
+    seedIssueFile('issues/resolved/old-idea.md', resolvedContent)
+
+    await expect(store.createIdea('old idea', 'new body')).rejects.toThrow(
+      /collides with existing spec\/issues\/resolved\/old-idea\.md/,
+    )
+
+    expect(readFileSync(resolvedPath('old-idea'), 'utf-8')).toBe(resolvedContent)
+    expect(await store.exists('old-idea')).toBe(false) // nothing minted in issues/
+  })
+
+  it('create refuses a slug colliding with an open issue and leaves it byte-identical', async () => {
+    const slug = await store.create('duplicate title', 'original body', 'critical')
+    const before = readFileSync(issuePath(slug), 'utf-8')
+
+    await expect(store.create('duplicate title', 'replacement body', 'minor')).rejects.toThrow(
+      IssueSlugCollisionError,
+    )
+
+    expect(readFileSync(issuePath(slug), 'utf-8')).toBe(before)
+  })
+
+  it('create refuses a slug colliding with a resolved issue', async () => {
+    const resolvedContent =
+      '# shipped thing\n\n**Captured**: 2026-02-02\n**Status**: logged\n**Severity**: minor\n\ndone\n'
+    seedIssueFile('issues/resolved/shipped-thing.md', resolvedContent)
+
+    await expect(store.create('shipped thing', 'again')).rejects.toThrow(IssueSlugCollisionError)
+
+    expect(readFileSync(resolvedPath('shipped-thing'), 'utf-8')).toBe(resolvedContent)
+    expect(await store.exists('shipped-thing')).toBe(false)
+  })
+
+  it('the error is typed and names the slug and the existing path', async () => {
+    await store.create('typed error probe', 'body', 'minor')
+
+    let caught: unknown
+    try {
+      await store.createIdea('typed error probe', 'idea body')
+    } catch (err) {
+      caught = err
+    }
+
+    expect(caught).toBeInstanceOf(IssueSlugCollisionError)
+    const collision = caught as IssueSlugCollisionError
+    expect(collision.slug).toBe('typed-error-probe')
+    expect(collision.existingPath).toBe(join('spec', 'issues', 'typed-error-probe.md'))
+    expect(collision.message).toContain('typed-error-probe')
+    expect(collision.message).toContain('refusing to overwrite')
   })
 })
 

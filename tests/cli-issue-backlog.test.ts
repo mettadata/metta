@@ -351,6 +351,59 @@ describe("CLI: issue / fix-issue / backlog / branch-safety / check-constitution"
       expect(data.error.message).toContain('high, medium, low')
       expect(existsSync(join(tempDir, 'spec', 'issues', 'some-idea.md'))).toBe(false)
     })
+
+    it('--new with a title slugging to an existing issue exits 4 with slug_collision and never overwrites', async () => {
+      await installFixture(tempDir)
+      await runCli(['issue', 'gate runner swallows timeout', '--severity', 'major'], tempDir)
+      const path = join(tempDir, 'spec', 'issues', 'gate-runner-swallows-timeout.md')
+      const before = await readFile(path, 'utf8')
+
+      const { stdout, code } = await runCli(
+        ['--json', 'backlog', 'add', 'Gate runner swallows timeout', '--new'],
+        tempDir,
+      )
+      expect(code).toBe(4)
+      const data = JSON.parse(stdout)
+      expect(data.error.code).toBe(4)
+      expect(data.error.type).toBe('slug_collision')
+      expect(data.error.message).toContain('gate-runner-swallows-timeout')
+      expect(data.error.message).toContain('spec/issues/gate-runner-swallows-timeout.md')
+
+      // The existing issue file is byte-identical — nothing was overwritten.
+      expect(await readFile(path, 'utf8')).toBe(before)
+    })
+
+    it('--new collision in text mode suggests a different title or backlogging the existing slug', async () => {
+      await installFixture(tempDir)
+      await runCli(['issue', 'flaky gate', '--severity', 'minor'], tempDir)
+      const path = join(tempDir, 'spec', 'issues', 'flaky-gate.md')
+      const before = await readFile(path, 'utf8')
+
+      const { stderr, code } = await runCli(['backlog', 'add', 'Flaky gate', '--new'], tempDir)
+      expect(code).toBe(4)
+      expect(stderr).toContain('flaky-gate')
+      expect(stderr).toContain('refusing to overwrite')
+      expect(stderr).toContain('metta backlog add flaky-gate')
+
+      expect(await readFile(path, 'utf8')).toBe(before)
+    })
+
+    it('--new with a title slugging to a resolved issue exits 4 and mints nothing', async () => {
+      await installFixture(tempDir)
+      await runCli(['backlog', 'add', 'shipped idea', '--new'], tempDir)
+      await runCli(['backlog', 'done', 'shipped-idea'], tempDir)
+      const resolvedPath = join(tempDir, 'spec', 'issues', 'resolved', 'shipped-idea.md')
+      const before = await readFile(resolvedPath, 'utf8')
+
+      const { stdout, code } = await runCli(['--json', 'backlog', 'add', 'Shipped idea', '--new'], tempDir)
+      expect(code).toBe(4)
+      const data = JSON.parse(stdout)
+      expect(data.error.type).toBe('slug_collision')
+      expect(data.error.message).toContain('spec/issues/resolved/shipped-idea.md')
+
+      expect(await readFile(resolvedPath, 'utf8')).toBe(before)
+      expect(existsSync(join(tempDir, 'spec', 'issues', 'shipped-idea.md'))).toBe(false)
+    })
   })
 
 

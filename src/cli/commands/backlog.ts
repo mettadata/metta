@@ -5,6 +5,7 @@ import { promisify } from 'node:util'
 import { assertOnMainBranch, createCliContext, outputJson, getErrorMessage } from '../helpers.js'
 import { toBacklogEntries, sortBacklogEntries } from '../../backlog/backlog-view.js'
 import { migrateLegacyBacklog } from '../../backlog/backlog-migrate.js'
+import { IssueSlugCollisionError } from '../../issues/issues-store.js'
 import { SLUG_RE } from '../../util/slug.js'
 
 const execAsync = promisify(execFile)
@@ -191,6 +192,14 @@ export function registerBacklogCommand(program: Command): void {
           if (commit.committed) { console.log(`  Committed: ${commit.sha?.slice(0, 7)}`) }
         }
       } catch (err) {
+        if (err instanceof IssueSlugCollisionError) {
+          // Never overwrite an existing issue file on --new — refuse loudly.
+          const message =
+            `${err.message}. ` +
+            `Pick a different title, or run: metta backlog add ${err.slug} — to backlog the existing issue.`
+          if (json) { outputJson({ error: { code: 4, type: 'slug_collision', message } }) } else { console.error(message) }
+          process.exit(4)
+        }
         const message = getErrorMessage(err)
         const type = message.startsWith('Refusing to write') ? 'branch_guard' : 'backlog_error'
         if (json) { outputJson({ error: { code: 4, type, message } }) } else { console.error(message) }

@@ -107,11 +107,42 @@ function assertSafeSlug(slug: string): void {
   assertSlug(slug, 'issue slug')
 }
 
+/**
+ * Thrown when minting a new issue/idea whose title slugs to a file that
+ * already exists (open or resolved) — the store never overwrites on create.
+ */
+export class IssueSlugCollisionError extends Error {
+  constructor(
+    readonly slug: string,
+    readonly existingPath: string,
+  ) {
+    super(`Slug '${slug}' collides with existing ${existingPath} — refusing to overwrite`)
+    this.name = 'IssueSlugCollisionError'
+  }
+}
+
 export class IssuesStore {
   private state: StateStore
 
   constructor(private readonly specDir: string) {
     this.state = new StateStore(specDir)
+  }
+
+  /**
+   * Never-overwrite guard shared by `create`/`createIdea`: refuses when the
+   * slug already names an open (`spec/issues/`) or resolved
+   * (`spec/issues/resolved/`) issue file. No write happens on collision.
+   */
+  private async assertNoSlugCollision(slug: string): Promise<void> {
+    const candidates = [
+      join('issues', `${slug}.md`),
+      join('issues', 'resolved', `${slug}.md`),
+    ]
+    for (const relPath of candidates) {
+      if (await this.state.exists(relPath)) {
+        throw new IssueSlugCollisionError(slug, join('spec', relPath))
+      }
+    }
   }
 
   async create(
@@ -122,6 +153,7 @@ export class IssuesStore {
     frontmatter?: Pick<IssueFrontmatterPatch, 'priority' | 'milestone'>,
   ): Promise<string> {
     const slug = toSlug(title)
+    await this.assertNoSlugCollision(slug)
     const issue: Issue = {
       title,
       captured: new Date().toISOString().slice(0, 10),
@@ -157,6 +189,7 @@ export class IssuesStore {
     fields?: Pick<IssueFrontmatterPatch, 'priority' | 'order' | 'milestone'>,
   ): Promise<string> {
     const slug = toSlug(title)
+    await this.assertNoSlugCollision(slug)
     const issue: Issue = {
       title,
       captured: new Date().toISOString().slice(0, 10),
