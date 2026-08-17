@@ -1,59 +1,34 @@
-# fix-guard-bash-tokenizer-weaknesses — summary
+# Verification: fix-guard-bash-tokenizer-weaknesses
 
-Fixed the four tokenizer weaknesses in `metta-guard-bash.mjs` identified in
-`guard-bash-tokenizer-weaknesses-pre-existing-on-main` (severity major).
+## Spec Scenarios
 
-## What changed
+Trivial workflow — intent.md is the spec. All four issue points verified with test-level evidence in `tests/metta-guard-bash.test.ts` (runs against both hook copies; byte-identity itself is pinned by a test):
 
-`tokenize()` in `src/templates/hooks/metta-guard-bash.mjs` (mirrored
-byte-identically to `.claude/hooks/metta-guard-bash.mjs`) was rewritten:
+- [x] **1. Glued chain separators detected** — `;`-glued (line 302), `&&` (310), `||` (318), `|` (326), `&` (334); block reason cites the second invocation (`backlog add` in stderr, lines 375/384); spaced-separator regressions still block (358) and allowed-only chains still pass (366)
+- [x] **2. Newline/CRLF separators detected** — `\n` (342), `\r\n` (350)
+- [x] **3. Wrapper-prefix limitation acknowledged** — KNOWN LIMITATION comment in `src/templates/hooks/metta-guard-bash.mjs` (lines 113+) names `command`/`env`/`\metta`/`xargs`/`sh -c` wrappers plus dynamic indirection: `$(...)`, backticks, subshells, process substitution, brace groups, backslash-escaped quotes, quoted-whitespace env prefixes, quoted/split command names
+- [x] **4. Quote-aware `--`** — quoted-span `--` allowed (429, 438); whole-word quoted `--` (`"--"`, `'--'`, `""--`) blocks (470, 479, 488); unquoted `--` still blocks (447, 1103-1129); unterminated quotes fail closed (452, 460)
+- [x] **Review round-2 pins** — `FOO=';' metta finalize` blocked (396); `metta status "a;b"` allowed (402); quoted arg with separator + `--` allowed (408); `metta backlog add "see; metta finalize"` blocked for the genuine call (417)
 
-1. **Separator-first segmentation.** The command string is now split on
-   `CHAIN_SEPARATOR_RE = /[;|&]+|\r?\n/` *before* whitespace tokenization, so
-   any run of `;`, `|`, `&` (including `&&`, `||`) or a `\n`/`\r\n` is a
-   segment boundary whether or not it is whitespace-delimited. This closes
-   the glued-separator bypass — `metta backlog --json;metta backlog add x`
-   now produces two invocations and the second (write) call is detected and
-   blocked exactly as if it were spaced. Each segment is whitespace-tokenized
-   independently; because a segment already contains at most one command, the
-   old separator-skip walk inside the argument-span loop is no longer needed.
-2. **Newline segmentation.** `\n` and `\r\n` are included in
-   `CHAIN_SEPARATOR_RE`, so multi-line command strings are also correctly
-   segmented.
-3. **Wrapper-prefix limitation documented.** A comment above the tokenizer
-   now explicitly states that `command metta`, `env metta`, `\metta`, and
-   other indirections (`xargs`, `sh -c`, wrapper scripts) are invisible to
-   textual guarding, that this is an accepted limitation of the text layer,
-   and that defense in depth comes from the two-tier trust model and the
-   audit log — not from enumerating wrappers. No mechanical wrapper detection
-   was added (explicitly out of scope).
-4. **Quote-aware `--` detection.** Added `computeQuoteMask()` and
-   `hasUnquotedDoubleDash()`. A bare `--` word is now only treated as
-   Commander's operand terminator when it is not inside an open single- or
-   double-quoted span (e.g. `metta status "hello -- world"` is no longer
-   misclassified as containing the operand terminator and is now allowed).
-   An unquoted `--` remains blocked unconditionally, and an unterminated
-   quote falls back to the previous quote-unaware check (fail-closed on
-   unparseable input).
+## Gate Results
 
-## Tests
+| Gate | Result |
+|------|--------|
+| tests (`npm test`) | PASS — 127 files, 2389/2389 (217 hook tests) |
+| typecheck (`npx tsc --noEmit`) | PASS |
+| lint (`npm run lint`) | PASS (tsc alias) |
+| build (`npm run build`) | PASS |
+| hook byte-identity (`cmp`) | PASS — template and `.claude/hooks` copy identical |
 
-Extended `tests/metta-guard-bash.test.ts` (runs against both the template
-and deployed hook copies) with:
-- glued `;`, `&&`, `||`, `|`, `&` separator cases (second invocation
-  detected and blocked)
-- newline- and CRLF-separated invocation cases
-- regression cases for existing spaced-separator behavior (block and allow)
-- quoted `--` (double and single quote) no longer over-blocking
-- unquoted `--` still blocking (policy unchanged)
-- unterminated double- and single-quote cases staying fail-closed
+Review: 2 iterations, 3 reviewers each (correctness/security/quality). Round 2: correctness PASS; security and quality PASS_WITH_WARNINGS — all warnings resolved in follow-up commits (see review.md).
 
-All 199 hook tests pass; full suite (`npm test`): 127 files / 2371 tests
-pass. `npx tsc --noEmit` and `npm run build` both clean. The template and
-deployed hook copies remain byte-identical (`cmp` verified).
+## Summary
 
-## Unchanged
+Fixed the four tokenizer weaknesses in `metta-guard-bash.mjs` from issue `guard-bash-tokenizer-weaknesses-pre-existing-on-main` (severity major). Final implementation across commits `c3ee99531`, `95c83da4d`, `60f119809`:
 
-Tier/trust model, credential handling, allow/deny lists, audit logging
-semantics, exit codes, and stderr message contracts are untouched, per the
-change's Out of Scope section.
+1. **Quote-aware separator-first segmentation.** `splitCommandSegments()` computes a quote mask over the whole command and splits on runs of `;`, `|`, `&` (incl. `&&`, `||`) and `\r?\n` only when the run is entirely unquoted — glued forms like `metta backlog --json;metta backlog add x` now yield two invocations and the write call is blocked, while quoted separators (`metta status "a;b"`, `FOO=';' metta finalize`) neither hide invocations nor over-split. Unterminated quotes fall back to quote-unaware splitting, which can only over-block — it never hides a bash-executable invocation (such inputs are bash syntax errors).
+2. **Newline segmentation** — `\n` and `\r\n` are segment boundaries.
+3. **Wrapper-prefix limitation documented** — textual guarding cannot see wrapper/indirection forms; defense in depth is the two-tier trust model plus the audit log. No mechanical wrapper detection added (out of scope).
+4. **Quote-stripped `--` detection.** `computeQuoteMask()` + `hasUnquotedDoubleDash()` with `stripQuoteChars()`: a `--` inside a longer quoted span (`"hello -- world"`) is allowed, while any boundary-self-contained word whose quote-stripped form is `--` (`"--"`, `'--'`, `""--`, `--""`) is treated as a live operand terminator and blocked, matching bash quote removal. Unquoted `--` blocks unconditionally; unterminated quotes fail closed.
+
+Unchanged: tier/trust model, credential handling, allow/deny lists, audit logging semantics, exit codes.
