@@ -40,6 +40,12 @@ export interface MigrationResult {
   collisions: MigrationCollision[]
   /** Display path of the provenance archive: 'spec/archive/backlog-legacy'. */
   archivedTo: string
+  /**
+   * Project-relative posix display paths of every file created, rewritten, or
+   * removed by this run — empty when `nothingToDo` or every item collided.
+   * Suitable as git pathspecs with cwd = projectRoot.
+   */
+  changedPaths: string[]
 }
 
 /** Display-path prefix for reporting (paths are project-relative, posix-style). */
@@ -199,6 +205,7 @@ export async function migrateLegacyBacklog(specDir: string): Promise<MigrationRe
     converted: { active: 0, done: 0 },
     collisions: [],
     archivedTo: ARCHIVED_TO,
+    changedPaths: [],
   }
 
   if (activeFiles.length === 0 && doneFiles.length === 0) {
@@ -220,16 +227,18 @@ export async function migrateLegacyBacklog(specDir: string): Promise<MigrationRe
     }
     const original = await readFile(legacyPath, 'utf8')
     const { body, frontmatterPriority } = splitLegacyItem(original)
+    const targetDisplayPath = `${SPEC_DISPLAY}/issues/${file}`
     await migrateItem({
       file,
       legacyPath,
       body,
       targetDir: issuesDir,
-      targetDisplayPath: `${SPEC_DISPLAY}/issues/${file}`,
+      targetDisplayPath,
       archiveDir,
       patch: { type: 'idea', backlog: true, priority: frontmatterPriority ?? parseLegacyPriority(body) },
     })
     result.converted.active += 1
+    result.changedPaths.push(targetDisplayPath, legacyDisplayPath, `${ARCHIVED_TO}/${file}`)
   }
 
   for (const file of doneFiles) {
@@ -245,16 +254,18 @@ export async function migrateLegacyBacklog(specDir: string): Promise<MigrationRe
       result.collisions.push(collision)
       continue
     }
+    const targetDisplayPath = `${SPEC_DISPLAY}/issues/resolved/${file}`
     await migrateItem({
       file,
       legacyPath,
       body: splitLegacyItem(await readFile(legacyPath, 'utf8')).body,
       targetDir: resolvedDir,
-      targetDisplayPath: `${SPEC_DISPLAY}/issues/resolved/${file}`,
+      targetDisplayPath,
       archiveDir: archiveDoneDir,
       patch: { type: 'idea' },
     })
     result.converted.done += 1
+    result.changedPaths.push(targetDisplayPath, legacyDisplayPath, `${ARCHIVED_TO}/done/${file}`)
   }
 
   await removeDirIfEmpty(doneDir)

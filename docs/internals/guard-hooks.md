@@ -214,13 +214,13 @@ nudge to stderr (start a change with `/metta:quick` or `metta quick`) and
 ### Allowlisted paths
 
 Some edits are legitimate even without an active change — chiefly the
-`/metta-init` bootstrap and post-creation enrichment of issue/backlog bodies.
+`/metta-init` bootstrap and post-creation enrichment of issue bodies.
 Two allowlists cover these (paths are resolved relative to the project root):
 
 | Allowlist | Entries | Why |
 |-----------|---------|-----|
 | `ALLOW_LIST` (exact) | `spec/project.md`, `.metta/config.yaml` | Lets `metta-discovery` bootstrap the constitution and config during `/metta-init`, before any change exists. |
-| `ALLOW_PREFIXES` (prefix, `.md` only) | `spec/issues/`, `spec/backlog/` | Lets users enrich issue/backlog bodies after the CLI creates them. These directories have dedicated commands (`metta issue`, `metta backlog add`) that own creation. |
+| `ALLOW_PREFIXES` (prefix, `.md` only) | `spec/issues/` | Lets users enrich issue bodies after the CLI creates them. This directory has dedicated commands (`metta issue`, `metta backlog add` — both now write under `spec/issues/`) that own creation. |
 
 A prefix match only allows files that both start with the prefix **and** end in
 `.md`.

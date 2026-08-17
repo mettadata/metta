@@ -407,9 +407,9 @@ describe('metta-guard-bash integration', { timeout: 60_000 }, () => {
       expect(code).toBe(2)
     })
 
-    it('bare `metta backlog` stays blocked (no ALLOWED_BARE entry) — exit 2', () => {
+    it('bare `metta backlog` is allowed (read-only list view) — exit 0', () => {
       const { code } = runHook(bashEvent('metta backlog', { cwd: tempDir }), { cwd: tempDir })
-      expect(code).toBe(2)
+      expect(code).toBe(0)
     })
 
     it('mint hook scope for metta-roadmap grants exactly roadmap:add/reorder/next', () => {
@@ -486,6 +486,15 @@ describe('metta-guard-bash integration', { timeout: 60_000 }, () => {
       })
       expect(code).toBe(2)
       expect(stderr).toContain('unknown')
+    })
+
+    it('blocks `metta release --json -- cut` — flag-then-`--` operand terminator fails closed — exit 2', () => {
+      const { code, stderr } = runHook(
+        bashEvent('metta release --json -- cut', { cwd: tempDir }),
+        { cwd: tempDir },
+      )
+      expect(code).toBe(2)
+      expect(stderr).toContain("'--'")
     })
 
     it('mint hook scope for metta-release grants exactly release:cut', () => {

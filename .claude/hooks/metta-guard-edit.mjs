@@ -122,12 +122,11 @@ const ALLOW_LIST = [
   '.metta/config.yaml',
 ]
 // Directory-prefix allow-list (.md only) — lets users enrich
-// issue/backlog bodies after the CLI creates them without needing
-// an active metta change. These directories have dedicated CLI
+// issue bodies after the CLI creates them without needing
+// an active metta change. This directory has dedicated CLI
 // commands (`metta issue`, `metta backlog add`) that own creation.
 const ALLOW_PREFIXES = [
   'spec/issues/',
-  'spec/backlog/',
 ]
 if (filePath) {
   // Both sides physical: targetPath via toPhysicalPath, projectRoot via git

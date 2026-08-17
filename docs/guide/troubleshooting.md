@@ -70,7 +70,7 @@ Emergency bypass: disable this hook in .claude/settings.local.json.
 - Small/scoped fix → `/metta-quick <description>`
 - Anything non-trivial → `/metta-propose <description>`
 
-**Exceptions that are allowed without an active change:** edits to `spec/project.md` and `.metta/config.yaml` (so `/metta-init` can bootstrap), and `.md` files under `spec/issues/` and `spec/backlog/` (so you can enrich issue/backlog bodies the CLI created). If your path is none of these and you genuinely need an out-of-band edit, the emergency bypass is the hook toggle in `.claude/settings.local.json`.
+**Exceptions that are allowed without an active change:** edits to `spec/project.md` and `.metta/config.yaml` (so `/metta-init` can bootstrap), and `.md` files under `spec/issues/` (so you can enrich issue bodies the CLI created). If your path is none of these and you genuinely need an out-of-band edit, the emergency bypass is the hook toggle in `.claude/settings.local.json`.
 
 ---
 

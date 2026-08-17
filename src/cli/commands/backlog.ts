@@ -6,6 +6,7 @@ import { assertOnMainBranch, createCliContext, outputJson, getErrorMessage } fro
 import { toBacklogEntries, sortBacklogEntries } from '../../backlog/backlog-view.js'
 import { migrateLegacyBacklog } from '../../backlog/backlog-migrate.js'
 import { IssueSlugCollisionError } from '../../issues/issues-store.js'
+import { stripControlSequences } from '../../util/sanitize-text.js'
 import { SLUG_RE } from '../../util/slug.js'
 
 const execAsync = promisify(execFile)
@@ -49,7 +50,7 @@ export function registerBacklogCommand(program: Command): void {
     .description('Manage the backlog — a view over spec/issues/ frontmatter')
 
   backlog
-    .command('list')
+    .command('list', { isDefault: true })
     .description('List backlog entries (issues and ideas with backlog: true)')
     .action(async () => {
       const json = program.opts().json
@@ -72,7 +73,7 @@ export function registerBacklogCommand(program: Command): void {
         })
       } else {
         if (entries.length === 0) { console.log('Backlog is empty.') } else {
-          for (const e of entries) { console.log(`  [${e.priority ?? 'none'}] ${e.slug.padEnd(30)} ${e.title}`) }
+          for (const e of entries) { console.log(`  [${e.priority ?? 'none'}] ${e.slug.padEnd(30)} ${stripControlSequences(e.title)}`) }
         }
       }
     })
@@ -178,7 +179,7 @@ export function registerBacklogCommand(program: Command): void {
 
         let commit: CommitResult = { committed: false }
         if (status !== 'already_backlogged') {
-          commit = await commitPaths(ctx.projectRoot, [join('spec', 'issues')], `chore: add backlog item ${slug}`)
+          commit = await commitPaths(ctx.projectRoot, [join('spec', 'issues', `${slug}.md`)], `chore: add backlog item ${slug}`)
         }
 
         if (json) {
@@ -266,7 +267,7 @@ export function registerBacklogCommand(program: Command): void {
 
         const commit = await commitPaths(
           ctx.projectRoot,
-          [join('spec', 'issues'), join('spec', 'issues', 'resolved')],
+          [join('spec', 'issues', `${slug}.md`), join('spec', 'issues', 'resolved', `${slug}.md`)],
           `chore: archive shipped backlog item ${slug}`,
         )
 
@@ -303,7 +304,7 @@ export function registerBacklogCommand(program: Command): void {
         if (result.converted.active + result.converted.done > 0) {
           commit = await commitPaths(
             ctx.projectRoot,
-            [join('spec', 'backlog'), join('spec', 'archive', 'backlog-legacy'), join('spec', 'issues')],
+            result.changedPaths,
             'chore: migrate legacy backlog to issue store',
           )
         }

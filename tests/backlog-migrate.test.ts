@@ -59,6 +59,7 @@ describe('migrateLegacyBacklog', () => {
       converted: { active: 0, done: 0 },
       collisions: [],
       archivedTo: 'spec/archive/backlog-legacy',
+      changedPaths: [],
     })
     expect(await exists('issues')).toBe(false)
     expect(await exists('archive')).toBe(false)
@@ -79,6 +80,11 @@ describe('migrateLegacyBacklog', () => {
     expect(result.nothingToDo).toBe(false)
     expect(result.converted).toEqual({ active: 1, done: 0 })
     expect(result.collisions).toEqual([])
+    expect(result.changedPaths).toEqual([
+      'spec/issues/dark-mode.md',
+      'spec/backlog/dark-mode.md',
+      'spec/archive/backlog-legacy/dark-mode.md',
+    ])
 
     const converted = await readFile(join(specDir, 'issues', 'dark-mode.md'), 'utf8')
     expect(converted).toBe(`---\ntype: idea\nbacklog: true\npriority: high\n---\n${original}`)
@@ -90,6 +96,11 @@ describe('migrateLegacyBacklog', () => {
 
     const result = await migrateLegacyBacklog(specDir)
     expect(result.converted).toEqual({ active: 0, done: 1 })
+    expect(result.changedPaths).toEqual([
+      'spec/issues/resolved/old-thing.md',
+      'spec/backlog/done/old-thing.md',
+      'spec/archive/backlog-legacy/done/old-thing.md',
+    ])
 
     const converted = await readFile(join(specDir, 'issues', 'resolved', 'old-thing.md'), 'utf8')
     expect(converted).toBe(`---\ntype: idea\n---\n${original}`)
@@ -247,6 +258,12 @@ describe('migrateLegacyBacklog', () => {
     const result = await migrateLegacyBacklog(specDir)
     expect(result.converted).toEqual({ active: 0, done: 1 })
     expect(result.collisions).toHaveLength(1)
+    // Collision-skipped items contribute nothing to changedPaths.
+    expect(result.changedPaths).toEqual([
+      'spec/issues/resolved/clean-done.md',
+      'spec/backlog/done/clean-done.md',
+      'spec/archive/backlog-legacy/done/clean-done.md',
+    ])
 
     // done/ emptied and removed; backlog/ kept for the collision straggler.
     expect(await exists('backlog', 'done')).toBe(false)
@@ -266,6 +283,7 @@ describe('migrateLegacyBacklog', () => {
       converted: { active: 0, done: 0 },
       collisions: [],
       archivedTo: 'spec/archive/backlog-legacy',
+      changedPaths: [],
     })
     expect(await readFile(join(specDir, 'issues', 'one.md'), 'utf8')).toBe(firstIssue)
   })
@@ -283,6 +301,7 @@ describe('migrateLegacyBacklog', () => {
     expect(second.nothingToDo).toBe(false)
     expect(second.collisions).toEqual(first.collisions)
     expect(second.converted).toEqual({ active: 0, done: 0 })
+    expect(second.changedPaths).toEqual([])
     expect(await readFile(join(specDir, 'issues', 'collide.md'), 'utf8')).toBe(existing)
     expect(await readFile(join(specDir, 'backlog', 'collide.md'), 'utf8')).toBe(legacy)
   })

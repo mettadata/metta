@@ -267,24 +267,46 @@ Slugs are lowercased with non-alphanumerics replaced and truncated to 60 charact
 
 Same format; records the resolution. Kept as a durable record of historical issues.
 
-## `spec/backlog/` — prioritized items
+## The backlog — a frontmatter view over `spec/issues/`
 
-Plain markdown files. `BacklogStore` (`src/backlog/backlog-store.ts`) owns reads and writes. Each item:
+There is no backlog directory store. The backlog is computed purely from YAML frontmatter on `spec/issues/*.md` files (`toBacklogEntries` / `sortBacklogEntries` in `src/backlog/backlog-view.ts`). An issue or idea is on the backlog when its frontmatter block carries `backlog: true`:
 
 ```markdown
+---
+type: issue | idea        # default: issue
+backlog: true             # default: false — the backlog membership flag
+priority: high | medium | low   # optional
+order: <number>           # optional ordering within a priority bucket
+milestone: <slug>         # optional spec/milestones/ association
+---
 # <title>
+...
+```
 
-**Added**: <YYYY-MM-DD>
-**Source**: <optional>
-**Status**: backlog
-**Priority**: high | medium | low
+A frontmatter-less issue file is semantically `{ type: issue, backlog: false }` and is excluded from the view. Sort order: priority (`high` < `medium` < `low` < none) → `order` ascending → captured date → slug.
 
+- **Written by**: `metta backlog add <slug>` (flips `backlog: true` on an existing issue) or `metta backlog add "<title>" --new` (mints a `type: idea` entry in `spec/issues/`), both via `/metta-backlog`.
+- **Read by**: `metta backlog list`/`show`, `/metta-progress`, `/metta-next`.
+- **Moved by**: `metta backlog done <slug>` archives the entry to `spec/issues/resolved/<slug>.md` (frontmatter preserved; `--change <name>` stamps the shipping change).
+- **Legacy `spec/backlog/`**: handled only by `metta backlog migrate`, which converts legacy directory-store items into issue-store entries and archives the originals; nothing else reads that directory.
+
+## `spec/milestones/` — milestone groupings
+
+One markdown file per milestone. `MilestonesStore` (`src/milestones/milestones-store.ts`) owns reads and writes; existing files are never overwritten. Each file is Zod-validated YAML frontmatter above a free-form description body:
+
+```markdown
+---
+name: <display name>       # required
+target: <date>             # optional
+status: open | closed
+---
 <free-form description>
 ```
 
-- **Authored by**: `/metta-backlog add`.
-- **Read by**: `/metta-backlog list`, `/metta-progress`, `/metta-next`.
-- **Moved by**: `metta backlog done <slug>` relocates to `spec/backlog/done/<slug>.md`.
+Backlog entries reference a milestone by slug via their `milestone:` frontmatter field; `metta milestone list`/`show` compute rollups (open/resolved counts per milestone) from the issue store (`src/milestones/milestone-rollup.ts`).
+
+- **Authored by**: `metta milestone create <slug> --name "<name>"` via `/metta-backlog`.
+- **Read by**: `metta milestone list`/`show`, backlog rollups.
 - **Deleted by**: never automatically.
 
 ## `spec/gaps/` — reconciliation gaps

@@ -79,10 +79,42 @@ describe('renderBanner', () => {
       expect(out).toContain('downscale recommended')
     })
 
-    it('scored full with chosen trivial produces upscale', () => {
+    it('scored full with chosen trivial produces capped upscale to standard', () => {
       const score = makeScore('full', 10)
       const out = renderBanner(score, 'trivial')
-      expect(out).toContain('upscale recommended')
+      expect(out).toContain(
+        'current trivial, scored full -- upscale to standard recommended (full upscale not supported)',
+      )
+      expect(out).not.toContain('upscale to full')
+    })
+  })
+
+  describe('upscale advisory cap', () => {
+    it('scored full with chosen quick caps the target at standard', () => {
+      const score = makeScore('full', 10)
+      const out = renderBanner(score, 'quick')
+      expect(out).toContain(
+        'current quick, scored full -- upscale to standard recommended (full upscale not supported)',
+      )
+      expect(out).not.toContain('upscale to full')
+    })
+
+    it('scored full with chosen standard renders the cap without recommending a move', () => {
+      const score = makeScore('full', 10)
+      const out = renderBanner(score, 'standard')
+      expect(out).toContain(
+        'current standard, scored full -- full tier not supported; staying at standard',
+      )
+      expect(out).not.toContain('upscale recommended')
+      expect(out).not.toContain('upscale to')
+    })
+
+    it('scored standard with chosen quick keeps the plain upscale wording unchanged', () => {
+      const score = makeScore('standard', 5)
+      const out = renderBanner(score, 'quick')
+      expect(out).toBe(
+        '\x1b[33mAdvisory:\x1b[0m current quick, scored standard -- upscale recommended',
+      )
     })
   })
 })

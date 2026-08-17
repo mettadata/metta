@@ -14,16 +14,25 @@ function tierRank(tier: string): number {
   return TIER_ORDER[tier as Tier] ?? -1
 }
 
+/** Highest tier the advisory banner will ever recommend upscaling to. */
+const MAX_UPSCALE_TIER: Tier = 'standard'
+
 /**
  * Render a one-line advisory banner comparing the current workflow tier
  * to the scored recommendation.
  *
  * Returns the empty string when `score` is null/undefined.
  *
+ * Upscale advisories are capped at `MAX_UPSCALE_TIER` ('standard'): the
+ * banner stays truthful about the scored tier but never recommends moving
+ * above standard.
+ *
  * Output forms (yellow "Advisory:" prefix, code 33):
- *   - agreement: "Advisory: current workflow <tier> matches recommendation <tier>"
- *   - downscale: "Advisory: current <chosen>, scored <recommended> -- downscale recommended"
- *   - upscale:   "Advisory: current <chosen>, scored <recommended> -- upscale recommended"
+ *   - agreement:       "Advisory: current workflow <tier> matches recommendation <tier>"
+ *   - downscale:       "Advisory: current <chosen>, scored <recommended> -- downscale recommended"
+ *   - upscale:         "Advisory: current <chosen>, scored <recommended> -- upscale recommended"
+ *   - capped upscale:  "Advisory: current <chosen>, scored <recommended> -- upscale to standard recommended (<recommended> upscale not supported)"
+ *   - capped at current: "Advisory: current standard, scored <recommended> -- <recommended> tier not supported; staying at standard"
  */
 export function renderBanner(
   score: ComplexityScore | null | undefined,
@@ -43,6 +52,14 @@ export function renderBanner(
 
   if (recRank < chosenRank) {
     return `${prefix} current ${currentWorkflow}, scored ${recommended} -- downscale recommended`
+  }
+
+  const capRank = tierRank(MAX_UPSCALE_TIER)
+  if (recRank > capRank) {
+    if (chosenRank >= capRank) {
+      return `${prefix} current ${currentWorkflow}, scored ${recommended} -- ${recommended} tier not supported; staying at ${currentWorkflow}`
+    }
+    return `${prefix} current ${currentWorkflow}, scored ${recommended} -- upscale to ${MAX_UPSCALE_TIER} recommended (${recommended} upscale not supported)`
   }
 
   return `${prefix} current ${currentWorkflow}, scored ${recommended} -- upscale recommended`

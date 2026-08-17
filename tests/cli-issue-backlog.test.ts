@@ -447,6 +447,115 @@ describe("CLI: issue / fix-issue / backlog / branch-safety / check-constitution"
       expect(code).toBe(0)
       expect(stdout).toContain('Backlog is empty.')
     })
+
+    it('renders sanitized titles without rewriting the issue file on disk', async () => {
+      await installFixture(tempDir)
+      await runCli(['backlog', 'add', 'Evil idea', '--new'], tempDir)
+      const path = join(tempDir, 'spec', 'issues', 'evil-idea.md')
+      const original = await readFile(path, 'utf8')
+      // Inject an ANSI color sequence into the stored title.
+      const hostile = original.replace('# Evil idea', '# \x1b[31mEVIL\x1b[0m idea')
+      expect(hostile).not.toBe(original)
+      await writeFile(path, hostile, 'utf8')
+
+      const { stdout, code } = await runCli(['backlog', 'list'], tempDir)
+      expect(code).toBe(0)
+      expect(stdout).toContain('EVIL')
+      expect(stdout).not.toContain('\x1b')
+      // Render-only sanitization: the file on disk is byte-identical.
+      expect(await readFile(path, 'utf8')).toBe(hostile)
+    })
+  })
+
+
+  describe('metta backlog (bare form)', () => {
+    it('defaults to the read-only list and exits 0', async () => {
+      await installFixture(tempDir)
+      const empty = await runCli(['backlog'], tempDir)
+      expect(empty.code).toBe(0)
+      expect(empty.stdout).toContain('Backlog is empty.')
+
+      await runCli(['backlog', 'add', 'Dark mode', '--new', '--priority', 'high'], tempDir)
+      const { stdout, code } = await runCli(['backlog'], tempDir)
+      expect(code).toBe(0)
+      expect(stdout).toMatch(/\[high\] dark-mode/)
+    })
+  })
+
+
+  describe('backlog auto-commit scoping (no sweep of unrelated dirt)', () => {
+    const DIRTY_REL = join('spec', 'issues', 'unrelated-dirty.md')
+
+    async function seedDirtyFile(): Promise<void> {
+      await mkdir(join(tempDir, 'spec', 'issues'), { recursive: true })
+      await writeFile(
+        join(tempDir, DIRTY_REL),
+        '# Unrelated dirty file\n\n**Severity**: minor\n\nNot part of any backlog operation.\n',
+        'utf8',
+      )
+    }
+
+    async function headNameStatus(): Promise<string> {
+      const { stdout } = await execAsync(
+        'git', ['show', '--name-status', '--format=', 'HEAD'], { cwd: tempDir },
+      )
+      return stdout
+    }
+
+    async function porcelainStatus(): Promise<string> {
+      const { stdout } = await execAsync('git', ['status', '--porcelain'], { cwd: tempDir })
+      return stdout
+    }
+
+    it('add commits only the written issue file', async () => {
+      await installFixture(tempDir)
+      await seedDirtyFile()
+
+      const { stdout, code } = await runCli(['--json', 'backlog', 'add', 'Scoped idea', '--new'], tempDir)
+      expect(code).toBe(0)
+      expect(JSON.parse(stdout).committed).toBe(true)
+
+      const shown = await headNameStatus()
+      expect(shown).toMatch(/spec\/issues\/scoped-idea\.md/)
+      expect(shown).not.toContain('unrelated-dirty.md')
+      expect(await porcelainStatus()).toContain('unrelated-dirty.md')
+    })
+
+    it('done commits only the archive move pair', async () => {
+      await installFixture(tempDir)
+      await runCli(['backlog', 'add', 'Shippable idea', '--new'], tempDir)
+      await seedDirtyFile()
+
+      const { stdout, code } = await runCli(['--json', 'backlog', 'done', 'shippable-idea'], tempDir)
+      expect(code).toBe(0)
+      expect(JSON.parse(stdout).committed).toBe(true)
+
+      const shown = await headNameStatus()
+      expect(shown).toMatch(/spec\/issues\/shippable-idea\.md/)
+      expect(shown).toMatch(/spec\/issues\/resolved\/shippable-idea\.md/)
+      expect(shown).not.toContain('unrelated-dirty.md')
+      expect(await porcelainStatus()).toContain('unrelated-dirty.md')
+    })
+
+    it('migrate commits only the migration-touched paths', async () => {
+      await installFixture(tempDir)
+      await mkdir(join(tempDir, 'spec', 'backlog'), { recursive: true })
+      await writeFile(
+        join(tempDir, 'spec', 'backlog', 'legacy-idea.md'),
+        '# Legacy idea\n\n**Added**: 2026-01-05\n**Priority**: high\n\nMigrate me\n',
+        'utf8',
+      )
+      await seedDirtyFile()
+
+      const { stdout, code } = await runCli(['--json', 'backlog', 'migrate'], tempDir)
+      expect(code).toBe(0)
+      expect(JSON.parse(stdout).committed).toBe(true)
+
+      const shown = await headNameStatus()
+      expect(shown).toMatch(/spec\/issues\/legacy-idea\.md/)
+      expect(shown).not.toContain('unrelated-dirty.md')
+      expect(await porcelainStatus()).toContain('unrelated-dirty.md')
+    })
   })
 
 

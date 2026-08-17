@@ -72,9 +72,12 @@ const BLOCKED_TWO_WORD = new Map([
 // Explicit ALLOW list for bare (no-third-word) read-only command groups: the
 // bare form (optionally with flags, e.g. `metta roadmap --json`) is a read-only
 // status view, while its two-word mutating forms stay Tier-2 blocked above.
-// `roadmap <any-unknown-word>` / `release <any-unknown-word>` remain 'unknown' → fail-closed.
+// `roadmap <any-unknown-word>` / `release <any-unknown-word>` / `backlog <any-unknown-word>`
+// remain 'unknown' → fail-closed.
 // Bare `metta release` defaults to the read-only status view (roadmap precedent).
-const ALLOWED_BARE = new Set(['roadmap', 'release']);
+// Bare `metta backlog` defaults to the read-only list view; its mutating two-word
+// forms (`add`/`done`/`promote`/`migrate`) stay Tier-2 blocked above.
+const ALLOWED_BARE = new Set(['roadmap', 'release', 'backlog']);
 
 // Subcommands that require a trusted agent_type (caller identity set by the Claude Code
 // runtime when a forked metta-* subagent fires the tool). Verified caller identity is the
@@ -103,7 +106,10 @@ function tokenize(command) {
   // detected; inline command text (including any env-var prefix) never carries
   // authorization — Tier 1 trusts only the verified fork caller identity and Tier 2
   // trusts only the minted session credential.
-  // Return array of { sub, third }.
+  // Return array of { sub, third, hasDoubleDash } where hasDoubleDash is true when a
+  // bare `--` token appears ANYWHERE in the invocation's argument span (not just as the
+  // third token) — Commander's operand terminator still dispatches what follows it as a
+  // subcommand, so classify() fails such invocations closed.
   const results = [];
   const tokens = command.split(/\s+/).filter(Boolean);
   let i = 0;
@@ -111,12 +117,19 @@ function tokenize(command) {
     // Consume env-var prefixes (FOO=BAR, ...)
     while (i < tokens.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(tokens[i])) i++;
     if (tokens[i] === 'metta') {
-      results.push({ sub: tokens[i + 1], third: tokens[i + 2] });
-      // Skip the rest of this command's arguments up to the next chain separator
-      // so words inside a quoted argument (e.g. a propose description that mentions
-      // "metta finalize") are not misparsed as a second invocation.
+      const sub = tokens[i + 1];
+      const third = tokens[i + 2];
+      // Walk the full argument span up to the next chain separator so (a) words inside
+      // a quoted argument (e.g. a propose description that mentions "metta finalize")
+      // are not misparsed as a second invocation, and (b) a bare `--` hiding after any
+      // number of flags (e.g. `metta backlog --json -- add x`) is still detected.
+      let hasDoubleDash = false;
       i += 1;
-      while (i < tokens.length && !['&&', ';', '||', '|'].includes(tokens[i])) i++;
+      while (i < tokens.length && !['&&', ';', '||', '|'].includes(tokens[i])) {
+        if (tokens[i] === '--') hasDoubleDash = true;
+        i++;
+      }
+      results.push({ sub, third, hasDoubleDash });
       i++; // skip the separator
       continue;
     }
@@ -129,6 +142,13 @@ function tokenize(command) {
 
 // Classification result: 'allow' | 'block' | 'unknown'
 function classify(inv) {
+  // Reject a bare `--` token ANYWHERE in the invocation's arguments: it is Commander's
+  // operand terminator, and what follows it still dispatches as a subcommand (e.g.
+  // `metta backlog -- add x` and `metta backlog --json -- add x` both run `backlog add`),
+  // so any `--` fails closed as unknown regardless of allow-list membership. This
+  // subsumes the earlier third-token-only `--` rejection. No legitimate metta CLI call
+  // needs `--`.
+  if (inv.hasDoubleDash) return 'unknown';
   if (!inv.sub) return 'allow'; // bare `metta` — harmless
   if (ALLOWED_SUBCOMMANDS.has(inv.sub)) return 'allow';
   const allowedTwo = ALLOWED_TWO_WORD.get(inv.sub);
@@ -242,6 +262,9 @@ async function main() {
   const tier2Accepted = [];
   const offender = invocations.find((inv) => {
     if (classify(inv) === 'allow') return false; // never an offender
+    // A `--` operand terminator fails closed unconditionally — no tier, fork identity,
+    // or session credential can authorize it (see classify()).
+    if (inv.hasDoubleDash) return true;
     // Tier 1: enforced skill subcommands are authorized by trusted fork caller identity alone
     if (SKILL_ENFORCED_SUBCOMMANDS.has(inv.sub)) {
       return !isTrustedSkillCaller(event);
@@ -282,6 +305,21 @@ async function main() {
 
   const verdict = classify(offender);
   const subDisplay = `metta ${offender.sub ?? ''}${offender.third ? ' ' + offender.third : ''}`.trim();
+
+  // `--` operand terminator: blocked unconditionally with a dedicated message, before
+  // any tier-specific handling — Commander dispatches what follows `--` as a subcommand,
+  // so this path never consults fork identity or session credentials.
+  if (offender.hasDoubleDash) {
+    appendAuditLog(event, 'block', offender, 'double-dash-operand-terminator', null);
+    process.stderr.write(
+      `metta-guard-bash: Blocked metta invocation containing a bare '--' in '${subDisplay}'.\n` +
+      `The '--' operand terminator is not permitted: Commander still dispatches what follows\n` +
+      `it as a subcommand (e.g. 'metta backlog --json -- add x' runs 'backlog add'), so any\n` +
+      `metta invocation containing '--' fails closed. Re-run the command without '--'.\n` +
+      `Emergency bypass: disable this hook in .claude/settings.local.json.\n`
+    );
+    process.exit(2);
+  }
 
   // Skill-enforced subcommand blocked because the caller lacks a trusted agent_type.
   // Inline command text alone never authorizes a fork-tier subcommand.
