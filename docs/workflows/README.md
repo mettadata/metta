@@ -17,10 +17,10 @@ metta's workflow system is three concepts that compose. **Skills** are the `/met
 | Resolve a reconciliation gap (spec vs code drift) | `/metta-fix-gap <slug>` | varies | Chooses workflow based on gap severity. |
 | Generate specs from an existing codebase | `/metta-import` | n/a | Analyses source, writes `spec/specs/`, emits a gap report. |
 | See status of the active change | `/metta-status` | n/a | Reads `.metta/` state for the current branch. |
-| See project-wide dashboard across all changes | `/metta-progress` | n/a | Aggregates `spec/changes/`, `spec/issues/`, `spec/backlog/`. |
+| See project-wide dashboard across all changes | `/metta-progress` | n/a | Aggregates `spec/changes/` and `spec/issues/` (backlog entries are issue frontmatter). |
 | Ask "what should I do next?" | `/metta-next` | n/a | Routes to the next logical lifecycle step. |
 | Log an issue for later | `/metta-issue <description>` | n/a | Writes to `spec/issues/`. |
-| Manage the prioritized backlog | `/metta-backlog` | n/a | Reads/writes `spec/backlog/`. |
+| Manage the prioritized backlog | `/metta-backlog` | n/a | Reads/writes backlog frontmatter on `spec/issues/` entries; manages `spec/milestones/`. |
 | Initialize metta in a project | `/metta-init` | n/a | Interactive discovery; bootstraps `spec/` and `.metta/`. |
 | Regenerate `CLAUDE.md` after spec changes | `/metta-refresh` | n/a | Rewrites managed sections only. |
 | Check a change against the constitution | `/metta-check-constitution` | n/a | Reads `spec/project.md`, validates the active change. |

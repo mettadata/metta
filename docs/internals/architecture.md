@@ -42,7 +42,7 @@ reading first.
 | discovery | `src/discovery/` | `discovery-gate.ts` | Pure completeness check on a spec (requirements have scenarios, etc.) — the discovery gate. |
 | gaps | `src/gaps/` | `gaps-store.ts` | CRUD over reconciliation gap records (spec-vs-code drift) in `spec/gaps/`. |
 | issues | `src/issues/` | `issues-store.ts` | CRUD over logged issue records in `spec/issues/`. |
-| backlog | `src/backlog/` | `backlog-store.ts` | CRUD over prioritized backlog items in `spec/backlog/`. |
+| backlog | `src/backlog/` | `backlog-view.ts` | Pure backlog view computed from `spec/issues/` frontmatter (`backlog: true` + `priority`/`order`/`milestone`); `backlog-migrate.ts` converts the legacy `spec/backlog/` store. (`backlog-store.ts`/`BacklogStore` were deleted.) |
 | delivery | `src/delivery/` | `tool-adapter.ts` | Renders skills/commands/agents for an AI tool; `claude-code-adapter.ts` targets Claude Code, `workflow-primer.ts` primes the orchestrator. |
 | docs | `src/docs/` | `doc-generator.ts` | Generates the user-facing `docs/` (architecture, api, changelog, getting-started) from specs (`DocGenerator`). |
 | templates | `src/templates/` | `template-engine.ts` | Resolves + renders artifact templates from a search-path chain; the `src/templates/` subdirs are the source assets copied to `dist/` and deployed. |
@@ -93,7 +93,7 @@ stores know about schemas, and nothing points back up.
 
 `createCliContext(projectRoot)` in `src/cli/helpers.ts` is the single composition
 root: it builds the `ArtifactStore`, `WorkflowEngine`, `ContextEngine`,
-`GateRegistry`, `IssuesStore`, `BacklogStore`, `GapsStore`, `SpecLockManager`,
+`GateRegistry`, `IssuesStore`, `MilestonesStore`, `GapsStore`, `SpecLockManager`,
 `TemplateEngine`, `InstructionGenerator`, and `StateStore`, then hands them to the
 command handlers as a `CliContext`. There are no singletons — each invocation
 constructs a fresh context rooted at the project directory.

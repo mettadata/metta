@@ -470,37 +470,63 @@ interactive and asks the user to pick an issue. `--severity <level>` may be comb
 
 ### `/metta-backlog`
 
-**Purpose:** Manage backlog.
+**Purpose:** Manage the backlog — a view over `spec/issues/` frontmatter. There is no
+separate backlog store; an entry is on the backlog when its issue file carries
+`backlog: true` (plus optional `priority` / `order` / `milestone`) in YAML frontmatter.
 **Arguments:** none declared in frontmatter; the skill collects arguments interactively via
 `AskUserQuestion`.
 **Wraps CLI:** `metta backlog list`, `metta backlog show <slug>`,
-`metta backlog add "<title>" [--priority <level>]`, `metta backlog promote <slug>`,
-`metta backlog done <slug> [--change <name>]` (see `src/cli/commands/backlog.ts`). The CLI
-owns the `spec/backlog/` directory.
+`metta backlog add <slug-or-title> [--new] [--description <text>] [--priority <level>]
+[--order <n>] [--milestone <slug>]`, `metta backlog promote <slug>`,
+`metta backlog done <slug> [--change <name>]`, `metta backlog migrate`, plus
+`metta milestone create <slug> --name "<name>" [--target <date>] [--description <text>]`,
+`metta milestone list`, `metta milestone show <slug>` (see `src/cli/commands/backlog.ts`
+and `src/cli/commands/milestone.ts`). The CLI owns `spec/issues/` and `spec/milestones/`;
+the skill never writes those files directly.
 **When to use:**
-- Capture longer-horizon items that are not ready for a change yet.
-- Promote a backlog item when it becomes actionable (the skill echoes the
-  `metta propose "<title>"` command the CLI prints).
-- Archive a backlog item when a change has shipped it (`done`).
+- Flag an existing issue as backlog work, or capture a longer-horizon idea (`add --new`).
+- Promote a backlog entry when it becomes actionable (the skill echoes the
+  `/metta-fix-issues <slug>` handoff the CLI prints).
+- Archive a backlog entry when a change has shipped it (`done`).
+- Convert a legacy `spec/backlog/` directory into issue-store entries (`migrate`).
+- Create or inspect milestones and their rollups (`milestone`).
 
 **Flow summary:**
-- Ask which subcommand to run: `list`, `show`, `add`, `promote`, `done`.
+- Ask which subcommand to run: `list`, `show`, `add`, `promote`, `done`, `migrate`,
+  `milestone`.
 - **list** → `metta backlog list`. **show** → collect `slug`, run `metta backlog show`.
-- **add** → collect `title`, `priority` (`high | medium | low`), `description`. Run
-  `metta backlog add`. If a distinct description was provided, overwrite the body of
-  `spec/backlog/<slug>.md` preserving the frontmatter.
+- **add** → ask whether to backlog an existing issue or capture a new idea.
+  - *Existing issue* → pick a slug from `metta issues list --json`, optionally collect
+    `priority` (`high | medium | low`), `order` (number), `milestone` (slug), then run
+    `metta backlog add <slug>` with whichever flags were supplied. This flips
+    `backlog: true` in the issue's frontmatter. An unresolved slug makes the CLI exit
+    non-zero and suggest `--new`; the skill confirms with the user before re-running with
+    `--new` so a typo never silently mints a new idea.
+  - *New idea* → collect `title`, `description`, and the same optional flags, then run
+    `metta backlog add "<title>" --new --description "<description>"`. This mints a
+    `type: idea` entry in `spec/issues/` (description defaults to the title).
 - **promote** → list slugs via `metta backlog list --json`, pick one, run
-  `metta backlog promote`, and echo the suggested `metta propose` command back to the user.
+  `metta backlog promote <slug>` (zero writes), and echo the `/metta-fix-issues <slug>`
+  handoff command back to the user.
 - **done** → pick a slug, optionally collect `change`, run `metta backlog done <slug>`
-  (optionally `--change <name>`). Echo the archived path.
+  (optionally `--change <name>`). The CLI archives the entry to
+  `spec/issues/resolved/<slug>.md`; `--change` stamps Shipped-in on the archived file.
+- **migrate** → run `metta backlog migrate --json`; report converted counts, any slug
+  collisions (reported, never overwritten), and where the legacy originals were archived.
+- **milestone** → ask `create | list | show`, then run the matching `metta milestone`
+  command; `list`/`show` report rollups (open/resolved counts and percent per milestone).
 
 **Subagents spawned:** none.
 
 **Output:**
-- Files written by the CLI under `spec/backlog/<slug>.md`, archived to
-  `spec/backlog/done/<slug>.md`, stamped with `**Shipped-in**: <name>` when `--change` is
-  supplied.
-- For `promote`, the next-step command printed by the CLI is echoed back to the user.
+- Frontmatter updates or new `type: idea` files under `spec/issues/`, written by the CLI.
+- `done` moves the entry to `spec/issues/resolved/<slug>.md`, stamped with the shipping
+  change when `--change` is supplied.
+- `migrate` converts legacy `spec/backlog/` items into issue-store entries and archives
+  the originals; `spec/backlog/` exists only as this legacy migrate input.
+- Milestone files under `spec/milestones/<slug>.md` for `milestone create`.
+- For `promote`, the `/metta-fix-issues <slug>` command printed by the CLI is echoed back
+  to the user.
 
 ---
 
