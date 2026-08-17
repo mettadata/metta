@@ -6,7 +6,7 @@ base_versions: {}
 artifacts:
   intent: complete
   implementation: complete
-  verification: ready
+  verification: complete
 complexity_score:
   score: 0
   signals:
@@ -21,6 +21,7 @@ artifact_timings:
     completed: 2026-08-17T22:00:51.044Z
   verification:
     started: 2026-08-17T22:00:55.490Z
+    completed: 2026-08-17T22:51:52.027Z
 artifact_tokens:
   intent:
     context: 763
@@ -31,6 +32,8 @@ artifact_tokens:
   verification:
     context: 781
     budget: 50000
+review_iterations: 2
+verify_iterations: 1
 worktree: /home/utx0/Code/metta/.metta/worktrees/fix-guard-bash-tokenizer-weaknesses
 model_runs:
   - task: implementation
@@ -60,4 +63,136 @@ token_usage:
     model: sonnet
     tokens: 39186
     timestamp: 2026-08-17T22:00:45.884Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 7864
+    timestamp: 2026-08-17T22:01:27.964Z
+    source: hook
+  - task: implementation
+    agent: metta-reviewer
+    model: fable
+    tokens: 14779
+    timestamp: 2026-08-17T22:05:12.144Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 7945
+    timestamp: 2026-08-17T22:05:16.400Z
+    source: hook
+  - task: implementation
+    agent: metta-reviewer
+    model: fable
+    tokens: 16266
+    timestamp: 2026-08-17T22:05:46.882Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 8074
+    timestamp: 2026-08-17T22:05:51.437Z
+    source: hook
+  - task: implementation
+    agent: metta-reviewer
+    model: opus
+    tokens: 21241
+    timestamp: 2026-08-17T22:07:01.305Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 9891
+    timestamp: 2026-08-17T22:08:06.107Z
+    source: hook
+  - task: implementation
+    agent: metta-executor
+    model: sonnet
+    tokens: 32189
+    timestamp: 2026-08-17T22:26:14.275Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 12385
+    timestamp: 2026-08-17T22:26:42.829Z
+    source: hook
+  - task: implementation
+    agent: metta-reviewer
+    model: fable
+    tokens: 6382
+    timestamp: 2026-08-17T22:29:45.869Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 12522
+    timestamp: 2026-08-17T22:29:54.253Z
+    source: hook
+  - task: implementation
+    agent: metta-reviewer
+    model: opus
+    tokens: 20405
+    timestamp: 2026-08-17T22:32:31.152Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 12551
+    timestamp: 2026-08-17T22:32:38.261Z
+    source: hook
+  - task: implementation
+    agent: metta-reviewer
+    model: opus
+    tokens: 29327
+    timestamp: 2026-08-17T22:34:30.546Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 14147
+    timestamp: 2026-08-17T22:35:01.399Z
+    source: hook
+  - task: implementation
+    agent: metta-executor
+    model: sonnet
+    tokens: 5376
+    timestamp: 2026-08-17T22:43:25.168Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 16864
+    timestamp: 2026-08-17T22:44:02.943Z
+    source: hook
+  - task: verification
+    agent: metta-verifier
+    model: fable
+    tokens: 1250
+    timestamp: 2026-08-17T22:45:00.867Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 16904
+    timestamp: 2026-08-17T22:45:05.259Z
+    source: hook
+  - task: verification
+    agent: metta-verifier
+    model: fable
+    tokens: 1543
+    timestamp: 2026-08-17T22:45:18.447Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 16949
+    timestamp: 2026-08-17T22:45:22.603Z
+    source: hook
+  - task: verification
+    agent: metta-verifier
+    model: fable
+    tokens: 431
+    timestamp: 2026-08-17T22:51:01.079Z
     source: hook
