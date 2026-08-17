@@ -5,6 +5,7 @@ import { promisify } from 'node:util'
 import { assertOnMainBranch, createCliContext, outputJson, getErrorMessage } from '../helpers.js'
 import type { CliContext } from '../helpers.js'
 import { computeMilestoneRollups } from '../../milestones/milestone-rollup.js'
+import { stripControlSequences } from '../../util/sanitize-text.js'
 import type { MilestoneRollup } from '../../milestones/milestone-rollup.js'
 
 const execAsync = promisify(execFile)
@@ -173,7 +174,7 @@ export function registerMilestoneCommand(program: Command): void {
             console.log('')
             console.log('Issues:')
             for (const issue of issues) {
-              console.log(`  [${issue.state}] ${issue.slug.padEnd(30)} ${issue.title}`)
+              console.log(`  [${issue.state}] ${issue.slug.padEnd(30)} ${stripControlSequences(issue.title)}`)
             }
           }
         }

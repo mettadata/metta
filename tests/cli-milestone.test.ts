@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { mkdtemp, rm, mkdir, writeFile } from 'node:fs/promises'
+import { mkdtemp, rm, mkdir, writeFile, readFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -226,6 +226,30 @@ describe('CLI: milestone create / list / show', { timeout: 60000 }, () => {
       expect(data.resolved).toBe(0)
       expect(data.total).toBe(0)
       expect(data.percent).toBe(0)
+    })
+
+    it('sanitizes hostile issue titles in text output without rewriting the file', async () => {
+      await installFixture(tempDir)
+      await runCli(['milestone', 'create', 'v0-6', '--name', 'v0.6'], tempDir)
+      // ANSI CSI color sequences plus a raw BEL control byte in the title.
+      const hostileTitle = '\x1b[31mEVIL\x1b[0m title\x07 end'
+      await seedIssue(tempDir, 'hostile-issue', hostileTitle, 'v0-6')
+
+      const issuePath = join(tempDir, 'spec', 'issues', 'hostile-issue.md')
+      const bytesBefore = await readFile(issuePath)
+
+      const { stdout, code } = await runCli(['milestone', 'show', 'v0-6'], tempDir)
+      expect(code).toBe(0)
+      // Printable text survives, control sequences do not.
+      expect(stdout).toContain('EVIL title end')
+      expect(stdout).not.toContain('\x1b')
+      // No control bytes at all beyond structural newlines.
+      // eslint-disable-next-line no-control-regex
+      expect(stdout).not.toMatch(/[\x00-\x09\x0b-\x1f\x7f-\x9f]/)
+
+      // Render is read-only: the issue file on disk is byte-identical.
+      const bytesAfter = await readFile(issuePath)
+      expect(bytesAfter.equals(bytesBefore)).toBe(true)
     })
 
     it('unknown slug exits 4 with not_found', async () => {
