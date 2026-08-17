@@ -116,11 +116,18 @@ const CHAIN_SEPARATOR_RE = /[;|&]+|\r?\n/;
 // itself execs metta are invisible to this tokenizer. The same is true of shell-level
 // indirection that produces the `metta` invocation dynamically rather than as literal text in
 // the scanned command string: command substitution (`$(...)`), backticks, subshells
-// (`(...)`), and process substitution (`<(...)`/`>(...)`). Quoting-based hiding is also
-// out of scope beyond the specific `--` and chain-separator cases this file does handle: an
-// env-var prefix whose value itself contains a space via quoting (e.g. `FOO="a b" metta ...`)
-// or a quoted/split command name (e.g. `"metta"` or `me""tta`) is not recognized as an
-// invocation. There is no bounded, enumerable list of these forms to special-case, and a full
+// (`(...)`), and process substitution (`<(...)`/`>(...)`). Brace groups (`{ ...; }`) run in
+// the current shell rather than a subshell, but a segment starting with `{` is skipped by
+// this tokenizer the same way, so `metta status;{ metta finalize; }` also evades textual
+// detection. Quoting-based hiding is also out of scope beyond the specific `--` and
+// chain-separator cases this file does handle: an env-var prefix whose value itself contains
+// a space via quoting (e.g. `FOO="a b" metta ...`) or a quoted/split command name (e.g.
+// `"metta"` or `me""tta`) is not recognized as an invocation. Backslash-escaped quotes
+// (`\"`) are another gap in the same family: computeQuoteMask() treats every `"`/`'` as a
+// real quote toggle rather than understanding that a backslash-escaped quote is literal text,
+// not a quote boundary — so a glued separator bracketed by a `\"` pair on each side is not
+// split the way bash itself would split it. There is no bounded, enumerable list of these
+// forms to special-case, and a full
 // bash-grammar parser is explicitly out of scope (see this change's intent.md). This is an
 // accepted limitation of the text layer: defense in depth comes from the two-tier trust model
 // (verified fork caller identity / minted session credentials) and the audit log below, not
@@ -172,7 +179,7 @@ function hasUnquotedDoubleDash(text) {
   const { quoted, unterminated } = computeQuoteMask(text);
   const words = Array.from(text.matchAll(/\S+/g));
   if (unterminated) {
-    return words.some((m) => m[0] === '--' || stripQuoteChars(m[0]) === '--');
+    return words.some((m) => stripQuoteChars(m[0]) === '--');
   }
   return words.some((m) => {
     const start = m.index;
@@ -192,7 +199,9 @@ function hasUnquotedDoubleDash(text) {
 // boundaries. When the whole command has an unterminated quote, quoting state cannot be
 // trusted for the rest of the string, so this falls back to the previous quote-unaware split
 // (every separator run is a boundary) — over-splitting only risks a false phantom block, it
-// never hides a real invocation, matching the fail-closed direction used throughout this file.
+// never hides a bash-executable invocation (an unterminated quote is itself a bash syntax
+// error, so input that reaches this fallback never actually executes), matching the
+// fail-closed direction used throughout this file.
 function splitCommandSegments(command) {
   const { quoted, unterminated } = computeQuoteMask(command);
   if (unterminated) return command.split(CHAIN_SEPARATOR_RE);
