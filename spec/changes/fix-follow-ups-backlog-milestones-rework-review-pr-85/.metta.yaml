@@ -24,6 +24,8 @@ artifact_timings:
   stories:
     started: 2026-08-17T00:11:11.888Z
     completed: 2026-08-17T00:12:14.845Z
+  spec:
+    started: 2026-08-17T00:12:18.490Z
 artifact_tokens:
   intent:
     context: 763
@@ -31,6 +33,9 @@ artifact_tokens:
   stories:
     context: 2476
     budget: 20000
+  spec:
+    context: 4435
+    budget: 40000
 worktree: /home/utx0/Code/metta/.metta/worktrees/fix-follow-ups-backlog-milestones-rework-review-pr-85
 token_usage:
   - task: metta-skill-host
