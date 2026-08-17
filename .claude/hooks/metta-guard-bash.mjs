@@ -110,14 +110,21 @@ function readStdin() {
 // segments start and end, not which separator produced the split.
 const CHAIN_SEPARATOR_RE = /[;|&]+|\r?\n/;
 
-// KNOWN LIMITATION (wrapper prefixes): textual guarding can only ever see the literal words
-// bash executes. Wrappers such as `command metta finalize`, `env metta finalize`,
-// `\metta finalize`, `xargs`, `sh -c '...'`, or a wrapper script that itself execs metta are
-// invisible to this tokenizer — there is no bounded, enumerable list of wrappers to
-// special-case, and a full bash-grammar parser is explicitly out of scope (see this change's
-// intent.md). This is an accepted limitation of the text layer: defense in depth comes from
-// the two-tier trust model (verified fork caller identity / minted session credentials) and
-// the audit log below, not from trying to mechanically detect every possible indirection.
+// KNOWN LIMITATION (wrapper prefixes and shell indirection): textual guarding can only ever
+// see the literal words bash executes. Wrappers such as `command metta finalize`,
+// `env metta finalize`, `\metta finalize`, `xargs`, `sh -c '...'`, or a wrapper script that
+// itself execs metta are invisible to this tokenizer. The same is true of shell-level
+// indirection that produces the `metta` invocation dynamically rather than as literal text in
+// the scanned command string: command substitution (`$(...)`), backticks, subshells
+// (`(...)`), and process substitution (`<(...)`/`>(...)`). Quoting-based hiding is also
+// out of scope beyond the specific `--` and chain-separator cases this file does handle: an
+// env-var prefix whose value itself contains a space via quoting (e.g. `FOO="a b" metta ...`)
+// or a quoted/split command name (e.g. `"metta"` or `me""tta`) is not recognized as an
+// invocation. There is no bounded, enumerable list of these forms to special-case, and a full
+// bash-grammar parser is explicitly out of scope (see this change's intent.md). This is an
+// accepted limitation of the text layer: defense in depth comes from the two-tier trust model
+// (verified fork caller identity / minted session credentials) and the audit log below, not
+// from trying to mechanically detect every possible indirection.
 
 // Track quote state (single- vs double-quoted vs none) across a raw string so `--` detection
 // can distinguish Commander's bare operand terminator from a `--` that only appears as
@@ -141,30 +148,87 @@ function computeQuoteMask(text) {
   return { quoted, unterminated: openQuote !== null };
 }
 
-// True when `text` contains a bare `--` word that is NOT inside a single- or double-quoted
-// span — Commander's operand terminator. Fails closed (returns true, matching the previous
-// quote-unaware behavior) when the quoting in `text` cannot be confidently parsed, e.g. an
-// unterminated quote: an unparseable input never gets the benefit of the doubt.
+// Remove single- and double-quote characters from a word, e.g. `"--"` -> `--`,
+// `'--'` -> `--`, `""--` -> `--`. This is bash quote REMOVAL for the simple
+// single/double-quote case only — it does not understand backslash escapes or ANSI-C
+// quoting, matching the same limitation documented on computeQuoteMask() above.
+function stripQuoteChars(word) {
+  return word.replace(/['"]/g, '');
+}
+
+// True when `text` contains a `--` word that Commander would see as a live operand
+// terminator — either a bare unquoted `--`, or a word whose quote-removed form is exactly
+// `--` (e.g. `"--"`, `'--'`, `""--`) — Commander's own quote removal (performed by bash
+// before argv ever reaches Commander) collapses all of these to the same operand
+// terminator. A `--` is only a candidate when the WORD is self-contained with respect to
+// the surrounding quoting context — i.e. quoting neither carries in from a preceding word
+// nor bleeds out into a following one — so a `--` that is a proper substring of a longer
+// quoted, multi-word argument (e.g. `"hello -- world"`, where `--` is one word among three
+// inside a single quoted span) is correctly left ALLOWED as literal text. Fails closed
+// (returns true, matching the previous quote-unaware behavior) when the quoting in `text`
+// cannot be confidently parsed, e.g. an unterminated quote: an unparseable input never gets
+// the benefit of the doubt.
 function hasUnquotedDoubleDash(text) {
   const { quoted, unterminated } = computeQuoteMask(text);
   const words = Array.from(text.matchAll(/\S+/g));
-  if (unterminated) return words.some((m) => m[0] === '--');
-  return words.some((m) => m[0] === '--' && !quoted[m.index] && !quoted[m.index + 1]);
+  if (unterminated) {
+    return words.some((m) => m[0] === '--' || stripQuoteChars(m[0]) === '--');
+  }
+  return words.some((m) => {
+    const start = m.index;
+    const end = start + m[0].length;
+    const selfContained = !quoted[start] && (end >= quoted.length || !quoted[end]);
+    return selfContained && stripQuoteChars(m[0]) === '--';
+  });
+}
+
+// Split `command` into chain-separator-delimited segments, splitting ONLY at separator runs
+// that are entirely unquoted — a separator character sitting inside a single- or
+// double-quoted span (e.g. the `;` in `FOO=';' metta finalize`) is literal text, not a
+// boundary, and slicing there would cut a quoted token in half and produce a stray leading
+// quote character in the next segment (which then fails the `metta`-word check and hides the
+// invocation entirely — see this file's F1 regression fix). The quote mask is computed once
+// over the WHOLE command string so quoting state correctly carries across segment
+// boundaries. When the whole command has an unterminated quote, quoting state cannot be
+// trusted for the rest of the string, so this falls back to the previous quote-unaware split
+// (every separator run is a boundary) — over-splitting only risks a false phantom block, it
+// never hides a real invocation, matching the fail-closed direction used throughout this file.
+function splitCommandSegments(command) {
+  const { quoted, unterminated } = computeQuoteMask(command);
+  if (unterminated) return command.split(CHAIN_SEPARATOR_RE);
+  const segments = [];
+  let segStart = 0;
+  const re = new RegExp(CHAIN_SEPARATOR_RE.source, 'g');
+  let match;
+  while ((match = re.exec(command)) !== null) {
+    const start = match.index;
+    const end = start + match[0].length;
+    const allUnquoted = !quoted.slice(start, end).some(Boolean);
+    if (allUnquoted) {
+      segments.push(command.slice(segStart, start));
+      segStart = end;
+    }
+    // A partially/fully quoted separator run is literal text — leave it in the current
+    // segment and keep scanning past it for the next candidate boundary.
+  }
+  segments.push(command.slice(segStart));
+  return segments;
 }
 
 function tokenize(command) {
-  // Split into chain-separator-delimited segments first (see CHAIN_SEPARATOR_RE above), then
-  // whitespace-tokenize each segment independently and look for a leading `metta` invocation.
-  // Env-var prefixes (FOO=BAR ...) are consumed so the subcommand behind them is still
-  // detected; inline command text (including any env-var prefix) never carries
+  // Split into chain-separator-delimited segments first (see splitCommandSegments above),
+  // then whitespace-tokenize each segment independently and look for a leading `metta`
+  // invocation. Env-var prefixes (FOO=BAR ...) are consumed so the subcommand behind them is
+  // still detected; inline command text (including any env-var prefix) never carries
   // authorization — Tier 1 trusts only the verified fork caller identity and Tier 2 trusts
   // only the minted session credential.
   // Return array of { sub, third, hasDoubleDash } where hasDoubleDash is true when an
-  // unquoted bare `--` token appears ANYWHERE in the invocation's argument span (not just as
-  // the third token) — Commander's operand terminator still dispatches what follows it as a
-  // subcommand, so classify() fails such invocations closed.
+  // unquoted bare `--` (or a word whose quote-removed form is `--`) token appears ANYWHERE in
+  // the invocation's argument span (not just as the third token) — Commander's operand
+  // terminator still dispatches what follows it as a subcommand, so classify() fails such
+  // invocations closed.
   const results = [];
-  const segments = command.split(CHAIN_SEPARATOR_RE);
+  const segments = splitCommandSegments(command);
   for (const segment of segments) {
     const tokens = Array.from(segment.matchAll(/\S+/g));
     let i = 0;
@@ -173,9 +237,13 @@ function tokenize(command) {
     if (i >= tokens.length || tokens[i][0] !== 'metta') continue; // not an invocation in this segment
     const sub = tokens[i + 1]?.[0];
     const third = tokens[i + 2]?.[0];
-    // A segment (already split on chain separators) contains exactly one command and its
-    // arguments, so the argument span is simply everything after the `metta` word — no
-    // further separator-skip walk is needed the way the pre-segmentation version required.
+    // A segment produced by splitCommandSegments contains exactly one command and its
+    // arguments PROVIDED the whole command's quoting was parseable (splitCommandSegments
+    // only splits on unquoted separator runs in that case) — so the argument span is simply
+    // everything after the `metta` word, no further separator-skip walk needed. When the
+    // whole command had an unterminated quote, splitCommandSegments falls back to splitting
+    // on every separator run regardless of quoting, so this single-command-per-segment
+    // guarantee does not hold in that fail-closed fallback path.
     const spanStart = tokens[i].index + tokens[i][0].length;
     const hasDoubleDash = hasUnquotedDoubleDash(segment.slice(spanStart));
     results.push({ sub, third, hasDoubleDash });
@@ -185,12 +253,15 @@ function tokenize(command) {
 
 // Classification result: 'allow' | 'block' | 'unknown'
 function classify(inv) {
-  // Reject a bare `--` token ANYWHERE in the invocation's arguments: it is Commander's
-  // operand terminator, and what follows it still dispatches as a subcommand (e.g.
-  // `metta backlog -- add x` and `metta backlog --json -- add x` both run `backlog add`),
-  // so any `--` fails closed as unknown regardless of allow-list membership. This
-  // subsumes the earlier third-token-only `--` rejection. No legitimate metta CLI call
-  // needs `--`.
+  // Reject a `--` token ANYWHERE in the invocation's arguments — whether bare/unquoted or a
+  // word whose quote-removed form is `--` (e.g. `"--"`, `'--'`, `""--`; see
+  // hasUnquotedDoubleDash) — it is Commander's operand terminator, and what follows it still
+  // dispatches as a subcommand (e.g. `metta backlog -- add x`, `metta backlog --json -- add x`,
+  // and `metta backlog --json "--" add x` all run `backlog add`), so any such `--` fails
+  // closed as unknown regardless of allow-list membership. This subsumes the earlier
+  // third-token-only `--` rejection. A `--` that is a proper substring of a longer quoted,
+  // multi-word argument (e.g. `"hello -- world"`) is literal text, not an operand terminator,
+  // and stays allowed. No legitimate metta CLI call needs `--`.
   if (inv.hasDoubleDash) return 'unknown';
   if (!inv.sub) return 'allow'; // bare `metta` — harmless
   if (ALLOWED_SUBCOMMANDS.has(inv.sub)) return 'allow';
@@ -355,10 +426,12 @@ async function main() {
   if (offender.hasDoubleDash) {
     appendAuditLog(event, 'block', offender, 'double-dash-operand-terminator', null);
     process.stderr.write(
-      `metta-guard-bash: Blocked metta invocation containing a bare '--' in '${subDisplay}'.\n` +
-      `The '--' operand terminator is not permitted: Commander still dispatches what follows\n` +
-      `it as a subcommand (e.g. 'metta backlog --json -- add x' runs 'backlog add'), so any\n` +
-      `metta invocation containing '--' fails closed. Re-run the command without '--'.\n` +
+      `metta-guard-bash: Blocked metta invocation containing a '--' operand terminator in '${subDisplay}'.\n` +
+      `The '--' operand terminator is not permitted, whether bare or quoted (e.g. '--', "--",\n` +
+      `or '""--' all count): Commander still dispatches what follows it as a subcommand (e.g.\n` +
+      `'metta backlog --json -- add x' and 'metta backlog --json "--" add x' both run\n` +
+      `'backlog add'), so any metta invocation containing '--' fails closed. Re-run the\n` +
+      `command without '--'.\n` +
       `Emergency bypass: disable this hook in .claude/settings.local.json.\n`
     );
     process.exit(2);
