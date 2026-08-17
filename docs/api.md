@@ -984,6 +984,7 @@ Scenarios:
 Scenarios:
 - Done moves the issue to resolved and off the backlog
 - Shipped-in stamp survives the new archive path
+- Done commits only the archived pair of paths
 
 ### Milestone store with Zod-validated frontmatter and CLI
 
@@ -1023,6 +1024,49 @@ Scenarios:
 Scenarios:
 - Targeted frontmatter update leaves everything else intact
 - Archive preserves frontmatter end to end
+
+### Backlog auto-commits stage only the files the command wrote
+
+Scenarios:
+- Unrelated dirty file survives a backlog add
+- Done and migrate stage only their own moved or updated files
+- No directory pathspecs at any commitPaths call site
+
+### Backlog and milestone list renderers sanitize titles
+
+Scenarios:
+- ANSI escape in a backlog title is stripped
+- Control characters in a milestone issue title are stripped
+- Plain titles render unchanged
+- Sanitization does not rewrite the issue file
+
+### No stale spec/backlog references in generated CLAUDE.md, docs, or guard-edit allowlist
+
+Scenarios:
+- Refresh emits a TOC without a spec/backlog row
+- Docs describe the frontmatter-over-issues model
+- Guard-edit denies edits under the retired path
+
+### Bare metta backlog is allowed by the guard-bash hook
+
+Scenarios:
+- Bare backlog invocation is allowed
+- Both hook copies stay byte-identical
+- Write forms remain gated
+
+### Single issues-store test file with no compiled test code in dist
+
+Scenarios:
+- Build output contains no compiled test module
+- Unique test cases survive consolidation
+- Exactly one issues-store test file in the tree
+
+### Tier advisory recommendation is capped at standard
+
+Scenarios:
+- Full-scored change renders a capped advisory
+- Standard-over-quick recommendation is unchanged
+- Scoring values are untouched by the cap
 
 ## orchestration-guard
 
