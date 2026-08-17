@@ -6,7 +6,7 @@ import { assertOnMainBranch, createCliContext, outputJson, getErrorMessage } fro
 import { toBacklogEntries, sortBacklogEntries } from '../../backlog/backlog-view.js'
 import { migrateLegacyBacklog } from '../../backlog/backlog-migrate.js'
 import { IssueSlugCollisionError } from '../../issues/issues-store.js'
-import { stripControlSequences } from '../../util/sanitize-text.js'
+import { stripControlSequences, stripControlSequencesMultiline } from '../../util/sanitize-text.js'
 import { SLUG_RE } from '../../util/slug.js'
 
 const execAsync = promisify(execFile)
@@ -101,14 +101,14 @@ export function registerBacklogCommand(program: Command): void {
             description: issue.description,
           })
         } else {
-          console.log(`# ${issue.title}`)
+          console.log(`# ${stripControlSequences(issue.title)}`)
           console.log(`Type: ${fm?.type ?? 'issue'}`)
           console.log(`Backlog: ${fm?.backlog === true ? 'yes' : 'no'}`)
           console.log(`Priority: ${fm?.priority ?? 'unset'}`)
           if (fm?.order !== undefined) { console.log(`Order: ${fm.order}`) }
           if (fm?.milestone !== undefined) { console.log(`Milestone: ${fm.milestone}`) }
           console.log('')
-          console.log(issue.description)
+          console.log(stripControlSequencesMultiline(issue.description))
         }
       } catch {
         if (json) { outputJson({ error: { code: 4, type: 'not_found', message: `Item '${slug}' not found` } }) } else { console.error(`Item '${slug}' not found`) }

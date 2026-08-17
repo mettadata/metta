@@ -5,7 +5,7 @@ import { promisify } from 'node:util'
 import { assertOnMainBranch, createCliContext, outputJson, getErrorMessage } from '../helpers.js'
 import type { CliContext } from '../helpers.js'
 import { computeMilestoneRollups } from '../../milestones/milestone-rollup.js'
-import { stripControlSequences } from '../../util/sanitize-text.js'
+import { stripControlSequences, stripControlSequencesMultiline } from '../../util/sanitize-text.js'
 import type { MilestoneRollup } from '../../milestones/milestone-rollup.js'
 
 const execAsync = promisify(execFile)
@@ -161,14 +161,14 @@ export function registerMilestoneCommand(program: Command): void {
             issues,
           })
         } else {
-          console.log(`# ${item.name}`)
+          console.log(`# ${stripControlSequences(item.name)}`)
           console.log(`Slug: ${slug}`)
           console.log(`Status: ${item.status}`)
           if (item.target !== undefined) { console.log(`Target: ${item.target}`) }
           console.log(`Progress: ${rollup.resolved}/${rollup.total} resolved (${rollup.percent}%)`)
           if (item.description.length > 0) {
             console.log('')
-            console.log(item.description)
+            console.log(stripControlSequencesMultiline(item.description))
           }
           if (issues.length > 0) {
             console.log('')

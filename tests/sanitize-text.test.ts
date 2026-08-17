@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { stripControlSequences } from '../src/util/sanitize-text.js'
+import { stripControlSequences, stripControlSequencesMultiline } from '../src/util/sanitize-text.js'
 
 describe('stripControlSequences', () => {
   it('strips color CSI sequences', () => {
@@ -101,5 +101,48 @@ describe('stripControlSequences', () => {
     const once = stripControlSequences(hostile)
     expect(stripControlSequences(once)).toBe(once)
     expect(once).toBe('text')
+  })
+})
+
+describe('stripControlSequencesMultiline', () => {
+  it('preserves LF line structure', () => {
+    expect(stripControlSequencesMultiline('line one\nline two\n\nline four')).toBe('line one\nline two\n\nline four')
+  })
+
+  it('strips CSI sequences on every line while keeping newlines', () => {
+    const input = '\x1b[31mred\x1b[0m first\n\x1b[2Jsecond\nplain third'
+    expect(stripControlSequencesMultiline(input)).toBe('red first\nsecond\nplain third')
+  })
+
+  it('normalizes CRLF input to LF', () => {
+    expect(stripControlSequencesMultiline('one\r\ntwo\r\nthree')).toBe('one\ntwo\nthree')
+    expect(stripControlSequencesMultiline('mid\rline\r\n')).toBe('midline\n')
+  })
+
+  it('strips OSC, DCS, C1 controls, and lone ESC per line', () => {
+    const input = '\x1b]0;evil\x07one\n\x1bPdcs\x1b\\two\na\x9bb\ntrailing\x1b'
+    expect(stripControlSequencesMultiline(input)).toBe('one\ntwo\nab\ntrailing')
+  })
+
+  it('bounds an unterminated OSC body to its own line', () => {
+    // The single-line helper would let an unterminated OSC swallow to the end
+    // of the string; the multiline variant stops it at the line break.
+    expect(stripControlSequencesMultiline('\x1b]0;dangling\nnext line')).toBe('\nnext line')
+  })
+
+  it('passes plain ASCII and Unicode >= U+00A0 through unchanged', () => {
+    const input = 'plain — café naïve\n日本語 emoji 🎉\n§±°µ nbsp'
+    expect(stripControlSequencesMultiline(input)).toBe(input)
+  })
+
+  it('returns the empty string unchanged', () => {
+    expect(stripControlSequencesMultiline('')).toBe('')
+  })
+
+  it('is idempotent', () => {
+    const hostile = '\x1b[31mred\x1b[0m one\r\n\x1b]0;t\x07two\n\x9bthree\x1b'
+    const once = stripControlSequencesMultiline(hostile)
+    expect(stripControlSequencesMultiline(once)).toBe(once)
+    expect(once).toBe('red one\ntwo\nthree')
   })
 })

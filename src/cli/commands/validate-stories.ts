@@ -11,6 +11,7 @@ import {
 } from '../../stories/story-validator.js'
 import { parseSpec } from '../../specs/spec-parser.js'
 import { assertSafeSlug } from '../../util/slug.js'
+import { stripControlSequences } from '../../util/sanitize-text.js'
 
 async function resolveChangeName(ctx: CliContext, flagName?: string): Promise<string> {
   if (flagName) return flagName
@@ -102,7 +103,7 @@ export function registerValidateStoriesCommand(program: Command): void {
         } else {
           if (stories.kind === 'stories') {
             for (const s of stories.stories) {
-              console.log(`${s.id}: ${s.title}`)
+              console.log(`${s.id}: ${stripControlSequences(s.title)}`)
             }
           } else {
             console.log(`[sentinel] ${stories.justification}`)

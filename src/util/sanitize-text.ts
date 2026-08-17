@@ -41,3 +41,16 @@ const CONTROL_SEQUENCE_RE = /\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07\x1b\x9c]*(?:\x
 export function stripControlSequences(text: string): string {
   return text.replace(CONTROL_SEQUENCE_RE, '')
 }
+
+/**
+ * Newline-preserving variant of {@link stripControlSequences} for multi-line
+ * bodies (issue/backlog/milestone descriptions). Each LF-delimited line is
+ * sanitized independently, so `\n` line structure survives while every other
+ * control sequence and control byte — including `\r`, so CRLF input
+ * normalizes to LF — is stripped. Splitting per line also bounds unterminated
+ * OSC/DCS bodies to the line they start on instead of letting them swallow
+ * subsequent lines. Pure, total, and idempotent like the single-line helper.
+ */
+export function stripControlSequencesMultiline(text: string): string {
+  return text.split('\n').map(stripControlSequences).join('\n')
+}

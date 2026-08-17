@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { assertOnMainBranch, autoCommitFile, createCliContext, outputJson, getErrorMessage } from '../helpers.js'
 import { buildPromoteHandoff } from '../promote-handoff.js'
 import { RoadmapValidationError } from '../../roadmap/roadmap-store.js'
+import { stripControlSequences } from '../../util/sanitize-text.js'
 
 // Error envelope helper: all roadmap failures exit 4 with
 // { error: { code: 4, type, message } } (JSON) or the message on stderr (text).
@@ -61,8 +62,8 @@ export function registerRoadmapCommand(program: Command): void {
           console.log('Roadmap is empty. Add entries with: metta roadmap add <backlog-slug>')
         } else {
           for (const row of view) {
-            const label = row.dangling ? '(dangling — backlog item missing)' : row.title
-            const noteSuffix = row.note !== null ? ` — ${row.note}` : ''
+            const label = row.dangling ? '(dangling — backlog item missing)' : stripControlSequences(row.title ?? '')
+            const noteSuffix = row.note !== null ? ` — ${stripControlSequences(row.note)}` : ''
             console.log(`  ${row.position}. ${row.slug.padEnd(30)} ${label}${noteSuffix}`)
           }
         }

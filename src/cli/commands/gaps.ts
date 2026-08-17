@@ -1,5 +1,6 @@
 import { Command } from 'commander'
 import { createCliContext, outputJson } from '../helpers.js'
+import { stripControlSequences } from '../../util/sanitize-text.js'
 
 export function registerGapsCommand(program: Command): void {
   const gaps = program
@@ -15,7 +16,7 @@ export function registerGapsCommand(program: Command): void {
       const list = await ctx.gapsStore.list()
       if (json) { outputJson({ gaps: list }) } else {
         if (list.length === 0) { console.log('No gaps found.') } else {
-          for (const g of list) { console.log(`  [${g.status}] ${g.slug.padEnd(30)} ${g.title}`) }
+          for (const g of list) { console.log(`  [${g.status}] ${g.slug.padEnd(30)} ${stripControlSequences(g.title)}`) }
         }
       }
     })
@@ -30,13 +31,13 @@ export function registerGapsCommand(program: Command): void {
       try {
         const gap = await ctx.gapsStore.show(slug)
         if (json) { outputJson(gap) } else {
-          console.log(`# Gap: ${gap.title}`)
+          console.log(`# Gap: ${stripControlSequences(gap.title)}`)
           console.log(`Status: ${gap.status}`)
-          if (gap.source) console.log(`Source: ${gap.source}`)
-          if (gap.claim) console.log(`Claim: ${gap.claim}`)
-          if (gap.evidence) console.log(`Evidence: ${gap.evidence}`)
-          if (gap.impact) console.log(`Impact: ${gap.impact}`)
-          if (gap.relatedSpec) console.log(`Related Spec: ${gap.relatedSpec}`)
+          if (gap.source) console.log(`Source: ${stripControlSequences(gap.source)}`)
+          if (gap.claim) console.log(`Claim: ${stripControlSequences(gap.claim)}`)
+          if (gap.evidence) console.log(`Evidence: ${stripControlSequences(gap.evidence)}`)
+          if (gap.impact) console.log(`Impact: ${stripControlSequences(gap.impact)}`)
+          if (gap.relatedSpec) console.log(`Related Spec: ${stripControlSequences(gap.relatedSpec)}`)
           console.log('')
           console.log(gap.action ?? `Promote to spec: metta propose --from-gap ${slug}`)
         }

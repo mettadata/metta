@@ -3,6 +3,7 @@ import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { join } from 'node:path'
 import { createCliContext, outputJson } from '../helpers.js'
+import { stripControlSequences, stripControlSequencesMultiline } from '../../util/sanitize-text.js'
 
 const execAsync = promisify(execFile)
 
@@ -83,13 +84,13 @@ export function registerFixIssueCommand(program: Command): void {
           if (json) {
             outputJson({ issue: { slug: issueSlug, ...issue } })
           } else {
-            console.log(`# Issue: ${issue.title}`)
+            console.log(`# Issue: ${stripControlSequences(issue.title)}`)
             console.log(`Severity: ${issue.severity}`)
             console.log(`Status: logged`)
-            if (issue.captured) console.log(`Captured: ${issue.captured}`)
-            if (issue.context) console.log(`Context: ${issue.context}`)
+            if (issue.captured) console.log(`Captured: ${stripControlSequences(issue.captured)}`)
+            if (issue.context) console.log(`Context: ${stripControlSequences(issue.context)}`)
             console.log('')
-            console.log(issue.description)
+            console.log(stripControlSequencesMultiline(issue.description))
             console.log('')
             console.log(`Delegate to skill: metta execute --skill fix-issues --target ${issueSlug}`)
           }
@@ -139,7 +140,7 @@ export function registerFixIssueCommand(program: Command): void {
               console.log(`Showing ${options.severity} issues only:\n`)
             }
             for (const i of filtered) {
-              console.log(`  [${i.severity.toUpperCase().padEnd(8)}] [logged] ${i.slug.padEnd(30)} ${i.title}`)
+              console.log(`  [${i.severity.toUpperCase().padEnd(8)}] [logged] ${i.slug.padEnd(30)} ${stripControlSequences(i.title)}`)
             }
           }
         } catch {
