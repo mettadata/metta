@@ -12,13 +12,17 @@
  *
  * Coverage, in order:
  * 1. CSI  — `ESC [` params/intermediates/final (`\x1b[31m`, `\x1b[2J`, ...)
- * 2. OSC  — `ESC ]` body terminated by BEL or ST (`ESC \`); the terminator is
- *    optional so an unterminated OSC still gets stripped instead of eating
- *    the rest of the line as "body"
+ * 2. OSC  — `ESC ]` body terminated by BEL, ST (`ESC \`), or the 8-bit ST
+ *    (`\x9c`); the body excludes all three terminator bytes and the
+ *    terminator itself is optional, so an unterminated OSC still gets
+ *    stripped instead of eating the rest of the line as "body"
  * 3. DCS/SOS/PM/APC — `ESC P`, `ESC X`, `ESC ^`, `ESC _` string sequences,
- *    ST-terminated (terminator optional, unterminated-tolerant like OSC)
- * 4. Two-byte Fe escapes — `ESC @` through `ESC _` (covers `ESC c` reset via
- *    the bare-control fallback below for anything outside the Fe range)
+ *    ST- or 8-bit-ST-terminated (terminator optional,
+ *    unterminated-tolerant like OSC)
+ * 4. Two-byte Fe escapes — `ESC @` through `ESC _`. Sequences outside the Fe
+ *    range (e.g. `ESC c` reset) are neutralized by the bare-control fallback
+ *    below: the ESC byte is stripped, though a printable residue (`c`) may
+ *    remain
  * 5. Bare C0 controls, DEL, and C1 controls (`\x00-\x1f`, `\x7f-\x9f`) —
  *    catches raw 8-bit CSI (`\x9b`), BEL, backspace, CR, and any lone ESC
  *    left over after the branches above
@@ -27,7 +31,7 @@
  * JS string (UTF-16 code units), not raw bytes.
  */
 // eslint-disable-next-line no-control-regex
-const CONTROL_SEQUENCE_RE = /\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)?|\x1b[PX^_][^\x1b]*(?:\x1b\\)?|\x1b[@-Z\\-_]|[\x00-\x1f\x7f-\x9f]/g
+const CONTROL_SEQUENCE_RE = /\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07\x1b\x9c]*(?:\x07|\x1b\\|\x9c)?|\x1b[PX^_][^\x1b\x9c]*(?:\x1b\\|\x9c)?|\x1b[@-Z\\-_]|[\x00-\x1f\x7f-\x9f]/g
 
 /**
  * Remove terminal escape sequences and control characters from `text`.

@@ -24,6 +24,13 @@ describe('stripControlSequences', () => {
     expect(stripControlSequences('\x1b]2;evil title\x1b\\visible')).toBe('visible')
   })
 
+  it('strips 8-bit-ST-terminated OSC without swallowing trailing text', () => {
+    const result = stripControlSequences('\x1b]0;title\x9cvisible')
+    expect(result).toBe('visible')
+    // eslint-disable-next-line no-control-regex
+    expect(result).not.toMatch(/[\x00-\x1f\x7f-\x9f]/)
+  })
+
   it('strips unterminated OSC without eating trailing terminated text', () => {
     expect(stripControlSequences('\x1b]0;no terminator')).toBe('')
     // A later ESC ends the unterminated body, so a following CSI still strips.
@@ -38,6 +45,13 @@ describe('stripControlSequences', () => {
   it('strips DCS sequences', () => {
     expect(stripControlSequences('\x1bPq#0;2;0;0;0#0~~\x1b\\after')).toBe('after')
     expect(stripControlSequences('\x1bPunterminated dcs')).toBe('')
+  })
+
+  it('strips 8-bit-ST-terminated DCS without swallowing trailing text', () => {
+    const result = stripControlSequences('\x1bPq#0;2;0;0;0\x9cvisible')
+    expect(result).toBe('visible')
+    // eslint-disable-next-line no-control-regex
+    expect(result).not.toMatch(/[\x00-\x1f\x7f-\x9f]/)
   })
 
   it('strips SOS, PM, and APC string sequences', () => {
@@ -77,6 +91,13 @@ describe('stripControlSequences', () => {
 
   it('is idempotent', () => {
     const hostile = '\x1b[31m\x1b]0;t\x07\x9btext\x1b'
+    const once = stripControlSequences(hostile)
+    expect(stripControlSequences(once)).toBe(once)
+    expect(once).toBe('text')
+  })
+
+  it('is idempotent on 8-bit-ST-terminated sequences', () => {
+    const hostile = '\x1b]0;t\x9c\x1bPdcs\x9ctext\x9c'
     const once = stripControlSequences(hostile)
     expect(stripControlSequences(once)).toBe(once)
     expect(once).toBe('text')
