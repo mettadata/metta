@@ -1,6 +1,6 @@
-version: 20
-hash: sha256:0b365b26c29e
-updated: 2026-08-16T01:42:44.714Z
+version: 27
+hash: sha256:afbb53bf518f
+updated: 2026-08-17T01:45:42.765Z
 status: draft
 source: change
 requirements:
@@ -69,10 +69,11 @@ requirements:
       - promote-emits-a-fix-issues-handoff
       - promoting-an-unknown-slug-fails-cleanly
   - id: backlog-done-resolves-through-the-issue-store-archive
-    hash: sha256:066bb374554a
+    hash: sha256:10df0ced6a3d
     scenarios:
       - done-moves-the-issue-to-resolved-and-off-the-backlog
       - shipped-in-stamp-survives-the-new-archive-path
+      - done-commits-only-the-archived-pair-of-paths
   - id: milestone-store-with-zod-validated-frontmatter-and-cli
     hash: sha256:49b88f48b187
     scenarios:
@@ -106,3 +107,40 @@ requirements:
     scenarios:
       - targeted-frontmatter-update-leaves-everything-else-intact
       - archive-preserves-frontmatter-end-to-end
+  - id: backlog-auto-commits-stage-only-the-files-the-command-wrote
+    hash: sha256:29647e4abb40
+    scenarios:
+      - unrelated-dirty-file-survives-a-backlog-add
+      - done-and-migrate-stage-only-their-own-moved-or-updated-files
+      - no-directory-pathspecs-at-any-commitpaths-call-site
+  - id: backlog-and-milestone-list-renderers-sanitize-titles
+    hash: sha256:8dd3879ae631
+    scenarios:
+      - ansi-escape-in-a-backlog-title-is-stripped
+      - control-characters-in-a-milestone-issue-title-are-stripped
+      - plain-titles-render-unchanged
+      - sanitization-does-not-rewrite-the-issue-file
+  - id: no-stale-spec-backlog-references-in-generated-claude-md-docs-or-guard-edit-allowlist
+    hash: sha256:036278d3be60
+    scenarios:
+      - refresh-emits-a-toc-without-a-spec-backlog-row
+      - docs-describe-the-frontmatter-over-issues-model
+      - guard-edit-denies-edits-under-the-retired-path
+  - id: bare-metta-backlog-is-allowed-by-the-guard-bash-hook
+    hash: sha256:1219a08ff2c6
+    scenarios:
+      - bare-backlog-invocation-is-allowed
+      - both-hook-copies-stay-byte-identical
+      - write-forms-remain-gated
+  - id: single-issues-store-test-file-with-no-compiled-test-code-in-dist
+    hash: sha256:ec8d3500a7c3
+    scenarios:
+      - build-output-contains-no-compiled-test-module
+      - unique-test-cases-survive-consolidation
+      - exactly-one-issues-store-test-file-in-the-tree
+  - id: tier-advisory-recommendation-is-capped-at-standard
+    hash: sha256:48e608fcb0b6
+    scenarios:
+      - full-scored-change-renders-a-capped-advisory
+      - standard-over-quick-recommendation-is-unchanged
+      - scoring-values-are-untouched-by-the-cap
