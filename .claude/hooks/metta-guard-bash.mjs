@@ -72,9 +72,12 @@ const BLOCKED_TWO_WORD = new Map([
 // Explicit ALLOW list for bare (no-third-word) read-only command groups: the
 // bare form (optionally with flags, e.g. `metta roadmap --json`) is a read-only
 // status view, while its two-word mutating forms stay Tier-2 blocked above.
-// `roadmap <any-unknown-word>` / `release <any-unknown-word>` remain 'unknown' → fail-closed.
+// `roadmap <any-unknown-word>` / `release <any-unknown-word>` / `backlog <any-unknown-word>`
+// remain 'unknown' → fail-closed.
 // Bare `metta release` defaults to the read-only status view (roadmap precedent).
-const ALLOWED_BARE = new Set(['roadmap', 'release']);
+// Bare `metta backlog` defaults to the read-only list view; its mutating two-word
+// forms (`add`/`done`/`promote`/`migrate`) stay Tier-2 blocked above.
+const ALLOWED_BARE = new Set(['roadmap', 'release', 'backlog']);
 
 // Subcommands that require a trusted agent_type (caller identity set by the Claude Code
 // runtime when a forked metta-* subagent fires the tool). Verified caller identity is the

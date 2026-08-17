@@ -883,6 +883,26 @@ describe('metta-guard-bash hook', { timeout: 30_000 }, () => {
         })
       })
 
+      describe('backlog bare-form classification', () => {
+        it('allows bare `metta backlog` (read-only list view) without any credential (exit 0)', () => {
+          const { code, stderr } = runHook(hookPath, bashEvent('metta backlog'))
+          expect(code).toBe(0)
+          expect(stderr).toBe('')
+        })
+
+        it('allows `metta backlog --json` without any credential (exit 0)', () => {
+          const { code, stderr } = runHook(hookPath, bashEvent('metta backlog --json'))
+          expect(code).toBe(0)
+          expect(stderr).toBe('')
+        })
+
+        it('keeps `metta backlog frobnicate` fail-closed as unknown (exit 2)', () => {
+          const { code, stderr } = runHook(hookPath, bashEvent('metta backlog frobnicate'))
+          expect(code).toBe(2)
+          expect(stderr).toContain('unknown')
+        })
+      })
+
       // ----- Non-Bash / edge cases -----
       it('passes through non-Bash events (tool_name: Edit) (exit 0)', () => {
         const { code } = runHook(hookPath, { tool_name: 'Edit', tool_input: { file_path: 'x.ts' } })
