@@ -100,42 +100,85 @@ function readStdin() {
   try { return readFileSync(0, 'utf8'); } catch { return ''; }
 }
 
-function tokenize(command) {
-  // Split on whitespace, follow && / ; / | chains, find all `metta` invocations.
-  // Env-var prefixes (FOO=BAR ...) are consumed so the subcommand behind them is still
-  // detected; inline command text (including any env-var prefix) never carries
-  // authorization — Tier 1 trusts only the verified fork caller identity and Tier 2
-  // trusts only the minted session credential.
-  // Return array of { sub, third, hasDoubleDash } where hasDoubleDash is true when a
-  // bare `--` token appears ANYWHERE in the invocation's argument span (not just as the
-  // third token) — Commander's operand terminator still dispatches what follows it as a
-  // subcommand, so classify() fails such invocations closed.
-  const results = [];
-  const tokens = command.split(/\s+/).filter(Boolean);
-  let i = 0;
-  while (i < tokens.length) {
-    // Consume env-var prefixes (FOO=BAR, ...)
-    while (i < tokens.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(tokens[i])) i++;
-    if (tokens[i] === 'metta') {
-      const sub = tokens[i + 1];
-      const third = tokens[i + 2];
-      // Walk the full argument span up to the next chain separator so (a) words inside
-      // a quoted argument (e.g. a propose description that mentions "metta finalize")
-      // are not misparsed as a second invocation, and (b) a bare `--` hiding after any
-      // number of flags (e.g. `metta backlog --json -- add x`) is still detected.
-      let hasDoubleDash = false;
-      i += 1;
-      while (i < tokens.length && !['&&', ';', '||', '|'].includes(tokens[i])) {
-        if (tokens[i] === '--') hasDoubleDash = true;
-        i++;
-      }
-      results.push({ sub, third, hasDoubleDash });
-      i++; // skip the separator
+// Chain-separator segmentation: `;`, `|`, `&`, `&&`, `||`, and newlines are all bash command
+// separators. Splitting the command into segments on these characters BEFORE whitespace
+// tokenization (rather than only recognizing a separator that is already its own
+// whitespace-delimited token) is required so a separator glued directly onto a preceding
+// word — e.g. `--json;metta backlog add x`, where bash still treats `;` as a boundary even
+// though there is no space around it — still produces a segment boundary. Any run of
+// chain-separator characters, or a `\n`/`\r\n`, counts as one boundary; we only care where
+// segments start and end, not which separator produced the split.
+const CHAIN_SEPARATOR_RE = /[;|&]+|\r?\n/;
+
+// KNOWN LIMITATION (wrapper prefixes): textual guarding can only ever see the literal words
+// bash executes. Wrappers such as `command metta finalize`, `env metta finalize`,
+// `\metta finalize`, `xargs`, `sh -c '...'`, or a wrapper script that itself execs metta are
+// invisible to this tokenizer — there is no bounded, enumerable list of wrappers to
+// special-case, and a full bash-grammar parser is explicitly out of scope (see this change's
+// intent.md). This is an accepted limitation of the text layer: defense in depth comes from
+// the two-tier trust model (verified fork caller identity / minted session credentials) and
+// the audit log below, not from trying to mechanically detect every possible indirection.
+
+// Track quote state (single- vs double-quoted vs none) across a raw string so `--` detection
+// can distinguish Commander's bare operand terminator from a `--` that only appears as
+// literal text inside a quoted argument (e.g. an issue description containing " -- " as
+// prose). This is a light heuristic, not a shell-grammar parser — it does not understand
+// backslash escapes, nested substitutions, or ANSI-C quoting. `unterminated` is true when a
+// quote opened in `text` never closes; callers use that to fall back to the previous
+// quote-unaware (fail-closed) check rather than guess at ambiguous input.
+function computeQuoteMask(text) {
+  const quoted = new Array(text.length).fill(false);
+  let openQuote = null; // null | "'" | '"'
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (openQuote === null) {
+      if (ch === "'" || ch === '"') openQuote = ch;
       continue;
     }
-    // Skip until we see a chain separator
-    while (i < tokens.length && !['&&', ';', '||', '|'].includes(tokens[i])) i++;
-    i++; // skip the separator
+    quoted[i] = true;
+    if (ch === openQuote) openQuote = null;
+  }
+  return { quoted, unterminated: openQuote !== null };
+}
+
+// True when `text` contains a bare `--` word that is NOT inside a single- or double-quoted
+// span — Commander's operand terminator. Fails closed (returns true, matching the previous
+// quote-unaware behavior) when the quoting in `text` cannot be confidently parsed, e.g. an
+// unterminated quote: an unparseable input never gets the benefit of the doubt.
+function hasUnquotedDoubleDash(text) {
+  const { quoted, unterminated } = computeQuoteMask(text);
+  const words = Array.from(text.matchAll(/\S+/g));
+  if (unterminated) return words.some((m) => m[0] === '--');
+  return words.some((m) => m[0] === '--' && !quoted[m.index] && !quoted[m.index + 1]);
+}
+
+function tokenize(command) {
+  // Split into chain-separator-delimited segments first (see CHAIN_SEPARATOR_RE above), then
+  // whitespace-tokenize each segment independently and look for a leading `metta` invocation.
+  // Env-var prefixes (FOO=BAR ...) are consumed so the subcommand behind them is still
+  // detected; inline command text (including any env-var prefix) never carries
+  // authorization — Tier 1 trusts only the verified fork caller identity and Tier 2 trusts
+  // only the minted session credential.
+  // Return array of { sub, third, hasDoubleDash } where hasDoubleDash is true when an
+  // unquoted bare `--` token appears ANYWHERE in the invocation's argument span (not just as
+  // the third token) — Commander's operand terminator still dispatches what follows it as a
+  // subcommand, so classify() fails such invocations closed.
+  const results = [];
+  const segments = command.split(CHAIN_SEPARATOR_RE);
+  for (const segment of segments) {
+    const tokens = Array.from(segment.matchAll(/\S+/g));
+    let i = 0;
+    // Consume env-var prefixes (FOO=BAR, ...)
+    while (i < tokens.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(tokens[i][0])) i++;
+    if (i >= tokens.length || tokens[i][0] !== 'metta') continue; // not an invocation in this segment
+    const sub = tokens[i + 1]?.[0];
+    const third = tokens[i + 2]?.[0];
+    // A segment (already split on chain separators) contains exactly one command and its
+    // arguments, so the argument span is simply everything after the `metta` word — no
+    // further separator-skip walk is needed the way the pre-segmentation version required.
+    const spanStart = tokens[i].index + tokens[i][0].length;
+    const hasDoubleDash = hasUnquotedDoubleDash(segment.slice(spanStart));
+    results.push({ sub, third, hasDoubleDash });
   }
   return results;
 }
