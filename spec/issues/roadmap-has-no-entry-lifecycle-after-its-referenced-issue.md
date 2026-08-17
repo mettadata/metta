@@ -1,0 +1,24 @@
+# Roadmap has no entry lifecycle after its referenced issue ships — next fails on dangling entries, no remove subcommand, no auto-retire on issue resolution
+
+**Captured**: 2026-08-17
+**Status**: logged
+**Severity**: major
+
+## Symptom
+Observed live in zeus (2026-08-18) after M1 shipped: roadmap entries whose referenced issues were archived to `spec/issues/resolved/` became dangling, and the roadmap CLI offers no way out. `metta roadmap next` errors (`not_found`, exit 4) on a dangling head entry instead of skipping past it to the first healthy entry; there is no `remove`/prune subcommand (only `add`, full-permutation `reorder`, and `next`), so retiring a shipped or abandoned entry required hand-editing `spec/roadmap.md` — a file the CLI owns; and nothing auto-retires an entry when `backlog done` or `fix-issue --remove-issue` archives its referenced issue, so every shipped roadmap-driven change degrades the roadmap.
+
+## Root Cause Analysis
+The roadmap subsystem was designed with an intentionally minimal write surface and no lifecycle integration. `RoadmapStore` exposes exactly `add`, `reorder`, and `removeTop` — there is no arbitrary-entry removal primitive, so the CLI cannot offer `roadmap remove` without hand-editing. `roadmap next` implements ADR-4: a dangling top entry deliberately fails with `not_found` ("silently popping would destroy roadmap intent") rather than skipping with a warning — a defensible choice when dangling meant "accidentally deleted backlog file," but post-PR#85 (backlog items ARE issues, resolution archives them to `spec/issues/resolved/`) dangling is now the *normal* end state of every shipped roadmap entry, making the fail-stop behavior wrong in the common case. Finally, the two resolution paths — `backlog done` (git-mv to `resolved/`) and `fix-issue --remove-issue` (`issuesStore.remove`) — have zero knowledge of the roadmap: neither touches `RoadmapStore`, so no auto-retire hook exists. The three gaps compound: resolution creates dangling entries, `next` refuses to pass them, and no CLI verb can delete them.
+
+### Evidence
+- `src/cli/commands/roadmap.ts:157-165` — dangling top entry in `next` exits 4 with `not_found` ("no pop, no write, no commit"), pointing the user at restore-the-file or full `reorder` — no skip-with-warning path and no mention of removal, because none exists.
+- `src/roadmap/roadmap-store.ts:112-161` — the store's entire mutation surface is `add`, `reorder` (exact permutation required), and `removeTop`; no `remove(slug|position)` primitive, so shipped/abandoned entries can only leave the file via hand-edit.
+- `src/cli/commands/backlog.ts:238-283` and `src/cli/commands/fix-issue.ts:34-63` — both resolution paths archive the issue to `spec/issues/resolved/` and commit, with no reference to `roadmapStore`; the roadmap entry referencing the archived slug is left dangling by construction.
+
+## Candidate Solutions
+1. **Add `metta roadmap remove <position|slug>`** — new `RoadmapStore.remove(target)` primitive plus a CLI subcommand mirroring `add`/`reorder`: validate the target exists (typed `not_found` otherwise), splice it out, renumber canonically on save (already automatic in `formatRoadmap`), and auto-commit `spec/roadmap.md` via `autoCommitFile`. This is the minimal fix that ends hand-editing of a CLI-owned file. Tradeoff: manual-only — operators must still notice and remove each shipped entry themselves; the degradation-by-default remains.
+
+2. **Make `next` skip dangling entries with a warning** — iterate entries from the head, collecting dangling slugs until the first entry whose issue resolves via `issuesStore.show`; activate that one, pop (or retire) the skipped dangling entries in the same write, and emit a warning naming each dangling slug and the remedy (`roadmap remove` / restore the issue file). Revisits ADR-4 in light of PR#85: dangling is now the expected post-ship state, not corruption. Tradeoff: auto-popping skipped entries is destructive if a dangling entry was actually an accidentally deleted issue file — needs either a non-destructive skip (leave entries, warn) or a `--prune` opt-in, and the ADR must be formally superseded.
+
+3. **Auto-retire roadmap entries on issue resolution** — in `backlog done` and `fix-issue --remove-issue` (the two paths that archive to `resolved/`), after the archive succeeds, check `roadmapStore` for an entry matching the slug and remove it (or mark it done) in the same commit, so the roadmap never dangles from normal lifecycle flow. Combine with dangling-entry surfacing in `metta status`/`progress` rollups for entries orphaned by other means. Tradeoff: couples the issue-resolution paths to the roadmap store (wider blast radius, more failure modes mid-commit) and silently mutates a second file the operator may not expect; still needs solution 1 as the manual escape hatch for abandoned (never-resolved) entries.
+
