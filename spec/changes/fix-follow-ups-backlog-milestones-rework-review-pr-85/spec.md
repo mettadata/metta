@@ -2,7 +2,7 @@
 
 ## ADDED: Requirement: Backlog auto-commits stage only the files the command wrote
 
-Every auto-commit performed by a `metta backlog` write command (`add`, `done`, `promote`, and any other subcommand that writes files and commits) MUST pass only the explicit file paths the command itself created, modified, moved, or archived to `commitPaths` — never a directory pathspec such as `spec/issues` or `spec/issues/resolved`. Files under `spec/issues/` that were dirty before the command ran and were not touched by the command MUST NOT be staged or committed, and MUST remain in their pre-command working-tree state after the command completes. This applies to all three `commitPaths` call sites in `src/cli/commands/backlog.ts` (the `add`, `done`, and promote/frontmatter-update paths).
+Every auto-commit performed by a `metta backlog` write command (`add`, `done`, `migrate`, and any other subcommand that writes files and commits) MUST pass only the explicit file paths the command itself created, modified, moved, or archived to `commitPaths` — never a directory pathspec such as `spec/issues` or `spec/issues/resolved`. Files under `spec/issues/` that were dirty before the command ran and were not touched by the command MUST NOT be staged or committed, and MUST remain in their pre-command working-tree state after the command completes. This applies to all three `commitPaths` call sites in `src/cli/commands/backlog.ts` (the `add`, `done`, and `migrate` paths).
 
 **Fulfills:** US-1
 
@@ -11,10 +11,10 @@ Every auto-commit performed by a `metta backlog` write command (`add`, `done`, `
 - WHEN the user runs `metta backlog add "new item" --new`
 - THEN the resulting auto-commit contains only the newly created issue file, and `spec/issues/other-issue.md` remains modified and uncommitted in the working tree
 
-### Scenario: Done and promote stage only their own moved or updated files
+### Scenario: Done and migrate stage only their own moved or updated files
 - GIVEN an unrelated dirty file exists under `spec/issues/` and a backlogged issue `<slug>` exists
-- WHEN the user runs `metta backlog done <slug>` (or `metta backlog promote <slug>` where promote writes frontmatter)
-- THEN the auto-commit stages exactly the files the command moved, archived, or updated for `<slug>`, and the unrelated dirty file is absent from the commit
+- WHEN the user runs `metta backlog done <slug>` (or `metta backlog migrate` where migrate moves legacy files)
+- THEN the auto-commit stages exactly the files the command moved, archived, or updated, and the unrelated dirty file is absent from the commit
 
 ### Scenario: No directory pathspecs at any commitPaths call site
 - GIVEN the three `commitPaths` call sites in `src/cli/commands/backlog.ts`
@@ -73,7 +73,7 @@ The backlog list renderer (`src/cli/commands/backlog.ts`, title output around li
 
 ## ADDED: Requirement: No stale spec/backlog references in generated CLAUDE.md, docs, or guard-edit allowlist
 
-All references to the retired `spec/backlog/` directory store MUST be removed from the surfaces that still carry them. Specifically: (1) the CLAUDE.md Table of Contents emitted by `metta refresh` (`src/cli/commands/refresh.ts`) MUST NOT contain a `spec/backlog/` row — it MUST either omit the backlog row or describe the backlog as the frontmatter view over `spec/issues/`; (2) the five docs files `docs/workflows/README.md`, `docs/workflows/skills.md`, `docs/internals/architecture.md`, `docs/guide/troubleshooting.md`, and `docs/internals/guard-hooks.md` MUST describe backlog storage as frontmatter over `spec/issues/` and MUST NOT reference a `spec/backlog/` directory store; (3) the guard-edit hook template (`src/templates/hooks/metta-guard-edit.mjs`) MUST NOT include `spec/backlog/` in its allowlisted edit prefixes, so out-of-band `.md` edits under that path are denied. (Cross-capability note: item 1 touches the refresh/CLAUDE.md regeneration surface and item 3 the orchestration guard-edit template; they are specified here because the residue originates from the backlog rework and no multi-H1 delta is supported.)
+All references to the retired `spec/backlog/` directory store MUST be removed from the surfaces that still carry them. Specifically: (1) the CLAUDE.md Table of Contents emitted by `metta refresh` (`src/cli/commands/refresh.ts`) MUST NOT contain a `spec/backlog/` row — it MUST either omit the backlog row or describe the backlog as the frontmatter view over `spec/issues/`; (2) the five docs files `docs/workflows/README.md`, `docs/workflows/skills.md`, `docs/internals/architecture.md`, `docs/guide/troubleshooting.md`, and `docs/internals/guard-hooks.md` MUST describe backlog storage as frontmatter over `spec/issues/` and MUST NOT describe `spec/backlog/` as a live directory store; mentions that describe `spec/backlog/` strictly as the legacy input to `metta backlog migrate` are permitted; (3) the guard-edit hook template (`src/templates/hooks/metta-guard-edit.mjs`) MUST NOT include `spec/backlog/` in its allowlisted edit prefixes, so out-of-band `.md` edits under that path are denied. (Cross-capability note: item 1 touches the refresh/CLAUDE.md regeneration surface and item 3 the orchestration guard-edit template; they are specified here because the residue originates from the backlog rework and no multi-H1 delta is supported.)
 
 **Fulfills:** US-3
 
@@ -85,7 +85,7 @@ All references to the retired `spec/backlog/` directory store MUST be removed fr
 ### Scenario: Docs describe the frontmatter-over-issues model
 - GIVEN the five affected docs files
 - WHEN they are searched for the string `spec/backlog/`
-- THEN no match is found, and backlog storage is described as frontmatter over `spec/issues/`
+- THEN every remaining match describes the retired directory only as the legacy input to `metta backlog migrate`, no match describes `spec/backlog/` as a live directory store, and backlog storage is described as frontmatter over `spec/issues/`
 
 ### Scenario: Guard-edit denies edits under the retired path
 - GIVEN the guard-edit hook built from the updated template is active

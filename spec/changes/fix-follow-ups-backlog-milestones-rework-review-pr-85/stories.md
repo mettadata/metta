@@ -2,7 +2,7 @@
 
 ## US-1: Backlog auto-commits stage only the files the command wrote
 
-**As a** developer running `metta backlog add/done/promote` with other uncommitted edits under `spec/issues/`
+**As a** developer running `metta backlog add/done/migrate` with other uncommitted edits under `spec/issues/`
 **I want to** have the backlog auto-commit stage only the exact files the command created, moved, or archived
 **So that** my unrelated in-progress work is never silently swept into a commit I did not intend — a merge-safety guarantee I depend on
 
@@ -11,7 +11,7 @@
 
 **Acceptance Criteria:**
 - **Given** a working tree with an unrelated modified file `spec/issues/other-issue.md` **When** I run `metta backlog add "new item"` **Then** the auto-commit contains only the newly created issue file and `spec/issues/other-issue.md` remains dirty and uncommitted
-- **Given** an unrelated dirty file under `spec/issues/` **When** I run `metta backlog done <slug>` or `metta backlog promote <slug>` **Then** the auto-commit stages only the files those commands moved or archived, not the directory
+- **Given** an unrelated dirty file under `spec/issues/` **When** I run `metta backlog done <slug>` or `metta backlog migrate` **Then** the auto-commit stages only the files those commands moved or archived, not the directory
 - **Given** the three `commitPaths` call sites in `src/cli/commands/backlog.ts` **When** the commands execute **Then** each passes explicit file paths rather than a `spec/issues` directory pathspec
 
 ---
