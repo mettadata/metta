@@ -19,6 +19,8 @@ artifact_timings:
   implementation:
     started: 2026-08-17T23:28:03.221Z
     completed: 2026-08-17T23:47:46.152Z
+  verification:
+    started: 2026-08-17T23:47:58.791Z
 artifact_tokens:
   intent:
     context: 763
@@ -26,6 +28,9 @@ artifact_tokens:
   implementation:
     context: 0
     budget: 10000
+  verification:
+    context: 613
+    budget: 50000
 worktree: /home/utx0/Code/metta/.metta/worktrees/fix-remaining-13-title-description-render-sites-print-user
 model_runs:
   - task: implementation
