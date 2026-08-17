@@ -138,6 +138,17 @@ A composable framework.
       expect(result).toContain('[Constitution](spec/project.md)')
       expect(result).toContain('[Active Specs](spec/specs/)')
     })
+
+    it('does not reference the retired spec/backlog/ store', () => {
+      const result = buildReferenceSection()
+      expect(result).not.toContain('spec/backlog/')
+    })
+
+    it('lists issues (with backlog view) and milestones rows', () => {
+      const result = buildReferenceSection()
+      expect(result).toContain('| [Issues](spec/issues/) | `spec/issues/` | Logged issues and backlog items (backlog is a frontmatter view) |')
+      expect(result).toContain('| [Milestones](spec/milestones/) | `spec/milestones/` | Milestone groupings for backlog items |')
+    })
   })
 
   describe('replaceMarkerContent', () => {

@@ -142,8 +142,8 @@ Cite the source URL when presenting findings so the user can verify the answer.
 | [Active Changes](spec/changes/) | `spec/changes/` | Work in flight |
 | [Archive](spec/archive/) | `spec/archive/` | Completed changes with artifacts |
 | [Gaps](spec/gaps/) | `spec/gaps/` | Reconciliation gaps (spec vs code) |
-| [Issues](spec/issues/) | `spec/issues/` | Logged issues |
-| [Backlog](spec/backlog/) | `spec/backlog/` | Prioritized backlog items |
+| [Issues](spec/issues/) | `spec/issues/` | Logged issues and backlog items (backlog is a frontmatter view) |
+| [Milestones](spec/milestones/) | `spec/milestones/` | Milestone groupings for backlog items |
 | [Architecture](docs/architecture.md) | `docs/architecture.md` | System design and components |
 | [API Reference](docs/api.md) | `docs/api.md` | Capabilities and scenarios |
 | [Changelog](docs/changelog.md) | `docs/changelog.md` | What changed and when |
