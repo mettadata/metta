@@ -84,13 +84,13 @@ describe('metta-guard-edit hook init-phase allow-list', { timeout: 30_000 }, () 
         expect(code).toBe(0)
       })
 
-      it('exits 0 when writing to spec/backlog/<slug>.md with no active change', () => {
+      it('exits 2 when writing to spec/backlog/<slug>.md with no active change (retired from allowlist)', () => {
         const { code } = runHook(
           hookPath,
           { tool_name: 'Edit', tool_input: { file_path: 'spec/backlog/some-slug.md' } },
           tempDir,
         )
-        expect(code).toBe(0)
+        expect(code).toBe(2)
       })
 
       it('exits 0 for an absolute path outside the project root with no active change', () => {
