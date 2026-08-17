@@ -84,13 +84,30 @@ describe('metta-guard-edit hook init-phase allow-list', { timeout: 30_000 }, () 
         expect(code).toBe(0)
       })
 
-      it('exits 2 when writing to spec/backlog/<slug>.md with no active change (retired from allowlist)', () => {
-        const { code } = runHook(
-          hookPath,
-          { tool_name: 'Edit', tool_input: { file_path: 'spec/backlog/some-slug.md' } },
-          tempDir,
+      it('exits 2 when writing to spec/backlog/<slug>.md with no active change (retired from allowlist)', async () => {
+        // Deterministic block assertion: without a resolvable `metta`, the
+        // hook's catch-all passes through (exit 0) and the block branch is
+        // unreachable (this is exactly what happened on CI, where metta is
+        // not on PATH). Prepend a shim that reports no active change,
+        // mirroring the worktree-awareness suite's pattern, so the test pins
+        // that the retired spec/backlog/ prefix no longer short-circuits the
+        // allow-list before the active-change probe.
+        const shimBin = join(tempDir, 'shim-bin')
+        await mkdir(shimBin, { recursive: true })
+        await writeFile(
+          join(shimBin, 'metta'),
+          '#!/bin/sh\necho \'{"changes":[],"message":"No active changes"}\'\n',
+          { mode: 0o755 },
         )
-        expect(code).toBe(2)
+        const result = spawnSync('node', [hookPath], {
+          input: JSON.stringify({ tool_name: 'Edit', tool_input: { file_path: 'spec/backlog/some-slug.md' } }),
+          cwd: tempDir,
+          encoding: 'utf8',
+          timeout: 10_000,
+          env: { ...process.env, PATH: `${shimBin}:${process.env.PATH ?? ''}` },
+        })
+        expect(result.status).toBe(2)
+        expect(result.stderr).toContain('metta-guard')
       })
 
       it('exits 0 for an absolute path outside the project root with no active change', () => {
