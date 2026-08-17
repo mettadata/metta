@@ -911,6 +911,33 @@ describe('metta-guard-bash hook', { timeout: 30_000 }, () => {
           const { code } = runHook(hookPath, bashEvent('metta roadmap -- add x'))
           expect(code).toBe(2)
         })
+
+        it('blocks `metta backlog --json -- add x` — flag-then-`--` still fails closed (exit 2)', () => {
+          const { code, stderr } = runHook(hookPath, bashEvent('metta backlog --json -- add x'))
+          expect(code).toBe(2)
+          expect(stderr).toContain("'--'")
+        })
+
+        it('blocks `metta roadmap --json -- add x` — flag-then-`--` still fails closed (exit 2)', () => {
+          const { code } = runHook(hookPath, bashEvent('metta roadmap --json -- add x'))
+          expect(code).toBe(2)
+        })
+
+        it('blocks `metta release --json -- cut` — flag-then-`--` still fails closed (exit 2)', () => {
+          const { code } = runHook(hookPath, bashEvent('metta release --json -- cut'))
+          expect(code).toBe(2)
+        })
+
+        it('blocks `metta backlog list -- foo` — allowed two-word form with trailing `--` fails closed (exit 2)', () => {
+          const { code } = runHook(hookPath, bashEvent('metta backlog list -- foo'))
+          expect(code).toBe(2)
+        })
+
+        it('still allows `metta backlog list` without `--` (exit 0)', () => {
+          const { code, stderr } = runHook(hookPath, bashEvent('metta backlog list'))
+          expect(code).toBe(0)
+          expect(stderr).toBe('')
+        })
       })
 
       // ----- Non-Bash / edge cases -----

@@ -488,6 +488,15 @@ describe('metta-guard-bash integration', { timeout: 60_000 }, () => {
       expect(stderr).toContain('unknown')
     })
 
+    it('blocks `metta release --json -- cut` — flag-then-`--` operand terminator fails closed — exit 2', () => {
+      const { code, stderr } = runHook(
+        bashEvent('metta release --json -- cut', { cwd: tempDir }),
+        { cwd: tempDir },
+      )
+      expect(code).toBe(2)
+      expect(stderr).toContain("'--'")
+    })
+
     it('mint hook scope for metta-release grants exactly release:cut', () => {
       const mint = spawnSync('node', [MINT_TEMPLATE_PATH, 'metta-release'], {
         input: JSON.stringify(bashEvent('metta release status --json', { cwd: tempDir })),
