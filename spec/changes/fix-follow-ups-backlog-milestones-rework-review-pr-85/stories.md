@@ -39,7 +39,7 @@
 **So that** I am never directed to a dead path, and the guard-edit hook no longer allowlists edits under a directory that does not exist
 
 **Priority:** P2
-**Independent Test Criteria:** After the change, `metta refresh` output, the five affected docs files, and the guard-edit template contain no `spec/backlog/` references, and the regenerated Table of Contents either omits the backlog row or points at the issues-backed view.
+**Independent Test Criteria:** After the change, `metta refresh` output and the guard-edit template contain no `spec/backlog/` references, the five affected docs files describe `spec/backlog/` only as the legacy input to `metta backlog migrate` (never as a live directory store), and the regenerated Table of Contents either omits the backlog row or points at the issues-backed view.
 
 **Acceptance Criteria:**
 - **Given** a project using metta **When** I run `metta refresh` **Then** the regenerated CLAUDE.md Table of Contents contains no `spec/backlog/` row (or the row points at the current issues-backed backlog view)
