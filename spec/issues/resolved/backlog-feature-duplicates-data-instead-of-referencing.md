@@ -1,7 +1,7 @@
 # Backlog feature duplicates data instead of referencing existing logged issues — observed live in zeus (2026-08-16): spec/backlog/ items created via metta backlog add are standalone files (title + description re-entered), completely disconnected from spec/issues/, so backlogging an already-logged issue copies its content into a second file with no link — two sources of truth that drift (issue gets RCA updates, backlog copy goes stale; resolving one leaves the other dangling). Desired design (user direction): the backlog should NOT mint parallel content for issues — an issue enters the backlog by marking up the EXISTING issue file itself, e.g. frontmatter on the issue markdown (backlog: true / priority / ordering or a status field), with backlog list/promote/done reading and mutating that frontmatter; standalone backlog items would remain only for non-issue ideas (or be unified entirely under one store). Affects src/backlog/backlog-store.ts, src/cli/commands/backlog.ts (add/promote/done), the metta-backlog skill, and the issue-store read path; migration consideration for existing spec/backlog/ items in consumer projects (zeus has live data in both stores).
 
 **Captured**: 2026-08-15
-**Status**: logged
+**Status**: resolved
 **Severity**: major
 
 ## Symptom
@@ -20,3 +20,7 @@ Observed live in zeus (2026-08-16): backlogging an already-logged issue via `met
 2. **Reference-only backlog entries** — Keep `spec/backlog/` as the single backlog store, but when the source is an issue, write a thin pointer file (`ref: issues/<slug>`) with no copied content; `show`/`promote` dereference to the issue file at read time, and `done` archives both sides. Tradeoff: still two files per backlogged issue (pointer + issue), dangling-pointer handling needed when an issue is resolved or removed out-of-band, and consumers must migrate existing duplicated items into pointers.
 3. **Unify the stores** — Collapse `BacklogStore` and `IssuesStore` into one item store where "backlogged" and "logged" are statuses/flags on a single file, with a migration command that merges existing `spec/backlog/` and `spec/issues/` entries (deduplicating zeus's live duplicates by slug/title match). Tradeoff: largest blast radius — touches `src/cli/helpers.ts` wiring, `fix-issue`, `metta-backlog`/`metta-issue`/`metta-fix-issues` skills, specs for both capabilities, and requires a careful data migration for every consumer project.
 
+
+## Resolution
+
+**Resolved**: 2026-08-16 — absorbed and shipped by PR #85 (rework-backlog-around-issue-store-as-single-source-truth): BacklogStore deleted, backlog is now a frontmatter view over issues, zeus migrated. Issue-file removal was missed at ship time; archived during 2026-08-18 review.
