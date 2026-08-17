@@ -1,0 +1,22 @@
+workflow: standard
+created: 2026-08-17T00:09:49.288Z
+status: active
+current_artifact: intent
+base_versions: {}
+artifacts:
+  intent: ready
+  stories: pending
+  spec: pending
+  research: pending
+  design: pending
+  tasks: pending
+  implementation: pending
+  verification: pending
+artifact_timings:
+  intent:
+    started: 2026-08-17T00:09:53.942Z
+artifact_tokens:
+  intent:
+    context: 763
+    budget: 20000
+worktree: /home/utx0/Code/metta/.metta/worktrees/fix-follow-ups-backlog-milestones-rework-review-pr-85
