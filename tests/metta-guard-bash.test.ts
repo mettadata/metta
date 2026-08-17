@@ -297,6 +297,204 @@ describe('metta-guard-bash hook', { timeout: 30_000 }, () => {
         expect(code).toBe(2)
       })
 
+      // ----- Separator-first segmentation: glued chain separators must not bypass detection -----
+      describe('separator-first segmentation (glued chain separators)', () => {
+        it('detects a `;`-glued second invocation: `metta backlog --json;metta backlog add x` (exit 2)', () => {
+          const { code } = runHook(
+            hookPath,
+            bashEvent('metta backlog --json;metta backlog add x'),
+          )
+          expect(code).toBe(2)
+        })
+
+        it('detects an `&&`-glued second invocation: `metta backlog --json&&metta backlog add x` (exit 2)', () => {
+          const { code } = runHook(
+            hookPath,
+            bashEvent('metta backlog --json&&metta backlog add x'),
+          )
+          expect(code).toBe(2)
+        })
+
+        it('detects a `||`-glued second invocation: `metta backlog --json||metta backlog add x` (exit 2)', () => {
+          const { code } = runHook(
+            hookPath,
+            bashEvent('metta backlog --json||metta backlog add x'),
+          )
+          expect(code).toBe(2)
+        })
+
+        it('detects a `|`-glued second invocation: `metta backlog --json|metta backlog add x` (exit 2)', () => {
+          const { code } = runHook(
+            hookPath,
+            bashEvent('metta backlog --json|metta backlog add x'),
+          )
+          expect(code).toBe(2)
+        })
+
+        it('detects a `&`-glued second invocation: `metta backlog --json&metta backlog add x` (exit 2)', () => {
+          const { code } = runHook(
+            hookPath,
+            bashEvent('metta backlog --json&metta backlog add x'),
+          )
+          expect(code).toBe(2)
+        })
+
+        it('detects a newline-separated second invocation (exit 2)', () => {
+          const { code } = runHook(
+            hookPath,
+            bashEvent('metta backlog --json\nmetta backlog add x'),
+          )
+          expect(code).toBe(2)
+        })
+
+        it('detects a CRLF-separated second invocation (exit 2)', () => {
+          const { code } = runHook(
+            hookPath,
+            bashEvent('metta backlog --json\r\nmetta backlog add x'),
+          )
+          expect(code).toBe(2)
+        })
+
+        it('regression: existing spaced-`;` separator behavior still blocks (exit 2)', () => {
+          const { code } = runHook(
+            hookPath,
+            bashEvent('metta status ; metta finalize'),
+          )
+          expect(code).toBe(2)
+        })
+
+        it('regression: a glued-separator command with only allowed invocations still passes (exit 0)', () => {
+          const { code, stderr } = runHook(
+            hookPath,
+            bashEvent('metta status;metta progress'),
+          )
+          expect(code).toBe(0)
+          expect(stderr).toBe('')
+        })
+
+        it('block reason cites the second invocation for a `;`-glued chain, not just the exit code', () => {
+          const { code, stderr } = runHook(
+            hookPath,
+            bashEvent('metta backlog --json;metta backlog add x'),
+          )
+          expect(code).toBe(2)
+          expect(stderr).toContain('backlog add')
+        })
+
+        it('block reason cites the second invocation for an `&&`-glued chain, not just the exit code', () => {
+          const { code, stderr } = runHook(
+            hookPath,
+            bashEvent('metta backlog --json&&metta backlog add x'),
+          )
+          expect(code).toBe(2)
+          expect(stderr).toContain('backlog add')
+        })
+      })
+
+      // ----- F1 regression pin: quoted separators must not be split as chain boundaries -----
+      describe('quote-aware chain-separator segmentation (F1)', () => {
+        it('blocks `FOO=\';\' metta finalize` — the quoted `;` in the env value must not hide the invocation (exit 2)', () => {
+          const { code, stderr } = runHook(hookPath, bashEvent("FOO=';' metta finalize"))
+          expect(code).toBe(2)
+          expect(stderr).toContain('metta finalize')
+        })
+
+        it('allows `metta status "a;b"` — a quoted separator inside a single argument is not a chain boundary (exit 0)', () => {
+          const { code, stderr } = runHook(hookPath, bashEvent('metta status "a;b"'))
+          expect(code).toBe(0)
+          expect(stderr).toBe('')
+        })
+
+        it('allows a quoted argument containing both a separator and `--` — no phantom over-block (exit 0)', () => {
+          const { code, stderr } = runHook(
+            hookPath,
+            bashEvent('metta status "handle -- flag; see docs"'),
+          )
+          expect(code).toBe(0)
+          expect(stderr).toBe('')
+        })
+
+        it('blocks `metta backlog add "see; metta finalize"` for the genuine backlog-add call, not a phantom split (exit 2)', () => {
+          const { code, stderr } = runHook(
+            hookPath,
+            bashEvent('metta backlog add "see; metta finalize"'),
+          )
+          expect(code).toBe(2)
+          expect(stderr).toContain('backlog add')
+        })
+      })
+
+      // ----- Quote-aware `--` detection: quoted `--` text must not over-block -----
+      describe('quote-aware double-dash detection', () => {
+        it('allows a double-quoted standalone `--` inside an argument: `metta status "hello -- world"` (exit 0)', () => {
+          const { code, stderr } = runHook(
+            hookPath,
+            bashEvent('metta status "hello -- world"'),
+          )
+          expect(code).toBe(0)
+          expect(stderr).toBe('')
+        })
+
+        it('allows a single-quoted standalone `--` inside an argument: `metta status \'hello -- world\'` (exit 0)', () => {
+          const { code, stderr } = runHook(
+            hookPath,
+            bashEvent("metta status 'hello -- world'"),
+          )
+          expect(code).toBe(0)
+          expect(stderr).toBe('')
+        })
+
+        it('unquoted policy unchanged: a bare unquoted `--` still blocks `metta status -- hello` (exit 2)', () => {
+          const { code } = runHook(hookPath, bashEvent('metta status -- hello'))
+          expect(code).toBe(2)
+        })
+
+        it('fails closed on an unterminated double quote even though the visible `--` looks quoted (exit 2)', () => {
+          const { code } = runHook(
+            hookPath,
+            bashEvent('metta status "hello -- world'),
+          )
+          expect(code).toBe(2)
+        })
+
+        it('fails closed on an unterminated single quote (exit 2)', () => {
+          const { code } = runHook(
+            hookPath,
+            bashEvent("metta status 'hello -- world"),
+          )
+          expect(code).toBe(2)
+        })
+
+        // ----- F2 pin: a whole-word quoted `--` bash-quote-removes to a live operand
+        // terminator and must be blocked just like a bare `--`. -----
+        it('blocks `metta backlog --json "--" add x` — a whole-word double-quoted `--` bash-quote-removes to a live operand terminator (exit 2)', () => {
+          const { code, stderr } = runHook(
+            hookPath,
+            bashEvent('metta backlog --json "--" add x'),
+          )
+          expect(code).toBe(2)
+          expect(stderr).toContain("'--'")
+        })
+
+        it("blocks `metta backlog --json '--' add x` — single-quoted variant (exit 2)", () => {
+          const { code, stderr } = runHook(
+            hookPath,
+            bashEvent("metta backlog --json '--' add x"),
+          )
+          expect(code).toBe(2)
+          expect(stderr).toContain("'--'")
+        })
+
+        it('blocks `metta backlog --json ""-- add x` — empty-quote-glued variant still quote-removes to `--` (exit 2)', () => {
+          const { code, stderr } = runHook(
+            hookPath,
+            bashEvent('metta backlog --json ""-- add x'),
+          )
+          expect(code).toBe(2)
+          expect(stderr).toContain("'--'")
+        })
+      })
+
       // ----- Skill-enforced caller-identity enforcement + audit log -----
       describe('skill-enforced caller-identity enforcement', () => {
         const tempDirs: string[] = []
