@@ -1,22 +1,36 @@
-workflow: standard
+workflow: quick
 created: 2026-08-17T23:25:49.849Z
 status: active
-current_artifact: intent
+current_artifact: implementation
 base_versions: {}
 artifacts:
-  intent: ready
-  stories: pending
-  spec: pending
-  research: pending
-  design: pending
-  tasks: pending
-  implementation: pending
+  intent: complete
+  implementation: ready
   verification: pending
+complexity_score:
+  score: 1
+  signals:
+    file_count: 3
+  recommended_workflow: quick
 artifact_timings:
   intent:
     started: 2026-08-17T23:25:55.554Z
+    completed: 2026-08-17T23:27:55.641Z
 artifact_tokens:
   intent:
     context: 763
     budget: 20000
 worktree: /home/utx0/Code/metta/.metta/worktrees/fix-remaining-13-title-description-render-sites-print-user
+token_usage:
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 6224
+    timestamp: 2026-08-17T23:26:13.019Z
+    source: hook
+  - task: intent
+    agent: metta-proposer
+    model: fable
+    tokens: 7738
+    timestamp: 2026-08-17T23:27:46.140Z
+    source: hook
