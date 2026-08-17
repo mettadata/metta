@@ -1,0 +1,21 @@
+# AskUserQuestion is unavailable in forked skill-host context so fork-tier interactive prompts silently skip and default
+
+**Captured**: 2026-08-17
+**Status**: logged
+**Severity**: minor
+
+## Symptom
+Every interactive prompt in fork-tier metta skills silently skips because `AskUserQuestion` is unavailable in the forked `metta-skill-host` subagent context. Each `/metta-issue` and `/metta-fix-issues` fork reports "AskUserQuestion unavailable in this fork context, severity defaulted", and the zeus consumer session (2026-08-18) flagged the same: severity prompts default to `minor` (or the fork guesses), priority/milestone prompts are silently omitted, backlog-add prompts never fire, and the user is never consulted — the interactive-discovery design intent silently degrades.
+
+## Root Cause Analysis
+Fork-tier skills declare `context: fork` with `agent: metta-skill-host`, so their steps execute inside a Claude Code subagent. The Claude Code harness does not expose `AskUserQuestion` to subagent contexts — interactive prompting is a main-session-only tool. The skill templates nevertheless declare `AskUserQuestion` in `allowed-tools` and script steps around it, and the skill-host agent definition explicitly instructs the fork to use it, a directive the harness cannot satisfy. When the tool is absent the fork falls back to each step's documented default (`minor` severity) or omits the flag entirely, with no loud signal in the report contract and no allow-listed CLI subcommand (`set-severity`/`set-priority`/`set-milestone` do not exist) that would let the orchestrator apply user answers after the fork returns. The failure is structural to the fork design, not a regression: it has existed since the skills were forked to `metta-skill-host` and persists through the current templates.
+
+### Evidence
+- `src/templates/skills/metta-issue/SKILL.md:4` — declares `allowed-tools: [Bash, AskUserQuestion, Read, Grep, Glob]` and steps 2-4 depend on `AskUserQuestion`, yet line 5 sets `context: fork`, placing execution in a subagent where the harness never provides the tool.
+- `src/templates/agents/metta-skill-host.md:25` — instructs the fork "Use `AskUserQuestion` when the skill directs you to ask the user a question", an unsatisfiable directive in the forked context, so degradation is silent rather than contractually surfaced.
+- `src/cli/commands/issue.ts:15` — `--severity` defaults to `'minor'` at parse time and a repo-wide search finds no `issue set-severity`/`set-priority` subcommand, so silently-defaulted metadata cannot be corrected afterward via an allow-listed CLI call (hand-editing `spec/issues/*.md` is forbidden by skill rules).
+
+## Candidate Solutions
+1. **Orchestrator-side pre-collection via flag plumbing** — extend fork-tier skill argument contracts to accept explicit flags in the invocation text (`/metta-issue --severity major --priority high --milestone <slug>`, and analogues for fix-issues/propose/quick/auto/backlog-add); the main session collects answers with `AskUserQuestion` before forking and the fork forwards them to the CLI, skipping the in-fork prompts. Tradeoff: every fork-tier skill template + deployed pair and the orchestration docs must be updated, and the orchestrator must know each skill's question set ahead of dispatch, duplicating prompt knowledge across layers.
+2. **PENDING-INPUT loud degradation plus post-hoc CLI setters** — when a prompt would fire in a fork, the skill proceeds with defaults but returns a structured `PENDING-INPUT: <field>` marker in its report; the orchestrator then asks the user in the main session and applies answers via new guard-scoped subcommands (`metta issue set-severity <slug> <level>`, `set-priority`, `set-milestone`). Tradeoff: new CLI surface plus guard-rule scoping is required, and issues transiently carry wrong metadata until the follow-up call lands (or never get corrected if the orchestrator drops the marker).
+3. **Documented degradation contract only** — document the fork-context tool limitation in `metta-skill-host.md` and each fork skill, and require forks to explicitly enumerate which prompts were skipped and what defaulted. Tradeoff: cheapest fix but the user is still never consulted; the interactive-discovery design intent remains degraded, merely visibly so.
