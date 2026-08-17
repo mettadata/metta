@@ -16,11 +16,20 @@ artifact_timings:
   intent:
     started: 2026-08-17T23:25:55.554Z
     completed: 2026-08-17T23:27:55.641Z
+  implementation:
+    started: 2026-08-17T23:28:03.221Z
 artifact_tokens:
   intent:
     context: 763
     budget: 20000
+  implementation:
+    context: 0
+    budget: 10000
 worktree: /home/utx0/Code/metta/.metta/worktrees/fix-remaining-13-title-description-render-sites-print-user
+model_runs:
+  - task: implementation
+    model: sonnet
+    timestamp: 2026-08-17T23:28:03.221Z
 token_usage:
   - task: metta-skill-host
     agent: metta-skill-host
