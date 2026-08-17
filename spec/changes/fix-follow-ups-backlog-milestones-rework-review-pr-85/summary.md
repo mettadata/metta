@@ -27,3 +27,13 @@ Parallel executors sharing the worktree index raced on `git commit`: Task 1.3's 
 - `spec/specs/roadmap-feature/spec.md` normative drift (still requires deleted `BacklogStore`) — own gap/issue.
 - `--json` C1 (U+009B) passthrough in `JSON.stringify` output.
 - Relocate the five remaining src-side test files into `tests/`.
+
+## Verification (iteration 1 — 3 parallel verifiers)
+
+- **Tests:** `npm test` — 127/127 files, 2343/2343 tests, 0 failures.
+- **Gates:** `npx tsc --noEmit` clean; `npm run lint` clean; `npm run build` clean; `find dist -name '*.test.*'` empty.
+- **Spec coverage:** all 21 scenarios across 7 requirements PASS with cited tests or direct implementation evidence (see review.md and verifier table). Consolidated issues-store suite is a verbatim superset of the deleted src copy (27/27 case names carried).
+
+## Review outcome
+
+Three iterations: iteration 1 found 1 critical (stale integration test) + 1 major security (`--` operand-terminator bypass through ALLOWED_BARE); iteration 2 caught the surviving flag-before-`--` variant; iteration 3 exits clean (PASS / PASS_WITH_WARNINGS / PASS) after the structural full-span `--` fail-closed fix (commit 2ab040e4d). Remaining security warnings are pre-existing tokenizer classes on main, logged as follow-ups.
