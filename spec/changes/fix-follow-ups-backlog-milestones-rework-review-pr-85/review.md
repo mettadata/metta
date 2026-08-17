@@ -31,3 +31,31 @@ Hook pairs byte-identical (both guard-bash and guard-edit); test consolidation l
 ## Iteration 2 — verdicts (post-fix re-review)
 
 _(pending)_
+
+## Iteration 2 — verdicts (post-fix re-review)
+
+| Reviewer | Verdict |
+|---|---|
+| Correctness | PASS |
+| Security | FAIL — `metta backlog --json -- add x` still bypassed (third-token-only `--` check insufficient) |
+| Quality | PASS (full suite 2332/2332) |
+
+Fixes applied in iteration 1→2: commits 8cd86d138 (immediate-`--` rejection + integration test flip), 1a296ae0 (spec/stories scenario amendment + promote→migrate), 175e3376b (sanitizer 8-bit ST), 12f8f48b7 (US-3 criteria alignment).
+
+## Iteration 3 — verdicts (final)
+
+| Reviewer | Verdict |
+|---|---|
+| Correctness | PASS |
+| Security | PASS_WITH_WARNINGS (remaining warnings all pre-existing tokenizer classes) |
+| Quality | PASS (full suite 2343/2343) |
+
+Fix applied in iteration 2→3: commit 2ab040e4d — structural full-argument-span `--` scan (`hasDoubleDash`); classify() fails closed unconditionally (no fork identity or credential authorizes `--`); dedicated `double-dash-operand-terminator` audit reason; empirically verified across 16 attack variants incl. fork/credential escalation, chain scoping both directions, quoted/env-prefixed forms.
+
+### Accepted warnings carried to follow-up issue (orchestration-guard, pre-existing on main)
+- Glued chain separators (`...;metta backlog add x`, `...&&metta ...`) swallow the second invocation.
+- Newline as unhandled command separator.
+- Wrapper prefixes (`command metta`, `env metta`, `\metta`) hide the invocation — inherent to textual guarding; credential model is backstop.
+- Quote-unaware tokenizer means a quoted standalone `--` argument over-blocks (fail-closed direction; remediation message adequate).
+
+**Review loop exit: CLEAN at iteration 3.**
