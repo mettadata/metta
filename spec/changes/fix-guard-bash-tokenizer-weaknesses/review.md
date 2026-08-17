@@ -37,12 +37,22 @@ Fail-closed direction (over-block, never under-block), e.g. `metta issue "handle
 - Wrapper prefixes (`command`/`env`/`xargs`/`sh -c`), command substitution, subshells — inherent to textual guarding; covered by tier model + audit log.
 - Env prefix with quoted whitespace hides invocation (pre-existing, same class).
 
-## Round 2 (after fixes)
+## Round 2 (after fix commit 95c83da4d)
 
 | Reviewer | Verdict |
 |----------|---------|
 | Correctness | PASS |
-| Security | PASS |
-| Quality | PASS |
+| Security | PASS_WITH_WARNINGS |
+| Quality | PASS_WITH_WARNINGS |
 
-(To be updated after re-review.)
+All F1-F4 findings verified fixed (live-tested): `FOO=';' metta finalize` blocks, all adjacent-quote `--` forms (`"--"`, `'--'`, `""--`, `--""`, `'-'-`) block, quoted args containing separators/`--` no longer over-block, glued-separator tests assert the blocking invocation. Correctness confirmed the unterminated-quote fallback cannot hide any bash-executable invocation (crafted under-detections are bash syntax errors).
+
+Remaining warnings — all non-blocking, addressed in follow-up commit 60f119809:
+- Security: brace groups `{ ...; }` and backslash-escaped quotes `\"` were undocumented residual text-layer gaps → added to KNOWN LIMITATION comment.
+- Correctness (suggestion): fallback comment precision → reworded to "never hides a bash-executable invocation".
+- Quality (suggestion): redundant `m[0] === '--'` clause → removed (tests green).
+- Quality: stale summary.md → rewritten during verification.
+
+Accepted residuals (documented in the hook's KNOWN LIMITATION comment, defended by the tier model + audit log, not text-detectable): wrapper prefixes, command substitution, backticks, subshells, process substitution, brace groups, backslash-escaped quotes, `$'--'` ANSI-C quoting, quoted-whitespace env prefixes, quoted/split command names.
+
+**Review loop exit: all reviewers PASS or PASS_WITH_WARNINGS after 2 iterations.**
