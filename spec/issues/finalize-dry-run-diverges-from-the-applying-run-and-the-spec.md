@@ -1,0 +1,21 @@
+# finalize dry-run diverges from the applying run and the spec merge applies non-atomically on conflict
+
+**Captured**: 2026-08-17
+**Status**: logged
+**Severity**: major
+
+## Symptom
+Reported by the zeus consumer session (2026-08-18), hit on two separate changes: `metta finalize --dry-run` reported a clean merge, then the real finalize conflicted on requirement existence (a MODIFIED delta targeting a requirement the dry-run reconciler cannot see — the same class metta itself hit during PR #85's finalize, resolved by hand-reclassifying MODIFIED→ADDED). Worse, on conflict the real run left a PARTIAL spec merge: some deltas were already applied to living specs before the conflicting delta aborted the run, leaving silent partial state in the spec store — the framework's source of truth.
+
+## Root Cause Analysis
+Two distinct defects share one structural cause: `SpecMerger.merge()` gates all per-requirement work behind `if (!dryRun)`. (1) Parity — the requirement-existence checks ('requirement not found' for MODIFIED/RENAMED/REMOVED) live only inside `applyDelta()`, which is invoked exclusively on the applying path. The dry-run path checks only capability existence and base-version lock hashes, so a MODIFIED delta whose target requirement is absent from the current spec passes dry-run as clean and is even reported under `merged`. Finalizer step 3 runs this weaker dry-run reconciler for conflict detection, and finalizer step 5 already carries a comment admitting apply-time-only conflicts exist. (2) Atomicity — the applying run iterates deltas and `applyDelta()` writes each capability spec file and updates its spec-lock immediately, per delta. When delta N conflicts, deltas 1..N-1 are already committed to `spec/specs/` and their locks updated; the conflict return in finalizer step 5 aborts the archive but performs no rollback, so living specs and spec-locks are left half-merged with no marker of the partial state.
+
+### Evidence
+- `src/finalize/spec-merger.ts:122` — the "clean merge" branch calls `applyDelta` only when `!dryRun`, so the requirement-not-found conflict class (returned at lines 195-202, 214-221, 246-253) is structurally invisible to dry-run.
+- `src/finalize/spec-merger.ts:259` — `applyDelta` performs `state.writeRaw(specPath, content)` plus `specLockManager.update()` per delta inside the loop, so a conflict on a later delta leaves earlier writes applied with no rollback.
+- `src/finalize/finalizer.ts:169` — comment on the step-5 abort path: "Conflicts that only surface on the applying write (e.g. MODIFIED targeting a requirement the dry run cannot see) still abort here" — the divergence is known, but the abort neither prevents nor reverts the partial writes already made by the same `merger.merge()` call.
+
+## Candidate Solutions
+1. **Two-phase stage-then-commit merge** — Refactor `applyDelta` into a pure compute step that produces the fully merged content for every affected capability in memory (plus pending lock updates), then a commit step that writes all files and locks only when every delta reconciled cleanly. Dry-run and the applying run share the identical compute phase, so parity is guaranteed by construction, and the write phase is all-or-nothing at the delta-reconciliation level. Tradeoff: the larger refactor of the three call sites (`merge`, `createCapabilitySpec`, `applyDelta`) and batched lock updates; a crash mid-write-phase can still leave partial files unless writes are also journaled or temp-file swapped.
+2. **Validate-mode dry-run only** — Run `applyDelta` in a no-write validate mode during dry-run so requirement-existence conflicts surface pre-write, keeping the current per-delta write behavior on the applying run. Tradeoff: fixes parity but not atomicity — any state drift between the finalizer's step-3 dry-run and the step-5 applying run (or a conflict class the validator still misses) reproduces the partial-merge failure.
+3. **Snapshot-and-rollback around the applying merge** — Before applying, snapshot the affected `spec/specs/**` files and spec-locks (filesystem copy or git index state); on any conflict, restore the snapshot so living specs are untouched. Tradeoff: rollback machinery is itself failure-prone (crash mid-restore leaves worse state than today), and dry-run/real divergence remains unless combined with solution 2.
