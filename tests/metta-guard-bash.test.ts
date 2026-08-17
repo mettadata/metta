@@ -901,6 +901,16 @@ describe('metta-guard-bash hook', { timeout: 30_000 }, () => {
           expect(code).toBe(2)
           expect(stderr).toContain('unknown')
         })
+
+        it('blocks `metta backlog -- add "evil"` — `--` operand terminator does not count as a flag (exit 2)', () => {
+          const { code } = runHook(hookPath, bashEvent('metta backlog -- add "evil"'))
+          expect(code).toBe(2)
+        })
+
+        it('blocks `metta roadmap -- add x` — `--` operand terminator does not count as a flag (exit 2)', () => {
+          const { code } = runHook(hookPath, bashEvent('metta roadmap -- add x'))
+          expect(code).toBe(2)
+        })
       })
 
       // ----- Non-Bash / edge cases -----

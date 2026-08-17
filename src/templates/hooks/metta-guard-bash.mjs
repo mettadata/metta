@@ -136,7 +136,10 @@ function classify(inv) {
   if (ALLOWED_SUBCOMMANDS.has(inv.sub)) return 'allow';
   const allowedTwo = ALLOWED_TWO_WORD.get(inv.sub);
   if (allowedTwo && inv.third && allowedTwo.has(inv.third)) return 'allow';
-  if (ALLOWED_BARE.has(inv.sub) && (!inv.third || inv.third.startsWith('-'))) return 'allow';
+  // Reject a literal `--` third token: it is Commander's operand terminator, and what
+  // follows it still dispatches as a subcommand (e.g. `metta backlog -- add x` runs
+  // `backlog add`), so treating it as a flag would bypass Tier-2 credential checks.
+  if (ALLOWED_BARE.has(inv.sub) && (!inv.third || (inv.third !== '--' && inv.third.startsWith('-')))) return 'allow';
   if (BLOCKED_SUBCOMMANDS.has(inv.sub)) return 'block';
   const blockedTwo = BLOCKED_TWO_WORD.get(inv.sub);
   if (blockedTwo && inv.third && blockedTwo.has(inv.third)) return 'block';
