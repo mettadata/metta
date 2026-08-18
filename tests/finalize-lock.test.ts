@@ -15,7 +15,7 @@ import {
   checkFinalizeLockStale,
   FinalizeLockError,
   isPidAlive,
-} from './finalize-lock.js'
+} from '../src/finalize/finalize-lock.js'
 
 const CHANGE = 'my-change'
 // A very high PID that is virtually guaranteed not to map to a live process.

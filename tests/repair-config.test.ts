@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { repairProjectConfig } from './repair-config.js'
+import { repairProjectConfig } from '../src/config/repair-config.js'
 
 describe('repairProjectConfig', () => {
   it('dedups three duplicate keys keeping last occurrence', () => {

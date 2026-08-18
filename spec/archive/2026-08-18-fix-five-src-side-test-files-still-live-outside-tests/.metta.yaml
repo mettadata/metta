@@ -1,0 +1,24 @@
+workflow: quick
+created: 2026-08-18T03:06:13.315Z
+status: active
+current_artifact: verification
+base_versions: {}
+artifacts:
+  intent: complete
+  implementation: complete
+  verification: complete
+complexity_score:
+  score: 1
+  signals:
+    file_count: 2
+  recommended_workflow: quick
+artifact_timings:
+  intent:
+    completed: 2026-08-18T03:07:30.234Z
+  implementation:
+    completed: 2026-08-18T03:16:50.615Z
+  verification:
+    completed: 2026-08-18T03:25:42.283Z
+review_iterations: 1
+verify_iterations: 1
+worktree: /home/utx0/Code/metta/.metta/worktrees/fix-five-src-side-test-files-still-live-outside-tests

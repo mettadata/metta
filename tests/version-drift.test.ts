@@ -11,7 +11,7 @@ import {
   resetVersionDrift,
   stampInstalledVersion,
   templateFreshnessCheck,
-} from './version-drift.js'
+} from '../src/config/version-drift.js'
 
 describe('detectVersionDrift', () => {
   it('returns null when versions match exactly', () => {
