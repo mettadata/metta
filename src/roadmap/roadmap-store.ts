@@ -32,7 +32,7 @@ export type RoadmapEntry = z.infer<typeof RoadmapEntrySchema>
 // message prefixes.
 export class RoadmapValidationError extends Error {
   constructor(
-    readonly type: 'duplicate_entry' | 'invalid_reorder',
+    readonly type: 'duplicate_entry' | 'invalid_reorder' | 'not_found',
     message: string,
   ) {
     super(message)
@@ -150,12 +150,93 @@ export class RoadmapStore {
     await this.save(reordered)
   }
 
-  /** Pops entry 1 and returns it; empty roadmap → null with no write. */
-  async removeTop(): Promise<RoadmapEntry | null> {
+  // Shared write core for remove/removeSlugs/retire (design "One write
+  // path"): filters out the entries at `indices`, persists via the
+  // canonical save(), and returns the removed entries in roadmap order.
+  private async spliceAndSave(
+    entries: RoadmapEntry[],
+    indices: ReadonlySet<number>,
+  ): Promise<RoadmapEntry[]> {
+    const kept: RoadmapEntry[] = []
+    const removed: RoadmapEntry[] = []
+    entries.forEach((entry, index) => {
+      if (indices.has(index)) {
+        removed.push(entry)
+      } else {
+        kept.push(entry)
+      }
+    })
+    await this.save(kept)
+    return removed
+  }
+
+  /**
+   * Removes one entry by 1-based position (number) or slug (string).
+   * Miss → throws RoadmapValidationError('not_found', ...), file untouched.
+   * The string branch never calls assertSafeSlug: `remove` never writes the
+   * target string into the file and builds no path from it.
+   */
+  async remove(target: string | number): Promise<{ entry: RoadmapEntry; position: number }> {
     const entries = await this.load()
-    if (entries.length === 0) return null
-    const [top, ...rest] = entries
-    await this.save(rest)
-    return top
+    let index: number
+    if (typeof target === 'number') {
+      index = target - 1
+      if (index < 0 || index >= entries.length) {
+        throw new RoadmapValidationError(
+          'not_found',
+          `No roadmap entry at position ${target} (roadmap has ${entries.length} entries)`,
+        )
+      }
+    } else {
+      index = entries.findIndex((entry) => entry.slug === target)
+      if (index === -1) {
+        throw new RoadmapValidationError('not_found', `No roadmap entry with slug '${target}'`)
+      }
+    }
+    const [entry] = await this.spliceAndSave(entries, new Set([index]))
+    return { entry, position: index + 1 }
+  }
+
+  /**
+   * Removes every entry whose slug is in `slugs`, in a single
+   * load/validate/save. Any slug matching no entry → throws
+   * RoadmapValidationError('not_found', ...), file untouched (defensive:
+   * callers passing slugs they just read means a miss is a concurrent
+   * write). Empty input → no-op, returns [], no write. Returns removed
+   * entries in roadmap order.
+   */
+  async removeSlugs(slugs: string[]): Promise<RoadmapEntry[]> {
+    if (slugs.length === 0) return []
+    const entries = await this.load()
+    const wanted = new Set(slugs)
+    const indices = new Set<number>()
+    entries.forEach((entry, index) => {
+      if (wanted.has(entry.slug)) indices.add(index)
+    })
+    const foundSlugs = new Set(
+      [...indices].map((index) => entries[index].slug),
+    )
+    for (const slug of slugs) {
+      if (!foundSlugs.has(slug)) {
+        throw new RoadmapValidationError('not_found', `No roadmap entry with slug '${slug}'`)
+      }
+    }
+    return this.spliceAndSave(entries, indices)
+  }
+
+  /**
+   * No-throw retire for resolution hooks: removes ALL entries matching
+   * `slug` (duplicate-tolerant). No match (including absent
+   * spec/roadmap.md) → returns [] with no write and no file creation.
+   * Returns removed entries.
+   */
+  async retire(slug: string): Promise<RoadmapEntry[]> {
+    const entries = await this.load()
+    const indices = new Set<number>()
+    entries.forEach((entry, index) => {
+      if (entry.slug === slug) indices.add(index)
+    })
+    if (indices.size === 0) return []
+    return this.spliceAndSave(entries, indices)
   }
 }
