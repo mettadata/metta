@@ -31,3 +31,21 @@ Verdicts: Correctness FAIL (1 critical) - Security PASS_WITH_WARNINGS (1 major) 
 
 ## Clean
 Hook and template mirrors byte-identical; D8 placement + token-untouched invariant pinned; `path.relative` containment immune to prefix tricks; porcelain `-z`/rename parsing correct; write-once capture; complete gate placement correct; non-worktree step-list byte-identity pinned; no argument injection (execFile fixed argv); audit-log JSON-line integrity; YAML injection blocked by Zod+serializer.
+
+# Review round 2 (post-fix commits ad8e9c813, aaee4ace4, eac6c0950)
+
+Verdicts: Correctness PASS_WITH_WARNINGS - Security PASS_WITH_WARNINGS - Quality FAIL (1 blocking item)
+
+Round-1 critical (ship wiring) and major (guard-bash DoS) verified genuinely resolved end-to-end; blocked-never-reprimes invariant holds; zeus shape still blocked after heredoc stripping; cap/budget cannot displace an early real target.
+
+## Critical
+1. [Quality] `tests/cli-ship-worktree.test.ts:27` — describe lacks `{ timeout: 60_000 }`; two CLI-spawning tests exceed vitest's default 5s under full-suite load — `npm test` fails deterministically (2/2690, 3/3 runs) while the file passes in isolation. Fix: add the describe-level timeout like every other CLI-spawning suite.
+
+## Warnings (address now, cheap)
+2. [Correctness/Security] guard-bash KNOWN LIMITATION additions: (a) arithmetic `<<` (`$((1<<2))`) misparsed as heredoc — swallows later lines incl. real `> /main/path` redirects (fail-open miss); optionally refuse pure-numeric heredoc terminators; (b) escaped `\<\<` form; (c) header overstates "escaped operators only false-block".
+3. [Correctness/Quality] `src/ship/merge-safety.ts` `main-checkout-clean` detail interpolates raw dirt paths (terminal-escape class fixed in complete.ts only); apply stripControlChars to paths joins.
+
+## Suggestions (optional)
+4. Silent cap/budget fail-open lacks an audit entry (`write-target-budget-exhausted`).
+5. `ship.ts:46` — `--branch ""` bypasses friendly missing-branch message; ship.ts double `readBaselineEntries` read.
+6. `complete.ts` stripControlChars misses C1 range (`\x80-\x9f`).
