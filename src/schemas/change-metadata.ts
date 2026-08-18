@@ -54,6 +54,15 @@ export const EscalationSchema = z.object({
 
 export type Escalation = z.infer<typeof EscalationSchema>
 
+export const DownscaleDecisionSchema = z.object({
+  from_tier: z.enum(['trivial', 'quick', 'standard', 'full']),
+  to_tier: z.enum(['trivial', 'quick', 'standard', 'full']),
+  justification: z.string().min(1),
+  timestamp: z.string().datetime(),
+}).strict()
+
+export type DownscaleDecision = z.infer<typeof DownscaleDecisionSchema>
+
 export const ModelEscalationSchema = z.object({
   task: z.string().min(1),
   from_model: ModelAliasEnum,
@@ -107,6 +116,7 @@ export const ChangeMetadataSchema = z.object({
   stop_after: z.string().optional(),
   worktree: z.string().optional(),
   escalation: EscalationSchema.optional(),
+  downscale_decision: DownscaleDecisionSchema.optional(),
   model_escalations: z.array(ModelEscalationSchema).optional(),
   model_runs: z.array(ModelRunSchema).optional(),
   // Reported token consumption per agent run (task/agent/model/tokens/timestamp).

@@ -285,12 +285,30 @@ describe("CLI: instructions banners / complete tier downscale & upscale", { time
       expect(artifacts).toHaveProperty('verification')
       // intent status was 'complete' before the rebuild and must be preserved.
       expect(artifacts.intent).toBe('complete')
+
+      // Every accept path folds a validated downscale_decision record into
+      // the SAME atomic write as the workflow rewrite (Risk R1 — the
+      // advisory try/catch swallows schema failures silently, so a bare
+      // "nothing crashed" proves nothing; re-read together with `workflow`).
+      const decision = meta.downscale_decision as {
+        from_tier: string
+        to_tier: string
+        justification: string
+        timestamp: string
+      }
+      expect(decision).toBeDefined()
+      expect(decision.from_tier).toBe('standard')
+      expect(decision.to_tier).toBe('trivial')
+      expect(decision.justification).toContain('auto_accept_recommendation')
+      expect(Number.isNaN(Date.parse(decision.timestamp))).toBe(false)
+      expect(meta.escalation).toBeUndefined()
     })
 
-    it('non-TTY, workflow unlocked: downscale resolves Yes silently, workflow collapses, no escalation', async () => {
-      // execFile gives a non-TTY stdin. With workflow_locked absent the
-      // downscale default is Yes, so askYesNo resolves Yes without prompting
-      // and the collapse happens silently.
+    it('non-TTY, workflow unlocked: downscale fails closed, workflow kept, escalation recorded', async () => {
+      // execFile gives a non-TTY stdin. Non-interactive callers must never
+      // resolve a workflow-collapsing decision via a silent default-Yes —
+      // the fail-closed branch routes through the existing No path, so the
+      // outcome is recorded and advisory-bannered, not silent.
       await installFixture(tempDir)
       await disableWorktrees(tempDir)
       await runCli(['propose', 'downscale no'], tempDir)
@@ -303,26 +321,41 @@ describe("CLI: instructions banners / complete tier downscale & upscale", { time
       )
       expect(code).toBe(0)
 
-      // No advisory banner — the downscale was accepted, not declined.
-      expect(stderr).not.toContain('Advisory:')
+      // Advisory banner is emitted on the fail-closed No path; no prompt
+      // text appears since no prompt was ever rendered non-interactively.
+      expect(stderr).toContain('Advisory:')
+      expect(stderr).toContain('downscale recommended')
+      expect(stderr).not.toContain('collapse workflow')
       // No auto-accept banner (the flag was not set).
       expect(stderr).not.toContain('Auto-accepting recommendation')
 
       const meta = await readChangeMetaYaml('downscale-no')
-      // Workflow collapsed to the recommended tier.
-      expect(meta.workflow).toBe('trivial')
+      // Workflow stays at the chosen tier — fail-closed, not silent Yes.
+      expect(meta.workflow).toBe('standard')
       // complexity_score persisted.
       const cs = meta.complexity_score as { recommended_workflow: string }
       expect(cs.recommended_workflow).toBe('trivial')
-      // Planning artifacts dropped by the collapse.
+      // Planning artifacts kept — no collapse occurred.
       const artifacts = meta.artifacts as Record<string, string>
-      expect(artifacts).not.toHaveProperty('stories')
-      expect(artifacts).not.toHaveProperty('spec')
-      // No escalation recorded on the accept path.
-      expect(meta.escalation).toBeUndefined()
+      expect(artifacts).toHaveProperty('stories')
+      expect(artifacts).toHaveProperty('spec')
+      // Escalation recorded with the non-interactive fail-closed cause.
+      const esc = meta.escalation as {
+        from_tier: string
+        to_tier: string
+        justification: string
+        timestamp: string
+      }
+      expect(esc).toBeDefined()
+      expect(esc.from_tier).toBe('trivial')
+      expect(esc.to_tier).toBe('standard')
+      expect(esc.justification).toContain('non-interactive fail-closed')
+      expect(esc.timestamp).toBeDefined()
+      // No decision record on the No path.
+      expect(meta.downscale_decision).toBeUndefined()
     })
 
-    it('json mode with downscale condition: no prompt, workflow collapses, stdout stays valid JSON', async () => {
+    it('json mode with downscale condition: fails closed, workflow kept, stdout stays valid JSON', async () => {
       await installFixture(tempDir)
       await disableWorktrees(tempDir)
       await runCli(['propose', 'downscale json'], tempDir)
@@ -334,17 +367,21 @@ describe("CLI: instructions banners / complete tier downscale & upscale", { time
         tempDir,
       )
       expect(code).toBe(0)
-      // Stdout still parses as JSON (complete's existing payload).
+      // Stdout still parses as JSON (complete's existing payload); the
+      // advisory goes to stderr — the existing separation is preserved.
       expect(() => JSON.parse(stdout)).not.toThrow()
-      // No advisory banner — json mode resolves the Yes default silently.
-      expect(stderr).not.toContain('Advisory:')
+      // --json counts as non-interactive -- fails closed, advisory printed.
+      expect(stderr).toContain('Advisory:')
 
       const meta = await readChangeMetaYaml('downscale-json')
-      expect(meta.workflow).toBe('trivial')
-      expect(meta.escalation).toBeUndefined()
+      expect(meta.workflow).toBe('standard')
+      const esc = meta.escalation as { justification: string }
+      expect(esc).toBeDefined()
+      expect(esc.justification).toContain('non-interactive fail-closed')
+      expect(meta.downscale_decision).toBeUndefined()
     })
 
-    it('three-file impact under standard: downscale to quick fires by default', async () => {
+    it('three-file impact under standard: fails closed, workflow kept at standard', async () => {
       await installFixture(tempDir)
       await disableWorktrees(tempDir)
       await runCli(['propose', 'three file impact'], tempDir)
@@ -356,21 +393,25 @@ describe("CLI: instructions banners / complete tier downscale & upscale", { time
         tempDir,
       )
       expect(code).toBe(0)
-      // 3 files -> quick, workflow was standard. quick < standard, unlocked,
-      // non-TTY -> the Yes default collapses the workflow silently.
-      expect(stderr).not.toContain('Advisory:')
+      // 3 files -> quick, workflow was standard. quick < standard, but
+      // non-TTY fails closed -- the tier is kept, not silently collapsed.
+      expect(stderr).toContain('Advisory:')
       expect(stderr).not.toContain('Auto-accepting recommendation')
 
       const meta = await readChangeMetaYaml('three-file-impact')
-      expect(meta.workflow).toBe('quick')
+      expect(meta.workflow).toBe('standard')
       const cs = meta.complexity_score as { recommended_workflow: string; signals: { file_count: number } }
       expect(cs.recommended_workflow).toBe('quick')
       expect(cs.signals.file_count).toBe(3)
       const artifacts = meta.artifacts as Record<string, string>
-      // Planning artifacts dropped by the collapse.
-      expect(artifacts).not.toHaveProperty('stories')
-      expect(artifacts).not.toHaveProperty('spec')
-      expect(meta.escalation).toBeUndefined()
+      // Planning artifacts kept -- no collapse.
+      expect(artifacts).toHaveProperty('stories')
+      expect(artifacts).toHaveProperty('spec')
+      const esc = meta.escalation as { from_tier: string; to_tier: string; justification: string }
+      expect(esc).toBeDefined()
+      expect(esc.from_tier).toBe('quick')
+      expect(esc.to_tier).toBe('standard')
+      expect(meta.downscale_decision).toBeUndefined()
     })
 
     it('workflow_locked, non-TTY: workflow kept, escalation recorded with workflow_locked justification', async () => {
@@ -411,6 +452,9 @@ describe("CLI: instructions banners / complete tier downscale & upscale", { time
       expect(esc.to_tier).toBe('standard')
       expect(esc.justification).toContain('workflow_locked')
       expect(esc.timestamp).toBeDefined()
+      // workflow_locked keeps precedence over the non-interactive cause,
+      // and no decision record is written on the No path.
+      expect(meta.downscale_decision).toBeUndefined()
     })
 
     // Run `metta complete intent` in-process with a simulated interactive
@@ -418,10 +462,18 @@ describe("CLI: instructions banners / complete tier downscale & upscale", { time
     // of this file replays `answer` to the first prompt. The subprocess
     // harness (runCli/execFile) cannot allocate a pty, so the interactive
     // matrix rows are covered in-process against the real command action.
+    // `answer === null` queues no readline response at all -- used by T-C2
+    // to exercise the `--json` fail-closed path, which never prompts even
+    // on a forced TTY. `extraArgs` are inserted before the `complete`
+    // subcommand (e.g. `['--json']`, already registered on this in-process
+    // program) so the json half of the `nonInteractive` predicate can be
+    // isolated in-process (a subprocess's stdin is always a pipe, so
+    // runCli/execFile tests can never exercise TTY + --json together).
     async function runCompleteInteractive(
       changeName: string,
-      answer: string,
+      answer: string | null,
       cwd: string,
+      extraArgs: string[] = [],
     ): Promise<void> {
       const prevCwd = process.cwd()
       const prevIsTTY = process.stdin.isTTY
@@ -429,7 +481,9 @@ describe("CLI: instructions banners / complete tier downscale & upscale", { time
         throw new Error(`process.exit(${code ?? 0}) called`)
       }) as never)
       ttyPrompt.questions.length = 0
-      ttyPrompt.answers.push(answer)
+      if (answer !== null) {
+        ttyPrompt.answers.push(answer)
+      }
       Object.defineProperty(process.stdin, 'isTTY', {
         value: true,
         configurable: true,
@@ -440,9 +494,10 @@ describe("CLI: instructions banners / complete tier downscale & upscale", { time
         const program = new Command()
         program.option('--json')
         registerCompleteCommand(program)
-        await program.parseAsync(['complete', 'intent', '--change', changeName], {
-          from: 'user',
-        })
+        await program.parseAsync(
+          [...extraArgs, 'complete', 'intent', '--change', changeName],
+          { from: 'user' },
+        )
       } finally {
         process.chdir(prevCwd)
         Object.defineProperty(process.stdin, 'isTTY', {
@@ -487,9 +542,11 @@ describe("CLI: instructions banners / complete tier downscale & upscale", { time
       expect(esc.to_tier).toBe('standard')
       expect(esc.justification).toContain('declined downscale')
       expect(esc.timestamp).toBeDefined()
+      // No decision record on the No path.
+      expect(meta.downscale_decision).toBeUndefined()
     })
 
-    it('interactive empty answer: Yes default collapses workflow, no escalation', async () => {
+    it('interactive empty answer: Yes default collapses workflow, decision record written', async () => {
       await installFixture(tempDir)
       await disableWorktrees(tempDir)
       await runCli(['propose', 'downscale accept enter'], tempDir)
@@ -514,6 +571,122 @@ describe("CLI: instructions banners / complete tier downscale & upscale", { time
       expect(artifacts).not.toHaveProperty('spec')
       // No escalation on the accept path.
       expect(meta.escalation).toBeUndefined()
+      // Decision record written with the TTY default-Yes cause.
+      const decision = meta.downscale_decision as {
+        from_tier: string
+        to_tier: string
+        justification: string
+        timestamp: string
+      }
+      expect(decision).toBeDefined()
+      expect(decision.from_tier).toBe('standard')
+      expect(decision.to_tier).toBe('trivial')
+      expect(decision.justification).toContain('interactive default-Yes')
+      expect(Number.isNaN(Date.parse(decision.timestamp))).toBe(false)
+    })
+
+    it('interactive explicit yes (answer y): workflow collapses, decision record has explicit-yes cause', async () => {
+      await installFixture(tempDir)
+      await disableWorktrees(tempDir)
+      await runCli(['propose', 'downscale accept explicit'], tempDir)
+      const changeDir = join(tempDir, 'spec', 'changes', 'downscale-accept-explicit')
+      await writeFile(
+        join(changeDir, 'intent.md'),
+        oneFileIntent('Downscale Accept Explicit'),
+        'utf8',
+      )
+
+      await runCompleteInteractive('downscale-accept-explicit', 'y', tempDir)
+
+      expect(ttyPrompt.questions.length).toBeGreaterThan(0)
+      expect(ttyPrompt.questions[0]).toContain('[Y/n]')
+
+      const meta = await readChangeMetaYaml('downscale-accept-explicit')
+      expect(meta.workflow).toBe('trivial')
+      expect(meta.escalation).toBeUndefined()
+      const decision = meta.downscale_decision as {
+        from_tier: string
+        to_tier: string
+        justification: string
+        timestamp: string
+      }
+      expect(decision).toBeDefined()
+      expect(decision.from_tier).toBe('standard')
+      expect(decision.to_tier).toBe('trivial')
+      expect(decision.justification).toContain('interactive explicit yes')
+      expect(Number.isNaN(Date.parse(decision.timestamp))).toBe(false)
+    })
+
+    it('in-process TTY + --json: downscale fails closed even with a forced TTY', async () => {
+      // Isolates the `json` half of the `nonInteractive` predicate: stdin.isTTY
+      // is forced true here (unlike subprocess tests, whose stdin is always a
+      // pipe), yet --json alone must still resolve fail-closed with no prompt.
+      await installFixture(tempDir)
+      await disableWorktrees(tempDir)
+      await runCli(['propose', 'downscale tty json'], tempDir)
+      const changeDir = join(tempDir, 'spec', 'changes', 'downscale-tty-json')
+      await writeFile(
+        join(changeDir, 'intent.md'),
+        oneFileIntent('Downscale Tty Json'),
+        'utf8',
+      )
+
+      await runCompleteInteractive('downscale-tty-json', null, tempDir, ['--json'])
+
+      // No prompt was ever rendered -- the fail-closed branch short-circuits
+      // before reaching askYesNoDetailed.
+      expect(ttyPrompt.questions.length).toBe(0)
+
+      const meta = await readChangeMetaYaml('downscale-tty-json')
+      expect(meta.workflow).toBe('standard')
+      const esc = meta.escalation as { justification: string }
+      expect(esc).toBeDefined()
+      expect(esc.justification).toContain('non-interactive fail-closed')
+      expect(meta.downscale_decision).toBeUndefined()
+    })
+
+    it('workflow_locked interactive TTY, empty answer: [y/N] prompt, workflow kept, workflow_locked escalation, no decision record', async () => {
+      // Reuses the T-C2 in-process TTY harness (runCompleteInteractive /
+      // Object.defineProperty(process.stdin, 'isTTY')) to lock down that a
+      // workflow_locked change defaults to No even when the session is
+      // genuinely interactive: the prompt still renders (unlike the
+      // non-interactive fail-closed path), but its default flips to No and
+      // an empty answer must keep the chosen workflow.
+      await installFixture(tempDir)
+      await disableWorktrees(tempDir)
+      // Explicit --workflow sets workflow_locked: true, which flips the
+      // downscale default back to No even in an interactive TTY session.
+      await runCli(['propose', 'downscale locked tty', '--workflow', 'standard'], tempDir)
+      const changeDir = join(tempDir, 'spec', 'changes', 'downscale-locked-tty')
+      await writeFile(join(changeDir, 'intent.md'), oneFileIntent('Downscale Locked Tty'), 'utf8')
+
+      await runCompleteInteractive('downscale-locked-tty', '', tempDir)
+
+      // Prompt rendered with the No-default suffix (workflow_locked keeps No).
+      expect(ttyPrompt.questions.length).toBeGreaterThan(0)
+      expect(ttyPrompt.questions[0]).toContain('collapse workflow to /metta-trivial?')
+      expect(ttyPrompt.questions[0]).toContain('[y/N]')
+
+      const meta = await readChangeMetaYaml('downscale-locked-tty')
+      // Empty answer takes the No default: workflow stays put.
+      expect(meta.workflow).toBe('standard')
+      const artifacts = meta.artifacts as Record<string, string>
+      expect(artifacts).toHaveProperty('stories')
+      expect(artifacts).toHaveProperty('spec')
+      // Escalation recorded with the workflow_locked justification cause.
+      const esc = meta.escalation as {
+        from_tier: string
+        to_tier: string
+        justification: string
+        timestamp: string
+      }
+      expect(esc).toBeDefined()
+      expect(esc.from_tier).toBe('trivial')
+      expect(esc.to_tier).toBe('standard')
+      expect(esc.justification).toContain('workflow_locked')
+      expect(esc.timestamp).toBeDefined()
+      // No decision record on the No path.
+      expect(meta.downscale_decision).toBeUndefined()
     })
 
     it('recommendation matches current workflow: no prompt, no banner, no change', async () => {
@@ -598,6 +771,61 @@ describe("CLI: instructions banners / complete tier downscale & upscale", { time
 
       const meta = await readChangeMetaYaml('fixture-auto')
       expect(meta.workflow).toBe('trivial')
+      const decision = meta.downscale_decision as {
+        from_tier: string
+        to_tier: string
+        justification: string
+        timestamp: string
+      }
+      expect(decision).toBeDefined()
+      expect(decision.from_tier).toBe('standard')
+      expect(decision.to_tier).toBe('trivial')
+      expect(decision.justification).toContain('auto_accept_recommendation')
+      expect(Number.isNaN(Date.parse(decision.timestamp))).toBe(false)
+    })
+
+    it('greenfield intent with no file tokens in ## Impact: no score, no prompt, no advisory', async () => {
+      // Per zero_file_intent_is_no_signal: a present-but-fileless ## Impact
+      // section carries no information at intent time -- no complexity_score
+      // is persisted, no downscale prompt fires, and no Advisory banner is
+      // printed. The first real recommendation arrives at summary time.
+      await installFixture(tempDir)
+      await disableWorktrees(tempDir)
+      await runCli(['propose', 'greenfield no files'], tempDir)
+      const changeDir = join(tempDir, 'spec', 'changes', 'greenfield-no-files')
+      const noFileImpactIntent = [
+        '# Greenfield No Files',
+        '',
+        '## Problem',
+        '',
+        'A greenfield intent describing work that has not yet touched any',
+        'files. The body is padded well past the 200-byte content sanity',
+        'floor so the complete command does not reject the artifact before',
+        'the scorer ever sees it, exercising the zero-file no-signal path.',
+        '',
+        '## Impact',
+        '',
+        'No files are touched yet. This greenfield change will introduce new',
+        'modules once implementation begins, but the impact section lists no',
+        'concrete paths at intent time.',
+        '',
+      ].join('\n')
+      await writeFile(join(changeDir, 'intent.md'), noFileImpactIntent, 'utf8')
+
+      const { stderr, code } = await runCli(
+        ['complete', 'intent', '--change', 'greenfield-no-files'],
+        tempDir,
+      )
+      expect(code).toBe(0)
+      expect(stderr).not.toContain('Advisory:')
+      expect(stderr).not.toContain('collapse workflow')
+      expect(stderr).not.toContain('Auto-accepting recommendation')
+
+      const meta = await readChangeMetaYaml('greenfield-no-files')
+      expect(meta.complexity_score).toBeUndefined()
+      expect(meta.workflow).toBe('standard')
+      expect(meta.escalation).toBeUndefined()
+      expect(meta.downscale_decision).toBeUndefined()
     })
   })
 
@@ -833,7 +1061,7 @@ describe("CLI: instructions banners / complete tier downscale & upscale", { time
       expect(cs.recommended_workflow).toBe('quick')
     })
 
-    it('standard workflow + 3-file impact: downscale fires by default, upscale does NOT fire', async () => {
+    it('standard workflow + 3-file impact: downscale advisory fires by default, upscale does NOT fire', async () => {
       await installFixture(tempDir)
       await disableWorktrees(tempDir)
       await runCli(['propose', 'downscale not upscale'], tempDir)
@@ -846,15 +1074,17 @@ describe("CLI: instructions banners / complete tier downscale & upscale", { time
       )
       expect(code).toBe(0)
 
-      // Non-TTY, unlocked -> the Yes default collapses the workflow silently.
-      expect(stderr).not.toContain('Advisory:')
+      // Non-TTY -> the downscale branch fails closed and prints the
+      // advisory banner; it must not be confused with an upscale advisory.
+      expect(stderr).toContain('Advisory:')
+      expect(stderr).toContain('downscale recommended')
       // Upscale advisory must NOT appear.
       expect(stderr).not.toContain('upscale recommended')
       expect(stderr).not.toContain('upscale to full is not yet supported')
 
       const meta = await readChangeMetaYaml('downscale-not-upscale')
-      // Workflow collapsed to the recommended tier.
-      expect(meta.workflow).toBe('quick')
+      // Workflow kept -- fail-closed, not silently collapsed.
+      expect(meta.workflow).toBe('standard')
       const cs = meta.complexity_score as { recommended_workflow: string }
       expect(cs.recommended_workflow).toBe('quick')
     })

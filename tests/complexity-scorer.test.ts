@@ -65,7 +65,7 @@ describe('scoreFromIntentImpact', () => {
     expect(score!.score).toBe(1)
   })
 
-  it('returns a score with file_count 0 when ## Impact heading exists but section is empty', () => {
+  it('returns null (no signal) when ## Impact heading exists but section lists no files', () => {
     const md = [
       '# Intent',
       '',
@@ -75,11 +75,7 @@ describe('scoreFromIntentImpact', () => {
       '',
     ].join('\n')
 
-    const score = scoreFromIntentImpact(md)
-    expect(score).not.toBeNull()
-    expect(score!.signals.file_count).toBe(0)
-    expect(score!.recommended_workflow).toBe('trivial')
-    expect(score!.score).toBe(0)
+    expect(scoreFromIntentImpact(md)).toBeNull()
   })
 
   it('returns null when the ## Impact heading is entirely missing', () => {
@@ -93,6 +89,23 @@ describe('scoreFromIntentImpact', () => {
     ].join('\n')
 
     expect(scoreFromIntentImpact(md)).toBeNull()
+  })
+
+  it('returns a trivial score when ## Impact lists exactly 1 file', () => {
+    const md = [
+      '# Intent',
+      '',
+      '## Impact',
+      '',
+      '- `src/foo.ts`',
+      '',
+    ].join('\n')
+
+    const score = scoreFromIntentImpact(md)
+    expect(score).not.toBeNull()
+    expect(score!.signals.file_count).toBe(1)
+    expect(score!.recommended_workflow).toBe('trivial')
+    expect(score!.score).toBe(0)
   })
 })
 
@@ -129,6 +142,23 @@ describe('scoreFromSummaryFiles', () => {
     ].join('\n')
 
     expect(scoreFromSummaryFiles(md)).toBeNull()
+  })
+
+  it('returns a trivial score with file_count 0 when ## Files heading exists but section is empty', () => {
+    const md = [
+      '# Summary',
+      '',
+      '## Files',
+      '',
+      'No files touched.',
+      '',
+    ].join('\n')
+
+    const score = scoreFromSummaryFiles(md)
+    expect(score).not.toBeNull()
+    expect(score!.signals.file_count).toBe(0)
+    expect(score!.recommended_workflow).toBe('trivial')
+    expect(score!.score).toBe(0)
   })
 })
 

@@ -1,5 +1,5 @@
 import { Command } from 'commander'
-import { createCliContext, outputJson, color, agentBanner, askYesNo, getErrorMessage, resolveChangeRoot } from '../helpers.js'
+import { createCliContext, outputJson, color, agentBanner, askYesNo, askYesNoDetailed, getErrorMessage, resolveChangeRoot } from '../helpers.js'
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { execFile } from 'node:child_process'
@@ -277,9 +277,20 @@ export function registerCompleteCommand(program: Command): void {
                 downscaleEligibleChosen
               ) {
                 const autoAccept = currentMetadata.auto_accept_recommendation === true
+                // Non-interactive callers (no TTY, or --json) must never resolve
+                // a workflow-collapsing decision via a silent default-Yes. This
+                // is the same predicate askYesNo uses internally to decide
+                // whether to prompt at all. See AutoDownscalePromptAtIntent.
+                const nonInteractive = !process.stdin.isTTY || json
                 let takeYes = false
+                let acceptCause:
+                  | 'auto_accept_recommendation'
+                  | 'interactive explicit yes'
+                  | 'interactive default-Yes'
+                  | null = null
 
                 if (autoAccept) {
+                  // Sole sanctioned non-interactive Yes -- MUST stay first.
                   process.stderr.write(
                     color(
                       `Auto-accepting recommendation: downscale to /metta-${recommendedTier} (was ${currentWorkflow}, scored ${recommendedTier})`,
@@ -287,21 +298,45 @@ export function registerCompleteCommand(program: Command): void {
                     ) + '\n',
                   )
                   takeYes = true
+                  acceptCause = 'auto_accept_recommendation'
+                } else if (nonInteractive) {
+                  // Fail closed: never resolve a workflow-collapsing decision
+                  // via default-Yes without a human present to confirm it.
+                  takeYes = false
                 } else {
                   const fileCount = score.signals.file_count
                   // Downscale defaults to Yes unless the workflow was explicitly
-                  // locked (e.g. via --workflow), making auto-collapse the silent
-                  // path for non-interactive callers. See AutoDownscalePromptAtIntent.
-                  takeYes = await askYesNo(
+                  // locked (e.g. via --workflow); reached only when interactive.
+                  // `jsonMode: json` is provably false here -- this branch is
+                  // only reached when `nonInteractive` (`!TTY || json`) is
+                  // false, so `json` is always false at this point. Passed
+                  // through anyway to keep the call shape consistent with the
+                  // other askYesNoDetailed/askYesNo call sites in this file.
+                  const { value, viaDefault } = await askYesNoDetailed(
                     color(
                       `Scored as ${recommendedTier} (${fileCount} files) -- collapse workflow to /metta-${recommendedTier}?`,
                       33,
                     ),
                     { defaultYes: currentMetadata.workflow_locked !== true, jsonMode: json },
                   )
+                  takeYes = value
+                  if (value) {
+                    acceptCause = viaDefault ? 'interactive default-Yes' : 'interactive explicit yes'
+                  }
                 }
 
                 if (takeYes) {
+                  // Narrow acceptCause to non-null at the type level before it
+                  // is folded into the decision record's justification string.
+                  // `takeYes` is only ever set true in lockstep with an
+                  // `acceptCause` assignment above, so this branch is an
+                  // invariant guard, not a reachable failure mode -- but a
+                  // regression here must surface as a stderr advisory (via the
+                  // enclosing catch), never as a silently-persisted
+                  // "...: null" justification.
+                  if (acceptCause === null) {
+                    throw new Error('internal invariant violated: takeYes without acceptCause')
+                  }
                   // Load the target workflow graph and rebuild the artifact map.
                   const targetGraph = await ctx.workflowEngine.loadWorkflow(
                     recommendedTier,
@@ -328,26 +363,54 @@ export function registerCompleteCommand(program: Command): void {
                     rebuilt[id] = status
                   }
 
+                  // Fold the decision record into the same atomic write as the
+                  // workflow/artifacts rewrite -- a workflow collapse without a
+                  // validated decision record MUST NOT occur (both-or-neither
+                  // via StateStore.write's pre-persist safeParse). See ADR-3.
                   await ctx.artifactStore.updateChange(changeName, {
                     workflow: recommendedTier,
                     artifacts: rebuilt,
+                    downscale_decision: {
+                      from_tier: currentWorkflow,
+                      to_tier: recommendedTier,
+                      justification: `collapsed ${currentWorkflow} -> ${recommendedTier}: ${acceptCause}`,
+                      timestamp: new Date().toISOString(),
+                    },
                   })
                   activeGraph = targetGraph
                 } else {
                   // No path: the change stays above its scored recommendation.
                   // Record an escalation so staying heavy is auditable
-                  // (EscalationRecording). Justification is keyed by cause.
+                  // (EscalationRecording). Justification is keyed by cause,
+                  // with workflow_locked keeping precedence over the
+                  // non-interactive fail-closed cause.
                   const justification = currentMetadata.workflow_locked === true
                     ? `kept ${currentWorkflow}: workflow_locked`
-                    : `kept ${currentWorkflow}: declined downscale`
-                  await ctx.artifactStore.updateChange(changeName, {
-                    escalation: {
-                      from_tier: recommendedTier,
-                      to_tier: currentWorkflow,
-                      justification,
-                      timestamp: new Date().toISOString(),
-                    },
-                  })
+                    : nonInteractive
+                      ? `kept ${currentWorkflow}: non-interactive fail-closed`
+                      : `kept ${currentWorkflow}: declined downscale`
+                  // Single-slot overwrite guard: `escalation` holds exactly one
+                  // record, so a repeated `complete intent` run on the same
+                  // from/to tier pair must not clobber an earlier run's
+                  // justification (e.g. a deliberate interactive decline
+                  // replaced by a later non-interactive fail-closed rerun).
+                  // First record wins for a given tier pair; a genuinely
+                  // different tier pair (or no existing record) still writes.
+                  const existingEscalation = currentMetadata.escalation
+                  const sameTierPairAlreadyRecorded =
+                    existingEscalation !== undefined &&
+                    existingEscalation.from_tier === recommendedTier &&
+                    existingEscalation.to_tier === currentWorkflow
+                  if (!sameTierPairAlreadyRecorded) {
+                    await ctx.artifactStore.updateChange(changeName, {
+                      escalation: {
+                        from_tier: recommendedTier,
+                        to_tier: currentWorkflow,
+                        justification,
+                        timestamp: new Date().toISOString(),
+                      },
+                    })
+                  }
                   // Informational banner only.
                   const banner = renderBanner(score, currentWorkflow)
                   if (banner) {
@@ -426,8 +489,16 @@ export function registerCompleteCommand(program: Command): void {
                 }
               }
             }
-          } catch {
-            // Scoring / downscale is advisory-only and must not block the complete command.
+          } catch (err) {
+            // Scoring / downscale is advisory-only and must not block the
+            // complete command -- but a failure here (e.g. the accept-path
+            // updateChange after the "Auto-accepting recommendation..."
+            // banner already printed) must not fail silently: the console
+            // would otherwise claim a workflow collapse that never
+            // persisted. Warn on stderr; keep the exit code untouched.
+            process.stderr.write(
+              `Advisory: workflow scoring step failed: ${getErrorMessage(err)}\n`,
+            )
           }
         }
 
