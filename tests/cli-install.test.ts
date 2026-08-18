@@ -102,6 +102,26 @@ describe("CLI: install / init / stack detection", { timeout: 30000 }, () => {
       expect(modelsLines).toHaveLength(1)
     })
 
+    it('writes .metta/.gitignore entries that git actually honors (directory-relative patterns)', async () => {
+      const { code } = await runCli(['install', '--git-init'], tempDir)
+      expect(code).toBe(0)
+      const { readFile, writeFile: write, mkdir: mkdirP } = await import('node:fs/promises')
+      const content = await readFile(join(tempDir, '.metta', '.gitignore'), 'utf8')
+      // Patterns with a non-trailing slash inside .metta/.gitignore anchor to
+      // .metta/ itself, so `.metta/state.yaml` there matches nothing.
+      expect(content).not.toContain('.metta/')
+      await write(join(tempDir, '.metta', 'state.yaml'), 'x\n', 'utf8')
+      await mkdirP(join(tempDir, '.metta', 'logs'), { recursive: true })
+      await write(join(tempDir, '.metta', 'logs', 'run.log'), 'x\n', 'utf8')
+      const { stdout } = await execAsync(
+        'git',
+        ['check-ignore', '.metta/state.yaml', '.metta/logs/run.log'],
+        { cwd: tempDir }
+      )
+      expect(stdout).toContain('.metta/state.yaml')
+      expect(stdout).toContain('.metta/logs/run.log')
+    })
+
     it('fresh install stamps installed_version with the running package version and config stays schema-valid', async () => {
       const { code } = await runCli(['install', '--git-init'], tempDir)
       expect(code).toBe(0)
