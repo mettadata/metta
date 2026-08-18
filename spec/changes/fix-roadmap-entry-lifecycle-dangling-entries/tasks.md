@@ -6,7 +6,7 @@ File-ownership constraints (from research §Cross-cutting): `src/roadmap/roadmap
 
 ## Batch 1 (no dependencies)
 
-- [ ] **Task 1.1: RoadmapStore lifecycle surface — `remove`, `removeSlugs`, `retire`; delete `removeTop`; store unit tests**
+- [x] **Task 1.1: RoadmapStore lifecycle surface — `remove`, `removeSlugs`, `retire`; delete `removeTop`; store unit tests**
   - **Files**: `src/roadmap/roadmap-store.ts`, `tests/roadmap-store.test.ts`
   - **Action**:
     - Extend the `RoadmapValidationError` discriminator union to `'duplicate_entry' | 'invalid_reorder' | 'not_found'` — no new error class (ADR-2). Distinct miss messages: position miss `No roadmap entry at position N (roadmap has M entries)`; slug miss `No roadmap entry with slug '<slug>'`.
@@ -21,7 +21,7 @@ File-ownership constraints (from research §Cross-cutting): `src/roadmap/roadmap
 
 ## Batch 2 (depends on Batch 1; tasks 2.1 and 2.2 are parallel — disjoint files)
 
-- [ ] **Task 2.1: Roadmap CLI — `remove` subcommand + `next` skip-and-warn rewrite with `--prune`; full cli-roadmap test matrix**
+- [x] **Task 2.1: Roadmap CLI — `remove` subcommand + `next` skip-and-warn rewrite with `--prune`; full cli-roadmap test matrix**
   - **Files**: `src/cli/commands/roadmap.ts`, `tests/cli-roadmap.test.ts`
   - **Action**:
     - Add `roadmap remove <target>` with `--on-branch <name>`, description `Remove a roadmap entry by position or slug`. Handler order (normative, design §API 2): (1) `configLoader.load()` → `assertOnMainBranch(...)` before any roadmap read; (2) disambiguate `/^\d+$/.test(target) ? Number(target) : target` — all-digit input is ALWAYS a position, `remove 0` flows as out-of-range position (ADR-1); (3) `ctx.roadmapStore.remove(parsed)`; (4) `autoCommitFile(..., join(ctx.projectRoot,'spec','roadmap.md'), 'chore: remove roadmap entry <slug>')`; (5) JSON `{ removed, position, committed, commit_sha }`, text `Removed from roadmap (was position N): <slug>` + standard `Committed:`/`Not committed:` lines; (6) single catch → `mapRoadmapError` → `exitWithError` — `mapRoadmapError` needs zero changes (ADR-2). The handler MUST NOT touch `issuesStore` (spec: works identically for dangling entries, never reads `spec/issues/`).
@@ -33,7 +33,7 @@ File-ownership constraints (from research §Cross-cutting): `src/roadmap/roadmap
   - **Verify**: `npx vitest run tests/cli-roadmap.test.ts` passes; `npx tsc --noEmit` clean (the deleted `removeTop` call site is gone); `grep -n removeTop src/ tests/ -r` inside this task's files returns nothing.
   - **Done**: `roadmap remove` live with the full error/guard/commit contract; `next` skip-and-warn + `--prune` per spec with no fail-stop code path remaining in `roadmap.ts`; all C1–C16 green; JSON changes strictly additive.
 
-- [ ] **Task 2.2: Auto-retire hooks in `backlog done` and `fix-issue --remove-issue`; resolution CLI tests**
+- [x] **Task 2.2: Auto-retire hooks in `backlog done` and `fix-issue --remove-issue`; resolution CLI tests**
   - **Files**: `src/cli/commands/backlog.ts`, `src/cli/commands/fix-issue.ts`, `tests/cli-issue-backlog.test.ts`
   - **Action**:
     - In both commands, after `issuesStore.archive` + `issuesStore.remove` both succeed and **before** the commit, add the shared hook shape from design §API 4: `try { const removed = await ctx.roadmapStore.retire(slug); if (removed.length > 0) retired = slug } catch (err) { stderr warning naming the slug + 'Remove it manually with: metta roadmap remove <slug>' }` — fail-open, archive commit proceeds, exit 0 (ADR-6). Ordering satisfies "retirement only after archival succeeds" structurally.
@@ -46,7 +46,7 @@ File-ownership constraints (from research §Cross-cutting): `src/roadmap/roadmap
 
 ## Batch 3 (depends on Batch 2)
 
-- [ ] **Task 3.1: Full gates and closeout sweep**
+- [x] **Task 3.1: Full gates and closeout sweep**
   - **Files**: none new (verification + at most consistency fixes in files owned above; `docs/changelog.md` only if the project's finalize flow expects it here rather than at ship)
   - **Action**:
     - Run the full gate set: `npm run build` (tsc), `npx vitest run` (entire suite), lint if configured.
