@@ -2,7 +2,7 @@
 
 ## ADDED: Requirement: Worktree Edits Are Allowed Under the Inverted-Hosting Topology
 
-When a guarded Write/Edit/NotebookEdit/MultiEdit targets a file under `.metta/worktrees/<change>/`, the guard-edit hook MUST allow the edit (exit 0) whenever an active metta change is visible from either the target file's checkout root or the session's checkout root. In particular, the inverted-hosting topology — where the change's state (`spec/changes/<name>/.metta.yaml`) lives in the main checkout's `spec/changes/` and the worktree checkout carries no change state of its own — MUST NOT produce a block. The hook MUST NOT treat a successful no-active-changes answer from the target's checkout root as sufficient grounds to block while the session's checkout reports an active change.
+When a guarded Write/Edit/NotebookEdit/MultiEdit targets a file under `.metta/worktrees/<change>/`, the guard-edit hook MUST allow the edit (exit 0) whenever an active metta change is visible from either the target file's checkout root or the checkout root hosting that worktree — the checkout whose `.metta/worktrees/` directory contains the target's checkout. (In the reproduced topology the hosting root and the session's checkout root are the same checkout; the hosting-root formulation is the precise, session-cwd-independent statement of the same guarantee.) In particular, the inverted-hosting topology — where the change's state (`spec/changes/<name>/.metta.yaml`) lives in the main checkout's `spec/changes/` and the worktree checkout carries no change state of its own — MUST NOT produce a block. The hook MUST NOT treat a successful no-active-changes answer from the target's checkout root as sufficient grounds to block while the hosting checkout reports an active change.
 
 *Trace: intent problem statement (zeus false-positive block, 2026-08-18); US-1.*
 
@@ -16,9 +16,9 @@ When a guarded Write/Edit/NotebookEdit/MultiEdit targets a file under `.metta/wo
 ### Scenario: Empty answer from the target root alone does not block
 
 - GIVEN the inverted-hosting topology above
-- WHEN the hook's active-change probe rooted at the target's checkout reports no active changes
-- AND an active change is visible from the session's checkout root
-- THEN the hook allows the edit rather than blocking on the target-root answer alone
+- WHEN the worktree checkout's own `spec/changes/` carries no state for the change
+- AND an active change is visible from the hosting checkout root
+- THEN the hook allows the edit rather than blocking on the worktree checkout's answer alone
 
 ### Scenario: Subagents no longer need the heredoc fallback
 
@@ -40,7 +40,7 @@ The guard-edit hook MUST continue to allow (exit 0) guarded edits targeting work
 
 ## ADDED: Requirement: Guard Still Blocks When No Change Is Active in Either Root
 
-When no active metta change is visible from the target file's checkout root or from the session's checkout root, the guard-edit hook MUST block guarded edits to non-allow-listed paths with exit 2 and MUST emit guidance to start a change (e.g. via `metta quick`). The fix MUST NOT convert the guard into an unconditional allow.
+When no active metta change is visible from the target file's checkout root or, for worktree-hosted targets, from the hosting checkout root, the guard-edit hook MUST block guarded edits to non-allow-listed paths with exit 2 and MUST emit guidance to start a change (e.g. via `metta quick`). The fix MUST NOT convert the guard into an unconditional allow.
 
 *Trace: US-2; intent acceptance shape (protective behavior preserved).*
 
