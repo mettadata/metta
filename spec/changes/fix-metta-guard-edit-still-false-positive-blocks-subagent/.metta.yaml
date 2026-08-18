@@ -21,9 +21,14 @@ artifact_timings:
   intent:
     started: 2026-08-18T00:22:02.506Z
     completed: 2026-08-18T00:23:44.018Z
+  stories:
+    started: 2026-08-18T00:23:48.942Z
 artifact_tokens:
   intent:
     context: 763
+    budget: 20000
+  stories:
+    context: 2917
     budget: 20000
 worktree: /home/utx0/Code/metta/.metta/worktrees/fix-metta-guard-edit-still-false-positive-blocks-subagent
 token_usage:
