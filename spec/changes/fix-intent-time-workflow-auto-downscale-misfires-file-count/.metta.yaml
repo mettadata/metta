@@ -1,22 +1,35 @@
 workflow: standard
 created: 2026-08-18T03:40:19.692Z
 status: active
-current_artifact: intent
+current_artifact: stories
 base_versions: {}
 artifacts:
-  intent: ready
-  stories: pending
+  intent: complete
+  stories: ready
   spec: pending
   research: pending
   design: pending
   tasks: pending
   implementation: pending
   verification: pending
+complexity_score:
+  score: 3
+  signals:
+    file_count: 8
+  recommended_workflow: full
 artifact_timings:
   intent:
     started: 2026-08-18T03:40:25.231Z
+    completed: 2026-08-18T05:02:32.588Z
 artifact_tokens:
   intent:
     context: 763
     budget: 20000
 worktree: /home/utx0/Code/metta/.metta/worktrees/fix-intent-time-workflow-auto-downscale-misfires-file-count
+token_usage:
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 84513
+    timestamp: 2026-08-18T04:29:26.854Z
+    source: hook
