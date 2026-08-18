@@ -1,13 +1,13 @@
 workflow: standard
 created: 2026-08-18T10:34:47.581Z
 status: active
-current_artifact: spec
+current_artifact: research
 base_versions: {}
 artifacts:
   intent: complete
   stories: complete
-  spec: ready
-  research: pending
+  spec: complete
+  research: ready
   design: pending
   tasks: pending
   implementation: pending
@@ -21,6 +21,7 @@ artifact_timings:
     completed: 2026-08-18T10:37:28.820Z
   spec:
     started: 2026-08-18T10:37:32.742Z
+    completed: 2026-08-18T10:40:08.624Z
 artifact_tokens:
   intent:
     context: 763
@@ -56,4 +57,16 @@ token_usage:
     model: fable
     tokens: 3675
     timestamp: 2026-08-18T10:37:24.151Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 7547
+    timestamp: 2026-08-18T10:37:49.763Z
+    source: hook
+  - task: spec
+    agent: metta-specifier
+    model: fable
+    tokens: 12609
+    timestamp: 2026-08-18T10:40:04.304Z
     source: hook
