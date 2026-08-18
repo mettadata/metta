@@ -26,9 +26,13 @@
 //   skill file.
 // Emergency bypass (humans/CI): disable this hook in .claude/settings.local.json.
 
-import { readFileSync, appendFileSync, mkdirSync, readdirSync, writeFileSync, renameSync, unlinkSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { readFileSync, appendFileSync, mkdirSync, readdirSync, writeFileSync, renameSync, unlinkSync, existsSync, realpathSync } from 'node:fs';
+import { dirname, join, basename, isAbsolute, relative } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+
+const execFileAsync = promisify(execFile);
 
 // Explicit ALLOW list: known safe read-only single-subcommand forms.
 const ALLOWED_SUBCOMMANDS = new Set([
@@ -242,6 +246,253 @@ function splitCommandSegments(command) {
   return segments;
 }
 
+// ---------------------------------------------------------------------------
+// Worktree write-target check (layer 2 of the cross-checkout write defense).
+// Blocks a bash-mediated file write whose confident absolute target resolves
+// into the MAIN checkout while that checkout's active change is worktree-hosted.
+//
+// KNOWN LIMITATION (write-target extraction is heuristic and FAIL-OPEN): this
+// extractor only sees literal, plainly-quoted absolute paths in the specific
+// write forms enumerated below (`>`/`>>` redirections including fd-prefixed
+// `N>`/`N>>`, `tee` non-flag arguments, `cp`/`mv` destinations including the
+// `-t <dir>` and `--target-directory=<dir>` forms). Everything else is
+// deliberately NOT extracted and therefore ALLOWED: relative targets, `$VAR`
+// and `${...}` expansions, command substitution (`$(...)`/backticks), `~`
+// expansion, glob/brace targets, backslash escapes, unterminated quoting (a
+// bash syntax error that never executes anyway), interpreter/wrapper
+// indirection (`sh -c '...'`, `python -c`, `xargs`, `rsync`, `dd of=`,
+// `install`, `git -C <main> checkout/apply`), and process substitution
+// (`>(...)`). NOTE the fail direction is deliberately OPPOSITE to the
+// metta-invocation tokenizer in this file: unparseable input fails CLOSED for
+// metta CLI classification but fails OPEN here — for write targets the spec
+// mandates fail-open, and the residual is covered by the executor shell-write
+// path-discipline rules (layer 1) and the main-checkout tree-clean detection
+// (layer 3).
+// ---------------------------------------------------------------------------
+
+// Pure. Returns confident absolute candidate write targets for `command`;
+// returns [] for the overwhelming majority of commands (the zero-subprocess
+// fast path). Built on the same splitCommandSegments/computeQuoteMask/
+// stripQuoteChars utilities as the metta tokenizer above.
+function extractWriteTargets(command) {
+  const out = [];
+  for (const segment of splitCommandSegments(command)) {
+    const { quoted, unterminated } = computeQuoteMask(segment);
+    // Unterminated quoting: extraction is not confident -> fail OPEN (see the
+    // KNOWN LIMITATION header above; deliberately opposite to the tokenizer's
+    // fail-closed fallback).
+    if (unterminated) continue;
+    const consumed = new Array(segment.length).fill(false);
+    const candidates = [];
+    // --- Redirection scan: unquoted `>`/`>>` runs, incl. fd-prefixed `N>` ---
+    // `>&` and `<`-family operators carry no plain file target; `>(` is
+    // process substitution (fail open). `|`/`&` are chain separators, so
+    // `2>&1` splits harmlessly — its tail segment extracts nothing.
+    let i = 0;
+    while (i < segment.length) {
+      if (segment[i] !== '>' || quoted[i]) { i++; continue; }
+      if (segment[i - 1] === '<') { i++; continue; } // `<>` open-read-write — skip
+      let j = i + 1;
+      if (segment[j] === '>') j++;                    // `>>` append form
+      if (segment[j] === '&' || segment[j] === '(') { i = j + 1; continue; }
+      // A leading digit run counts as an fd prefix (`2>`) only when it is the
+      // whole word before the `>` (preceded by whitespace or segment start).
+      let opStart = i;
+      let k = i - 1;
+      while (k >= 0 && /[0-9]/.test(segment[k]) && !quoted[k]) k--;
+      if (k < 0 || /\s/.test(segment[k])) opStart = k + 1;
+      while (j < segment.length && /\s/.test(segment[j]) && !quoted[j]) j++;
+      const targetStart = j;
+      // The target word runs while non-whitespace OR quoted (quoted spaces
+      // are part of the word, e.g. > "/path with space/f").
+      while (j < segment.length && (!/\s/.test(segment[j]) || quoted[j])) j++;
+      for (let m = opStart; m < j; m++) consumed[m] = true;
+      if (j > targetStart) candidates.push(segment.slice(targetStart, j));
+      i = j;
+    }
+    // --- Command-word rules: tee / cp / mv (redirection spans excluded) ---
+    const words = [];
+    let cur = '';
+    for (let n = 0; n < segment.length; n++) {
+      if (consumed[n] || (/\s/.test(segment[n]) && !quoted[n])) {
+        if (cur) { words.push(cur); cur = ''; }
+        continue;
+      }
+      cur += segment[n];
+    }
+    if (cur) words.push(cur);
+    let w = 0;
+    while (w < words.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(words[w])) w++; // env-var prefixes
+    const cmd = w < words.length ? stripQuoteChars(words[w]) : '';
+    const args = words.slice(w + 1);
+    if (cmd === 'tee') {
+      for (const a of args) if (!a.startsWith('-')) candidates.push(a);
+    } else if (cmd === 'cp' || cmd === 'mv') {
+      let viaTargetDir = false;
+      for (let a = 0; a < args.length; a++) {
+        if (args[a] === '-t' && a + 1 < args.length) {
+          candidates.push(args[a + 1]);
+          viaTargetDir = true;
+          a++;
+        } else if (args[a].startsWith('--target-directory=')) {
+          candidates.push(args[a].slice('--target-directory='.length));
+          viaTargetDir = true;
+        }
+      }
+      if (!viaTargetDir) {
+        const nonFlags = args.filter((a) => !a.startsWith('-'));
+        if (nonFlags.length >= 2) candidates.push(nonFlags[nonFlags.length - 1]);
+      }
+    }
+    // --- Confidence gate (this is where fail-open lives): only a plain
+    // absolute path counts — starts with `/`, and after quote removal contains
+    // no `$`, backtick, backslash, or glob/brace/redirection metacharacters.
+    // Relative paths, `$VAR`, `$(...)`, `~` -> not extracted -> allowed.
+    for (const cand of candidates) {
+      const plain = stripQuoteChars(cand);
+      if (!plain.startsWith('/')) continue;
+      if (/[$`\\*?[\]{}<>]/.test(plain)) continue;
+      out.push(plain);
+    }
+  }
+  return out;
+}
+
+// Convert an absolute path to its physical (symlink-resolved) form so it can
+// be compared against `git rev-parse --show-toplevel`, which always reports
+// physical paths. Write targets often don't exist yet, so realpath the nearest
+// EXISTING ancestor and re-append the not-yet-created tail. Any realpath
+// failure keeps the logical path (tolerant).
+// Port of metta-guard-edit.mjs toPhysicalPath — keep in sync.
+function toPhysicalPath(target) {
+  let dir = target;
+  const tail = [];
+  while (!existsSync(dir)) {
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    tail.unshift(basename(dir));
+    dir = parent;
+  }
+  try {
+    dir = realpathSync(dir);
+  } catch {
+    // Tolerate: keep the logical prefix.
+  }
+  return tail.length > 0 ? join(dir, ...tail) : dir;
+}
+
+// Resolve the git top-level of the checkout containing `target` (an absolute
+// physical path). Write targets often don't exist yet, so walk up to the
+// nearest EXISTING ancestor before asking git.
+// Port of metta-guard-edit.mjs resolveTargetRoot — keep in sync. Adapted for
+// this check: any failure (git missing, target outside any repo) returns null
+// so the caller SKIPS the target (fail open) instead of falling back to the
+// session cwd — a target outside every git checkout can never be a
+// main-checkout contamination.
+async function resolveTargetRoot(target) {
+  if (!target) return null;
+  let dir = dirname(target);
+  while (!existsSync(dir)) {
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  try {
+    const { stdout } = await execFileAsync('git', ['rev-parse', '--show-toplevel'], {
+      cwd: dir,
+      timeout: 5000,
+    });
+    const top = stdout.trim();
+    if (top) return top;
+  } catch {
+    // Not a git checkout (or git unavailable) — fail open via null.
+  }
+  return null;
+}
+
+// Derive the root for the active-change probe. A metta-managed worktree's
+// checkout root is exactly <H>/.metta/worktrees/<name>; in that case probe the
+// hosting checkout H instead of the worktree. H's `metta status` aggregates
+// worktree-hosted change state (its answer is a strict superset of the
+// worktree's own). Any other checkout root is returned unchanged. Pure string
+// path math — cannot throw.
+// Port of metta-guard-edit.mjs deriveProbeRoot — keep in sync.
+function deriveProbeRoot(checkoutRoot) {
+  const worktreesDir = dirname(checkoutRoot);  // …/<H>/.metta/worktrees
+  const mettaDir = dirname(worktreesDir);      // …/<H>/.metta
+  const hostRoot = dirname(mettaDir);          // …/<H>
+  if (
+    basename(worktreesDir) === 'worktrees' &&
+    basename(mettaDir) === '.metta' &&
+    hostRoot !== mettaDir                      // defensive; unreachable in practice — the basename checks already exclude root-degenerate paths
+  ) {
+    return hostRoot;
+  }
+  return checkoutRoot;
+}
+
+// One cached `metta status --json` probe per event, keyed by probeRoot (the
+// hook process is one event, so a module-level cache IS per-event). Returns
+// { worktreeRoot } when a worktree-hosted change is active at probeRoot (the
+// status payload carries a top-level string `worktree` field — the stable
+// public contract, src/schemas/change-metadata.ts), else null: no active
+// change, a main-hosted change (no `worktree` field), metta missing from
+// PATH, timeout, or unparsable output all fail open via null.
+const worktreeProbeCache = new Map();
+async function probeWorktreeContext(probeRoot) {
+  if (worktreeProbeCache.has(probeRoot)) return worktreeProbeCache.get(probeRoot);
+  let ctx = null;
+  try {
+    const { stdout } = await execFileAsync('metta', ['status', '--json'], {
+      cwd: probeRoot,
+      timeout: 5000,
+    });
+    const status = JSON.parse(stdout);
+    if (typeof status?.worktree === 'string' && status.worktree.length > 0) {
+      ctx = { worktreeRoot: status.worktree };
+    }
+  } catch {
+    ctx = null; // probe failure fails open
+  }
+  worktreeProbeCache.set(probeRoot, ctx);
+  return ctx;
+}
+
+// True when `child` equals `root` or sits underneath it (both sides absolute
+// physical paths).
+function isInsidePath(child, root) {
+  const rel = relative(root, child);
+  return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
+}
+
+// Orchestrate the target-anchored topology check for each extracted target:
+// physicalize -> git toplevel -> deriveProbeRoot -> one cached status probe ->
+// classify. Block iff the physical target is inside probe root H AND NOT
+// inside worktree W AND NOT inside <H>/.metta/ (the shared allow set — covers
+// scratch/, logs/, gates/, and worktrees/ itself, so sibling-worktree writes
+// are an accepted non-goal). Everything outside H (/tmp, scratchpads, other
+// repos) never matches. Returns null (allow) or the first block descriptor
+// { target, mainRoot, worktreeRoot }.
+async function checkWriteTargets(event, targets) {
+  for (const target of targets) {
+    const physical = toPhysicalPath(target);
+    const checkoutRoot = await resolveTargetRoot(physical);
+    if (checkoutRoot === null) continue; // not in any git checkout — fail open
+    const probeRoot = deriveProbeRoot(checkoutRoot);
+    const ctx = await probeWorktreeContext(probeRoot);
+    if (ctx === null) continue; // no worktree-hosted active change — check inert
+    const worktreeRoot = toPhysicalPath(ctx.worktreeRoot);
+    if (
+      isInsidePath(physical, probeRoot) &&
+      !isInsidePath(physical, worktreeRoot) &&
+      !isInsidePath(physical, join(probeRoot, '.metta'))
+    ) {
+      return { target, mainRoot: probeRoot, worktreeRoot };
+    }
+  }
+  return null;
+}
+
 function tokenize(command) {
   // Split into chain-separator-delimited segments first (see splitCommandSegments above),
   // then whitespace-tokenize each segment independently and look for a leading `metta`
@@ -425,6 +676,38 @@ async function main() {
   }
 
   const command = event.tool_input?.command ?? '';
+
+  // Layer-2 worktree write-target check. Placed BEFORE the offender scan (design
+  // D8): a command blocked for write-target reasons must never act as a Tier-2
+  // credential keepalive — the deferred re-prime writes in the !offender branch
+  // below only run when every invocation is authorized, and this check exits
+  // before any of that machinery is consulted. Fast path: extractWriteTargets
+  // returns [] for the overwhelming majority of commands -> zero subprocess
+  // cost. The whole check fails open on any error.
+  try {
+    const targets = extractWriteTargets(command);
+    if (targets.length > 0) {
+      const hit = await checkWriteTargets(event, targets);
+      if (hit) {
+        appendAuditLog(event, 'block', { sub: null, third: null }, 'worktree-write-target', null,
+          { target: hit.target, mainRoot: hit.mainRoot, worktreeRoot: hit.worktreeRoot });
+        process.stderr.write(
+          `metta-guard-bash: Blocked bash write target '${hit.target}'.\n` +
+          `It resolves into the MAIN checkout '${hit.mainRoot}' while that checkout's active\n` +
+          `change is worktree-hosted. All file writes for this change must target absolute\n` +
+          `paths under the change_root prefix:\n` +
+          `  ${hit.worktreeRoot}\n` +
+          `Write under that worktree instead, or use the Edit tool (which applies its own\n` +
+          `guard-edit allow-list).\n` +
+          `Emergency bypass: disable this hook in .claude/settings.local.json.\n`
+        );
+        process.exit(2);
+      }
+    }
+  } catch {
+    // Whole write-target check fails open: extraction/probe errors never block.
+  }
+
   const invocations = tokenize(command);
 
   // Find the first invocation that is not allowed. SKILL_ENFORCED_SUBCOMMANDS (Tier 1) are

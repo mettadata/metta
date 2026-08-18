@@ -4,6 +4,11 @@ import { join } from 'node:path'
 import { readFile } from 'node:fs/promises'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
+// Additional imports for the worktree write-target check suite (kept as
+// separate statements so the pre-existing import lines stay untouched).
+import { beforeEach } from 'vitest'
+import { realpathSync, symlinkSync } from 'node:fs'
+import { dirname } from 'node:path'
 
 // metta-guard-bash PreToolUse hook integration tests.
 // The source template and the deployed mirror must stay byte-identical; tests
@@ -1207,4 +1212,356 @@ describe('metta-guard-bash hook', { timeout: 30_000 }, () => {
     const [a, b] = await Promise.all(HOOK_SOURCES.map((p) => readFile(p, 'utf8')))
     expect(a).toBe(b)
   })
+})
+
+// ---------------------------------------------------------------------------
+// Layer-2 worktree write-target check (design C2/D8). Black-box: a real git
+// repo acts as the MAIN checkout with a worktree dir under .metta/worktrees/,
+// and a PATH-shimmed `metta` pins the status probe output deterministically
+// (transplanted from the guard-edit shim pattern in tests/metta-guard-edit.test.ts).
+// ---------------------------------------------------------------------------
+describe('metta-guard-bash worktree write-target check', { timeout: 60_000 }, () => {
+  const CHANGE = 'demo-change'
+  let fixtureDir: string
+  let mainDir: string
+  let worktreeDir: string
+  let binDir: string
+  const extraDirs: string[] = []
+
+  function git(args: string[], cwd: string): void {
+    const result = spawnSync('git', args, { cwd, encoding: 'utf8' })
+    if (result.status !== 0) {
+      throw new Error(`git ${args.join(' ')} failed: ${result.stderr}`)
+    }
+  }
+
+  // Overwrite the PATH-shimmed `metta` with a canned `status --json` payload.
+  function writeShim(status: Record<string, unknown>): void {
+    writeFileSync(
+      join(binDir, 'metta'),
+      `#!/bin/sh\necho '${JSON.stringify(status)}'\n`,
+      { mode: 0o755 },
+    )
+  }
+
+  // Like runHook, but with the shim `metta` prepended to PATH so the probe
+  // result is deterministic regardless of any real metta installation. Spawns
+  // node via process.execPath so a restricted PATH cannot break the spawn itself.
+  function runHookShim(
+    hookPath: string,
+    payload: unknown,
+    opts: { cwd?: string; path?: string } = {},
+  ): { code: number; stderr: string } {
+    const result = spawnSync(process.execPath, [hookPath], {
+      input: JSON.stringify(payload),
+      cwd: opts.cwd ?? fixtureDir,
+      encoding: 'utf8',
+      timeout: 10_000,
+      env: { ...process.env, PATH: opts.path ?? `${binDir}:${process.env.PATH ?? ''}` },
+    })
+    return { code: result.status ?? -1, stderr: result.stderr ?? '' }
+  }
+
+  function makeExtraDir(prefix: string): string {
+    const dir = mkdtempSync(join(tmpdir(), prefix))
+    extraDirs.push(dir)
+    return dir
+  }
+
+  beforeEach(() => {
+    // Real git repo as the MAIN checkout — the hook resolves checkout roots via
+    // `git rev-parse --show-toplevel`, so a simulated directory is not enough
+    // for mainDir itself. The worktree is a plain directory: classification
+    // against W is pure path-prefix math on the probe's `worktree` field, so no
+    // real `git worktree add` is needed here. Paths go through realpath because
+    // git reports physical paths.
+    fixtureDir = realpathSync(mkdtempSync(join(tmpdir(), 'metta-guard-wtw-')))
+    mainDir = join(fixtureDir, 'main')
+    worktreeDir = join(mainDir, '.metta', 'worktrees', CHANGE)
+    mkdirSync(join(worktreeDir, 'src'), { recursive: true })
+    mkdirSync(join(mainDir, '.metta', 'scratch'), { recursive: true })
+    mkdirSync(join(mainDir, 'src'), { recursive: true })
+    git(['init', '--initial-branch=main'], mainDir)
+    binDir = join(fixtureDir, 'bin')
+    mkdirSync(binDir, { recursive: true })
+    // Default shim: worktree-hosted active change at mainDir.
+    writeShim({ change: CHANGE, worktree: worktreeDir })
+  })
+
+  afterEach(() => {
+    try {
+      rmSync(fixtureDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
+    } catch {
+      // best-effort
+    }
+    while (extraDirs.length) {
+      const dir = extraDirs.pop()!
+      try {
+        rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
+      } catch {
+        // best-effort
+      }
+    }
+  })
+
+  for (const hookPath of HOOK_SOURCES) {
+    const label = hookPath.includes('.claude') ? 'deployed' : 'source'
+
+    describe(`${label} hook`, () => {
+      // ----- Blocked matrix: exit 2, stderr names target + worktree prefix -----
+      it('blocks `>` redirection into the main checkout (exit 2, names target + change_root prefix)', () => {
+        const target = join(mainDir, 'src', 'f.txt')
+        const { code, stderr } = runHookShim(hookPath, bashEvent(`echo x > ${target}`))
+        expect(code).toBe(2)
+        expect(stderr).toContain(target)
+        expect(stderr).toContain(worktreeDir)
+        expect(stderr).toContain(mainDir)
+        expect(stderr).toContain('Edit tool')
+        expect(stderr).toContain('.claude/settings.local.json')
+      })
+
+      it('blocks `>>` append redirection into the main checkout (exit 2)', () => {
+        const target = join(mainDir, 'src', 'f.txt')
+        const { code, stderr } = runHookShim(hookPath, bashEvent(`echo x >> ${target}`))
+        expect(code).toBe(2)
+        expect(stderr).toContain(target)
+        expect(stderr).toContain(worktreeDir)
+      })
+
+      it('blocks heredoc-fed `>` redirection into the main checkout — the zeus shape (exit 2)', () => {
+        const target = join(mainDir, 'notes.md')
+        const command = `cat <<'EOF' > ${target}\nhello\nEOF`
+        const { code, stderr } = runHookShim(hookPath, bashEvent(command))
+        expect(code).toBe(2)
+        expect(stderr).toContain(target)
+        expect(stderr).toContain(worktreeDir)
+      })
+
+      it('blocks `tee` into the main checkout (exit 2)', () => {
+        const target = join(mainDir, 'f.txt')
+        const { code, stderr } = runHookShim(hookPath, bashEvent(`printf x | tee ${target}`))
+        expect(code).toBe(2)
+        expect(stderr).toContain(target)
+        expect(stderr).toContain(worktreeDir)
+      })
+
+      it('blocks `tee -a` into the main checkout (exit 2)', () => {
+        const target = join(mainDir, 'f.txt')
+        const { code, stderr } = runHookShim(hookPath, bashEvent(`printf x | tee -a ${target}`))
+        expect(code).toBe(2)
+        expect(stderr).toContain(target)
+        expect(stderr).toContain(worktreeDir)
+      })
+
+      it('blocks `cp` with a main-checkout destination (exit 2)', () => {
+        const target = join(mainDir, 'f.txt')
+        const { code, stderr } = runHookShim(hookPath, bashEvent(`cp a.txt ${target}`))
+        expect(code).toBe(2)
+        expect(stderr).toContain(target)
+        expect(stderr).toContain(worktreeDir)
+      })
+
+      it('blocks `mv` with a main-checkout destination (exit 2)', () => {
+        const target = join(mainDir, 'f.txt')
+        const { code, stderr } = runHookShim(hookPath, bashEvent(`mv a.txt ${target}`))
+        expect(code).toBe(2)
+        expect(stderr).toContain(target)
+        expect(stderr).toContain(worktreeDir)
+      })
+
+      it('blocks `cp -t <main-dir>` target-directory form (exit 2)', () => {
+        const target = join(mainDir, 'src')
+        const { code, stderr } = runHookShim(hookPath, bashEvent(`cp -t ${target} a.txt`))
+        expect(code).toBe(2)
+        expect(stderr).toContain(target)
+        expect(stderr).toContain(worktreeDir)
+      })
+
+      it('blocks `cp --target-directory=<main-dir>` form (exit 2)', () => {
+        const target = join(mainDir, 'src')
+        const { code, stderr } = runHookShim(
+          hookPath,
+          bashEvent(`cp --target-directory=${target} a.txt`),
+        )
+        expect(code).toBe(2)
+        expect(stderr).toContain(target)
+      })
+
+      // ----- Allowed matrix: exit 0 -----
+      it('allows `>` redirection into the worktree itself (exit 0)', () => {
+        const { code, stderr } = runHookShim(
+          hookPath,
+          bashEvent(`echo x > ${join(worktreeDir, 'src', 'f.txt')}`),
+        )
+        expect(stderr).toBe('')
+        expect(code).toBe(0)
+      })
+
+      it('allows `tee` / `cp` targeting the worktree (exit 0)', () => {
+        for (const command of [
+          `printf x | tee ${join(worktreeDir, 'f.txt')}`,
+          `cp a.txt ${join(worktreeDir, 'f.txt')}`,
+        ]) {
+          const { code, stderr } = runHookShim(hookPath, bashEvent(command))
+          expect(stderr).toBe('')
+          expect(code).toBe(0)
+        }
+      })
+
+      it('allows writes under <main>/.metta/scratch/ — shared allow set (exit 0)', () => {
+        const { code, stderr } = runHookShim(
+          hookPath,
+          bashEvent(`echo x > ${join(mainDir, '.metta', 'scratch', 'tmp.txt')}`),
+        )
+        expect(stderr).toBe('')
+        expect(code).toBe(0)
+      })
+
+      it('allows relative write targets — out of scope, fail open (exit 0)', () => {
+        const { code, stderr } = runHookShim(hookPath, bashEvent('echo x > notes.txt'), {
+          cwd: mainDir,
+        })
+        expect(stderr).toBe('')
+        expect(code).toBe(0)
+      })
+
+      it('allows writes to /tmp — outside every checkout (exit 0)', () => {
+        const outside = join(makeExtraDir('metta-guard-wtw-out-'), 'x.txt')
+        const { code, stderr } = runHookShim(hookPath, bashEvent(`echo x > ${outside}`))
+        expect(stderr).toBe('')
+        expect(code).toBe(0)
+      })
+
+      it('allows `$VAR` and `$(...)` targets — not confident, fail open (exit 0)', () => {
+        for (const command of ['echo x > "$OUT"', 'echo x > $(mktemp)']) {
+          const { code, stderr } = runHookShim(hookPath, bashEvent(command), { cwd: mainDir })
+          expect(stderr).toBe('')
+          expect(code).toBe(0)
+        }
+      })
+
+      it('allows non-write commands (`git status`, `npm test`) (exit 0)', () => {
+        for (const command of ['git status', 'npm test']) {
+          const { code, stderr } = runHookShim(hookPath, bashEvent(command), { cwd: mainDir })
+          expect(stderr).toBe('')
+          expect(code).toBe(0)
+        }
+      })
+
+      it('allows a main-checkout write when the probe reports no active change (exit 0)', () => {
+        writeShim({ changes: [], message: 'No active changes' })
+        const { code, stderr } = runHookShim(
+          hookPath,
+          bashEvent(`echo x > ${join(mainDir, 'src', 'f.txt')}`),
+        )
+        expect(stderr).toBe('')
+        expect(code).toBe(0)
+      })
+
+      it('allows a main-checkout write when the active change is main-hosted (no worktree field) (exit 0)', () => {
+        writeShim({ change: CHANGE })
+        const { code, stderr } = runHookShim(
+          hookPath,
+          bashEvent(`echo x > ${join(mainDir, 'src', 'f.txt')}`),
+        )
+        expect(stderr).toBe('')
+        expect(code).toBe(0)
+      })
+
+      it('allows a main-checkout write when metta is absent from PATH — probe fail-open (exit 0)', () => {
+        // Restricted PATH: a bin dir holding ONLY git, so the `metta` probe
+        // hits ENOENT while `git rev-parse` still works.
+        const restrictedBin = join(fixtureDir, 'restricted-bin')
+        mkdirSync(restrictedBin, { recursive: true })
+        const gitPath = spawnSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' })
+          .stdout.trim()
+        symlinkSync(gitPath, join(restrictedBin, 'git'))
+        const { code, stderr } = runHookShim(
+          hookPath,
+          bashEvent(`echo x > ${join(mainDir, 'src', 'f.txt')}`),
+          { path: restrictedBin },
+        )
+        expect(stderr).toBe('')
+        expect(code).toBe(0)
+      })
+
+      it('allows `2>&1` forms — no confident target extracted (exit 0)', () => {
+        for (const command of [
+          'echo x 2>&1',
+          `node build.js > ${join(worktreeDir, 'log.txt')} 2>&1`,
+        ]) {
+          const { code, stderr } = runHookShim(hookPath, bashEvent(command))
+          expect(stderr).toBe('')
+          expect(code).toBe(0)
+        }
+      })
+
+      // ----- Tier-2 token-untouched invariant (design D8) -----
+      // A compound command combining an authorized Tier-2 metta call with a
+      // blocked main-checkout write must exit 2 AND leave the session token
+      // file byte-untouched: the write-target check runs BEFORE the offender
+      // scan, so a blocked command never acts as a credential keepalive. The
+      // token is seeded re-primable-only (expired past TTL, inside GRACE, with
+      // a matching sessionId) so an allowed run WOULD rewrite it — proven by
+      // the control case below.
+      const TTL_MS = 300_000
+      function seedReprimableToken(sessionCwd: string): string {
+        const tokenDir = join(sessionCwd, '.metta', 'scratch', 'skill-session')
+        mkdirSync(tokenDir, { recursive: true })
+        const tokenPath = join(tokenDir, 'metta-execute.token')
+        writeFileSync(
+          tokenPath,
+          JSON.stringify({
+            token: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+            skill: 'metta-execute',
+            subcommands: ['complete'],
+            mintedAt: Date.now() - TTL_MS - 60_000, // expired, but inside GRACE
+            ttlMs: TTL_MS,
+            sessionId: 'sess-wtw-1',
+          }),
+          { mode: 0o600 },
+        )
+        return tokenPath
+      }
+      function compoundEvent(sessionCwd: string, writeTarget: string): Record<string, unknown> {
+        return {
+          tool_name: 'Bash',
+          tool_input: {
+            command: `metta complete implementation && echo done > ${writeTarget}`,
+          },
+          cwd: sessionCwd,
+          session_id: 'sess-wtw-1',
+        }
+      }
+
+      it('compound authorized-Tier-2 + blocked write: exit 2 and token file byte-untouched', () => {
+        const sessionCwd = makeExtraDir('metta-guard-wtw-cwd-')
+        const tokenPath = seedReprimableToken(sessionCwd)
+        const before = readFileSync(tokenPath, 'utf8')
+        const target = join(mainDir, 'f.txt')
+        const { code, stderr } = runHookShim(hookPath, compoundEvent(sessionCwd, target), {
+          cwd: sessionCwd,
+        })
+        expect(code).toBe(2)
+        expect(stderr).toContain(target)
+        expect(readFileSync(tokenPath, 'utf8')).toBe(before)
+      })
+
+      it('control: same compound command with a worktree write target re-primes the token (exit 0)', () => {
+        const sessionCwd = makeExtraDir('metta-guard-wtw-cwd-')
+        const tokenPath = seedReprimableToken(sessionCwd)
+        const before = readFileSync(tokenPath, 'utf8')
+        const { code, stderr } = runHookShim(
+          hookPath,
+          compoundEvent(sessionCwd, join(worktreeDir, 'ok.txt')),
+          { cwd: sessionCwd },
+        )
+        expect(stderr).toBe('')
+        expect(code).toBe(0)
+        // The re-prime band rewrote the token — proving the blocked case above
+        // pins a real invariant rather than a token that never changes.
+        expect(readFileSync(tokenPath, 'utf8')).not.toBe(before)
+      })
+    })
+  }
 })
