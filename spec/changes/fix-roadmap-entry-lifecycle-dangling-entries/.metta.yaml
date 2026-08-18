@@ -1,14 +1,14 @@
 workflow: standard
 created: 2026-08-18T08:11:38.674Z
 status: active
-current_artifact: research
+current_artifact: design
 base_versions: {}
 artifacts:
   intent: complete
   stories: complete
   spec: complete
-  research: ready
-  design: pending
+  research: complete
+  design: ready
   tasks: pending
   implementation: pending
   verification: pending
@@ -24,6 +24,8 @@ artifact_timings:
     completed: 2026-08-18T08:14:21.045Z
   spec:
     completed: 2026-08-18T08:16:41.255Z
+  research:
+    completed: 2026-08-18T08:21:05.747Z
 worktree: /home/utx0/Code/metta/.metta/worktrees/fix-roadmap-entry-lifecycle-dangling-entries
 token_usage:
   - task: metta-skill-host
