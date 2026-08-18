@@ -166,8 +166,12 @@ export class Finalizer {
 
     const specMerge = await merger.merge(changeName, metadata.base_versions, false)
     if (specMerge.status === 'conflict') {
-      // Conflicts that only surface on the applying write (e.g. MODIFIED
-      // targeting a requirement the dry run cannot see) still abort here.
+      // The compute phase runs the full conflict-detection set identically in
+      // dry-run and applying mode, so a conflict here after a clean Step 3
+      // dry-run can only mean the spec store drifted on disk between the two
+      // calls — not a conflict class the dry-run structurally could not see.
+      // The merge is all-or-nothing: a conflict here means zero files and
+      // zero locks were written, so specs/ is untouched.
       return {
         changeName,
         archiveName: '',

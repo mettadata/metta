@@ -1,15 +1,17 @@
-version: 38
-hash: sha256:4dce4c76d0c4
-updated: 2026-08-08T13:14:31.024Z
+version: 42
+hash: sha256:b82cca1d863b
+updated: 2026-08-18T04:18:42.751Z
 status: draft
 source: change
 requirements:
   - id: spec-delta-merge
-    hash: sha256:e9764d07d1ec
+    hash: sha256:10013be0709e
     scenarios:
       - new-capability-created-from-a-confirmed-added-delta
       - re-applying-an-added-delta-does-not-duplicate-an-existing-requirement
       - added-idempotency-holds-without-a-base-versions-entry
+      - dry-run-reports-requirement-not-found-for-a-modified-delta-against-an-absent-requirement
+      - dry-run-classifies-an-added-duplicate-as-a-noop-matching-apply
   - id: finalizer-orchestration
     hash: sha256:0129ffed4dd0
     scenarios:
@@ -211,3 +213,18 @@ requirements:
       - duplicate-hook-and-prose-records-count-once-preferring-the-hook-value
       - prose-only-records-are-retained
       - dedupe-never-mutates-persisted-state
+  - id: dry-run-and-apply-merge-result-parity
+    hash: sha256:4d96230b58a6
+    scenarios:
+      - dry-run-and-apply-return-identical-results-for-the-same-fixture-set
+      - preflight-dry-run-catches-an-apply-time-only-conflict-class
+  - id: all-or-nothing-spec-merge-apply
+    hash: sha256:065776941121
+    scenarios:
+      - conflicting-delta-n-leaves-the-spec-store-byte-identical
+      - zero-conflict-multi-delta-merge-commits-every-staged-result
+  - id: staged-composition-of-same-capability-deltas
+    hash: sha256:ed4420af64ef
+    scenarios:
+      - a-later-delta-composes-with-an-earlier-delta-against-the-same-capability
+      - dry-run-classifies-composed-same-capability-deltas-identically

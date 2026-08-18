@@ -497,4 +497,401 @@ The system MUST do ghostly things.
     const afterBytes = await readFile(join(specDir, 'specs', 'auth', 'spec.md'))
     expect(afterBytes.equals(beforeBytes)).toBe(true)
   })
+
+  it('dry-run reports requirement not found for MODIFIED against an absent requirement', async () => {
+    const existingSpec = `# Auth
+
+## Requirement: Existing-Req
+
+The system MUST do existing things.
+
+### Scenario: Existing
+- GIVEN existing
+- WHEN triggered
+- THEN it works
+`
+    await writeFile(join(specDir, 'specs', 'auth', 'spec.md'), existingSpec)
+    const parsed = parseSpec(existingSpec)
+    const lock = lockManager.createFromParsed(parsed)
+    await lockManager.write('auth', lock)
+
+    const deltaContent = `# auth (Delta)
+
+## MODIFIED: Requirement: Ghost Requirement
+
+The system MUST do ghostly things.
+
+### Scenario: Ghostly
+- GIVEN a ghost
+- WHEN invoked
+- THEN it haunts
+`
+    await writeFile(join(specDir, 'changes', 'add-mfa', 'spec.md'), deltaContent)
+
+    const result = await merger.merge('add-mfa', { 'auth/spec.md': lock.hash }, true)
+
+    expect(result.status).toBe('conflict')
+    expect(result.conflicts.some(c => c.reason === 'requirement not found')).toBe(true)
+    expect(result.merged).not.toContain('auth/ghost-requirement')
+  })
+
+  it('dry-run reports requirement not found for RENAMED against an absent requirement', async () => {
+    const existingSpec = `# Auth
+
+## Requirement: Existing-Req
+
+The system MUST do existing things.
+
+### Scenario: Existing
+- GIVEN existing
+- WHEN triggered
+- THEN it works
+`
+    await writeFile(join(specDir, 'specs', 'auth', 'spec.md'), existingSpec)
+    const parsed = parseSpec(existingSpec)
+    const lock = lockManager.createFromParsed(parsed)
+    await lockManager.write('auth', lock)
+
+    const deltaContent = `# auth (Delta)
+
+## RENAMED: Requirement: New Name
+
+Renamed from: Ghost Requirement
+
+The system MUST do renamed ghostly things.
+
+### Scenario: Ghostly
+- GIVEN a ghost
+- WHEN invoked
+- THEN it haunts
+`
+    await writeFile(join(specDir, 'changes', 'add-mfa', 'spec.md'), deltaContent)
+
+    const result = await merger.merge('add-mfa', { 'auth/spec.md': lock.hash }, true)
+
+    expect(result.status).toBe('conflict')
+    expect(result.conflicts.some(c => c.reason === 'requirement not found')).toBe(true)
+  })
+
+  it('dry-run reports requirement not found for REMOVED against an absent requirement', async () => {
+    const existingSpec = `# Auth
+
+## Requirement: Existing-Req
+
+The system MUST do existing things.
+
+### Scenario: Existing
+- GIVEN existing
+- WHEN triggered
+- THEN it works
+`
+    await writeFile(join(specDir, 'specs', 'auth', 'spec.md'), existingSpec)
+    const parsed = parseSpec(existingSpec)
+    const lock = lockManager.createFromParsed(parsed)
+    await lockManager.write('auth', lock)
+
+    const deltaContent = `# auth (Delta)
+
+## REMOVED: Requirement: Ghost Requirement
+
+The system no longer supports ghostly things.
+`
+    await writeFile(join(specDir, 'changes', 'add-mfa', 'spec.md'), deltaContent)
+
+    const result = await merger.merge('add-mfa', { 'auth/spec.md': lock.hash }, true)
+
+    expect(result.status).toBe('conflict')
+    expect(result.conflicts.some(c => c.reason === 'requirement not found')).toBe(true)
+  })
+
+  it('dry-run and apply return identical results for the same fixture set', async () => {
+    const existingSpec = `# Auth
+
+## Requirement: Alpha
+
+The system MUST support Alpha.
+
+### Scenario: Alpha works
+- GIVEN alpha
+- WHEN triggered
+- THEN alpha runs
+
+## Requirement: Beta
+
+The system MUST support Beta.
+
+### Scenario: Beta works
+- GIVEN beta
+- WHEN triggered
+- THEN beta runs
+`
+    await writeFile(join(specDir, 'specs', 'auth', 'spec.md'), existingSpec)
+    const parsed = parseSpec(existingSpec)
+    const lock = lockManager.createFromParsed(parsed)
+    await lockManager.write('auth', lock)
+
+    // A single delta spec targeting one existing capability ("auth") CAN mix
+    // a conflict with a duplicate-noop and a clean modify — every delta in a
+    // file shares one target capability, but that target can carry any
+    // number of operations against different requirement names. This fixture
+    // exercises: an ADDED duplicate (noop), a clean MODIFIED, a MODIFIED
+    // against an absent requirement (conflict), a RENAMED against an absent
+    // source requirement (conflict), and a REMOVED against an absent
+    // requirement (conflict) — all in the same run.
+    const deltaContent = `# auth (Delta)
+
+## ADDED: Requirement: Alpha
+
+The system MUST support Alpha.
+
+### Scenario: Alpha works
+- GIVEN alpha
+- WHEN triggered
+- THEN alpha runs
+
+## MODIFIED: Requirement: Beta
+
+The system MUST support Beta with new behavior.
+
+### Scenario: Beta updated
+- GIVEN beta
+- WHEN updated
+- THEN beta still runs
+
+## MODIFIED: Requirement: Ghost Requirement
+
+The system MUST do ghostly things.
+
+### Scenario: Ghostly
+- GIVEN a ghost
+- WHEN invoked
+- THEN it haunts
+
+## RENAMED: Requirement: Renamed Ghost
+
+Renamed from: Old Ghost Name
+
+### Scenario: Renamed
+- GIVEN nothing
+- WHEN renamed
+- THEN it still doesn't exist
+
+## REMOVED: Requirement: Another Ghost
+
+The system no longer supports ghostly things.
+`
+    await writeFile(join(specDir, 'changes', 'add-mfa', 'spec.md'), deltaContent)
+
+    const { readFile } = await import('node:fs/promises')
+    const beforeSpecBytes = await readFile(join(specDir, 'specs', 'auth', 'spec.md'))
+    const beforeLockBytes = await readFile(join(specDir, 'specs', 'auth', 'spec.lock'))
+
+    const dryRunResult = await merger.merge('add-mfa', { 'auth/spec.md': lock.hash }, true)
+    const applyResult = await merger.merge('add-mfa', { 'auth/spec.md': lock.hash }, false)
+
+    expect(dryRunResult.status).toBe('conflict')
+    expect(dryRunResult).toEqual(applyResult)
+
+    // Conflict present in the run means the apply call wrote nothing.
+    const afterSpecBytes = await readFile(join(specDir, 'specs', 'auth', 'spec.md'))
+    const afterLockBytes = await readFile(join(specDir, 'specs', 'auth', 'spec.lock'))
+    expect(afterSpecBytes.equals(beforeSpecBytes)).toBe(true)
+    expect(afterLockBytes.equals(beforeLockBytes)).toBe(true)
+  })
+
+  it('multi-delta merge where a later delta conflicts writes nothing to disk', async () => {
+    const existingSpec = `# Auth
+
+## Requirement: Alpha
+
+The system MUST support Alpha.
+
+### Scenario: Alpha works
+- GIVEN alpha
+- WHEN triggered
+- THEN alpha runs
+
+## Requirement: Beta
+
+The system MUST support Beta.
+
+### Scenario: Beta works
+- GIVEN beta
+- WHEN triggered
+- THEN beta runs
+`
+    await writeFile(join(specDir, 'specs', 'auth', 'spec.md'), existingSpec)
+    const parsed = parseSpec(existingSpec)
+    const lock = lockManager.createFromParsed(parsed)
+    await lockManager.write('auth', lock)
+
+    // First two deltas reconcile cleanly (ADDED new + MODIFIED Alpha), the
+    // third (MODIFIED against an absent requirement) conflicts.
+    const deltaContent = `# auth (Delta)
+
+## ADDED: Requirement: Gamma
+
+The system MUST support Gamma.
+
+### Scenario: Gamma works
+- GIVEN gamma
+- WHEN triggered
+- THEN gamma runs
+
+## MODIFIED: Requirement: Alpha
+
+The system MUST support Alpha with new behavior.
+
+### Scenario: Alpha updated
+- GIVEN alpha
+- WHEN updated
+- THEN alpha still runs
+
+## MODIFIED: Requirement: Ghost Requirement
+
+The system MUST do ghostly things.
+
+### Scenario: Ghostly
+- GIVEN a ghost
+- WHEN invoked
+- THEN it haunts
+`
+    await writeFile(join(specDir, 'changes', 'add-mfa', 'spec.md'), deltaContent)
+
+    const { readFile, readdir } = await import('node:fs/promises')
+    const beforeSpecBytes = await readFile(join(specDir, 'specs', 'auth', 'spec.md'))
+    const beforeLockBytes = await readFile(join(specDir, 'specs', 'auth', 'spec.lock'))
+    const beforeSpecsTree = await readdir(join(specDir, 'specs'))
+
+    const result = await merger.merge('add-mfa', { 'auth/spec.md': lock.hash }, false)
+
+    expect(result.status).toBe('conflict')
+
+    const afterSpecBytes = await readFile(join(specDir, 'specs', 'auth', 'spec.md'))
+    const afterLockBytes = await readFile(join(specDir, 'specs', 'auth', 'spec.lock'))
+    const afterSpecsTree = await readdir(join(specDir, 'specs'))
+
+    expect(afterSpecBytes.equals(beforeSpecBytes)).toBe(true)
+    expect(afterLockBytes.equals(beforeLockBytes)).toBe(true)
+    // The `specs/` directory tree itself is unchanged too — no stray
+    // capability directory was created as a side effect of the aborted run
+    // (all three deltas here target the existing "auth" capability, so this
+    // also confirms the run didn't touch anything beyond it).
+    expect(afterSpecsTree.sort()).toEqual(beforeSpecsTree.sort())
+  })
+
+  it('multiple deltas targeting the same capability compose through staging', async () => {
+    await mkdir(join(specDir, 'changes', 'add-mfa'), { recursive: true })
+
+    const deltaContent = `# auth (Delta)
+
+## ADDED: Requirement: Rate Limiting
+
+The system MUST rate-limit requests.
+
+### Scenario: Limited
+- GIVEN a client
+- WHEN it exceeds the limit
+- THEN requests are rejected
+
+## MODIFIED: Requirement: Rate Limiting
+
+The system MUST rate-limit requests per user and per IP.
+
+### Scenario: Limited per user
+- GIVEN a client
+- WHEN it exceeds the per-user limit
+- THEN requests are rejected
+`
+    await writeFile(join(specDir, 'changes', 'add-mfa', 'spec.md'), deltaContent)
+
+    // Applying mode: the ADDED creates capability "auth", the MODIFIED then
+    // composes against the staged (not-yet-written) content.
+    const applyResult = await merger.merge('add-mfa', {})
+    expect(applyResult.status).toBe('clean')
+
+    const { readFile } = await import('node:fs/promises')
+    const content = await readFile(join(specDir, 'specs', 'auth', 'spec.md'), 'utf-8')
+    const headers = content.match(/^## Requirement: Rate Limiting$/gm) ?? []
+    expect(headers.length).toBe(1)
+    expect(content).toContain('per user and per IP')
+    expect(content).not.toMatch(/### Scenario: Limited$/m)
+  })
+
+  it('dry-run classifies composed same-capability deltas identically to apply', async () => {
+    await mkdir(join(specDir, 'changes', 'add-mfa'), { recursive: true })
+
+    const deltaContent = `# auth (Delta)
+
+## ADDED: Requirement: Rate Limiting
+
+The system MUST rate-limit requests.
+
+### Scenario: Limited
+- GIVEN a client
+- WHEN it exceeds the limit
+- THEN requests are rejected
+
+## MODIFIED: Requirement: Rate Limiting
+
+The system MUST rate-limit requests per user and per IP.
+
+### Scenario: Limited per user
+- GIVEN a client
+- WHEN it exceeds the per-user limit
+- THEN requests are rejected
+`
+    await writeFile(join(specDir, 'changes', 'add-mfa', 'spec.md'), deltaContent)
+
+    const dryRunResult = await merger.merge('add-mfa', {}, true)
+    expect(dryRunResult.status).toBe('clean')
+    expect(dryRunResult.conflicts).toEqual([])
+    expect(dryRunResult.merged).toContain('auth')
+    expect(dryRunResult.merged).toContain('auth/rate-limiting')
+
+    // No file should have been written by the dry-run.
+    const capExists = await lockManager.exists('auth')
+    expect(capExists).toBe(false)
+  })
+
+  it('ADDED-duplicate noop parity between dry-run and apply', async () => {
+    const existingSpec = `# Auth
+
+## Requirement: Session Management
+
+The system MUST manage sessions.
+
+### Scenario: Session expiry
+- GIVEN a session
+- WHEN it expires
+- THEN user is logged out
+`
+    await writeFile(join(specDir, 'specs', 'auth', 'spec.md'), existingSpec)
+    const parsed = parseSpec(existingSpec)
+    const lock = lockManager.createFromParsed(parsed)
+    await lockManager.write('auth', lock)
+
+    const deltaContent = `# auth (Delta)
+
+## ADDED: Requirement: Session Management
+
+The system MUST manage sessions.
+
+### Scenario: Session expiry
+- GIVEN a session
+- WHEN it expires
+- THEN user is logged out
+`
+    await writeFile(join(specDir, 'changes', 'add-mfa', 'spec.md'), deltaContent)
+
+    const dryRunResult = await merger.merge('add-mfa', { 'auth/spec.md': lock.hash }, true)
+    const applyResult = await merger.merge('add-mfa', { 'auth/spec.md': lock.hash }, false)
+
+    expect(dryRunResult.status).toBe('clean')
+    expect(applyResult.status).toBe('clean')
+    expect(dryRunResult.noops).toContain('auth/session-management')
+    expect(applyResult.noops).toContain('auth/session-management')
+    expect(dryRunResult.merged).not.toContain('auth/session-management')
+    expect(applyResult.merged).not.toContain('auth/session-management')
+  })
 })
