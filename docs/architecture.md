@@ -8,7 +8,7 @@
 ## Components
 
 ### Adaptive Workflow Tier Selection
-20 requirements
+22 requirements
 
 ### Artifact Store
 6 requirements
