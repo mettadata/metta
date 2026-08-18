@@ -8,7 +8,7 @@ Shared constant (ADR-2/ADR-4): `GRACE_MS = 3_600_000` (60 min), duplicated verba
 
 ## Batch 1 (no dependencies — Tasks 1.1 and 1.2 touch disjoint files and run in parallel)
 
-- [ ] **Task 1.1: Mint hook — sessionId stamping, GRACE_MS cleanup horizon, atomic writes (+ mirror + mint-suite tests)**
+- [x] **Task 1.1: Mint hook — sessionId stamping, GRACE_MS cleanup horizon, atomic writes (+ mirror + mint-suite tests)**
   - **Files**:
     - `/home/utx0/Code/metta/.metta/worktrees/fix-metta-guard-bash-blocks-main-session-tier-2-lifecycle/.claude/hooks/metta-session-mint.mjs` (modify)
     - `/home/utx0/Code/metta/.metta/worktrees/fix-metta-guard-bash-blocks-main-session-tier-2-lifecycle/src/templates/hooks/metta-session-mint.mjs` (byte-identical copy of the above)
@@ -27,7 +27,7 @@ Shared constant (ADR-2/ADR-4): `GRACE_MS = 3_600_000` (60 min), duplicated verba
   - **Verify**: `cd /home/utx0/Code/metta/.metta/worktrees/fix-metta-guard-bash-blocks-main-session-tier-2-lifecycle && cmp .claude/hooks/metta-session-mint.mjs src/templates/hooks/metta-session-mint.mjs && npx vitest run tests/metta-session-mint.test.ts tests/hooks-byte-identity.test.ts` — all green, `cmp` silent.
   - **Done**: Mint hook stamps `sessionId`, keeps siblings alive through `ttlMs + GRACE_MS`, writes atomically (temp+rename, 0o600), cleans stale `.tmp` orphans, header describes the corrected lifecycle; template mirror byte-identical; extended mint suite green; hook still always exits 0 and swallows all errors.
 
-- [ ] **Task 1.2: Guard hook — two-band freshness, re-prime writer, audit staleness (+ mirror + guard-suite seed deepening)**
+- [x] **Task 1.2: Guard hook — two-band freshness, re-prime writer, audit staleness (+ mirror + guard-suite seed deepening)**
   - **Files**:
     - `/home/utx0/Code/metta/.metta/worktrees/fix-metta-guard-bash-blocks-main-session-tier-2-lifecycle/.claude/hooks/metta-guard-bash.mjs` (modify)
     - `/home/utx0/Code/metta/.metta/worktrees/fix-metta-guard-bash-blocks-main-session-tier-2-lifecycle/src/templates/hooks/metta-guard-bash.mjs` (byte-identical copy of the above)
@@ -49,7 +49,7 @@ Shared constant (ADR-2/ADR-4): `GRACE_MS = 3_600_000` (60 min), duplicated verba
 
 ## Batch 2 (depends on Batch 1 — Tasks 2.1 and 2.2 touch disjoint files and run in parallel)
 
-- [ ] **Task 2.1: Seam integration test suite `metta-guard-mint-seam.test.ts`**
+- [x] **Task 2.1: Seam integration test suite `metta-guard-mint-seam.test.ts`**
   - **Depends on**: Task 1.1, Task 1.2
   - **Files**:
     - `/home/utx0/Code/metta/.metta/worktrees/fix-metta-guard-bash-blocks-main-session-tier-2-lifecycle/tests/metta-guard-mint-seam.test.ts` (create)
@@ -70,7 +70,7 @@ Shared constant (ADR-2/ADR-4): `GRACE_MS = 3_600_000` (60 min), duplicated verba
   - **Verify**: `cd /home/utx0/Code/metta/.metta/worktrees/fix-metta-guard-bash-blocks-main-session-tier-2-lifecycle && npx vitest run tests/metta-guard-mint-seam.test.ts && npx vitest run tests/metta-guard-bash.test.ts tests/metta-session-mint.test.ts tests/hooks-byte-identity.test.ts` — all green; pre-fix B1/C1 red-check recorded.
   - **Done**: Seam suite covers A1–A4, B1–B2, C1–C2 (C3 optional/gated), E1–E7, and the ADR-4 constant pin; all deterministic via fixture backdating; suite green against fixed hooks and B1/C1 demonstrated red against the pre-fix guard.
 
-- [ ] **Task 2.2: Documentation sync — CLAUDE.md Tier-2 wording and guard-hooks internals doc**
+- [x] **Task 2.2: Documentation sync — CLAUDE.md Tier-2 wording and guard-hooks internals doc**
   - **Depends on**: Task 1.1, Task 1.2 (describes shipped behavior; no file overlap with Task 2.1)
   - **Files**:
     - `/home/utx0/Code/metta/.metta/worktrees/fix-metta-guard-bash-blocks-main-session-tier-2-lifecycle/CLAUDE.md` (modify — workflow section Tier-2 bullet only; workflow-section edits are an allowed exception per that section's own rules)
@@ -83,7 +83,7 @@ Shared constant (ADR-2/ADR-4): `GRACE_MS = 3_600_000` (60 min), duplicated verba
 
 ## Batch 3 (depends on Batch 2)
 
-- [ ] **Task 3.1: Full gate run**
+- [x] **Task 3.1: Full gate run**
   - **Depends on**: Task 1.1, Task 1.2, Task 2.1, Task 2.2
   - **Files**: none (verification only; fix-forward only if a gate fails, scoped to files owned by this change)
   - **Action**: Run every project gate from the change root and confirm the whole change is green together: full test suite (including the untouched suites the design requires stay green: `tests/cli-metta-guard-bash-integration.test.ts`, `tests/hooks-byte-identity.test.ts`, `tests/metta-guard-agent-dispatch.test.ts`, `tests/metta-guard-edit.test.ts`), type check, lint, build (which exercises the template→`dist/` copy step for both hooks). If any gate fails, fix within this change's file set and re-run all gates.
