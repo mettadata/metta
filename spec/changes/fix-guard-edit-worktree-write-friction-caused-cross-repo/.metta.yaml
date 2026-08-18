@@ -11,7 +11,7 @@ artifacts:
   design: complete
   tasks: complete
   implementation: complete
-  verification: ready
+  verification: complete
 complexity_score:
   score: 2
   signals:
@@ -41,6 +41,7 @@ artifact_timings:
     completed: 2026-08-18T13:30:26.588Z
   verification:
     started: 2026-08-18T15:23:56.282Z
+    completed: 2026-08-18T15:26:40.260Z
 artifact_tokens:
   intent:
     context: 763
@@ -453,4 +454,16 @@ token_usage:
     model: fable
     tokens: 1271
     timestamp: 2026-08-18T15:23:20.306Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 56890
+    timestamp: 2026-08-18T15:24:23.840Z
+    source: hook
+  - task: verification
+    agent: metta-verifier
+    model: fable
+    tokens: 14166
+    timestamp: 2026-08-18T15:26:29.615Z
     source: hook
