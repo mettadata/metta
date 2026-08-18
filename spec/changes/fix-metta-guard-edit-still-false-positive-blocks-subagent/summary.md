@@ -16,3 +16,27 @@ Approach: research-selected **V1c host-derived probe root** (design ADR-1..5). T
 ## Consumer impact
 
 Consumers heal via hook refresh alone — no CLI upgrade required. Subagent edits inside `.metta/worktrees/<change>/` during an active change are allowed regardless of which checkout hosts the change state; the heredoc fallback workaround is obsolete.
+
+## Verification
+
+### Spec Scenarios
+
+All 6 requirements / 10 scenarios verified with test or commit-documented evidence (`tests/metta-guard-edit.test.ts`, both hook copies):
+
+- [x] R1 inverted topology allows (465-475) + V1c cwd-independence (477-489); empty target-root answer never decides (hook host-probe superset)
+- [x] R2 canonical topology still allows (491-501) + legacy case (283-316)
+- [x] R3 no state anywhere blocks with `metta-guard` stderr (503-512); ADR-2 containment bound — unrelated checkout still blocks (514-531)
+- [x] R4 all four probe-failure modes fail open: non-zero exit, garbage JSON, >5s timeout, metta absent (533-582)
+- [x] R5 allow-lists unchanged and pinned (64-115, 142-154, 338-346)
+- [x] R6 real-CLI delegating shim (execs `npx tsx src/cli/index.ts`, no cwd conditional); red-run against pre-fix hook documented in commit 61694d426 and independently reproduced by two reviewers
+
+### Gate Results
+
+| Gate | Result |
+|------|--------|
+| tests (`npm test`) | PASS — 127 files, 2407/2407 (49 guard-edit tests) |
+| typecheck / lint | PASS |
+| build | PASS |
+| hook byte-identity (template = .claude = dist) | PASS |
+
+Review: 3 reviewers, 1 iteration — correctness PASS, security and quality PASS_WITH_WARNINGS; all warnings doc-level, resolved in commit 6448def52; ADR-3 residual logged as issue `guard-edit-worktree-name-match-hardening-follow-up`.
