@@ -57,6 +57,12 @@ function hasH2Heading(markdownSource: string, sectionHeading: string): boolean {
   return false
 }
 
+/**
+ * Map a raw file count (including 0) to a full ComplexityScore through the
+ * canonical `tierFromFileCount` thresholds. This function has no opinion on
+ * whether a 0 count is meaningful -- zero-file no-signal gating is the
+ * intent scorer's responsibility (`scoreFromIntentImpact`), not this one.
+ */
 function buildScore(fileCount: number): ComplexityScore {
   const recommended = tierFromFileCount(fileCount)
   return {
@@ -69,15 +75,17 @@ function buildScore(fileCount: number): ComplexityScore {
 /**
  * Score an intent.md document by counting files in its `## Impact` section.
  *
- * Returns null only when the `## Impact` heading is entirely absent from the
- * document -- the "no intent yet" state. Returns a score (with file_count 0
- * and tier 'trivial') when the heading exists but the section is empty, so
- * callers can distinguish "intent not authored" from "intent authored but
- * impact not yet listed".
+ * Returns null whenever the parsed file count is 0 -- whether the `## Impact`
+ * heading is entirely absent or present but the section lists no files. Zero
+ * files at intent time is absence of evidence, not evidence of triviality:
+ * intent.md is often authored before the change's scope is known, so an
+ * empty `## Impact` section carries no signal about the eventual tier.
+ * Contrast with `scoreFromSummaryFiles`, where a 0 count at summary time IS
+ * treated as a real `trivial` signal.
  */
 export function scoreFromIntentImpact(intentMd: string): ComplexityScore | null {
-  if (!hasH2Heading(intentMd, '## Impact')) return null
   const count = parseFileCountFromSection(intentMd, '## Impact')
+  if (count === 0) return null
   return buildScore(count)
 }
 
@@ -85,7 +93,11 @@ export function scoreFromIntentImpact(intentMd: string): ComplexityScore | null 
  * Score a summary.md document by counting files in its `## Files` section.
  *
  * Returns null only when the `## Files` heading is entirely absent.
- * Returns a zero-file score when the heading exists but the section is empty.
+ * Returns a zero-file score when the heading exists but the section is
+ * empty -- unlike `scoreFromIntentImpact`, 0 files here IS a real `trivial`
+ * signal: by summary time the change's actual file set is known, so an
+ * empty `## Files` section means the change genuinely touches no files.
+ * This asymmetry with the intent-time scorer is intentional.
  */
 export function scoreFromSummaryFiles(summaryMd: string): ComplexityScore | null {
   if (!hasH2Heading(summaryMd, '## Files')) return null
