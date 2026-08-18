@@ -1524,6 +1524,32 @@ describe('metta-guard-bash worktree write-target check', { timeout: 60_000 }, ()
         expect(stderr).toContain(mainTarget)
       })
 
+      // ----- Arithmetic `<<` is not a heredoc (review round-2 F2) -----
+      it('arithmetic `$((1<<2))` queues no phantom heredoc — later main-checkout redirect still blocked (exit 2)', () => {
+        const target = join(mainDir, 'src', 'f.txt')
+        const command = `echo $((1<<2))\necho x > ${target}`
+        const { code, stderr } = runHookShim(hookPath, bashEvent(command))
+        expect(code).toBe(2)
+        expect(stderr).toContain(target)
+      })
+
+      it('arithmetic `(( n = 1 << 4 ))` queues no phantom heredoc — later main-checkout redirect still blocked (exit 2)', () => {
+        const target = join(mainDir, 'src', 'f.txt')
+        const command = `(( n = 1 << 4 ))\necho x > ${target}`
+        const { code, stderr } = runHookShim(hookPath, bashEvent(command))
+        expect(code).toBe(2)
+        expect(stderr).toContain(target)
+      })
+
+      it('genuine heredoc after an arithmetic `<<` still strips its body — main-checkout mention inside stays allowed (exit 0)', () => {
+        const script = join(worktreeDir, 'script.sh')
+        const mainTarget = join(mainDir, 'src', 'f.txt')
+        const command = `echo $((1<<2))\ncat > ${script} <<'EOF'\necho hi > ${mainTarget}\nEOF`
+        const { code, stderr } = runHookShim(hookPath, bashEvent(command))
+        expect(stderr).toBe('')
+        expect(code).toBe(0)
+      })
+
       // ----- Timeout-DoS hardening: dedupe / cap / budget (review F2) -----
       it('many distinct bogus absolute targets + a blocked metta call: completes fast, offender scan still blocks (exit 2)', () => {
         const pad = Array.from(
@@ -1577,6 +1603,29 @@ describe('metta-guard-bash worktree write-target check', { timeout: 60_000 }, ()
         const { code, stderr } = runHookShim(hookPath, bashEvent(`${pad} ; echo x > ${target}`))
         expect(stderr).toBe('')
         expect(code).toBe(0)
+      })
+
+      it('cap fail-open is audited: a padded command appends a write-target-cap-exceeded allow entry (review round-2 F4)', () => {
+        const target = join(mainDir, 'src', 'f.txt')
+        const pad = Array.from(
+          { length: 20 },
+          (_, i) => `echo x > /metta-wtw-bogus-${i}/f.txt`,
+        ).join(' ; ')
+        const { code } = runHookShim(hookPath, bashEvent(`${pad} ; echo x > ${target}`))
+        expect(code).toBe(0)
+        // No event.cwd on the payload, so the audit log lands under the spawn
+        // cwd (fixtureDir) — fresh per test via beforeEach.
+        const logPath = join(fixtureDir, '.metta', 'logs', 'guard-bypass.log')
+        expect(existsSync(logPath)).toBe(true)
+        const entries = readFileSync(logPath, 'utf8')
+          .split('\n')
+          .filter((l) => l.length > 0)
+          .map((l) => JSON.parse(l) as Record<string, unknown>)
+        const capEntry = entries.find((e) => e.reason === 'write-target-cap-exceeded')
+        expect(capEntry).toBeDefined()
+        expect(capEntry?.verdict).toBe('allow')
+        expect(capEntry?.dropped_targets).toBeGreaterThan(0)
+        expect(capEntry?.cap).toBe(16)
       })
 
       // ----- /dev/ short-circuit (review F7) -----

@@ -274,10 +274,14 @@ function splitCommandSegments(command) {
 // - Multi-change probe payloads fail OPEN: a `metta status --json` response
 //   shaped `{changes:[...]}` (no top-level string `worktree` field) yields a
 //   null probe context, so targets under that checkout are allowed.
-// - Escaped operators over-block: bash treats `\>` as a literal `>`
+// - Escaped `>` operators over-block: bash treats `\>` as a literal `>`
 //   character, but this extractor still sees the `>` and extracts the next
-//   word as a target — the error direction is a false block, never a missed
-//   one.
+//   word as a target — for the `>` family the error direction is a false
+//   block. That claim does NOT generalize to the heredoc operator: an
+//   escaped `\<<` (bash: literal `<` followed by a plain `<` input
+//   redirect — no heredoc at all) is still parsed by stripHeredocBodies()
+//   as a heredoc operator, queuing a phantom terminator that swallows every
+//   subsequent line — fail OPEN, the opposite direction.
 // - Heredoc BODY lines are NOT scanned: stripHeredocBodies() below drops the
 //   lines between a `<<`/`<<-` WORD operator and its terminator line before
 //   extraction, so prose inside a heredoc mentioning `> /abs/path` never
@@ -285,6 +289,11 @@ function splitCommandSegments(command) {
 //   still extracted). The stripper uses per-line quote masks — a multi-line
 //   quoted string containing `<<` can therefore over-strip subsequent lines,
 //   which errs fail-open, consistent with this extractor's direction.
+// - Arithmetic left-shift residual: a pure-numeric RHS is refused as a
+//   heredoc terminator (`$((1<<2))`, `(( n = 1 << 4 ))` queue nothing), but
+//   an arithmetic `<<` with a NON-numeric RHS (e.g. `$((x<<y))`) is still
+//   misparsed as a heredoc operator — the phantom terminator swallows every
+//   subsequent line, fail OPEN.
 // NOTE the fail direction is deliberately OPPOSITE to the
 // metta-invocation tokenizer in this file: unparseable input fails CLOSED for
 // metta CLI classification but fails OPEN here — for write targets the spec
@@ -343,7 +352,16 @@ function stripHeredocBodies(command) {
       let word = '';
       while (j < rawLine.length && !/[\s<>|&;()]/.test(rawLine[j])) { word += rawLine[j]; j++; }
       const term = stripQuoteChars(word).replace(/\\/g, '');
-      if (term.length > 0) pending.push({ term, stripTabs });
+      // A pure-numeric WORD is refused as a terminator (review round-2 F2):
+      // in `$((1<<2))` or `(( n = 1 << 4 ))` the `<<` is bash's arithmetic
+      // left-shift, not a heredoc operator, and queuing its numeric RHS as a
+      // terminator would swallow every subsequent line (fail OPEN) — hiding a
+      // genuine main-checkout redirect on a later line. Real heredoc
+      // delimiters are essentially never bare digits; refusing one merely
+      // over-scans that body (a possible false BLOCK — the safe direction).
+      // Arithmetic `<<` with a NON-numeric RHS (e.g. `$((x<<y))`) remains
+      // misparsed — see the KNOWN LIMITATION header above.
+      if (term.length > 0 && !/^[0-9]+$/.test(term)) pending.push({ term, stripTabs });
       i = j - 1;
     }
     kept.push(rawLine);
@@ -562,18 +580,27 @@ function isInsidePath(child, root) {
 // inside worktree W AND NOT inside <H>/.metta/ (the shared allow set — covers
 // scratch/, logs/, gates/, and worktrees/ itself, so sibling-worktree writes
 // are an accepted non-goal). Everything outside H (/tmp, scratchpads, other
-// repos) never matches. Returns null (allow) or the first block descriptor
-// { target, mainRoot, worktreeRoot }.
+// repos) never matches. Returns { hit, droppedTargets, budgetExhausted }:
+// `hit` is null (allow) or the first block descriptor
+// { target, mainRoot, worktreeRoot }; the other two fields report the
+// explicit fail-open bounds below so the caller can audit-log them (review
+// round-2 F4) — a silent drop is indistinguishable from "all targets checked
+// clean" in forensics otherwise.
 // DoS bounds (review F2, see the constants above): targets are deduped, only
 // the first MAX_WRITE_TARGET_CHECKS unique targets are checked (the rest are
-// dropped — fail open), and the whole pass abandons remaining targets once
-// WRITE_TARGET_BUDGET_MS of wall clock has elapsed (fail open), falling
-// through to the offender scan either way.
+// dropped — fail open, count reported via droppedTargets), and the whole pass
+// abandons remaining targets once WRITE_TARGET_BUDGET_MS of wall clock has
+// elapsed (fail open, reported via budgetExhausted), falling through to the
+// offender scan either way.
 async function checkWriteTargets(targets) {
   const deadline = Date.now() + WRITE_TARGET_BUDGET_MS;
-  const unique = [...new Set(targets)].slice(0, MAX_WRITE_TARGET_CHECKS);
+  const deduped = [...new Set(targets)];
+  const unique = deduped.slice(0, MAX_WRITE_TARGET_CHECKS);
+  const droppedTargets = deduped.length - unique.length;
   for (const target of unique) {
-    if (Date.now() > deadline) return null; // budget exhausted — abandon rest, fail open
+    if (Date.now() > deadline) {
+      return { hit: null, droppedTargets, budgetExhausted: true }; // budget exhausted — abandon rest, fail open
+    }
     const physical = toPhysicalPath(target);
     const checkoutRoot = await resolveTargetRoot(physical);
     if (checkoutRoot === null) continue; // not in any git checkout — fail open
@@ -586,10 +613,10 @@ async function checkWriteTargets(targets) {
       !isInsidePath(physical, worktreeRoot) &&
       !isInsidePath(physical, join(probeRoot, '.metta'))
     ) {
-      return { target, mainRoot: probeRoot, worktreeRoot };
+      return { hit: { target, mainRoot: probeRoot, worktreeRoot }, droppedTargets, budgetExhausted: false };
     }
   }
-  return null;
+  return { hit: null, droppedTargets, budgetExhausted: false };
 }
 
 function tokenize(command) {
@@ -786,7 +813,7 @@ async function main() {
   try {
     const targets = extractWriteTargets(command);
     if (targets.length > 0) {
-      const hit = await checkWriteTargets(targets);
+      const { hit, droppedTargets, budgetExhausted } = await checkWriteTargets(targets);
       if (hit) {
         appendAuditLog(event, 'block', { sub: null, third: null }, 'worktree-write-target', null,
           { target: hit.target, mainRoot: hit.mainRoot, worktreeRoot: hit.worktreeRoot });
@@ -801,6 +828,19 @@ async function main() {
           `Emergency bypass: disable this hook in .claude/settings.local.json.\n`
         );
         process.exit(2);
+      }
+      // Fail-open visibility (review round-2 F4): an allow that reaches here
+      // after targets were dropped (cap) or abandoned (budget) is NOT "all
+      // targets checked clean" — record the distinction so forensics can tell
+      // the two apart. Non-blocking by construction: appendAuditLog swallows
+      // its own I/O errors and this whole check is wrapped fail-open.
+      if (droppedTargets > 0) {
+        appendAuditLog(event, 'allow', { sub: null, third: null }, 'write-target-cap-exceeded', null,
+          { dropped_targets: droppedTargets, cap: MAX_WRITE_TARGET_CHECKS });
+      }
+      if (budgetExhausted) {
+        appendAuditLog(event, 'allow', { sub: null, third: null }, 'write-target-budget-exhausted', null,
+          { budget_ms: WRITE_TARGET_BUDGET_MS });
       }
     }
   } catch {
