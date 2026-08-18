@@ -1,0 +1,185 @@
+workflow: standard
+created: 2026-08-18T00:21:57.523Z
+status: active
+current_artifact: verification
+base_versions: {}
+artifacts:
+  intent: complete
+  stories: complete
+  spec: complete
+  research: complete
+  design: complete
+  tasks: complete
+  implementation: complete
+  verification: complete
+complexity_score:
+  score: 2
+  signals:
+    file_count: 4
+  recommended_workflow: standard
+artifact_timings:
+  intent:
+    started: 2026-08-18T00:22:02.506Z
+    completed: 2026-08-18T00:23:44.018Z
+  stories:
+    started: 2026-08-18T00:23:48.942Z
+    completed: 2026-08-18T00:24:39.246Z
+  spec:
+    started: 2026-08-18T00:24:45.325Z
+    completed: 2026-08-18T00:26:04.384Z
+  research:
+    completed: 2026-08-18T00:32:42.120Z
+  design:
+    started: 2026-08-18T00:32:47.822Z
+    completed: 2026-08-18T00:36:52.866Z
+  tasks:
+    started: 2026-08-18T00:36:58.643Z
+    completed: 2026-08-18T00:39:00.790Z
+  implementation:
+    started: 2026-08-18T00:39:07.862Z
+    completed: 2026-08-18T01:01:39.425Z
+  verification:
+    completed: 2026-08-18T01:17:26.115Z
+artifact_tokens:
+  intent:
+    context: 763
+    budget: 20000
+  stories:
+    context: 2917
+    budget: 20000
+  spec:
+    context: 4063
+    budget: 40000
+  design:
+    context: 3447
+    budget: 80000
+  tasks:
+    context: 6921
+    budget: 40000
+  implementation:
+    context: 2402
+    budget: 10000
+review_iterations: 1
+verify_iterations: 1
+worktree: /home/utx0/Code/metta/.metta/worktrees/fix-metta-guard-edit-still-false-positive-blocks-subagent
+token_usage:
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 4252
+    timestamp: 2026-08-18T00:22:31.229Z
+    source: hook
+  - task: intent
+    agent: metta-proposer
+    model: fable
+    tokens: 4130
+    timestamp: 2026-08-18T00:23:16.969Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 28350
+    timestamp: 2026-08-18T00:24:02.002Z
+    source: hook
+  - task: stories
+    agent: metta-product
+    model: fable
+    tokens: 2672
+    timestamp: 2026-08-18T00:24:30.756Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 29788
+    timestamp: 2026-08-18T00:25:02.155Z
+    source: hook
+  - task: spec
+    agent: metta-specifier
+    model: fable
+    tokens: 4994
+    timestamp: 2026-08-18T00:25:59.556Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 33005
+    timestamp: 2026-08-18T00:26:42.728Z
+    source: hook
+  - task: research
+    agent: metta-researcher
+    model: fable
+    tokens: 19578
+    timestamp: 2026-08-18T00:31:03.983Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 33038
+    timestamp: 2026-08-18T00:31:08.154Z
+    source: hook
+  - task: research
+    agent: metta-researcher
+    model: fable
+    tokens: 23797
+    timestamp: 2026-08-18T00:32:08.658Z
+    source: hook
+  - task: research
+    agent: metta-researcher
+    model: fable
+    tokens: 22649
+    timestamp: 2026-08-18T00:32:08.918Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 33085
+    timestamp: 2026-08-18T00:32:12.252Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 34437
+    timestamp: 2026-08-18T00:33:04.922Z
+    source: hook
+  - task: implementation
+    agent: metta-executor
+    model: sonnet
+    tokens: 4903
+    timestamp: 2026-08-18T01:09:19.284Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 53283
+    timestamp: 2026-08-18T01:10:00.273Z
+    source: hook
+  - task: verification
+    agent: metta-verifier
+    model: fable
+    tokens: 964
+    timestamp: 2026-08-18T01:10:47.696Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 53321
+    timestamp: 2026-08-18T01:10:53.953Z
+    source: hook
+  - task: verification
+    agent: metta-verifier
+    model: fable
+    tokens: 5191
+    timestamp: 2026-08-18T01:12:17.690Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 53369
+    timestamp: 2026-08-18T01:12:21.987Z
+    source: hook
+  - task: verification
+    agent: metta-verifier
+    model: fable
+    tokens: 450
+    timestamp: 2026-08-18T01:17:09.968Z
+    source: hook

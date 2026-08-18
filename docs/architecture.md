@@ -50,7 +50,7 @@
 29 requirements
 
 ### orchestration-guard
-12 requirements
+18 requirements
 
 ### propose-stop-after
 8 requirements

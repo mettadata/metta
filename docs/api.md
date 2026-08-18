@@ -1172,6 +1172,40 @@ Scenarios:
 - A rejected async dispatch shape is recorded with tier and reason
 - A recovery-protocol invocation is discernible from recorded evidence
 
+### Worktree Edits Are Allowed Under the Inverted-Hosting Topology
+
+Scenarios:
+- Inverted-hosting topology edit is allowed
+- Empty answer from the target root alone does not block
+- Subagents no longer need the heredoc fallback
+
+### Canonical Worktree Topology Remains Allowed
+
+Scenarios:
+- Canonical topology edit is still allowed
+
+### Guard Still Blocks When No Change Is Active in Either Root
+
+Scenarios:
+- No active change anywhere still blocks
+
+### Probe Failures Continue to Fail Open
+
+Scenarios:
+- Each probe-failure mode fails open
+
+### Init-Phase and Issues Allow-Lists Are Unchanged
+
+Scenarios:
+- Allow-listed paths still pass without an active change
+
+### Regression Tests Exercise Real Discovery Semantics for the Inverted Topology
+
+Scenarios:
+- Inverted-topology test catches the original defect
+- Topology coverage does not come from a cwd-answering shim
+- Both topologies are covered alongside existing cases
+
 ## propose-stop-after
 
 ### `metta propose` MUST accept a `--stop-after <artifact>` option
