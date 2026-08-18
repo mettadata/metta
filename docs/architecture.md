@@ -32,7 +32,7 @@
 0 requirements
 
 ### Finalize and Ship
-35 requirements
+38 requirements
 
 ### fix-issues-command
 4 requirements

@@ -444,6 +444,8 @@ Scenarios:
 - New capability created from a confirmed ADDED delta
 - Re-applying an ADDED delta does not duplicate an existing requirement
 - ADDED idempotency holds without a base_versions entry
+- Dry-run reports requirement not found for a MODIFIED delta against an absent requirement
+- Dry-run classifies an ADDED duplicate as a noop, matching apply
 
 ### Finalizer Orchestration
 
@@ -679,6 +681,24 @@ Scenarios:
 - Duplicate hook and prose records count once, preferring the hook value
 - Prose-only records are retained
 - Dedupe never mutates persisted state
+
+### Dry-Run And Apply Merge Result Parity
+
+Scenarios:
+- Dry-run and apply return identical results for the same fixture set
+- Preflight dry-run catches an apply-time-only conflict class
+
+### All-Or-Nothing Spec Merge Apply
+
+Scenarios:
+- Conflicting delta N leaves the spec store byte-identical
+- Zero-conflict multi-delta merge commits every staged result
+
+### Staged Composition Of Same-Capability Deltas
+
+Scenarios:
+- A later delta composes with an earlier delta against the same capability
+- Dry-run classifies composed same-capability deltas identically
 
 ## fix-issues-command
 
