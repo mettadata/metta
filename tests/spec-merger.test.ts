@@ -630,13 +630,15 @@ The system MUST support Beta.
     const lock = lockManager.createFromParsed(parsed)
     await lockManager.write('auth', lock)
 
-    // Mix of ADDED (new + duplicate-noop) and a MODIFIED conflict against an
-    // absent requirement in the SAME delta spec is not representable (all
-    // deltas in one file share one target capability), so exercise the
-    // conflicting fixture and the clean fixture as sibling scenarios instead,
-    // each checked for dry-run/apply parity.
-
-    const cleanDeltaContent = `# auth (Delta)
+    // A single delta spec targeting one existing capability ("auth") CAN mix
+    // a conflict with a duplicate-noop and a clean modify — every delta in a
+    // file shares one target capability, but that target can carry any
+    // number of operations against different requirement names. This fixture
+    // exercises: an ADDED duplicate (noop), a clean MODIFIED, a MODIFIED
+    // against an absent requirement (conflict), a RENAMED against an absent
+    // source requirement (conflict), and a REMOVED against an absent
+    // requirement (conflict) — all in the same run.
+    const deltaContent = `# auth (Delta)
 
 ## ADDED: Requirement: Alpha
 
@@ -655,16 +657,46 @@ The system MUST support Beta with new behavior.
 - GIVEN beta
 - WHEN updated
 - THEN beta still runs
+
+## MODIFIED: Requirement: Ghost Requirement
+
+The system MUST do ghostly things.
+
+### Scenario: Ghostly
+- GIVEN a ghost
+- WHEN invoked
+- THEN it haunts
+
+## RENAMED: Requirement: Renamed Ghost
+
+Renamed from: Old Ghost Name
+
+### Scenario: Renamed
+- GIVEN nothing
+- WHEN renamed
+- THEN it still doesn't exist
+
+## REMOVED: Requirement: Another Ghost
+
+The system no longer supports ghostly things.
 `
-    await writeFile(join(specDir, 'changes', 'add-mfa', 'spec.md'), cleanDeltaContent)
+    await writeFile(join(specDir, 'changes', 'add-mfa', 'spec.md'), deltaContent)
+
+    const { readFile } = await import('node:fs/promises')
+    const beforeSpecBytes = await readFile(join(specDir, 'specs', 'auth', 'spec.md'))
+    const beforeLockBytes = await readFile(join(specDir, 'specs', 'auth', 'spec.lock'))
 
     const dryRunResult = await merger.merge('add-mfa', { 'auth/spec.md': lock.hash }, true)
     const applyResult = await merger.merge('add-mfa', { 'auth/spec.md': lock.hash }, false)
 
-    expect(dryRunResult.status).toBe(applyResult.status)
-    expect([...dryRunResult.merged].sort()).toEqual([...applyResult.merged].sort())
-    expect(dryRunResult.conflicts).toEqual(applyResult.conflicts)
-    expect([...(dryRunResult.noops ?? [])].sort()).toEqual([...(applyResult.noops ?? [])].sort())
+    expect(dryRunResult.status).toBe('conflict')
+    expect(dryRunResult).toEqual(applyResult)
+
+    // Conflict present in the run means the apply call wrote nothing.
+    const afterSpecBytes = await readFile(join(specDir, 'specs', 'auth', 'spec.md'))
+    const afterLockBytes = await readFile(join(specDir, 'specs', 'auth', 'spec.lock'))
+    expect(afterSpecBytes.equals(beforeSpecBytes)).toBe(true)
+    expect(afterLockBytes.equals(beforeLockBytes)).toBe(true)
   })
 
   it('multi-delta merge where a later delta conflicts writes nothing to disk', async () => {
@@ -741,8 +773,10 @@ The system MUST do ghostly things.
 
     expect(afterSpecBytes.equals(beforeSpecBytes)).toBe(true)
     expect(afterLockBytes.equals(beforeLockBytes)).toBe(true)
-    // No new capability directory (e.g. from an unrelated ADDED-new-cap) was
-    // created as a side effect of the aborted run.
+    // The `specs/` directory tree itself is unchanged too — no stray
+    // capability directory was created as a side effect of the aborted run
+    // (all three deltas here target the existing "auth" capability, so this
+    // also confirms the run didn't touch anything beyond it).
     expect(afterSpecsTree.sort()).toEqual(beforeSpecsTree.sort())
   })
 

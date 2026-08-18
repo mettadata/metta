@@ -172,13 +172,21 @@ export class SpecMerger {
     // Commit phase — apply mode only, all-or-nothing: writes happen only
     // when the compute phase produced zero conflicts. A conflict anywhere in
     // the run means zero files and zero locks are written, regardless of how
-    // many earlier deltas reconciled cleanly.
+    // many earlier deltas reconciled cleanly. Every dirty capability's final
+    // staged content is parsed up front, before any write — a parse failure
+    // here aborts with zero writes rather than surfacing mid-loop, after some
+    // capabilities' spec files were already written but before their lock
+    // was updated.
     if (!dryRun && status === 'clean') {
+      const parsedByCapability = new Map<string, ReturnType<typeof parseSpec>>()
+      for (const capability of dirtyCapabilities) {
+        const content = stagedContent.get(capability)!.content
+        parsedByCapability.set(capability, parseSpec(content))
+      }
       for (const capability of dirtyCapabilities) {
         const content = stagedContent.get(capability)!.content
         await state.writeRaw(join('specs', capability, 'spec.md'), content)
-        const parsed = parseSpec(content)
-        await this.specLockManager.update(capability, parsed)
+        await this.specLockManager.update(capability, parsedByCapability.get(capability)!)
       }
     }
 

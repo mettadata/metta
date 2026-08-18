@@ -3,6 +3,7 @@ import { mkdtemp, rm, mkdir, writeFile, readFile, readdir } from 'node:fs/promis
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { Finalizer } from '../src/finalize/finalizer.js'
+import { SpecMerger } from '../src/finalize/spec-merger.js'
 import { ArtifactStore } from '../src/artifacts/artifact-store.js'
 import { SpecLockManager } from '../src/specs/spec-lock-manager.js'
 import { GateRegistry } from '../src/gates/gate-registry.js'
@@ -296,6 +297,67 @@ The system MUST apply this requirement exactly once across retries.
     const content = await readFile(join(specDir, 'specs', 'retrycap', 'spec.md'), 'utf-8')
     const headers = content.match(/^## Requirement: Retry Behavior$/gm) ?? []
     expect(headers.length).toBe(1)
+  })
+
+  it('MODIFIED against an absent requirement aborts at the step-3 conflict gate before the applying merge', async () => {
+    // Pins spec.md's "Preflight dry-run catches an apply-time-only conflict
+    // class" scenario at the finalizer layer: a MODIFIED delta against a
+    // requirement absent from an *existing* capability spec was, before this
+    // fix, invisible to Step 3's dry-run gate and only surfaced as a conflict
+    // during the applying merge. It must now be caught structurally by the
+    // dry-run call itself.
+    await mkdir(join(specDir, 'specs', 'modcap'), { recursive: true })
+    const existingSpec = `# modcap
+
+## Requirement: Existing Behavior
+
+The system MUST keep behaving.
+
+### Scenario: Existing
+- GIVEN the system
+- WHEN it runs
+- THEN it behaves
+`
+    await writeFile(join(specDir, 'specs', 'modcap', 'spec.md'), existingSpec)
+
+    await artifactStore.createChange('modified conflict change', 'quick', ['intent', 'implementation', 'verification'])
+    await markAllComplete(artifactStore, 'modified-conflict-change', ['intent', 'implementation', 'verification'])
+
+    const deltaContent = `# modcap (Delta)
+
+## MODIFIED: Requirement: Ghost Requirement
+
+The system MUST do ghostly things.
+
+### Scenario: Ghostly
+- GIVEN a ghost
+- WHEN invoked
+- THEN it haunts
+`
+    await writeFile(join(specDir, 'changes', 'modified-conflict-change', 'spec.md'), deltaContent)
+
+    const beforeBytes = await readFile(join(specDir, 'specs', 'modcap', 'spec.md'))
+    const beforeLockExists = await readFile(join(specDir, 'specs', 'modcap', 'spec.lock')).catch(() => null)
+
+    const mergeSpy = vi.spyOn(SpecMerger.prototype, 'merge')
+
+    const result = await finalizer.finalize('modified-conflict-change')
+
+    expect(result.specMerge.status).toBe('conflict')
+    expect(result.specMerge.conflicts.some(c => c.reason === 'requirement not found')).toBe(true)
+    expect(result.archiveName).toBe('')
+
+    // Only the Step 3 dry-run call happened — the applying merge
+    // (dryRun: false) was never reached.
+    expect(mergeSpy).toHaveBeenCalledTimes(1)
+    expect(mergeSpy).toHaveBeenCalledWith('modified-conflict-change', expect.any(Object), true)
+    mergeSpy.mockRestore()
+
+    // Spec store — both the capability spec file and its lock — untouched.
+    const afterBytes = await readFile(join(specDir, 'specs', 'modcap', 'spec.md'))
+    const afterLockExists = await readFile(join(specDir, 'specs', 'modcap', 'spec.lock')).catch(() => null)
+    expect(afterBytes.equals(beforeBytes)).toBe(true)
+    expect(afterLockExists).toBe(beforeLockExists)
   })
 
   describe('gate results staging (Step 5d)', () => {
