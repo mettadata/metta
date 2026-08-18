@@ -102,6 +102,23 @@ describe('Workflow primer research discipline rule', () => {
   })
 })
 
+describe('Workflow primer Tier-2 trust model wording', () => {
+  it('describes the session-bound re-prime lifecycle with bounded TTL + GRACE lifetime', () => {
+    for (const primer of [workflowPrimerLong(), workflowPrimerShort()]) {
+      const text = primer.join('\n')
+      expect(text).toContain('re-primes a session-bound credential')
+      expect(text).toContain('TTL + GRACE after the last mint or re-prime')
+    }
+  })
+
+  it('does not carry the retired any-unexpired-credential model', () => {
+    for (const primer of [workflowPrimerLong(), workflowPrimerShort()]) {
+      const text = primer.join('\n')
+      expect(text).not.toContain('any unexpired credential')
+    }
+  })
+})
+
 describe('installCommands', () => {
   let tempDir: string
 

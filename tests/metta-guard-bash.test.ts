@@ -753,6 +753,10 @@ describe('metta-guard-bash hook', { timeout: 30_000 }, () => {
       // ----- Tier-2 session-credential validation (skill-session token) -----
       describe('Tier-2 session-credential validation', () => {
         const TTL_MS = 300_000
+        // Mirrors GRACE_MS in the hook: "expired" seeds are deepened past
+        // TTL_MS + GRACE_MS so they mean genuinely dead regardless of whether a future
+        // harness change stamps sessionId (fixture deepening, not weakened coverage).
+        const GRACE_MS = 3_600_000
         const tempDirs: string[] = []
         afterEach(() => {
           while (tempDirs.length) {
@@ -829,7 +833,7 @@ describe('metta-guard-bash hook', { timeout: 30_000 }, () => {
 
         it('blocks with an expired token — audit reason credential-expired, tier session (exit 2)', () => {
           const cwd = makeTempCwd()
-          seedToken(cwd, { mintedAt: Date.now() - TTL_MS - 1000 })
+          seedToken(cwd, { mintedAt: Date.now() - TTL_MS - GRACE_MS - 60_000 })
           const { code, stderr } = runHook(hookPath, bashEvent('metta complete intent', { cwd }), {
             cwd,
           })
@@ -906,12 +910,12 @@ describe('metta-guard-bash hook', { timeout: 30_000 }, () => {
           seedToken(cwd, {
             skill: 'metta-next',
             subcommands: ['complete', 'finalize'],
-            mintedAt: Date.now() - TTL_MS - 1000,
+            mintedAt: Date.now() - TTL_MS - GRACE_MS - 60_000,
           })
           seedToken(cwd, {
             skill: 'metta-refresh',
             subcommands: ['refresh'],
-            mintedAt: Date.now() - TTL_MS - 5000,
+            mintedAt: Date.now() - TTL_MS - GRACE_MS - 60_000,
           })
           const { code } = runHook(hookPath, bashEvent('metta finalize', { cwd }), { cwd })
           expect(code).toBe(2)

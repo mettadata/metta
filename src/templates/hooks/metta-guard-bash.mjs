@@ -10,13 +10,25 @@
 //   authorized by per-skill session
 //   credentials at `.metta/scratch/skill-session/<slug>.token`, each minted by
 //   `.claude/hooks/metta-session-mint.mjs` when the matching Tier-2 skill is invoked and
-//   rotated on a sliding TTL. A call is authorized when ANY structurally valid, unexpired
-//   token's scope covers the subcommand — so one skill's credential never blocks another
-//   active skill's. Not derivable from reading any skill file.
+//   rotated on a sliding TTL. Freshness is judged in two bands: a token is FRESH within
+//   its ttlMs, and RE-PRIMABLE when its `sessionId` (stamped at mint time from the
+//   runtime-supplied `event.session_id` — never derived from command text) matches this
+//   event's `session_id` and the token is within ttlMs + GRACE_MS. A call is authorized
+//   when ANY structurally valid token in either band covers the subcommand — so one
+//   skill's credential never blocks another active skill's. An acceptance authorized
+//   ONLY via the re-prime band causes this guard to rewrite that token (new random
+//   token value, mintedAt = now; best-effort atomic temp+rename) and is audit-logged as
+//   `session-credential-reprimed`; fresh-band acceptances keep
+//   `session-credential-verified`. `credential-expired` therefore means genuinely dead:
+//   no fresh AND no re-primable token. A missing or non-string `event.session_id`
+//   disables the re-prime band entirely (fail-closed degradation to fresh-band-only),
+//   as do old-format tokens without a `sessionId`. Not derivable from reading any
+//   skill file.
 // Emergency bypass (humans/CI): disable this hook in .claude/settings.local.json.
 
-import { readFileSync, appendFileSync, mkdirSync, readdirSync } from 'node:fs';
+import { readFileSync, appendFileSync, mkdirSync, readdirSync, writeFileSync, renameSync, unlinkSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { randomUUID } from 'node:crypto';
 
 // Explicit ALLOW list: known safe read-only single-subcommand forms.
 const ALLOWED_SUBCOMMANDS = new Set([
@@ -95,6 +107,12 @@ const SKILL_HINT_MAP = new Map([
   ['auto', '/metta-auto'],
   ['ship', '/metta-ship'],
 ]);
+
+// Bounded horizon of the Tier-2 re-primable band (see header): a session-bound token
+// stays re-primable until ttlMs + GRACE_MS after its last mint or re-prime.
+// MUST equal GRACE_MS in metta-session-mint.mjs — the guard's re-prime horizon and the
+// mint hook's sibling-cleanup threshold are one policy; seam tests pin the equality.
+const GRACE_MS = 3_600_000;
 
 function readStdin() {
   try { return readFileSync(0, 'utf8'); } catch { return ''; }
@@ -307,10 +325,12 @@ function validateToken(tok) {
 // .claude/hooks/metta-session-mint.mjs under <cwd>/.metta/scratch/skill-session/.
 // Each Tier-2 skill's mint hook writes its own <slug>.token file, so several skills
 // invoked in one Claude Code session coexist without clobbering each other. Returns
-// the array of structurally valid tokens (possibly expired — expiry is judged at the
-// call site); unreadable, unparsable, or malformed files are skipped. Never throws
-// inside the offender predicate. The retired single-file credential at
-// <cwd>/.metta/scratch/skill-session.token is deliberately NOT honored.
+// an array of { tok, file } pairs — each structurally valid token (possibly expired —
+// expiry is judged at the call site) annotated with the directory-entry filename it
+// was read from, so the re-prime writer targets exactly the path the token came from
+// (read-path/write-path symmetry). Unreadable, unparsable, or malformed files are
+// skipped. Never throws inside the offender predicate. The retired single-file
+// credential at <cwd>/.metta/scratch/skill-session.token is deliberately NOT honored.
 function readSessionTokens(cwd) {
   const tokenDir = join(cwd ?? process.cwd(), '.metta', 'scratch', 'skill-session');
   let names = [];
@@ -320,7 +340,7 @@ function readSessionTokens(cwd) {
     if (!name.endsWith('.token')) continue;
     try {
       const tok = validateToken(JSON.parse(readFileSync(join(tokenDir, name), 'utf8')));
-      if (tok !== null) tokens.push(tok);
+      if (tok !== null) tokens.push({ tok, file: name });
     } catch {
       // skip unreadable/unparsable files
     }
@@ -328,9 +348,39 @@ function readSessionTokens(cwd) {
   return tokens;
 }
 
+// Best-effort atomic rewrite of a token whose authorization came only via the
+// re-primable band: same payload, new random `token` value, `mintedAt = now`. The
+// authorize decision has ALREADY been made when this runs — every failure here is
+// swallowed, because a write failure must never revoke an authorization (fail-closed
+// must not invert into fail-blocked-on-housekeeping). The target is the annotated
+// directory-entry filename the token was actually read from; a defensive shape check
+// (plain `<name>.token` entry, no path separators) guards the write path against a
+// forged token steering it outside the token dir. Temp-file (mode 0o600) + renameSync
+// in the same directory closes the torn-read window against a concurrently firing
+// mint hook.
+function reprimeToken(cwd, entry, now) {
+  try {
+    const name = entry.file;
+    if (typeof name !== 'string' || !name.endsWith('.token')) return;
+    if (name.includes('/') || name.includes('\\') || name.includes('..')) return;
+    const tokenDir = join(cwd ?? process.cwd(), '.metta', 'scratch', 'skill-session');
+    const target = join(tokenDir, name);
+    const next = { ...entry.tok, token: randomUUID(), mintedAt: now };
+    const tmp = `${target}.${randomUUID()}.tmp`;
+    try {
+      writeFileSync(tmp, JSON.stringify(next), { mode: 0o600 });
+      renameSync(tmp, target);
+    } catch {
+      try { unlinkSync(tmp); } catch { /* best-effort orphan cleanup */ }
+    }
+  } catch {
+    // Authorize-then-write: never let housekeeping failures surface (ADR-5).
+  }
+}
+
 // Append one JSON line to <cwd>/.metta/logs/guard-bypass.log. Swallows all I/O errors so
 // audit-log failures never break the hook's primary enforcement path.
-function appendAuditLog(event, verdict, inv, reason, tier = null) {
+function appendAuditLog(event, verdict, inv, reason, tier = null, extra = {}) {
   try {
     const cwd = event.cwd ?? process.cwd();
     const logPath = join(cwd, '.metta', 'logs', 'guard-bypass.log');
@@ -343,6 +393,7 @@ function appendAuditLog(event, verdict, inv, reason, tier = null) {
       reason,
       tier,
       event_keys: Object.keys(event),
+      ...extra,
     };
     mkdirSync(dirname(logPath), { recursive: true });
     appendFileSync(logPath, JSON.stringify(entry) + '\n', 'utf8');
@@ -382,6 +433,7 @@ async function main() {
   // session credential. The Tier-2 rejection reason (if any) is threaded through tier2Reason
   // to the verdict block below; Tier-2 acceptances are collected for audit logging.
   let tier2Reason = null;
+  let tier2Staleness = null;
   const tier2Accepted = [];
   const offender = invocations.find((inv) => {
     if (classify(inv) === 'allow') return false; // never an offender
@@ -394,14 +446,34 @@ async function main() {
     }
     // Tier 2: fork body calling a Tier-2 sub from inside a Tier-1 skill's own body
     if (isTrustedSkillCaller(event)) {
-      tier2Accepted.push(inv);
+      tier2Accepted.push({ inv, reason: 'session-credential-verified', staleness_ms: null, needsReprime: false, entry: null, now: null });
       return false;
     }
     const tokens = readSessionTokens(event.cwd);
     if (tokens.length === 0) { tier2Reason = 'missing-credential'; return true; }
     const now = Date.now();
-    const fresh = tokens.filter((tok) => now - tok.mintedAt < tok.ttlMs);
-    if (fresh.length === 0) { tier2Reason = 'credential-expired'; return true; }
+    // Two-band freshness (verdict is a pure function of token file state, event fields,
+    // and the clock — never of whether the separately scheduled mint hook has already
+    // fired on this event, so the outcome is invariant under parallel hook ordering):
+    // - Fresh band: within ttlMs — unchanged pre-fix predicate.
+    // - Re-primable band: token stamped with THIS session's runtime-supplied session_id
+    //   (same trust class as Tier 1's agent_type; never command text) AND within the
+    //   bounded effective lifetime ttlMs + GRACE_MS. A missing/non-string
+    //   event.session_id disables the band entirely — fail-closed pre-fix behavior.
+    const sessionId = typeof event.session_id === 'string' ? event.session_id : null;
+    const fresh = tokens.filter((t) => now - t.tok.mintedAt < t.tok.ttlMs);
+    const reprimable = tokens.filter((t) =>
+      sessionId !== null &&
+      t.tok.sessionId === sessionId &&
+      now - t.tok.mintedAt < t.tok.ttlMs + GRACE_MS);
+    const eligible = [...new Set([...fresh, ...reprimable])];
+    if (eligible.length === 0) {
+      // Genuinely dead: no fresh token AND no re-primable token. staleness_ms records
+      // the age of the youngest structurally valid token considered (horizon tuning).
+      tier2Reason = 'credential-expired';
+      tier2Staleness = Math.min(...tokens.map((t) => now - t.tok.mintedAt));
+      return true;
+    }
     // Scope key: two-word blocked forms (e.g. `backlog add`) are keyed "<sub>:<third>";
     // single-word blocked subcommands keep their bare name even when followed by an
     // argument (e.g. `complete intent` -> key "complete"), mirroring classify().
@@ -409,19 +481,43 @@ async function main() {
     const key = blockedTwo && inv.third && blockedTwo.has(inv.third)
       ? `${inv.sub}:${inv.third}`
       : inv.sub;
-    // Any-valid-token authorization: a call is in scope if ANY unexpired per-skill
-    // token covers it — a stale-but-fresh token from a different skill never blocks
-    // the genuinely active skill's own credential.
-    if (!fresh.some((tok) => tok.subcommands.includes(key))) { tier2Reason = 'subcommand-not-in-scope'; return true; }
-    tier2Accepted.push(inv);
+    // Any-valid-token authorization: a call is in scope if ANY eligible per-skill
+    // token covers it — a stale-but-eligible token from a different skill never blocks
+    // the genuinely active skill's own credential. The re-prime band contributes
+    // freshness only, never scope: subcommands filtering is unchanged.
+    const inScope = eligible.filter((t) => t.tok.subcommands.includes(key));
+    if (inScope.length === 0) { tier2Reason = 'subcommand-not-in-scope'; return true; }
+    // Accept. Select the authorizing token explicitly: a fresh-band token is
+    // preferred as the authorizing token whenever one is in scope; only when NO
+    // in-scope token is fresh does authorization fall to the re-prime band. Both
+    // the (deferred) re-prime target and the logged staleness_ms are attributed
+    // to this authorizing token — never to whichever token happens to sit first
+    // in directory/spread order.
+    const viaFresh = inScope.some((t) => fresh.includes(t));
+    const authTok = viaFresh ? inScope.find((t) => fresh.includes(t)) : inScope[0];
+    // The scan only RECORDS the acceptance (including whether a re-prime write is
+    // needed); the write itself is deferred to the !offender branch below so a
+    // blocked command leaves every token file byte-untouched.
+    tier2Accepted.push({
+      inv,
+      reason: viaFresh ? 'session-credential-verified' : 'session-credential-reprimed',
+      staleness_ms: now - authTok.tok.mintedAt,
+      needsReprime: !viaFresh,
+      entry: authTok,
+      now,
+    });
     return false;
   });
 
   if (!offender) {
-    // Log every Tier-2 acceptance (verified fork caller or valid session token) so the
-    // audit trail records each session-tier authorization.
-    for (const inv of tier2Accepted) {
-      appendAuditLog(event, 'allow', inv, 'session-credential-verified', 'session');
+    // Authorize-then-write, whole-command scoped: re-prime writes and acceptance
+    // logging run only after EVERY invocation in the command has been authorized.
+    // A blocked command (any offending segment) therefore never rewrites a token —
+    // no silent credential keepalive via deliberately-blocked compound commands.
+    // The write stays best-effort: a re-prime failure never revokes authorization.
+    for (const acc of tier2Accepted) {
+      if (acc.needsReprime) reprimeToken(event.cwd, acc.entry, acc.now);
+      appendAuditLog(event, 'allow', acc.inv, acc.reason, 'session', { staleness_ms: acc.staleness_ms });
     }
     process.exit(0);
   }
@@ -473,8 +569,11 @@ async function main() {
   }
 
   // verdict === 'block' — Tier-2 rejections carry their threaded reason and session tier;
-  // any other path defaults to the generic 'block' reason with no tier.
-  appendAuditLog(event, 'block', offender, tier2Reason ?? 'block', tier2Reason ? 'session' : null);
+  // any other path defaults to the generic 'block' reason with no tier. On
+  // credential-expired blocks, staleness_ms carries the age of the youngest structurally
+  // valid token considered.
+  appendAuditLog(event, 'block', offender, tier2Reason ?? 'block', tier2Reason ? 'session' : null,
+    tier2Staleness !== null ? { staleness_ms: tier2Staleness } : {});
   process.stderr.write(
     `metta-guard-bash: Blocked direct CLI call '${subDisplay}' from AI orchestrator session.\n` +
     `Use the matching /metta-<skill> skill via the Skill tool; see CLAUDE.md for the mapping.\n` +

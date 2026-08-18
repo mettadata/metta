@@ -1,0 +1,43 @@
+# fix-metta-guard-bash-blocks-main-session-tier-2-lifecycle
+
+## Problem
+
+Main-session Tier-2 lifecycle commands (`metta complete`, `metta finalize`, and the other session-tier subcommands) are blocked by the `metta-guard-bash` PreToolUse hook even when the invoking skill legitimately minted a per-slug session credential with a matching scope. A clean repro from the zeus consumer session (2026-08-18): invoke `/metta-next` in-context — its mint hook writes `.metta/scratch/skill-session/metta-next.token` per the PR #67 per-slug design — then run `metta complete research --change <c>` from the main session; the guard rejects it with "Blocked direct CLI call from AI orchestrator session". The same failure hit the metta maintainer session on 2026-08-11 (`metta complete implementation` blocked repeatedly despite invoking metta-execute/metta-verify) and was worked around by handing the lifecycle to a ship fork.
+
+The audit log (`.metta/logs/guard-bypass.log`) pins the residual defect: every live main-session block on `complete`/`finalize` from 2026-07-17 through 2026-08-17 records `reason:"credential-expired"`, `tier:"session"` — the guard found a structurally valid token whose scope covered the call, but judged it past TTL. This is a TTL lifecycle gap between the two hook halves:
+
+1. **Subagent-delegation expiry gap.** The mint hook (`.claude/hooks/metta-session-mint.mjs`) slide-refreshes its token at 80% of TTL — but only when it fires, and it fires only on main-session Bash calls (it is a skill-frontmatter PreToolUse Bash hook; Bash calls inside dispatched subagents do not carry the invoking skill's frontmatter hooks). The dominant lifecycle pattern — skill warm-up mints the token, the orchestrator delegates artifact work to a `metta-*` subagent for well over the 5-minute TTL (`TTL_MS = 300000`, mint hook line 36), then runs `metta complete` — contains no re-prime during the delegation window, so `mintedAt` is stale by the time the Tier-2 call arrives.
+2. **Same-event mint/validate race.** On the `metta complete` call itself, both PreToolUse hooks fire on the same event, but Claude Code runs PreToolUse hooks in parallel with no ordering guarantee. The guard's freshness filter (`now - tok.mintedAt < tok.ttlMs`, guard line 403) has no grace period and no coordination with the mint half, so an expired-but-about-to-be-reminted token loses the race whenever the guard reads first — or whenever the skill's frontmatter mint hook no longer applies to the later main-session call at all.
+
+Who is affected: every AI orchestrator session using the in-context lifecycle skills (`/metta-next`, `/metta-plan`, `/metta-execute`, `/metta-verify`, `/metta-fix-gap`, and the other Tier-2 skills). They cannot reliably advance the state machine from the main session — only Tier-1 forked skills can complete artifacts — which forces a fork for every lifecycle step and defeats the purpose of the session-tier trust model. Severity: major.
+
+## Proposal
+
+Close the Tier-2 TTL lifecycle gap so that a credential minted by a legitimately invoked skill remains authoritative across the real shape of a lifecycle step (warm-up → long subagent delegation → main-session `metta complete`/`finalize`), and remove the dependence on parallel-hook scheduling luck. Scope:
+
+1. **Deterministic mint-before-validate in the guard** (primary fix, candidate 1 from the issue's root-cause analysis). Eliminate the same-event race by making Tier-2 token freshness resolution deterministic inside `metta-guard-bash.mjs` rather than racing the separate mint hook: when the guard evaluates a Tier-2 call, it consults a trustworthy skill-activity marker (written at skill invocation time, not derivable or forgeable from orchestrator command text) and re-primes/accepts the matching per-slug token before applying the expiry judgment. The mint hook's per-slug token files and scope table (`SKILL_SCOPES`) remain the source of scope truth; the change is that expiry is no longer judged against a `mintedAt` that only a racing, sometimes-absent hook could have refreshed.
+2. **Lifecycle-aware freshness window** (candidate 2, as defense in depth). Size the effective credential lifetime to the observed lifecycle pattern — either a raised TTL or a guard-side grace window covering a typical subagent delegation — so a token minted at skill warm-up survives the delegation window even in configurations where the deterministic path is unavailable. The 80% sliding refresh for actively-used sessions is retained.
+3. **Integration repro tests for the mint/validate seam** (candidate 3, required to accompany 1 and 2). Vitest coverage that exercises: (a) mint via simulated skill warm-up followed by an immediate Tier-2 call, from both the main-session cwd and a worktree cwd; (b) a time-advanced case reproducing the post-subagent expiry gap (token minted, clock advanced past TTL, Tier-2 call must still be authorized under the new rules); (c) the same-event ordering case (guard evaluates while the token is expired-but-eligible-for-remint and must not fail closed).
+4. **Audit-log fidelity.** The guard's `credential-expired` audit entries continue to be written for genuinely dead credentials (no active skill, no eligible token), and new acceptance paths log their authorization reason, so future incidents remain diagnosable from `.metta/logs/guard-bypass.log`.
+5. **Documentation sync.** Update the two-tier trust model description (hook header comments, and the CLAUDE.md workflow section if its Tier-2 wording changes) to match the corrected TTL lifecycle.
+
+All changes land in the plain `.mjs` hooks under `.claude/hooks/` (and their template copies if the hooks are shipped as templates), plus tests.
+
+## Impact
+
+- **`.claude/hooks/metta-guard-bash.mjs`** — Tier-2 freshness evaluation changes (deterministic re-prime/grace instead of a bare `now - mintedAt < ttlMs` race). Tier-1 fork-identity checks, the allow/block classification lists, tokenization, `--` operand-terminator handling, and the fail-closed posture for `missing-credential` and `subcommand-not-in-scope` are untouched.
+- **`.claude/hooks/metta-session-mint.mjs`** — TTL constant and/or refresh behavior may change; per-slug token file layout, `SKILL_SCOPES`, and sibling-cleanup hygiene are preserved.
+- **Trust model** — the security boundary is deliberately preserved: authorization still derives only from runtime-verified fork identity (Tier 1) or a server-minted, non-forgeable credential/marker written at genuine skill invocation (Tier 2). A longer effective credential lifetime marginally widens the window in which a minted credential authorizes calls; this is an accepted tradeoff, bounded by the deterministic skill-activity check, and must be called out in the design.
+- **Behavioral effect for users** — in-context lifecycle skills (`/metta-next`, `/metta-execute`, `/metta-verify`, etc.) can once again complete artifacts and finalize from the main session without forking; the false-block class logged as `credential-expired` disappears for live skill sessions.
+- **orchestration-guard spec** — the capability's requirements covering Tier-2 credential freshness gain/modify requirements and scenarios; existing Tier-1 and classification requirements are unaffected.
+- **Test suite** — new integration tests for the mint/validate seam; existing guard tests must continue to pass (fail-closed behavior for absent/malformed/out-of-scope tokens is unchanged).
+
+## Out of Scope
+
+- **A full bash-grammar parser or new textual-evasion detection** in the guard — the documented wrapper/indirection limitations stand as accepted.
+- **Changes to Tier-1 (fork-tier) authorization** — `agent_type` verification, `SKILL_ENFORCED_SUBCOMMANDS`, and the background-Bash rejection are untouched.
+- **Changes to the allow/block subcommand classification lists** — no subcommand moves between tiers or lists in this change.
+- **The reporter's cwd-asymmetry candidate as a fix target** — worktree cwd mint/validate asymmetry surfaces as `missing-credential`, which the live audit entries do not show; it is covered by a repro test (main-session cwd AND worktree cwd) but any defect it reveals beyond the TTL gap is a separate issue, not silently patched here.
+- **Removing or weakening the guard** (e.g. allow-listing `complete`/`finalize`, honoring inline command text, or reviving the retired single-file `skill-session.token` credential).
+- **Claude Code runtime changes** — no assumption of new hook-ordering guarantees from the platform; the fix must work under the documented parallel, unordered PreToolUse execution.
+- **Migrating the hooks from `.mjs` to TypeScript** or restructuring the hook distribution mechanism.
