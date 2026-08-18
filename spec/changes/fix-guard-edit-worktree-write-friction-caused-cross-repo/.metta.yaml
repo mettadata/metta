@@ -1,22 +1,41 @@
 workflow: standard
 created: 2026-08-18T12:29:37.160Z
 status: active
-current_artifact: intent
+current_artifact: stories
 base_versions: {}
 artifacts:
-  intent: ready
-  stories: pending
+  intent: complete
+  stories: ready
   spec: pending
   research: pending
   design: pending
   tasks: pending
   implementation: pending
   verification: pending
+complexity_score:
+  score: 2
+  signals:
+    file_count: 5
+  recommended_workflow: standard
 artifact_timings:
   intent:
     started: 2026-08-18T12:29:42.062Z
+    completed: 2026-08-18T12:31:35.726Z
 artifact_tokens:
   intent:
     context: 763
     budget: 20000
 worktree: /home/utx0/Code/metta/.metta/worktrees/fix-guard-edit-worktree-write-friction-caused-cross-repo
+token_usage:
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 3817
+    timestamp: 2026-08-18T12:30:11.969Z
+    source: hook
+  - task: intent
+    agent: metta-proposer
+    model: fable
+    tokens: 6216
+    timestamp: 2026-08-18T12:31:31.324Z
+    source: hook
