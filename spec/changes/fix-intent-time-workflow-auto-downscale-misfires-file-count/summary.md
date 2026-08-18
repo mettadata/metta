@@ -24,3 +24,27 @@ Delta spec (merge target `adaptive-workflow-tier-selection`): MODIFIED `Complexi
 ## Recovery note
 
 This change's original skill-host fork became unreachable after its proposer wrote intent.md; per the residual orphaning recovery protocol the orchestrator confirmed it dead and re-dispatched, resuming from persisted state (recorded in the research-synthesis commit `cd6e3580b`).
+
+## Verification
+
+### Spec Scenarios
+
+All requirements/scenarios verified with cited test evidence (281/281 across the four touched suites):
+
+- [x] `ComplexityScoreComputation` — greenfield 0-file intent: no score/prompt/banner/state change (cli-complete:787 + scorer units); 1-file still scores; summary-time 0 remains a real signal (unit); score persisted from Impact
+- [x] `AutoDownscalePromptAtIntent` — non-TTY fail-closed (307/384); in-process TTY+`--json` isolation (620); auto-accept opt-in still collapses (250/754); interactive `[Y/n]` default; locked `[y/N]` both halves (417 non-TTY, 648 interactive TTY); quick-run exemption
+- [x] `DownscaleDecisionRecording` — auto-accept, interactive explicit-yes, and TTY default-Yes causes each asserted as distinct justification strings with valid timestamps; decline paths assert escalation-without-record
+- [x] `DownscaleDecisionSchema` — T-D1-D4 accept/reject incl. `.strict()` unknown-key rejection
+
+Informational gaps (non-blocking): no test re-runs `complete intent` against an existing escalation record (first-record-wins untested end-to-end); summary-time 0-file scenario unit-level only (persist plumbing proven by 2/5/15-file CLI tests).
+
+### Gate Results
+
+| Gate | Result |
+|------|--------|
+| tests (`npm test`) | PASS — 129 files, 2458/2458 (no flakes this run) |
+| typecheck / lint | PASS |
+| build | PASS |
+| diff scope | PASS — src/cli, src/complexity, src/schemas, tests/, spec/changes only; no templates or hooks |
+
+Review: 3 reviewers, 1 iteration — correctness PASS, security/quality PASS_WITH_WARNINGS; all warnings fixed in 9b724ed84; follow-up issue `auto-accepted-workflow-upscales-mutate-workflow-with-no` logged for the upscale audit asymmetry.
