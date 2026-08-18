@@ -23,10 +23,15 @@ artifact_timings:
   stories:
     started: 2026-08-18T01:30:12.039Z
     completed: 2026-08-18T01:31:08.416Z
+  spec:
+    started: 2026-08-18T01:31:13.364Z
 artifact_tokens:
   stories:
     context: 2281
     budget: 20000
+  spec:
+    context: 3415
+    budget: 40000
 worktree: /home/utx0/Code/metta/.metta/worktrees/fix-json-output-c1-control-passthrough-json-stringify
 token_usage:
   - task: metta-skill-host
