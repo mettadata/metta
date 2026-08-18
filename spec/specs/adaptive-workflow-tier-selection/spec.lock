@@ -1,13 +1,16 @@
-version: 60
-hash: sha256:9d3beeb4f0f0
-updated: 2026-07-14T04:58:02.189Z
+version: 61
+hash: sha256:4a74da34e7d6
+updated: 2026-08-18T06:48:35.040Z
 status: draft
 source: change
 requirements:
   - id: complexityscorecomputation
-    hash: sha256:5c9408b3593e
+    hash: sha256:1c468986ef89
     scenarios:
       - score-computed-from-impact-section
+      - zero-file-intent-is-no-signal
+      - single-file-intent-still-scores
+      - zero-files-at-summary-time-remains-real-signal
       - score-absent-before-intent-written
       - score-not-recomputed-on-intent-edit
       - score-uses-actual-files-from-summary-for-post-impl-recompute
@@ -39,9 +42,11 @@ requirements:
       - banner-upscale-state
       - banner-suppressed-when-score-absent
   - id: autodownscalepromptatintent
-    hash: sha256:9c6b56af49b8
+    hash: sha256:84217bce0cee
     scenarios:
-      - non-tty-unlocked-auto-downscales
+      - non-tty-downscale-fails-closed
+      - json-mode-downscale-fails-closed
+      - auto-accept-opt-in-still-collapses-non-interactively
       - interactive-unlocked-shows-yes-default
       - locked-change-defaults-to-no
   - id: autoupscalepromptatintent
@@ -128,3 +133,15 @@ requirements:
     scenarios:
       - reports-mean-artifact-count
       - no-data-renders-without-misleading-zero
+  - id: downscaledecisionschema
+    hash: sha256:62ed68fbeae7
+    scenarios:
+      - schema-accepts-populated-downscale-decision
+      - schema-accepts-legacy-file-without-downscale-decision
+      - downscale-decision-coexists-with-escalation-semantics
+  - id: downscaledecisionrecording
+    hash: sha256:65d74662b884
+    scenarios:
+      - auto-accept-collapse-writes-decision-record
+      - interactive-yes-collapse-writes-decision-record
+      - decline-path-unchanged-writes-escalation-not-decision
