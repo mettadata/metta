@@ -1,10 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { mkdtemp, rm, mkdir, writeFile } from 'node:fs/promises'
+import { mkdtemp, rm, mkdir, writeFile, readFile, appendFile, realpath } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { ArtifactStore } from '../src/artifacts/artifact-store.js'
+import { installFixture } from './helpers/cli.js'
 
 const execAsync = promisify(execFile)
 const CLI_PATH = join(import.meta.dirname, '..', 'src', 'cli', 'index.ts')
@@ -112,5 +114,171 @@ describe('metta instructions stamps timings + tokens', { timeout: 30000 }, () =>
     // Overwritten with the freshly-computed budget numbers (not 999/111).
     expect(meta.artifact_tokens?.intent?.context).toBe(payload.budget.context_tokens)
     expect(meta.artifact_tokens?.intent?.budget).toBe(payload.budget.budget_tokens)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Layer-3 main-tree baseline capture at implementation-instruction emission.
+// ---------------------------------------------------------------------------
+
+const INTENT_BODY = [
+  '# baseline demo',
+  '',
+  '## Problem',
+  '',
+  'A worktree-hosted change whose implementation instructions must trigger a',
+  'write-once snapshot of the MAIN checkout tracked-file status.',
+  '',
+  '## Proposal',
+  '',
+  'Emit implementation instructions and verify the baseline side effects.',
+  '',
+].join('\n')
+
+describe('metta instructions captures main-tree baseline (worktree-hosted)', { timeout: 60000 }, () => {
+  let tempDir: string
+
+  beforeEach(async () => {
+    tempDir = await realpath(await mkdtemp(join(tmpdir(), 'metta-instr-baseline-')))
+    await installFixture(tempDir)
+    await execAsync('git', ['config', 'user.email', 'test@test.com'], { cwd: tempDir })
+    await execAsync('git', ['config', 'user.name', 'Test'], { cwd: tempDir })
+    // A committed tracked file we can dirty to simulate main-checkout state.
+    await writeFile(join(tempDir, 'tracked.txt'), 'clean\n')
+    await execAsync('git', ['add', 'tracked.txt'], { cwd: tempDir })
+    await execAsync('git', ['commit', '-m', 'add tracked file'], { cwd: tempDir })
+  })
+
+  afterEach(async () => {
+    await rm(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
+  })
+
+  /** Create a worktree-hosted quick change with implementation ready. */
+  async function setupWorktreeChange(): Promise<string> {
+    const quick = await runCli(['--json', 'quick', 'baseline demo'], tempDir)
+    expect(quick.code).toBe(0)
+    const worktreePath = JSON.parse(quick.stdout).worktree as string
+    await writeFile(
+      join(worktreePath, 'spec', 'changes', 'baseline-demo', 'intent.md'),
+      INTENT_BODY,
+    )
+    const wtStore = new ArtifactStore(join(worktreePath, 'spec'))
+    await wtStore.markArtifact('baseline-demo', 'implementation', 'ready')
+    return worktreePath
+  }
+
+  const baselinePath = () =>
+    join(tempDir, '.metta', 'scratch', 'tree-baselines', 'baseline-demo.yaml')
+
+  it('records the baseline write-once for a worktree-hosted implementation instruction', async () => {
+    await setupWorktreeChange()
+
+    const first = await runCli(
+      ['--json', 'instructions', 'implementation', '--change', 'baseline-demo'],
+      tempDir,
+    )
+    expect(first.code).toBe(0)
+    expect(existsSync(baselinePath())).toBe(true)
+    const firstContent = await readFile(baselinePath(), 'utf8')
+    expect(firstContent).toContain('change: baseline-demo')
+    expect(firstContent).toContain(tempDir)
+
+    // Dirty main AFTER capture, then re-emit (verify-fail → re-execute
+    // retry shape): the original snapshot must survive byte for byte, so
+    // the later comparison attributes this dirt as NEW.
+    await appendFile(join(tempDir, 'tracked.txt'), 'contaminated\n')
+    const second = await runCli(
+      ['--json', 'instructions', 'implementation', '--change', 'baseline-demo'],
+      tempDir,
+    )
+    expect(second.code).toBe(0)
+    expect(await readFile(baselinePath(), 'utf8')).toBe(firstContent)
+    expect(await readFile(baselinePath(), 'utf8')).not.toContain('tracked.txt')
+  })
+
+  it('surfaces pre-existing main-checkout dirt as a stderr warning at capture time', async () => {
+    await setupWorktreeChange()
+    // Dirty main BEFORE the first implementation instruction: recorded in
+    // the baseline (never fails completion later) and warned about now.
+    await appendFile(join(tempDir, 'tracked.txt'), 'operator edit\n')
+
+    const result = await runCli(
+      ['--json', 'instructions', 'implementation', '--change', 'baseline-demo'],
+      tempDir,
+    )
+    expect(result.code).toBe(0)
+    expect(result.stderr).toContain('pre-existing dirty paths')
+    expect(result.stderr).toContain('tracked.txt')
+    expect(await readFile(baselinePath(), 'utf8')).toContain('tracked.txt')
+  })
+
+  it('does not capture a baseline for non-implementation artifacts', async () => {
+    await setupWorktreeChange()
+    const result = await runCli(
+      ['--json', 'instructions', 'intent', '--change', 'baseline-demo'],
+      tempDir,
+    )
+    expect(result.code).toBe(0)
+    expect(existsSync(join(tempDir, '.metta', 'scratch', 'tree-baselines'))).toBe(false)
+  })
+})
+
+describe('metta instructions baseline capture disengages / fails open (no git)', { timeout: 60000 }, () => {
+  let tempDir: string
+  let specDir: string
+
+  beforeEach(async () => {
+    tempDir = await realpath(await mkdtemp(join(tmpdir(), 'metta-instr-baseline-ng-')))
+    specDir = join(tempDir, 'spec')
+    await mkdir(specDir, { recursive: true })
+    await mkdir(join(tempDir, '.metta'), { recursive: true })
+    await writeFile(
+      join(tempDir, '.metta', 'config.yaml'),
+      'project:\n  name: instr-baseline-test\n',
+    )
+  })
+
+  afterEach(async () => {
+    await rm(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
+  })
+
+  it('does not capture a baseline for a non-worktree change', async () => {
+    const store = new ArtifactStore(specDir)
+    await store.createChange('local demo', 'quick', ['intent', 'implementation', 'verification'])
+    await writeFile(join(specDir, 'changes', 'local-demo', 'intent.md'), INTENT_BODY)
+    await store.markArtifact('local-demo', 'implementation', 'ready')
+
+    const result = await runCli(
+      ['--json', 'instructions', 'implementation', '--change', 'local-demo'],
+      tempDir,
+    )
+    expect(result.code).toBe(0)
+    // Layer 3 disengaged: no baseline dir, no baseline-related stderr.
+    expect(existsSync(join(tempDir, '.metta', 'scratch', 'tree-baselines'))).toBe(false)
+    expect(result.stderr).not.toContain('tree baseline')
+  })
+
+  it('git failure at capture warns and never blocks instruction emission', async () => {
+    // Worktree-hosted change layout with NO git repo anywhere: root
+    // resolution succeeds (path math), then `git status` at the main root
+    // fails — the capture must warn and the command must still succeed.
+    const wtDir = join(tempDir, '.metta', 'worktrees', 'gitless-wt')
+    await mkdir(join(wtDir, 'spec', 'changes'), { recursive: true })
+    const wtStore = new ArtifactStore(join(wtDir, 'spec'))
+    await wtStore.createChange('gitless wt', 'quick', ['intent', 'implementation', 'verification'])
+    await writeFile(join(wtDir, 'spec', 'changes', 'gitless-wt', 'intent.md'), INTENT_BODY)
+    await wtStore.markArtifact('gitless-wt', 'implementation', 'ready')
+
+    const result = await runCli(
+      ['--json', 'instructions', 'implementation', '--change', 'gitless-wt'],
+      tempDir,
+    )
+    expect(result.code).toBe(0)
+    const payload = JSON.parse(result.stdout)
+    expect(payload.metta_agent).toBeTruthy()
+    expect(result.stderr).toContain('failed to capture main-checkout tree baseline for gitless-wt')
+    expect(
+      existsSync(join(tempDir, '.metta', 'scratch', 'tree-baselines', 'gitless-wt.yaml')),
+    ).toBe(false)
   })
 })

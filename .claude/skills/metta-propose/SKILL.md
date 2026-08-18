@@ -285,6 +285,7 @@ Routing decision:
 - If metta finalize fails gates, spawn a metta-executor to fix, then retry
 - Direct local merge of the change branch into main (`git merge`) is forbidden — every change ships through a pushed branch and a GitHub PR
 - If a dispatched step appears orphaned, follow the residual orphaning recovery protocol in metta-skill-host.md.
+- If an executor or verifier STOP-reports a silent-write anomaly (Edit/Write success with no on-disk effect), escalate to the user with the report; never work around it via bash writes or orchestrator-performed writes.
 
 ## Agent Execution Pattern
 

@@ -45,7 +45,7 @@ Agent(subagent_type: "metta-executor", description: "Task 2.1: build auth API", 
 Agent(subagent_type: "metta-executor", description: "Task 2.2: build product API", prompt: "...")
 ```
 
-For **every** executor spawn (parallel or sequential, first run or re-run — not just the examples above): read `agent.model` from `metta instructions <id> --json`. If it is not `inherit`, pass it as `Agent(subagent_type: "metta-executor", model: "<value>", ...)`. If it is `inherit`, omit the `model` parameter. Pass the payload's `change_root` into every executor prompt: all file paths handed to an executor must be absolute under `{change_root}`, and all commits it makes must use `git -C "{change_root}"` — never plain git from the session cwd.
+For **every** executor spawn (parallel or sequential, first run or re-run — not just the examples above): read `agent.model` from `metta instructions <id> --json`. If it is not `inherit`, pass it as `Agent(subagent_type: "metta-executor", model: "<value>", ...)`. If it is `inherit`, omit the `model` parameter. Pass the payload's `change_root` into every executor prompt: all file paths handed to an executor must be absolute under `{change_root}`, and all commits it makes must use `git -C "{change_root}"` — never plain git from the session cwd. Executors are bound by change_root shell-write path discipline: every bash-mediated file write must target an absolute path under `{change_root}` — include the `change_root` value in every executor prompt for this reason.
 
 Token recording is automatic — a SubagentStop hook records each subagent's harness-measured usage; do not run `metta tokens record` after subagent returns. Only if the hook is unavailable, record manually: `metta tokens record --task <artifact-or-task-id> --agent <subagent-type> --model <alias> --tokens <count> --change <name> --source prose`.
 
@@ -61,5 +61,8 @@ Read the **Files** field of each task in the batch. If any two tasks list the sa
 - Missing utility → add + separate commit
 - Blocked (>10 lines to fix) → STOP, report back to orchestrator (orchestrator: see STOP handling below before re-invoking)
 - Design is wrong → STOP immediately, report back to orchestrator
+- Silent-write anomaly (Edit/Write reports success but the change is not on disk, verified via Bash) → STOP immediately, report the target path(s) and evidence — NEVER rewrite the content via bash (heredoc, redirection, script)
 
 **STOP handling (orchestrator):** when an executor that ran under a non-`inherit` model reports STOP, before re-invoking the executor for the affected task run `metta model-escalation record --task <id> --from <resolved-model> --to inherit --trigger stop_deviation --change <name>`, then re-invoke the executor with the `model` parameter omitted (top-tier).
+
+**Silent-write STOP handling (orchestrator):** when an executor STOP-reports a silent-write anomaly (Edit/Write reported success but the file on disk was unchanged), ESCALATE to the user immediately with the executor's report (target path, success-without-effect observation). Do NOT work around it: do not re-dispatch the executor with instructions to write via bash, and do not perform the write yourself — in or outside the worktree. This anomaly indicates a harness-level fault; only the user can decide to continue (e.g. restart the session).

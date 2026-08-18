@@ -333,4 +333,167 @@ describe('MergeSafetyPipeline', () => {
       expect(result.steps.find(s => s.step === 'rebuild-dist')).toBeUndefined()
     })
   })
+
+  describe('main-checkout-clean', () => {
+    /**
+     * Worktree-hosted change fixture: a linked worktree at the metta layout
+     * path (`<main>/.metta/worktrees/<name>`) on a `metta/<name>` branch with
+     * one committed change, mirroring how ship encounters worktree changes.
+     */
+    async function setupWorktreeChange(name: string): Promise<{ worktreeDir: string; mainBranch: string }> {
+      const mainBranch = (await execAsync('git branch --show-current', { cwd: tempDir })).stdout.trim()
+      const worktreeDir = join(tempDir, '.metta', 'worktrees', name)
+      await mkdir(join(tempDir, '.metta', 'worktrees'), { recursive: true })
+      await execAsync(`git worktree add "${worktreeDir}" -b "metta/${name}"`, { cwd: tempDir })
+      await execAsync(`echo "${name}" > wt-${name}.txt && git add . && git commit -m "wt ${name}"`, { cwd: worktreeDir })
+      return { worktreeDir, mainBranch }
+    }
+
+    it('fails the ship when the main checkout accumulated new dirt since the baseline', async () => {
+      const { mainBranch } = await setupWorktreeChange('dirt')
+      await mkdir(join(tempDir, 'spec', 'archive', '2026-08-18-dirt'), { recursive: true })
+      // New dirt: a tracked file modified after the (empty) baseline snapshot.
+      await writeFile(join(tempDir, 'file.txt'), 'contaminated\n')
+      const targetHeadBefore = (await execAsync(`git rev-parse ${mainBranch}`, { cwd: tempDir })).stdout.trim()
+
+      const pipeline = new MergeSafetyPipeline(tempDir, undefined, {
+        mainCheckout: { root: tempDir, baselineEntries: [] },
+      })
+      const result = await pipeline.run('metta/dirt', mainBranch)
+
+      expect(result.status).toBe('failure')
+      const step = result.steps.find(s => s.step === 'main-checkout-clean')
+      expect(step?.status).toBe('fail')
+      expect(step?.detail).toContain('file.txt')
+      // Placed after finalize-check and before preflight; the fail short-circuits.
+      expect(result.steps.map(s => s.step)).toEqual(['finalize-check', 'main-checkout-clean'])
+      // Detection only — the target branch never moved.
+      const targetHeadAfter = (await execAsync(`git rev-parse ${mainBranch}`, { cwd: tempDir })).stdout.trim()
+      expect(targetHeadAfter).toBe(targetHeadBefore)
+    })
+
+    it('flags a status transition on a pre-existing path as new dirt', async () => {
+      const { mainBranch } = await setupWorktreeChange('transition')
+      await mkdir(join(tempDir, 'spec', 'archive', '2026-08-18-transition'), { recursive: true })
+      // Baseline saw ` M file.txt`; staging it since flips the status to `M ` — new dirt.
+      await writeFile(join(tempDir, 'file.txt'), 'staged since baseline\n')
+      await execAsync('git add file.txt', { cwd: tempDir })
+
+      const pipeline = new MergeSafetyPipeline(tempDir, undefined, {
+        mainCheckout: { root: tempDir, baselineEntries: [{ path: 'file.txt', status: ' M' }] },
+      })
+      const result = await pipeline.run('metta/transition', mainBranch)
+
+      expect(result.status).toBe('failure')
+      const step = result.steps.find(s => s.step === 'main-checkout-clean')
+      expect(step?.status).toBe('fail')
+      expect(step?.detail).toContain('file.txt')
+    })
+
+    it('strips control characters from dirt paths in the human-readable detail', async () => {
+      const { mainBranch } = await setupWorktreeChange('escape')
+      await mkdir(join(tempDir, 'spec', 'archive', '2026-08-18-escape'), { recursive: true })
+      // A staged file whose name embeds an ANSI escape introducer — the
+      // detail string must not carry the raw ESC byte to the terminal.
+      const evilName = 'evil\x1b[31mred.txt'
+      await writeFile(join(tempDir, evilName), 'dirt\n')
+      await execAsync(`git add "${evilName}"`, { cwd: tempDir })
+
+      const pipeline = new MergeSafetyPipeline(tempDir, undefined, {
+        mainCheckout: { root: tempDir, baselineEntries: [] },
+      })
+      const result = await pipeline.run('metta/escape', mainBranch)
+
+      expect(result.status).toBe('failure')
+      const step = result.steps.find(s => s.step === 'main-checkout-clean')
+      expect(step?.status).toBe('fail')
+      expect(step?.detail).not.toContain('\x1b')
+      expect(step?.detail).toContain('evil[31mred.txt')
+    })
+
+    it('passes with a warning on pre-existing dirt only and the pipeline continues', async () => {
+      const { worktreeDir, mainBranch } = await setupWorktreeChange('preexist')
+      // finalize-check reads spec/archive relative to the pipeline cwd (the worktree here).
+      await mkdir(join(worktreeDir, 'spec', 'archive', '2026-08-18-preexist'), { recursive: true })
+      // Dirt already present at baseline capture time, unchanged since.
+      await writeFile(join(tempDir, 'file.txt'), 'operator edit\n')
+
+      const pipeline = new MergeSafetyPipeline(worktreeDir, undefined, {
+        mainCheckout: { root: tempDir, baselineEntries: [{ path: 'file.txt', status: ' M' }] },
+      })
+      const result = await pipeline.run('metta/preexist', mainBranch, true)
+
+      const step = result.steps.find(s => s.step === 'main-checkout-clean')
+      expect(step?.status).toBe('pass')
+      expect(step?.detail).toContain('pre-existing')
+      expect(step?.detail).toContain('file.txt')
+      // Warn-never-block: the pipeline proceeded past the step into preflight.
+      const names = result.steps.map(s => s.step)
+      expect(names.indexOf('main-checkout-clean')).toBe(names.indexOf('finalize-check') + 1)
+      expect(names).toContain('preflight')
+    })
+
+    it('skips when no baseline was recorded and the ship proceeds to success', async () => {
+      const { mainBranch } = await setupWorktreeChange('nobase')
+      await mkdir(join(tempDir, 'spec', 'archive', '2026-08-18-nobase'), { recursive: true })
+
+      const pipeline = new MergeSafetyPipeline(tempDir, undefined, {
+        mainCheckout: { root: tempDir, baselineEntries: null },
+      })
+      const result = await pipeline.run('metta/nobase', mainBranch)
+
+      const step = result.steps.find(s => s.step === 'main-checkout-clean')
+      expect(step?.status).toBe('skip')
+      expect(step?.detail).toContain('no baseline')
+      expect(result.status).toBe('success')
+      // Placement pin: after finalize-check, before preflight.
+      expect(result.steps.slice(0, 3).map(s => s.step)).toEqual([
+        'finalize-check',
+        'main-checkout-clean',
+        'preflight',
+      ])
+    })
+
+    it('skips (fail-open) when the main checkout status cannot be read', async () => {
+      const { mainBranch } = await setupWorktreeChange('gitfail')
+      await mkdir(join(tempDir, 'spec', 'archive', '2026-08-18-gitfail'), { recursive: true })
+
+      const pipeline = new MergeSafetyPipeline(tempDir, undefined, {
+        mainCheckout: { root: join(tempDir, 'does-not-exist'), baselineEntries: [] },
+      })
+      const result = await pipeline.run('metta/gitfail', mainBranch)
+
+      const step = result.steps.find(s => s.step === 'main-checkout-clean')
+      expect(step?.status).toBe('skip')
+      expect(step?.detail).toContain('could not read git status')
+      expect(result.status).toBe('success')
+    })
+
+    it('non-worktree ships produce a byte-identical step list with no main-checkout-clean step', async () => {
+      await execAsync('git checkout -b plain-ship', { cwd: tempDir })
+      await execAsync('echo "p" > p.txt && git add . && git commit -m "p"', { cwd: tempDir })
+      await execAsync('git checkout main || git checkout master', { cwd: tempDir })
+      const mainBranch = (await execAsync('git branch --show-current', { cwd: tempDir })).stdout.trim()
+
+      const pipeline = new MergeSafetyPipeline(tempDir)
+      const result = await pipeline.run('plain-ship', mainBranch)
+
+      expect(result.status).toBe('success')
+      // Exact pre-change step sequence — pinned so the new step can never leak
+      // into non-worktree ships.
+      expect(result.steps.map(s => s.step)).toEqual([
+        'finalize-check',
+        'preflight',
+        'base-drift-check',
+        'checkout-target',
+        'dry-run-merge',
+        'scope-check',
+        'gate-verification',
+        'snapshot',
+        'merge',
+        'post-merge-gates',
+        'rebuild-dist',
+      ])
+    })
+  })
 })

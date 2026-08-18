@@ -1,11 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { mkdtemp, rm, mkdir, writeFile, readFile } from 'node:fs/promises'
+import { mkdtemp, rm, mkdir, writeFile, readFile, realpath } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { Command } from 'commander'
 import { runCli, execAsync, CLI_PATH, disableWorktrees, installFixture } from './helpers/cli.js'
 import { registerCompleteCommand } from '../src/cli/commands/complete.js'
+import { captureMainTreeBaseline } from '../src/util/git-tree-baseline.js'
 
 // Scripted TTY prompt state for the in-process interactive downscale tests.
 // When `answers` is non-empty, the node:readline mock below intercepts
@@ -1638,6 +1639,244 @@ describe("CLI: instructions banners / complete tier downscale & upscale", { time
       )
       expect(code).toBe(0)
       expect(stderr).not.toContain('Invalid change name')
+    })
+  })
+
+
+  describe('metta complete main-tree contamination gate', { timeout: 60000 }, () => {
+    beforeEach(async () => {
+      // realpath so the CLI subprocess's resolved cwd matches the paths the
+      // in-process baseline capture records (symlinked tmpdirs otherwise
+      // yield a main_root mismatch, which reads as "no baseline").
+      tempDir = await realpath(tempDir)
+      await installFixture(tempDir)
+      await execAsync('git', ['config', 'user.email', 'test@test.com'], { cwd: tempDir })
+      await execAsync('git', ['config', 'user.name', 'Test'], { cwd: tempDir })
+    })
+
+    // Create and commit a tracked file in the MAIN checkout so later edits
+    // to it register under `git status --untracked-files=no`.
+    async function commitTrackedFile(name: string, content: string): Promise<string> {
+      const path = join(tempDir, name)
+      await writeFile(path, content, 'utf8')
+      await execAsync('git', ['add', name], { cwd: tempDir })
+      await execAsync('git', ['commit', '-m', `add ${name}`], { cwd: tempDir })
+      return path
+    }
+
+    async function createWorktreeQuickChange(
+      desc: string,
+    ): Promise<{ slug: string; worktreePath: string }> {
+      const quick = await runCli(['--json', 'quick', desc], tempDir)
+      expect(quick.code).toBe(0)
+      const data = JSON.parse(quick.stdout) as { change: string; worktree: string | null }
+      expect(data.worktree).toBeTruthy()
+      return { slug: data.change, worktreePath: data.worktree as string }
+    }
+
+    async function mainStatusUno(): Promise<string> {
+      const { stdout } = await execAsync(
+        'git',
+        ['status', '--porcelain=v1', '--untracked-files=no'],
+        { cwd: tempDir },
+      )
+      return stdout
+    }
+
+    async function mainHead(): Promise<string> {
+      const { stdout } = await execAsync('git', ['rev-parse', 'HEAD'], { cwd: tempDir })
+      return stdout.trim()
+    }
+
+    it('contamination: exits 4 listing only newly-dirty paths, artifact not marked, main not mutated', async () => {
+      const contamFile = await commitTrackedFile('contam-target.txt', 'original\n')
+      const preFile = await commitTrackedFile('pre-existing.txt', 'original\n')
+      const { slug, worktreePath } = await createWorktreeQuickChange('contamination gate case')
+
+      // Pre-existing operator dirt, present at baseline-capture time.
+      await writeFile(preFile, 'operator edit before baseline\n', 'utf8')
+      await captureMainTreeBaseline(tempDir, slug)
+
+      // New dirt after the baseline: the banned contamination class.
+      await writeFile(contamFile, 'contaminated by executor\n', 'utf8')
+
+      const headBefore = await mainHead()
+      const statusBefore = await mainStatusUno()
+
+      const { stderr, code } = await runCli(
+        ['complete', 'implementation', '--change', slug],
+        tempDir,
+      )
+      // Pre-change behavior: the gate did not exist and this completed with
+      // exit 0 — the exit-4 assertion demonstrably fails against it.
+      expect(code).toBe(4)
+      // Newly-dirty path listed with its XY porcelain status code.
+      expect(stderr).toContain('[ M] contam-target.txt')
+      // Remediation text present.
+      expect(stderr).toContain('commit or stash')
+      expect(stderr).toContain('re-run metta complete implementation')
+      // ONLY new dirt is listed — the pre-existing path never appears.
+      expect(stderr).not.toContain('pre-existing.txt')
+
+      // Artifact NOT marked complete — the throw precedes markArtifact.
+      const meta = await readFile(
+        join(worktreePath, 'spec', 'changes', slug, '.metta.yaml'),
+        'utf8',
+      )
+      expect(meta).not.toContain('implementation: complete')
+
+      // Detection never mutates the main checkout: file content, porcelain
+      // status, and HEAD are all byte-identical to the pre-run state.
+      expect(await readFile(contamFile, 'utf8')).toBe('contaminated by executor\n')
+      expect(await mainStatusUno()).toBe(statusBefore)
+      expect(await mainHead()).toBe(headBefore)
+    })
+
+    it('--json: contamination error payload carries type main_tree_contamination with code 4', async () => {
+      const contamFile = await commitTrackedFile('json-contam.txt', 'original\n')
+      const { slug } = await createWorktreeQuickChange('json contamination case')
+      await captureMainTreeBaseline(tempDir, slug)
+      await writeFile(contamFile, 'contaminated\n', 'utf8')
+
+      const { stdout, code } = await runCli(
+        ['--json', 'complete', 'implementation', '--change', slug],
+        tempDir,
+      )
+      expect(code).toBe(4)
+      const data = JSON.parse(stdout)
+      expect(data.error.code).toBe(4)
+      expect(data.error.type).toBe('main_tree_contamination')
+      expect(data.error.message).toContain('json-contam.txt')
+      expect(data.error.message).toContain('commit or stash')
+    })
+
+    it('no baseline: warns on stderr and passes, implementation marked complete', async () => {
+      const dirtFile = await commitTrackedFile('unattributed.txt', 'original\n')
+      const { slug, worktreePath } = await createWorktreeQuickChange('no baseline case')
+      // Dirty main with NO baseline recorded: dirt cannot be attributed, so
+      // the gate must warn and pass rather than hard-fail on absence.
+      await writeFile(dirtFile, 'dirt of unknown origin\n', 'utf8')
+
+      const { stderr, code } = await runCli(
+        ['complete', 'implementation', '--change', slug],
+        tempDir,
+      )
+      expect(code).toBe(0)
+      expect(stderr).toContain('no main-tree baseline')
+      const meta = await readFile(
+        join(worktreePath, 'spec', 'changes', slug, '.metta.yaml'),
+        'utf8',
+      )
+      expect(meta).toContain('implementation: complete')
+    })
+
+    it('pre-existing dirt only: passes with a stderr warning, never blocks', async () => {
+      const preFile = await commitTrackedFile('operator-dirt.txt', 'original\n')
+      const { slug, worktreePath } = await createWorktreeQuickChange('pre existing case')
+      await writeFile(preFile, 'operator edit before baseline\n', 'utf8')
+      await captureMainTreeBaseline(tempDir, slug)
+
+      const { stderr, code } = await runCli(
+        ['complete', 'implementation', '--change', slug],
+        tempDir,
+      )
+      expect(code).toBe(0)
+      expect(stderr).toContain('pre-existing dirt')
+      expect(stderr).not.toContain('accumulated new dirt')
+      const meta = await readFile(
+        join(worktreePath, 'spec', 'changes', slug, '.metta.yaml'),
+        'utf8',
+      )
+      expect(meta).toContain('implementation: complete')
+    })
+
+    it('git failure during the compare: warns "cleanliness check skipped" on stderr and completes (fail-open)', async () => {
+      const { slug, worktreePath } = await createWorktreeQuickChange('git failure fail open case')
+      await captureMainTreeBaseline(tempDir, slug)
+      // Corrupt the MAIN checkout's git index AFTER the baseline is
+      // recorded: the gate's `git status` read now fails with an
+      // infrastructure error, not a contamination verdict. Only
+      // MainTreeContaminationError may block completion — any other error
+      // from the compare must warn and fall through. (The worktree keeps
+      // its own index, so the change-side git state is unaffected.)
+      await writeFile(join(tempDir, '.git', 'index'), 'garbage', 'utf8')
+
+      const { stderr, code } = await runCli(
+        ['complete', 'implementation', '--change', slug],
+        tempDir,
+      )
+      expect(code).toBe(0)
+      expect(stderr).toContain('main-checkout cleanliness check skipped')
+      const meta = await readFile(
+        join(worktreePath, 'spec', 'changes', slug, '.metta.yaml'),
+        'utf8',
+      )
+      expect(meta).toContain('implementation: complete')
+    })
+
+    it('control characters in a newly-dirty filename: stripped from human output, raw in --json new_dirt', async () => {
+      // A tracked filename carrying an ANSI escape (ESC) and a BEL — the
+      // terminal-injection class. porcelain -z reports paths verbatim, so
+      // the raw bytes reach the CLI; the human-readable listing must strip
+      // them while the JSON payload keeps the raw path.
+      const evilName = 'evil-\u001b[31mred-\u0007bell.txt'
+      const evilPath = await commitTrackedFile(evilName, 'original\n')
+      const { slug } = await createWorktreeQuickChange('control char filename case')
+      await captureMainTreeBaseline(tempDir, slug)
+      await writeFile(evilPath, 'contaminated\n', 'utf8')
+
+      const human = await runCli(
+        ['complete', 'implementation', '--change', slug],
+        tempDir,
+      )
+      expect(human.code).toBe(4)
+      // No control bytes reach the terminal…
+      expect(human.stderr).not.toContain('\u001b')
+      expect(human.stderr).not.toContain('\u0007')
+      // …but the stripped rendition of the path is still listed.
+      expect(human.stderr).toContain('[ M] evil-[31mred-bell.txt')
+
+      const jsonRun = await runCli(
+        ['--json', 'complete', 'implementation', '--change', slug],
+        tempDir,
+      )
+      expect(jsonRun.code).toBe(4)
+      const data = JSON.parse(jsonRun.stdout)
+      expect(data.error.type).toBe('main_tree_contamination')
+      // JSON output is escape-safe by construction: the payload carries the
+      // RAW path for machine consumers.
+      const dirtPaths = (data.error.new_dirt as Array<{ path: string }>).map(e => e.path)
+      expect(dirtPaths).toContain(evilName)
+    })
+
+    it('non-worktree change: gate disengaged even with a dirty main and a present baseline', async () => {
+      await disableWorktrees(tempDir)
+      const dirtFile = await commitTrackedFile('local-dirt.txt', 'original\n')
+      const quick = await runCli(['--json', 'quick', 'non worktree case'], tempDir)
+      expect(quick.code).toBe(0)
+      const data = JSON.parse(quick.stdout) as { change: string; worktree: string | null }
+      expect(data.worktree).toBeNull()
+      const slug = data.change
+
+      // Adversarial fixture: a baseline file exists AND the tree is dirty —
+      // the gate must still disengage because the change is not
+      // worktree-hosted (resolveMainCheckoutRoot yields null).
+      await captureMainTreeBaseline(tempDir, slug)
+      await writeFile(dirtFile, 'modified after baseline\n', 'utf8')
+
+      const { stderr, code } = await runCli(
+        ['complete', 'implementation', '--change', slug],
+        tempDir,
+      )
+      expect(code).toBe(0)
+      expect(stderr).not.toContain('main-tree baseline')
+      expect(stderr).not.toContain('accumulated new dirt')
+      expect(stderr).not.toContain('pre-existing dirt')
+      const meta = await readFile(
+        join(tempDir, 'spec', 'changes', slug, '.metta.yaml'),
+        'utf8',
+      )
+      expect(meta).toContain('implementation: complete')
     })
   })
 

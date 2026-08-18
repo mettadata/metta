@@ -318,11 +318,16 @@ Banned patterns and forbidden operations.
           // Constitution already exists
         })
 
-        // Create .gitignore entries
-        const gitignoreContent = `.metta/state.yaml
-.metta/local.yaml
-.metta/logs/
-.metta/state.lock
+        // Create .gitignore entries. This file lives at .metta/.gitignore, so
+        // patterns must be relative to the .metta/ directory itself: a pattern
+        // containing a non-trailing slash (like `.metta/state.yaml`) is anchored
+        // to the .gitignore's own directory and would only match
+        // `.metta/.metta/state.yaml` — i.e. nothing.
+        const gitignoreContent = `state.yaml
+local.yaml
+logs/
+state.lock
+scratch/
 `
         // Best-effort write with the exclusive `wx` flag: if .metta/.gitignore
         // already exists from a prior install run, the EEXIST is expected and we

@@ -2,10 +2,11 @@ import { Command } from 'commander'
 import { join } from 'node:path'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import { createCliContext, outputJson, agentBanner, getErrorMessage, resolveChangeRoot } from '../helpers.js'
+import { createCliContext, outputJson, agentBanner, getErrorMessage, resolveChangeRoot, resolveMainCheckoutRoot } from '../helpers.js'
 import { renderBanner } from '../../complexity/index.js'
 import { loadAgentDefinition, AgentResolutionError } from '../../agents/index.js'
 import { assertSafeSlug } from '../../util/slug.js'
+import { captureMainTreeBaseline } from '../../util/git-tree-baseline.js'
 
 const execAsync = promisify(execFile)
 
@@ -186,6 +187,33 @@ export function registerInstructionsCommand(program: Command): void {
             process.stderr.write(
               `Warning: failed to record instructions metrics for ${artifactId}: ${getErrorMessage(err)}\n`,
             )
+          }
+
+          // Layer-3 main-tree baseline capture: snapshot the MAIN checkout's
+          // tracked-file status the first time implementation instructions
+          // are issued for a worktree-hosted change — the code-level "before
+          // execution begins" moment. Write-once: verify-fail → re-execute
+          // retries keep comparing against the original snapshot. Best-effort
+          // end to end (mirrors the timings-stamp semantics above): capture
+          // failure warns and MUST NOT block instruction emission. Non-
+          // worktree changes resolve no main root and skip entirely —
+          // byte-identical to pre-baseline behavior.
+          if (artifactId === 'implementation') {
+            try {
+              const mainRoot = await resolveMainCheckoutRoot(ctx.projectRoot, changeName, metadata)
+              if (mainRoot !== null) {
+                const { preExisting } = await captureMainTreeBaseline(mainRoot, changeName)
+                if (preExisting.length > 0) {
+                  process.stderr.write(
+                    `Warning: main checkout at ${mainRoot} has pre-existing dirty paths recorded in the tree baseline (they warn but never fail completion): ${preExisting.map(e => e.path).join(', ')}\n`,
+                  )
+                }
+              }
+            } catch (err) {
+              process.stderr.write(
+                `Warning: failed to capture main-checkout tree baseline for ${changeName}: ${getErrorMessage(err)}\n`,
+              )
+            }
           }
 
           // Durability fix: the metrics stamp above lands in the working

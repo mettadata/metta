@@ -5,9 +5,12 @@ import {
   handleError,
   outputJson,
   resolveChangeRoot,
+  resolveMainCheckoutRoot,
   resolveProjectRoot,
 } from '../src/cli/helpers.js'
 import { mkdtemp, rm, mkdir } from 'node:fs/promises'
+import { realpathSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { z } from 'zod'
@@ -346,6 +349,65 @@ describe('resolveChangeRoot', () => {
   it('rejects the worktrees dir itself — only strict children qualify', () => {
     const worktreesDir = join('/repo', '.metta', 'worktrees')
     expect(resolveChangeRoot('/repo', { worktree: worktreesDir })).toBe('/repo')
+  })
+})
+
+describe('resolveMainCheckoutRoot', () => {
+  let rootDir: string
+
+  beforeEach(async () => {
+    // realpathSync so path-math and git-derived roots compare against the
+    // same canonical fixture path (tmpdir may be symlinked on some hosts).
+    rootDir = realpathSync(await mkdtemp(join(tmpdir(), 'metta-mainroot-')))
+  })
+
+  afterEach(async () => {
+    await rm(rootDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
+  })
+
+  it('main-checkout invocation: injected worktree metadata resolves to projectRoot', async () => {
+    const worktree = join('/repo', '.metta', 'worktrees', 'demo')
+    await expect(resolveMainCheckoutRoot('/repo', 'demo', { worktree })).resolves.toBe('/repo')
+  })
+
+  it('in-worktree invocation (real linked worktree): derives the hosting main root', async () => {
+    const main = join(rootDir, 'main')
+    await mkdir(main, { recursive: true })
+    const git = (...args: string[]): void => {
+      execFileSync('git', ['-C', main, ...args], { stdio: 'ignore' })
+    }
+    git('init', '-q')
+    git('-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '--allow-empty', '-m', 'init')
+    const worktree = join(main, '.metta', 'worktrees', 'demo')
+    git('worktree', 'add', '-q', '-b', 'metta/demo', worktree)
+
+    // metadata carries no worktree (local discovery) — the git cross-check
+    // and the suffix path math agree on the hosting checkout.
+    await expect(resolveMainCheckoutRoot(worktree, 'demo', {})).resolves.toBe(main)
+  })
+
+  it('in-worktree invocation without git: path-math suffix strip still resolves', async () => {
+    const main = join(rootDir, 'plain')
+    const worktree = join(main, '.metta', 'worktrees', 'demo')
+    await mkdir(worktree, { recursive: true })
+    // No git repository anywhere in the fixture — the rev-parse fallback
+    // fails and the pure `<worktreeDir>/<name>` suffix strip stands alone.
+    await expect(resolveMainCheckoutRoot(worktree, 'demo', {})).resolves.toBe(main)
+  })
+
+  it('non-worktree change: returns null (layer 3 disengaged)', async () => {
+    await expect(resolveMainCheckoutRoot('/repo', 'demo', {})).resolves.toBeNull()
+    // A containment-rejected worktree value behaves like absent metadata:
+    // resolveChangeRoot falls back to projectRoot, and projectRoot is not a
+    // worktree path — still null.
+    await expect(
+      resolveMainCheckoutRoot('/repo', 'demo', { worktree: '/elsewhere/evil' }),
+    ).resolves.toBeNull()
+  })
+
+  it('worktree for a different change (name mismatch): returns null', async () => {
+    const worktree = join('/repo', '.metta', 'worktrees', 'other')
+    await expect(resolveMainCheckoutRoot(worktree, 'demo', {})).resolves.toBeNull()
   })
 })
 
