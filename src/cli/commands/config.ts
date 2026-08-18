@@ -4,6 +4,7 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { createCliContext, outputJson, getErrorMessage } from '../helpers.js'
 import { setProjectField } from '../../config/config-writer.js'
+import { escapeJsonControls } from '../../util/escape-json-controls.js'
 
 /**
  * Coerce a raw CLI string value to its typed form, matching the coercion
@@ -55,7 +56,7 @@ export function registerConfigCommand(program: Command): void {
         if (json) {
           outputJson({ key, value })
         } else {
-          console.log(typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value ?? 'undefined'))
+          console.log(typeof value === 'object' ? escapeJsonControls(JSON.stringify(value, null, 2)) : String(value ?? 'undefined'))
         }
       } catch (err) {
         const message = getErrorMessage(err)

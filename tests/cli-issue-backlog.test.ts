@@ -521,6 +521,34 @@ describe("CLI: issue / fix-issue / backlog / branch-safety / check-constitution"
       expect(data.title).toBe('\x1b[31mEVIL\x1b[0m heading')
       expect(data.description).toBe('first \x1b[2Jbody line\nsecond \x9bbody line')
     })
+
+    it('issues show --json escapes DEL/C1 code units at the stdout edge and round-trips', async () => {
+      const hostileTitle = 'csi \x9b6n title \x7f end'
+      const hostileFile =
+        `# ${hostileTitle}\n` +
+        '\n' +
+        '**Captured**: 2026-08-18\n' +
+        '**Status**: logged\n' +
+        '**Severity**: minor\n' +
+        '\n' +
+        'plain body line\n'
+      await installFixture(tempDir)
+      await runCli(['issue', 'hostile c1', '--severity', 'minor'], tempDir)
+      const path = join(tempDir, 'spec', 'issues', 'hostile-c1.md')
+      await writeFile(path, hostileFile, 'utf8')
+
+      const jsonRes = await runCli(['--json', 'issues', 'show', 'hostile-c1'], tempDir)
+      expect(jsonRes.code).toBe(0)
+      // (a) No raw DEL/C1 code unit anywhere on stdout; U+009B appears as the
+      // six-character escape text (backslash, u, 0, 0, 9, b) instead.
+      expect(jsonRes.stdout).not.toMatch(/[\x7f-\x9f]/)
+      expect(jsonRes.stdout).toContain('\\u009b')
+      // (b) The escaped JSON still parses back to the exact stored title.
+      const data = JSON.parse(jsonRes.stdout) as { title: string }
+      expect(data.title).toBe(hostileTitle)
+      // (c) Render-edge only: the stored issue file is byte-identical.
+      expect(await readFile(path, 'utf8')).toBe(hostileFile)
+    })
   })
 
 

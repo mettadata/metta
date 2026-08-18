@@ -1,6 +1,6 @@
-version: 27
-hash: sha256:afbb53bf518f
-updated: 2026-08-17T01:45:42.765Z
+version: 30
+hash: sha256:43f91d9f2103
+updated: 2026-08-18T02:28:41.403Z
 status: draft
 source: change
 requirements:
@@ -144,3 +144,22 @@ requirements:
       - full-scored-change-renders-a-capped-advisory
       - standard-over-quick-recommendation-is-unchanged
       - scoring-values-are-untouched-by-the-cap
+  - id: cli-json-output-escapes-del-and-c1-control-characters
+    hash: sha256:dc1d8a8cfc48
+    scenarios:
+      - raw-csi-byte-in-a-stored-issue-title-is-escaped-in-issues-show-json
+      - del-in-a-user-influenced-field-never-reaches-stdout-raw
+      - json-error-envelopes-receive-the-same-escaping
+      - boundary-neighbors-and-multi-byte-characters-pass-through-unchanged
+  - id: json-escaping-preserves-parsed-value-fidelity-and-never-mutates-stored-data
+    hash: sha256:fdd11a99897f
+    scenarios:
+      - json-parse-round-trips-escaped-output-to-the-exact-stored-strings
+      - existing-byte-faithful-test-suites-pass-unmodified
+      - stored-files-are-untouched-by-json-emission
+  - id: shared-pure-escape-helper-applied-at-every-cli-stdout-json-edge
+    hash: sha256:a43c638913cb
+    scenarios:
+      - config-get-escapes-c1-controls-identically-to-outputjson
+      - tasks-json-rendering-routes-through-the-shared-helper
+      - helper-is-idempotent-and-precise-at-range-boundaries

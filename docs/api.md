@@ -1068,6 +1068,28 @@ Scenarios:
 - Standard-over-quick recommendation is unchanged
 - Scoring values are untouched by the cap
 
+### CLI JSON output escapes DEL and C1 control characters
+
+Scenarios:
+- Raw CSI byte in a stored issue title is escaped in issues show --json
+- DEL in a user-influenced field never reaches stdout raw
+- JSON error envelopes receive the same escaping
+- Boundary neighbors and multi-byte characters pass through unchanged
+
+### JSON escaping preserves parsed-value fidelity and never mutates stored data
+
+Scenarios:
+- JSON.parse round-trips escaped output to the exact stored strings
+- Existing byte-faithful test suites pass unmodified
+- Stored files are untouched by JSON emission
+
+### Shared pure escape helper applied at every CLI stdout JSON edge
+
+Scenarios:
+- config get escapes C1 controls identically to outputJson
+- Tasks --json rendering routes through the shared helper
+- Helper is idempotent and precise at range boundaries
+
 ## orchestration-guard
 
 ### Inline Command-Text Tokens Never Authorize a Blocked Subcommand

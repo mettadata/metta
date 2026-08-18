@@ -15,6 +15,7 @@
  * when no prior sibling can be identified we just emit the task list.
  */
 import { type WavePlan, type BatchPlan, type Wave } from '../../planning/index.js'
+import { escapeJsonControls } from '../../util/escape-json-controls.js'
 
 function formatTaskId(id: string): string {
   return `Task ${id}`
@@ -79,5 +80,5 @@ export function renderHumanPlan(plan: WavePlan): string {
  *   { change, batches: [{ batch, label, waves: [{ wave, mode, tasks }] }] }
  */
 export function renderJsonPlan(plan: WavePlan): string {
-  return JSON.stringify(plan, null, 2)
+  return escapeJsonControls(JSON.stringify(plan, null, 2))
 }
