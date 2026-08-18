@@ -5,6 +5,7 @@ import { promisify } from 'node:util'
 import { createInterface } from 'node:readline'
 import { ZodError } from 'zod'
 import { getErrorMessage } from '../util/errors.js'
+import { escapeJsonControls } from '../util/escape-json-controls.js'
 import { formatZodError } from '../util/format-zod-error.js'
 import { DEFAULT_WORKTREE_DIR } from '../util/git-worktree.js'
 import { ConfigLoader, ConfigParseError } from '../config/config-loader.js'
@@ -231,7 +232,7 @@ export function outputJson(data: unknown): void {
       template_version_mismatch: { installed: drift.installed, running: drift.running },
     }
   }
-  console.log(JSON.stringify(data, null, 2))
+  console.log(escapeJsonControls(JSON.stringify(data, null, 2)))
 }
 
 // getErrorMessage is imported from util/errors (above) for internal use here and
