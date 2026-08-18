@@ -28,3 +28,26 @@ Guard/skill requirements (L158-205) verified accurate and untouched per intent. 
 | `npx tsc --noEmit` | pass |
 | `npx vitest run tests/roadmap-store.test.ts tests/cli-roadmap.test.ts` | 36/36 pass |
 | Full `npm test` | deferred to finalize (no code change) |
+
+## Verification
+
+### Spec scenarios (verified against intent)
+
+- Issue-store resolution requirements (view titles, add existence check, next resolution) match code with passing tests — PASS
+- Dangling handling: non-fatal flag on view; ADR-4 dangling-top `not_found` exit 4, no pop/write/commit on next — PASS (test: "dangling top entry exits 4 with not_found naming both remedies and does not pop")
+- Handoff decoupling: next emits `metta propose` via sole-consumer `buildPromoteHandoff`; promote independently emits zero-write `/metta-fix-issues` — PASS
+- Error contract: four primary discriminators + `roadmap_error` fallback — PASS (envelope tests pass; fallback evidenced at roadmap.ts:24)
+- Zero remaining `BacklogStore`/`spec/backlog` references; guard/skill section byte-untouched — PASS
+
+### Gate results (verification phase)
+
+| Gate | Result |
+|------|--------|
+| `npm test` (full) | 2405/2405 pass, 128/128 files |
+| `npx tsc --noEmit` | pass |
+| `npm run lint` | pass |
+| Targeted roadmap suites | 36/36 pass |
+
+### Review
+
+3 reviewers, 1 round: PASS / PASS / PASS_WITH_WARNINGS. Warnings procedural; follow-up issue `roadmap-ts-137-cli-help-text-for-roadmap-next-still-says` logged for stale CLI help text.

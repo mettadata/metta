@@ -26,6 +26,8 @@ artifact_tokens:
   implementation:
     context: 0
     budget: 10000
+review_iterations: 1
+verify_iterations: 1
 worktree: /home/utx0/Code/metta/.metta/worktrees/fix-spec-specs-roadmap-feature-spec-md-normative-drift-lines
 model_runs:
   - task: implementation
