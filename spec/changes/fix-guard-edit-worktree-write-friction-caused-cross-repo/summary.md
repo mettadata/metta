@@ -78,3 +78,17 @@ The install template's `.metta/.gitignore` entries were anchored wrong
 - Instructions (layer 1) are soft enforcement — layers 2-3 are the hard backstops.
 - Follow-up issue candidate: reviewer/specifier/uat-runner path-anchoring parity
   (`metta-reviewer.md` writes a relative `review.md` path).
+
+## Verification (post-review rounds 1-3)
+
+- **Tests**: full suite 133 files, 2697 passed / 2 skipped / 0 failed — two consecutive runs. Both runs exited 1 solely due to the pre-existing vitest-internal `[vitest-worker]: Timeout calling "onTaskUpdate"` RPC flake (stack entirely in node_modules/vitest; predates this change — see main commits fc30d871a, c7e5e75c1); zero failing tests either run. A third run during review exited 0.
+- **Typecheck / lint / build**: `tsc --noEmit` clean, lint clean, build clean; `dist/templates/hooks/metta-guard-bash.mjs` byte-identical to `src/templates/hooks/`.
+- **Spec coverage**: 13/13 ADDED requirements, 28/28 scenarios verified with cited test evidence (tests/shell-write-path-discipline, metta-guard-bash, git-tree-baseline, cli-helpers, instructions-stamps-timings, cli-complete, merge-safety, cli-ship-worktree, agents-byte-identity, template-deploy-sync — 519/519 targeted).
+- **Review**: 3 rounds; round 3 verdicts PASS / PASS / PASS. Round-1 critical (ship wiring unreachable post-finalize) and major (guard-bash timeout DoS) fixed and re-verified end-to-end.
+
+### Review-fix commits
+- ad8e9c813 ship durable-evidence wiring + assertSafeSlug + readBaselineEntries
+- aaee4ace4 guard-bash dedupe/cap/budget + stripHeredocBodies + /dev/ short-circuit
+- eac6c0950 complete gate fail-open wrap + control-char stripping
+- 5564054da describe timeout + merge-safety stripControlChars + ship polish + C1 range
+- 8ce031a0b numeric-terminator refusal + cap/budget audit entries
