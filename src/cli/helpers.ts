@@ -7,7 +7,7 @@ import { ZodError } from 'zod'
 import { getErrorMessage } from '../util/errors.js'
 import { escapeJsonControls } from '../util/escape-json-controls.js'
 import { formatZodError } from '../util/format-zod-error.js'
-import { DEFAULT_WORKTREE_DIR } from '../util/git-worktree.js'
+import { DEFAULT_WORKTREE_DIR, detectWorktreeChangeName } from '../util/git-worktree.js'
 import { ConfigLoader, ConfigParseError } from '../config/config-loader.js'
 import { getVersionDrift } from '../config/version-drift.js'
 import { ArtifactStore } from '../artifacts/artifact-store.js'
@@ -99,6 +99,74 @@ export function resolveChangeRoot(
   const rel = relative(worktreesDir, candidate)
   if (rel === '' || rel.startsWith('..') || isAbsolute(rel)) return projectRoot
   return candidate
+}
+
+/**
+ * Resolve the MAIN checkout root hosting a worktree-hosted change, covering
+ * both invocation topologies. Returns `null` when the change is not
+ * worktree-hosted — which disengages the layer-3 tree-baseline machinery and
+ * automatically covers `git.enabled: false` and worktree-fallback modes (no
+ * worktree ⇒ no injected `metadata.worktree` and no
+ * `detectWorktreeChangeName` match).
+ *
+ * 1. Main-checkout invocation: discovery injected `metadata.worktree`, so
+ *    `resolveChangeRoot` points away from `projectRoot` — the main root is
+ *    `projectRoot` itself. Zero new machinery.
+ * 2. In-worktree invocation: `metadata.worktree` is absent (discovery is
+ *    local), but `projectRoot` IS the worktree checkout — detected via
+ *    `detectWorktreeChangeName(projectRoot) === changeName`. The main root
+ *    comes from stripping the `<worktreeDir>/<name>` suffix (pure path math,
+ *    guard-edit precedent), cross-checked against — and falling back to —
+ *    `git rev-parse --path-format=absolute --git-common-dir`, whose result's
+ *    dirname is the hosting checkout root (config-agnostic: covers layouts
+ *    where the default-suffix math misses). On disagreement git is
+ *    authoritative about the shared common dir, except when git reports the
+ *    checkout as its own main (not a linked worktree) — then the git probe is
+ *    uninformative and the path-math result stands.
+ * 3. Neither topology matches → `null`.
+ */
+export async function resolveMainCheckoutRoot(
+  projectRoot: string,
+  changeName: string,
+  metadata: Pick<ChangeMetadata, 'worktree'>,
+): Promise<string | null> {
+  // 1. Main-checkout invocation: the change's files live in a worktree
+  //    hosted by this projectRoot.
+  if (resolveChangeRoot(projectRoot, metadata) !== projectRoot) return projectRoot
+
+  // 2. In-worktree invocation, gated on the change-name match so a CLI call
+  //    for change A from inside change B's worktree never engages.
+  if (detectWorktreeChangeName(projectRoot) !== changeName) return null
+
+  const root = resolve(projectRoot)
+  // Path math: a metta worktree root is exactly `<H>/<worktreeDir>/<name>`
+  // (three trailing segments with the default dir). Rebuild-and-compare keeps
+  // this exact rather than substring-based.
+  const stripped = resolve(root, '..', '..', '..')
+  const pathDerived =
+    resolve(stripped, DEFAULT_WORKTREE_DIR, changeName) === root ? stripped : null
+
+  try {
+    const { stdout } = await execAsync(
+      'git',
+      ['rev-parse', '--path-format=absolute', '--git-common-dir'],
+      { cwd: root },
+    )
+    const commonDir = stdout.trim()
+    if (commonDir.length > 0) {
+      const gitDerived = resolve(dirname(commonDir))
+      if (gitDerived === root) {
+        // Git says this checkout owns its .git — not a linked worktree; the
+        // probe is uninformative here, so fall back to path math.
+        return pathDerived
+      }
+      if (pathDerived === null || gitDerived !== pathDerived) return gitDerived
+      return pathDerived
+    }
+  } catch {
+    // git unavailable or not a repository — the path-math result stands.
+  }
+  return pathDerived
 }
 
 export function createCliContext(projectRoot?: string): CliContext {
