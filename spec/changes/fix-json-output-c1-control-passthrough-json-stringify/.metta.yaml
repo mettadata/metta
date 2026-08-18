@@ -1,0 +1,36 @@
+workflow: standard
+created: 2026-08-18T01:26:48.576Z
+status: active
+current_artifact: stories
+base_versions: {}
+artifacts:
+  intent: complete
+  stories: ready
+  spec: pending
+  research: pending
+  design: pending
+  tasks: pending
+  implementation: pending
+  verification: pending
+complexity_score:
+  score: 2
+  signals:
+    file_count: 5
+  recommended_workflow: standard
+artifact_timings:
+  intent:
+    completed: 2026-08-18T01:30:05.444Z
+worktree: /home/utx0/Code/metta/.metta/worktrees/fix-json-output-c1-control-passthrough-json-stringify
+token_usage:
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 46823
+    timestamp: 2026-08-18T01:27:04.487Z
+    source: hook
+  - task: intent
+    agent: metta-proposer
+    model: fable
+    tokens: 13173
+    timestamp: 2026-08-18T01:29:58.475Z
+    source: hook
