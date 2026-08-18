@@ -1147,7 +1147,10 @@ Scenarios:
 
 Scenarios:
 - Sanctioned skill-driven call with a valid credential is accepted
-- Expired, out-of-scope, or malformed credential is rejected
+- Immediate Tier-2 call after in-context skill invocation is authorized
+- Tier-2 call from a worktree cwd resolves the credential and is authorized
+- Live credential is never rejected on freshness grounds
+- Genuinely dead, out-of-scope, or malformed credential is rejected
 - Credential forgery requires an audit-visible act outside command text
 - No credential present is rejected with skill guidance
 - Concurrent skill credentials do not interfere
@@ -1164,6 +1167,9 @@ Scenarios:
 - A session-tier rejection is recorded with tier and reason
 - A session-tier acceptance is recorded
 - A fork-tier rejection is recorded with tier and reason
+- Credential-expired is written only for genuinely dead credentials
+- New acceptance paths are recorded distinctly
+- Live skill sessions produce no false expiry entries
 
 ### Skill Contracts Reference Only the Sanctioned Authorization Mechanism
 
@@ -1181,6 +1187,7 @@ Scenarios:
 
 Scenarios:
 - Header documentation describes both tiers and the emergency bypass
+- Hook headers describe the corrected freshness model
 - Generated workflow guidance matches the documented model
 
 ### Fork Dispatch Completion Guarantee
@@ -1244,6 +1251,124 @@ Scenarios:
 - Inverted-topology test catches the original defect
 - Topology coverage does not come from a cwd-answering shim
 - Both topologies are covered alongside existing cases
+
+### Deterministic Tier-2 Freshness Resolution Independent of Hook Ordering
+
+Scenarios:
+- Expired-but-refreshable token is authorized before any mint-hook refresh lands
+- Authorization outcome is invariant under mint/guard hook ordering
+- No new runtime ordering guarantee is assumed
+
+### Skill-Activity Signal Is Non-Forgeable and Written Only at Genuine Skill Invocation
+
+Scenarios:
+- Fabricated activity evidence from command text does not authorize
+- Activity signal originates only from sanctioned invocation machinery
+- Activity signal never widens scope
+
+### Credential Freshness Survives Subagent Delegation Windows
+
+Scenarios:
+- Token outlives the raw TTL across a delegation window and still authorizes
+- Sliding refresh for active sessions is retained
+- Genuinely dead credentials still fail closed
+
+### Freshness Fix Leaves All Other Guard Behavior Unchanged
+
+Scenarios:
+- Missing credential still blocks exactly as before
+- Out-of-scope subcommand still blocks exactly as before
+- Tier-1 fork path and classification surfaces are unchanged
+- Retired single-file credential remains unhonored
+
+### Integration Tests Exercise the Mint/Validate Seam
+
+Scenarios:
+- Immediate-call seam test passes from both cwds
+- Time-advanced expiry-gap test reproduces and passes the delegation window
+- Same-event race test proves ordering independence
+- Dead-credential fail-closed test still blocks
+
+### Executor Shell Writes Are Anchored Under change_root
+
+Scenarios:
+- Executor template forbids bash writes outside change_root
+- Existing executor rules are preserved
+
+### Silent-Write Anomaly Triggers STOP-and-Report, Never a Bash Fallback
+
+Scenarios:
+- Non-landing Edit result leads to STOP, not bash fallback
+- Template inspection finds no sanctioned bash-fallback path
+
+### Verifier Carries the Same Shell-Write Path Discipline
+
+Scenarios:
+- Verifier template contains the path-discipline rule
+
+### Execute Skill Contract Binds Executors to Path Discipline and Escalates STOP-Reports
+
+Scenarios:
+- Skill contract escalates a silent-write STOP-report
+- Spawn contract names the path-discipline binding
+
+### Guard-Bash Blocks Bash Write Targets That Resolve Into the Main Checkout
+
+Scenarios:
+- Redirection into the main checkout is blocked with a diagnostic
+- Heredoc, tee, cp, and mv targets are covered
+- Writes inside the change's own worktree pass
+- No worktree-hosted active change means no write-target check
+
+### Write-Target Heuristic Fails Open on Unparseable Commands and Ignores Non-Write Commands
+
+Scenarios:
+- Unresolvable write targets fail open
+- Non-write commands are untouched
+
+### Write-Target Check Leaves Existing Guard-Bash Behavior Unchanged
+
+Scenarios:
+- Pre-existing guard-bash test suite passes unmodified
+- metta CLI invocations are classified exactly as before
+
+### Write-Target Check Ships in the Hook Template
+
+Scenarios:
+- Consumer install receives the write-target check
+
+### Main-Checkout Cleanliness Baseline Is Recorded Before Worktree Execution
+
+Scenarios:
+- Baseline is recorded as validated state at execution start
+- Non-worktree changes skip the baseline
+
+### Implementation Completion Fails on New Main-Checkout Dirt
+
+Scenarios:
+- New main-checkout dirt fails completion with the offending paths
+- Clean run completes unchanged
+- Detection never mutates the main checkout
+
+### Ship Preflight Verifies Main-Checkout Cleanliness for Worktree-Hosted Changes
+
+Scenarios:
+- Ship preflight catches main-checkout contamination
+- Non-worktree ships are unchanged
+
+### Pre-Existing Main-Checkout Dirt Warns but Never Hard-Blocks
+
+Scenarios:
+- Pre-existing dirt produces a warning at execution start
+- Completion passes with pre-existing dirt and no new dirt
+- Only new paths appear in the failure diagnostic
+
+### Tests Cover Write-Target Classification and Tree-Clean Detection
+
+Scenarios:
+- Write-target matrix distinguishes blocked from allowed
+- Baseline/compare module tests cover dirt attribution
+- New blocking tests fail against pre-change behavior
 
 ## propose-stop-after
 
