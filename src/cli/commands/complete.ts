@@ -1,5 +1,6 @@
 import { Command } from 'commander'
-import { createCliContext, outputJson, color, agentBanner, askYesNo, askYesNoDetailed, getErrorMessage, resolveChangeRoot } from '../helpers.js'
+import { createCliContext, outputJson, color, agentBanner, askYesNo, askYesNoDetailed, getErrorMessage, resolveChangeRoot, resolveMainCheckoutRoot } from '../helpers.js'
+import { compareMainTree, MainTreeContaminationError } from '../../util/git-tree-baseline.js'
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { execFile } from 'node:child_process'
@@ -222,6 +223,44 @@ export function registerCompleteCommand(program: Command): void {
                   `Delta '${delta.operation}: Requirement: ${delta.requirement.name}' targets unknown capability '${capabilityName}'. ${suggestion}`,
                 )
               }
+            }
+          }
+        }
+
+        // Pre-complete main-tree contamination gate (layer 3). Worktree-hosted
+        // changes only: `resolveMainCheckoutRoot` returns null for non-worktree
+        // changes, disengaging the gate entirely. Sits OUTSIDE the
+        // `if (!isWildcard)` block above — implementation generates `**/*`,
+        // a wildcard, so an in-branch gate would never run. Detection only:
+        // the gate performs a single `git status` read against the main
+        // checkout — never checkout/reset/stash.
+        if (artifactId === 'implementation') {
+          const mainRoot = await resolveMainCheckoutRoot(ctx.projectRoot, changeName, metadata)
+          if (mainRoot !== null) {
+            const cmp = await compareMainTree(mainRoot, changeName)
+            if (!cmp.hasBaseline) {
+              // No baseline recorded (feature shipped mid-flight, scratch
+              // wiped, or main_root mismatch): dirt cannot be attributed —
+              // warn and pass, never a hard failure on absence.
+              process.stderr.write(
+                `Warning: no main-tree baseline recorded for '${changeName}' — cannot attribute main-checkout dirt; skipping contamination check.\n`,
+              )
+            } else if (cmp.newDirt.length > 0) {
+              // Lists ONLY the newly-dirty paths (+ XY status codes) —
+              // pre-existing dirt never blocks and never appears here.
+              const listing = cmp.newDirt
+                .map(e => `  [${e.status}] ${e.path}`)
+                .join('\n')
+              throw new MainTreeContaminationError(
+                `Main checkout at ${mainRoot} accumulated new dirt during this worktree-hosted change:\n` +
+                `${listing}\n` +
+                `If these are your own edits, commit or stash them in the main checkout and re-run metta complete implementation.`,
+                cmp.newDirt,
+              )
+            } else if (cmp.preExisting.length > 0) {
+              process.stderr.write(
+                `Warning: main checkout at ${mainRoot} has pre-existing dirt (${cmp.preExisting.length} path(s), recorded at baseline time) — not blocking completion.\n`,
+              )
             }
           }
         }
@@ -700,7 +739,10 @@ export function registerCompleteCommand(program: Command): void {
         }
       } catch (err) {
         const message = getErrorMessage(err)
-        if (json) { outputJson({ error: { code: 4, type: 'complete_error', message } }) } else { console.error(`Complete failed: ${message}`) }
+        // Differentiate the layer-3 contamination gate via instanceof so
+        // automation can distinguish it without a new exit code (D6).
+        const type = err instanceof MainTreeContaminationError ? 'main_tree_contamination' : 'complete_error'
+        if (json) { outputJson({ error: { code: 4, type, message } }) } else { console.error(`Complete failed: ${message}`) }
         process.exit(4)
       }
     })
