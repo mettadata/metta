@@ -1,5 +1,5 @@
 import { Command } from 'commander'
-import { createCliContext, outputJson, color, agentBanner, askYesNo, getErrorMessage, resolveChangeRoot } from '../helpers.js'
+import { createCliContext, outputJson, color, agentBanner, askYesNo, askYesNoDetailed, getErrorMessage, resolveChangeRoot } from '../helpers.js'
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { execFile } from 'node:child_process'
@@ -277,9 +277,20 @@ export function registerCompleteCommand(program: Command): void {
                 downscaleEligibleChosen
               ) {
                 const autoAccept = currentMetadata.auto_accept_recommendation === true
+                // Non-interactive callers (no TTY, or --json) must never resolve
+                // a workflow-collapsing decision via a silent default-Yes. This
+                // is the same predicate askYesNo uses internally to decide
+                // whether to prompt at all. See AutoDownscalePromptAtIntent.
+                const nonInteractive = !process.stdin.isTTY || json
                 let takeYes = false
+                let acceptCause:
+                  | 'auto_accept_recommendation'
+                  | 'interactive explicit yes'
+                  | 'interactive default-Yes'
+                  | null = null
 
                 if (autoAccept) {
+                  // Sole sanctioned non-interactive Yes -- MUST stay first.
                   process.stderr.write(
                     color(
                       `Auto-accepting recommendation: downscale to /metta-${recommendedTier} (was ${currentWorkflow}, scored ${recommendedTier})`,
@@ -287,18 +298,26 @@ export function registerCompleteCommand(program: Command): void {
                     ) + '\n',
                   )
                   takeYes = true
+                  acceptCause = 'auto_accept_recommendation'
+                } else if (nonInteractive) {
+                  // Fail closed: never resolve a workflow-collapsing decision
+                  // via default-Yes without a human present to confirm it.
+                  takeYes = false
                 } else {
                   const fileCount = score.signals.file_count
                   // Downscale defaults to Yes unless the workflow was explicitly
-                  // locked (e.g. via --workflow), making auto-collapse the silent
-                  // path for non-interactive callers. See AutoDownscalePromptAtIntent.
-                  takeYes = await askYesNo(
+                  // locked (e.g. via --workflow); reached only when interactive.
+                  const { value, viaDefault } = await askYesNoDetailed(
                     color(
                       `Scored as ${recommendedTier} (${fileCount} files) -- collapse workflow to /metta-${recommendedTier}?`,
                       33,
                     ),
                     { defaultYes: currentMetadata.workflow_locked !== true, jsonMode: json },
                   )
+                  takeYes = value
+                  if (value) {
+                    acceptCause = viaDefault ? 'interactive default-Yes' : 'interactive explicit yes'
+                  }
                 }
 
                 if (takeYes) {
@@ -328,18 +347,32 @@ export function registerCompleteCommand(program: Command): void {
                     rebuilt[id] = status
                   }
 
+                  // Fold the decision record into the same atomic write as the
+                  // workflow/artifacts rewrite -- a workflow collapse without a
+                  // validated decision record MUST NOT occur (both-or-neither
+                  // via StateStore.write's pre-persist safeParse). See ADR-3.
                   await ctx.artifactStore.updateChange(changeName, {
                     workflow: recommendedTier,
                     artifacts: rebuilt,
+                    downscale_decision: {
+                      from_tier: currentWorkflow,
+                      to_tier: recommendedTier,
+                      justification: `collapsed ${currentWorkflow} -> ${recommendedTier}: ${acceptCause}`,
+                      timestamp: new Date().toISOString(),
+                    },
                   })
                   activeGraph = targetGraph
                 } else {
                   // No path: the change stays above its scored recommendation.
                   // Record an escalation so staying heavy is auditable
-                  // (EscalationRecording). Justification is keyed by cause.
+                  // (EscalationRecording). Justification is keyed by cause,
+                  // with workflow_locked keeping precedence over the
+                  // non-interactive fail-closed cause.
                   const justification = currentMetadata.workflow_locked === true
                     ? `kept ${currentWorkflow}: workflow_locked`
-                    : `kept ${currentWorkflow}: declined downscale`
+                    : nonInteractive
+                      ? `kept ${currentWorkflow}: non-interactive fail-closed`
+                      : `kept ${currentWorkflow}: declined downscale`
                   await ctx.artifactStore.updateChange(changeName, {
                     escalation: {
                       from_tier: recommendedTier,
