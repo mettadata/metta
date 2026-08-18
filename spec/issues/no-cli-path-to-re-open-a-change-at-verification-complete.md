@@ -1,0 +1,21 @@
+# No CLI path to re-open a change at verification=complete before ship (post-complete/pre-ship rework gap)
+
+**Captured**: 2026-08-18
+**Status**: logged
+**Severity**: minor
+
+## Symptom
+When UAT or manual testing finds defects after a change's verification artifact reaches `complete` but before the change is shipped, there is no CLI path to loop the state machine back into implementation on the same change/branch. `metta next` only returns `{next: finalize}` once all artifacts are complete/skipped, and no `metta reopen`/`rework`/`amend`/`reset` subcommand exists. Reported live by the zeus consumer session (2026-08-18, their PR #26): their only options were shipping the defective change and opening a new one, or hand-editing artifacts and re-running gates entirely outside the state machine (what they are doing now).
+
+## Root Cause Analysis
+The workflow engine's state model is strictly forward-only at the CLI surface. `WorkflowEngine.getNext` filters to artifacts whose status is `pending` or `ready`, so a `complete` verification artifact can never re-surface as actionable. `metta next` short-circuits on the all-complete condition and routes exclusively to `metta finalize` — there is no branch that considers post-completion defect discovery. The underlying store is not the blocker: `ArtifactStore.markArtifact` accepts any `ArtifactStatus` write, including a downgrade from `complete` back to `ready`, but no CLI verb exposes that transition, no rework task-batch mechanism appends to `tasks.md`, and nothing records a reopen event in `.metta.yaml` the way escalations are recorded. The verify-FAIL loop (fix executor + re-verify) only exists pre-completion, so the gap is specifically the post-complete/pre-ship window.
+
+### Evidence
+- `src/cli/commands/next.ts:94` — the `allComplete` check routes unconditionally to `metta finalize`; no reopen/rework branch exists anywhere in the routing logic.
+- `src/workflow/workflow-engine.ts:80` — `getNext` returns only `pending`/`ready` artifacts, so a `complete` verification stage is permanently invisible to forward routing.
+- `src/artifacts/artifact-store.ts:364` — `markArtifact` already supports writing any status (including `complete` → `ready`), showing the store layer can back the transition; only the CLI verb and audit trail are missing.
+
+## Candidate Solutions
+1. **First-class `metta reopen` verb** — Add `metta reopen --change <name> [--reason <text>]` that transitions the verification artifact from `complete` to `ready` (or a dedicated rework state), appends a numbered rework task batch to `tasks.md` (creating one for quick/trivial tiers), records the reopen event + reason in `.metta.yaml` as an auditable list (mirroring `model_escalations`), invalidates the stale verification artifact so finalize's completeness gate blocks until re-verification, and emits the standard instruction contract for the rework batch. Scope it Tier-2 in the guard (like `complete`), minted by `metta-verify`/`metta-uat`/`metta-next`, and have the metta-uat runner surface the reopen path when a run records failures on a live change. Tradeoff: largest surface area — touches guard/mint scoping, schemas, tasks.md conventions, next routing, and the finalize gate, so it needs a full standard-tier change with spec deltas across several capabilities.
+2. **Minimal status-downgrade flag on an existing verb** — Extend `metta verify` (or `metta complete`) with a `--reopen` flag that simply flips verification back to `ready` and re-runs gates, without rework batches or audit records. Tradeoff: leaves no auditable reopen trail and no structured rework tasks, so the AI orchestrator loses the instruction-contract guarantees and the defect-fix work happens as unstructured edits — only marginally better than today's hand-editing.
+3. **UAT-driven auto-reopen** — Have the metta-uat runner (and `/metta-verify` on gate failure post-completion) automatically trigger the reopen transition when a run records failures on a live unshipped change, rather than adding a user-facing verb. Tradeoff: hides a significant state transition behind an agent side effect; users who find defects through channels other than the UAT runner (e.g. manual testing, as zeus did) still have no entry point.
