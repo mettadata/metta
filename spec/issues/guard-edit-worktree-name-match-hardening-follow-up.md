@@ -1,0 +1,10 @@
+---
+priority: low
+---
+# guard-edit worktree name-match hardening follow-up (deliberately omitted by ADR-3 of fix-metta-guard-edit-still-false-positive-blocks-subagent): with the V1c host-derived probe root, hasActiveChange is global — while ANY change is active at host H, Write/Edit into EVERY worktree under H/.metta/worktrees/ is allowed (cross-change writes into worktree A during change B; stale/abandoned worktrees). This is consistent with main-root edits during any active change (aggregation already allowed those), so it is a widening in consistency, not a new trust break. Candidate hardening: match the target worktree directory name against the active change set before allowing; risk: adds a new fail-closed path on probe success — the exact false-positive class that motivated the fix — so it needs its own pinning tests for name-mismatch scenarios (renamed worktrees, quick-mode changes, non-change worktrees) before shipping. Origin: security + correctness reviewers of the guard-edit V1c change, 2026-08-18.
+
+**Captured**: 2026-08-18
+**Status**: logged
+**Severity**: minor
+
+guard-edit worktree name-match hardening follow-up (deliberately omitted by ADR-3 of fix-metta-guard-edit-still-false-positive-blocks-subagent): with the V1c host-derived probe root, hasActiveChange is global — while ANY change is active at host H, Write/Edit into EVERY worktree under H/.metta/worktrees/ is allowed (cross-change writes into worktree A during change B; stale/abandoned worktrees). This is consistent with main-root edits during any active change (aggregation already allowed those), so it is a widening in consistency, not a new trust break. Candidate hardening: match the target worktree directory name against the active change set before allowing; risk: adds a new fail-closed path on probe success — the exact false-positive class that motivated the fix — so it needs its own pinning tests for name-mismatch scenarios (renamed worktrees, quick-mode changes, non-change worktrees) before shipping. Origin: security + correctness reviewers of the guard-edit V1c change, 2026-08-18.
