@@ -875,6 +875,163 @@ describe("CLI: issue / fix-issue / backlog / branch-safety / check-constitution"
   })
 
 
+  describe('auto-retire on issue resolution', () => {
+    async function seedRoadmapped(title: string): Promise<string> {
+      const seed = await runCli(['--json', 'backlog', 'add', title, '--new'], tempDir)
+      expect(seed.code).toBe(0)
+      const slug = (JSON.parse(seed.stdout) as { slug: string }).slug
+      const roadmapped = await runCli(['roadmap', 'add', slug], tempDir)
+      expect(roadmapped.code).toBe(0)
+      return slug
+    }
+
+    async function headNameStatus(): Promise<string> {
+      const { stdout } = await execAsync(
+        'git', ['show', '--name-status', '--format=', 'HEAD'], { cwd: tempDir },
+      )
+      return stdout
+    }
+
+    async function revCount(): Promise<number> {
+      const { stdout } = await execAsync('git', ['rev-list', '--count', 'HEAD'], { cwd: tempDir })
+      return Number(stdout.trim())
+    }
+
+    describe('backlog done', () => {
+      it('R1: retires a roadmapped entry in the same commit as the archive', async () => {
+        await installFixture(tempDir)
+        const slug = await seedRoadmapped('roadmapped foo')
+        const beforeCount = await revCount()
+
+        const { stdout, code } = await runCli(['--json', 'backlog', 'done', slug], tempDir)
+        expect(code).toBe(0)
+        const data = JSON.parse(stdout)
+        expect(data.retired_roadmap_entry).toBe(slug)
+
+        const afterCount = await revCount()
+        expect(afterCount).toBe(beforeCount + 1)
+
+        const shown = await headNameStatus()
+        expect(shown).toMatch(new RegExp(`spec/issues/${slug}\\.md`))
+        expect(shown).toMatch(new RegExp(`spec/issues/resolved/${slug}\\.md`))
+        expect(shown).toMatch(/spec\/roadmap\.md/)
+
+        const roadmap = await readFile(join(tempDir, 'spec', 'roadmap.md'), 'utf8')
+        expect(roadmap).not.toContain(slug)
+      })
+
+      it('R2: non-roadmapped resolution leaves spec/roadmap.md byte-identical and out of the commit', async () => {
+        await installFixture(tempDir)
+        await seedRoadmapped('other roadmapped item')
+        await runCli(['backlog', 'add', 'not roadmapped', '--new'], tempDir)
+        const before = await readFile(join(tempDir, 'spec', 'roadmap.md'), 'utf8')
+
+        const { stdout, code } = await runCli(['--json', 'backlog', 'done', 'not-roadmapped'], tempDir)
+        expect(code).toBe(0)
+        const data = JSON.parse(stdout)
+        expect(data.retired_roadmap_entry).toBeNull()
+
+        const after = await readFile(join(tempDir, 'spec', 'roadmap.md'), 'utf8')
+        expect(after).toBe(before)
+
+        const shown = await headNameStatus()
+        expect(shown).not.toContain('spec/roadmap.md')
+        expect(data.archived).toBe('not-roadmapped')
+        expect(typeof data.committed).toBe('boolean')
+      })
+
+      it('R3: --json additivity — retired_roadmap_entry is always present alongside unchanged fields', async () => {
+        await installFixture(tempDir)
+        const roadmapped = await seedRoadmapped('additive roadmapped')
+        const roadmappedRes = await runCli(['--json', 'backlog', 'done', roadmapped], tempDir)
+        expect(roadmappedRes.code).toBe(0)
+        const roadmappedData = JSON.parse(roadmappedRes.stdout)
+        expect(roadmappedData).toMatchObject({
+          archived: roadmapped,
+          shipped_in: null,
+          retired_roadmap_entry: roadmapped,
+        })
+        expect(typeof roadmappedData.committed).toBe('boolean')
+
+        await runCli(['backlog', 'add', 'additive non roadmapped', '--new'], tempDir)
+        const plainRes = await runCli(['--json', 'backlog', 'done', 'additive-non-roadmapped'], tempDir)
+        expect(plainRes.code).toBe(0)
+        const plainData = JSON.parse(plainRes.stdout)
+        expect(plainData).toMatchObject({
+          archived: 'additive-non-roadmapped',
+          shipped_in: null,
+          retired_roadmap_entry: null,
+        })
+        expect(typeof plainData.committed).toBe('boolean')
+      })
+
+      it('R6: fail-open — a directory at spec/roadmap.md still lets the archive commit succeed', async () => {
+        await installFixture(tempDir)
+        await runCli(['backlog', 'add', 'fail open item', '--new'], tempDir)
+        // Force RoadmapStore.retire's read to throw by making the roadmap
+        // path a directory instead of a file.
+        await mkdir(join(tempDir, 'spec', 'roadmap.md'), { recursive: true })
+
+        const { stdout, stderr, code } = await runCli(['--json', 'backlog', 'done', 'fail-open-item'], tempDir)
+        expect(code).toBe(0)
+        const data = JSON.parse(stdout)
+        expect(data.retired_roadmap_entry).toBeNull()
+        expect(stderr).toContain("failed to retire roadmap entry 'fail-open-item'")
+        expect(stderr).toContain('metta roadmap remove fail-open-item')
+
+        const shown = await headNameStatus()
+        expect(shown).toMatch(/spec\/issues\/fail-open-item\.md/)
+        expect(shown).toMatch(/spec\/issues\/resolved\/fail-open-item\.md/)
+        expect(shown).not.toContain('spec/roadmap.md')
+      })
+    })
+
+    describe('fix-issue --remove-issue', () => {
+      it('R4: retires a roadmapped entry in the same commit as the archive', async () => {
+        await installFixture(tempDir)
+        const slug = await seedRoadmapped('roadmapped bar')
+        const beforeCount = await revCount()
+
+        const { stdout, code } = await runCli(['--json', 'fix-issue', '--remove-issue', slug], tempDir)
+        expect(code).toBe(0)
+        const data = JSON.parse(stdout)
+        expect(data.retired_roadmap_entry).toBe(slug)
+
+        const afterCount = await revCount()
+        expect(afterCount).toBe(beforeCount + 1)
+
+        const shown = await headNameStatus()
+        expect(shown).toMatch(new RegExp(`spec/issues/${slug}\\.md`))
+        expect(shown).toMatch(new RegExp(`spec/issues/resolved/${slug}\\.md`))
+        expect(shown).toMatch(/spec\/roadmap\.md/)
+
+        const roadmap = await readFile(join(tempDir, 'spec', 'roadmap.md'), 'utf8')
+        expect(roadmap).not.toContain(slug)
+      })
+
+      it('R5: non-roadmapped removal leaves a pre-dirtied spec/roadmap.md dirty and out of the commit', async () => {
+        await installFixture(tempDir)
+        await runCli(['issue', 'unrelated roadmap issue', '--severity', 'minor'], tempDir)
+        await runCli(['issue', 'stale bar issue', '--severity', 'minor'], tempDir)
+        // Pre-dirty spec/roadmap.md with content unrelated to the resolved issue.
+        await mkdir(join(tempDir, 'spec'), { recursive: true })
+        await writeFile(join(tempDir, 'spec', 'roadmap.md'), '# Roadmap\n\n1. `unrelated-roadmap-issue`\n', 'utf8')
+
+        const { stdout, code } = await runCli(['--json', 'fix-issue', '--remove-issue', 'stale-bar-issue'], tempDir)
+        expect(code).toBe(0)
+        const data = JSON.parse(stdout)
+        expect(data.retired_roadmap_entry).toBeNull()
+
+        const shown = await headNameStatus()
+        expect(shown).not.toContain('spec/roadmap.md')
+
+        const { stdout: status } = await execAsync('git', ['status', '--porcelain'], { cwd: tempDir })
+        expect(status).toContain('spec/roadmap.md')
+      })
+    })
+  })
+
+
   describe('metta check-constitution', () => {
     async function runCliWithEnv(
       args: string[],
