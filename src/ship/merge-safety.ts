@@ -10,6 +10,17 @@ import type { TreeEntry } from '../schemas/tree-baseline.js'
 
 const execAsync = promisify(exec)
 
+/**
+ * Strip C0 control characters, DEL, and C1 control characters from a string
+ * destined for the terminal, so crafted filenames cannot inject escape
+ * sequences (including 8-bit CSI/OSC introducers) into human-readable step
+ * detail output. JSON output is escape-safe by construction.
+ */
+function stripControlChars(value: string): string {
+  // eslint-disable-next-line no-control-regex
+  return value.replace(/[\x00-\x1f\x7f-\x9f]/g, '')
+}
+
 export interface MergeSafetyStep {
   step: string
   status: 'pass' | 'fail' | 'skip'
@@ -163,7 +174,7 @@ export class MergeSafetyPipeline {
         if (current !== null) {
           const { newDirt, preExisting } = diffTreeState(mainCheckout.baselineEntries, current)
           if (newDirt.length > 0) {
-            const paths = newDirt.map(e => `${e.status} ${e.path}`).join(', ')
+            const paths = newDirt.map(e => `${e.status} ${stripControlChars(e.path)}`).join(', ')
             steps.push({
               step: 'main-checkout-clean',
               status: 'fail',
@@ -172,7 +183,7 @@ export class MergeSafetyPipeline {
             return { status: 'failure', steps }
           }
           if (preExisting.length > 0) {
-            const paths = preExisting.map(e => `${e.status} ${e.path}`).join(', ')
+            const paths = preExisting.map(e => `${e.status} ${stripControlChars(e.path)}`).join(', ')
             steps.push({
               step: 'main-checkout-clean',
               status: 'pass',

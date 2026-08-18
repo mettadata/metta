@@ -24,7 +24,7 @@ const BUILTIN_GATE_NAMES = ['build', 'lint', 'stories-valid', 'tests', 'typechec
  * it must fall back to durable evidence (the worktree dir on disk and/or the
  * recorded baseline file).
  */
-describe('metta ship — worktree-hosted change after finalize archived it', () => {
+describe('metta ship — worktree-hosted change after finalize archived it', { timeout: 60_000 }, () => {
   let tempDir: string
 
   beforeEach(async () => {

@@ -37,14 +37,14 @@ const DROPPABLE_PLANNING_ARTIFACTS = new Set([
 const execAsync = promisify(execFile)
 
 /**
- * Strip C0 control characters and DEL from a string destined for the
- * terminal, so crafted filenames cannot inject escape sequences into
- * human-readable output. JSON output is escape-safe by construction and
- * keeps raw values.
+ * Strip C0 control characters, DEL, and C1 control characters from a string
+ * destined for the terminal, so crafted filenames cannot inject escape
+ * sequences (including 8-bit CSI/OSC introducers) into human-readable
+ * output. JSON output is escape-safe by construction and keeps raw values.
  */
 function stripControlChars(value: string): string {
   // eslint-disable-next-line no-control-regex
-  return value.replace(/[\x00-\x1f\x7f]/g, '')
+  return value.replace(/[\x00-\x1f\x7f-\x9f]/g, '')
 }
 
 /**

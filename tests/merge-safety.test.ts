@@ -390,6 +390,27 @@ describe('MergeSafetyPipeline', () => {
       expect(step?.detail).toContain('file.txt')
     })
 
+    it('strips control characters from dirt paths in the human-readable detail', async () => {
+      const { mainBranch } = await setupWorktreeChange('escape')
+      await mkdir(join(tempDir, 'spec', 'archive', '2026-08-18-escape'), { recursive: true })
+      // A staged file whose name embeds an ANSI escape introducer — the
+      // detail string must not carry the raw ESC byte to the terminal.
+      const evilName = 'evil\x1b[31mred.txt'
+      await writeFile(join(tempDir, evilName), 'dirt\n')
+      await execAsync(`git add "${evilName}"`, { cwd: tempDir })
+
+      const pipeline = new MergeSafetyPipeline(tempDir, undefined, {
+        mainCheckout: { root: tempDir, baselineEntries: [] },
+      })
+      const result = await pipeline.run('metta/escape', mainBranch)
+
+      expect(result.status).toBe('failure')
+      const step = result.steps.find(s => s.step === 'main-checkout-clean')
+      expect(step?.status).toBe('fail')
+      expect(step?.detail).not.toContain('\x1b')
+      expect(step?.detail).toContain('evil[31mred.txt')
+    })
+
     it('passes with a warning on pre-existing dirt only and the pipeline continues', async () => {
       const { worktreeDir, mainBranch } = await setupWorktreeChange('preexist')
       // finalize-check reads spec/archive relative to the pipeline cwd (the worktree here).

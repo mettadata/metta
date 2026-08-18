@@ -7,6 +7,7 @@ import { MergeSafetyPipeline, type MainCheckoutCleanInput } from '../../ship/mer
 import { assertSafeSlug } from '../../util/slug.js'
 import { DEFAULT_WORKTREE_DIR } from '../../util/git-worktree.js'
 import { deleteMainTreeBaseline, readBaselineEntries } from '../../util/git-tree-baseline.js'
+import type { TreeEntry } from '../../schemas/tree-baseline.js'
 
 interface ShipCommandOptions {
   dryRun?: boolean
@@ -43,7 +44,9 @@ export function registerShipCommand(program: Command): void {
         const targetBranch = config.git?.pr_base ?? 'main'
         const sourceBranch = options.branch
 
-        if (sourceBranch === undefined) {
+        // Treat an empty --branch "" the same as a missing flag: show the
+        // friendly usage message instead of failing deep in the pipeline.
+        if (sourceBranch === undefined || sourceBranch === '') {
           if (json) {
             outputJson({
               status: 'info',
@@ -70,6 +73,9 @@ export function registerShipCommand(program: Command): void {
         if (metaMatch !== null && isSafeChangeName(metaMatch[1])) {
           const changeName = metaMatch[1]
           let mainRoot: string | null = null
+          // Populated only when the baseline-only-evidence fallback already
+          // read the file — avoids a second identical read below.
+          let cachedBaseline: TreeEntry[] | null | undefined
           try {
             const metadata = await ctx.artifactStore.getChange(changeName)
             mainRoot = await resolveMainCheckoutRoot(ctx.projectRoot, changeName, metadata)
@@ -81,18 +87,24 @@ export function registerShipCommand(program: Command): void {
             // worktree: (a) the worktree checkout still on disk under this
             // root, or (b) a Zod-validated baseline naming this root as its
             // main_root. Anything else keeps null — ship exactly as before.
-            if (
-              existsSync(join(ctx.projectRoot, DEFAULT_WORKTREE_DIR, changeName)) ||
-              (await readBaselineEntries(ctx.projectRoot, changeName)) !== null
-            ) {
+            if (existsSync(join(ctx.projectRoot, DEFAULT_WORKTREE_DIR, changeName))) {
               mainRoot = ctx.projectRoot
+            } else {
+              const entries = await readBaselineEntries(ctx.projectRoot, changeName)
+              if (entries !== null) {
+                mainRoot = ctx.projectRoot
+                cachedBaseline = entries
+              }
             }
           }
           if (mainRoot !== null) {
             // readBaselineEntries yields null for a missing/unreadable
             // baseline or a moved checkout (main_root mismatch) — the step
             // then skips instead of comparing falsely.
-            const baselineEntries = await readBaselineEntries(mainRoot, changeName)
+            const baselineEntries =
+              cachedBaseline !== undefined
+                ? cachedBaseline
+                : await readBaselineEntries(mainRoot, changeName)
             mainCheckout = { root: mainRoot, baselineEntries }
             cleanupTarget = { mainRoot, change: changeName }
           }
