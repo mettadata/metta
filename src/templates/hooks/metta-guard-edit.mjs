@@ -72,6 +72,28 @@ async function resolveTargetRoot(target) {
   return toPhysicalPath(process.cwd())
 }
 
+// Derive the root for the active-change probe. A metta-managed worktree's
+// checkout root is exactly <H>/.metta/worktrees/<name>; in that case probe
+// the hosting checkout H instead of the worktree. H's `metta status`
+// aggregates worktree-hosted change state (its answer is a strict superset
+// of the worktree's own), so one probe at H answers correctly for both the
+// canonical topology (state inside the worktree) and the inverted-hosting
+// topology (state only in H's spec/changes/). Any other checkout root is
+// returned unchanged. Pure string path math — cannot throw.
+function deriveProbeRoot(checkoutRoot) {
+  const worktreesDir = dirname(checkoutRoot)   // …/<H>/.metta/worktrees
+  const mettaDir = dirname(worktreesDir)       // …/<H>/.metta
+  const hostRoot = dirname(mettaDir)           // …/<H>
+  if (
+    basename(worktreesDir) === 'worktrees' &&
+    basename(mettaDir) === '.metta' &&
+    hostRoot !== mettaDir                      // guard filesystem-root degenerate cases
+  ) {
+    return hostRoot
+  }
+  return checkoutRoot
+}
+
 const input = await readStdin()
 const toolName = input.tool_name || input.toolName || ''
 
@@ -92,13 +114,14 @@ const filePathCandidate = [
 const filePath = filePathCandidate ?? ''
 const targetPath = filePath ? toPhysicalPath(resolve(process.cwd(), filePath)) : ''
 const projectRoot = await resolveTargetRoot(targetPath)
+const probeRoot = deriveProbeRoot(projectRoot)
 
 // Query metta status at the target's checkout root; tolerate any failure
 // (not a metta project, metta missing, etc.)
 let status
 try {
   const { stdout } = await execAsync('metta', ['status', '--json'], {
-    cwd: projectRoot,
+    cwd: probeRoot,
     timeout: 5000,
   })
   status = JSON.parse(stdout)
