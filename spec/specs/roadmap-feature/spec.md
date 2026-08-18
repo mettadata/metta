@@ -2,7 +2,7 @@
 
 ## Requirement: Roadmap persists as a single ordered markdown file managed by RoadmapStore
 
-The roadmap MUST be persisted in exactly one markdown file, `spec/roadmap.md`, with no additional YAML state file. Each roadmap entry MUST consist of a backlog slug reference plus an optional free-text note, and the order of entries in the file MUST be the authoritative execution order. A new `RoadmapStore` class in `src/roadmap/roadmap-store.ts` MUST own all access to this file, modeled on `src/backlog/backlog-store.ts`: its constructor MUST take `specDir`, all file reads and writes MUST go through `StateStore.readRaw`/`StateStore.writeRaw`, and every slug crossing the store boundary MUST be validated with `assertSafeSlug` from `src/util/slug.js`. Formatting and parsing of the file content MUST be pure functions within the module (functional core), with file I/O confined to the store edge (imperative shell). The parsed entry list MUST be validated with a Zod schema (slug matching the safe-slug shape, note optional string) before any parsed data is returned to callers, and `RoadmapStore` writes MUST only serialize data that has passed that schema. Reading a missing `spec/roadmap.md` MUST be treated as an empty roadmap, not an error. A matching test file `test/roadmap/roadmap-store.test.ts` MUST exist to maintain the 1:1 test-to-source ratio.
+The roadmap MUST be persisted in exactly one markdown file, `spec/roadmap.md`, with no additional YAML state file. Each roadmap entry MUST consist of a backlog slug reference plus an optional free-text note, and the order of entries in the file MUST be the authoritative execution order. A `RoadmapStore` class in `src/roadmap/roadmap-store.ts` MUST own all access to this file: its constructor MUST take `specDir`, all file reads and writes MUST go through `StateStore.readRaw`/`StateStore.writeRaw`, and every slug crossing the store boundary MUST be validated with `assertSafeSlug` from `src/util/slug.js`. Formatting and parsing of the file content MUST be pure functions within the module (functional core), with file I/O confined to the store edge (imperative shell). The parsed entry list MUST be validated with a Zod schema (slug matching the safe-slug shape, note optional string) before any parsed data is returned to callers, and `RoadmapStore` writes MUST only serialize data that has passed that schema. Reading a missing `spec/roadmap.md` MUST be treated as an empty roadmap, not an error. A matching test file `tests/roadmap-store.test.ts` MUST exist to maintain the 1:1 test-to-source ratio.
 
 ### Scenario: Entries round-trip through format and parse in order
 - GIVEN a roadmap containing entries `auth-refactor` (note "after schema freeze") and `dark-mode` (no note) in that order
@@ -22,12 +22,12 @@ The roadmap MUST be persisted in exactly one markdown file, `spec/roadmap.md`, w
 
 ## Requirement: Default roadmap command is a read-only ordered status view
 
-Running `metta roadmap` with no subcommand MUST print the ordered feature list: for each entry, its position, backlog slug, title resolved from the referenced `spec/backlog/<slug>.md` item, and note (when present). The command MUST support the global `--json` flag consistently with other commands, emitting the same ordered data as JSON (an ordered array of entry objects each carrying `position`, `slug`, `title`, and `note`). The view MUST perform no writes, MUST NOT call `assertOnMainBranch`, and MUST exit 0 on success. An empty roadmap MUST render an informative empty-state message in text mode and an empty ordered list in JSON mode, exit code 0. The command group MUST be registered via `registerRoadmapCommand(program)` in `src/cli/commands/roadmap.ts`, following the structure of `src/cli/commands/backlog.ts`.
+Running `metta roadmap` with no subcommand MUST print the ordered feature list: for each entry, its position, backlog slug, title resolved via `IssuesStore.show` from the referenced issue file `spec/issues/<slug>.md` (backlog items are issues carrying `backlog: true` frontmatter), and note (when present). The command MUST support the global `--json` flag consistently with other commands, emitting the same ordered data as JSON (an ordered array of entry objects each carrying `position`, `slug`, `title`, and `note`). The view MUST perform no writes, MUST NOT call `assertOnMainBranch`, and MUST exit 0 on success. An empty roadmap MUST render an informative empty-state message in text mode and an empty ordered list in JSON mode, exit code 0. The command group MUST be registered via `registerRoadmapCommand(program)` in `src/cli/commands/roadmap.ts`, following the structure of `src/cli/commands/backlog.ts`.
 
 ### Scenario: Populated roadmap listed in order
 - GIVEN `spec/roadmap.md` contains three entries referencing existing backlog items
 - WHEN I run `metta roadmap`
-- THEN all three entries print in roadmap order with position, slug, title resolved from the backlog item, and note, no file is modified, and the exit code is 0
+- THEN all three entries print in roadmap order with position, slug, title resolved from the referenced issue, and note, no file is modified, and the exit code is 0
 
 ### Scenario: JSON view mirrors the text view
 - GIVEN the same three-entry roadmap
@@ -47,10 +47,10 @@ Running `metta roadmap` with no subcommand MUST print the ordered feature list: 
 
 ## Requirement: Dangling entries are surfaced, never fatal
 
-When a roadmap entry references a backlog slug that no longer exists in `spec/backlog/` (checked via `BacklogStore.exists` or an equivalent failed `BacklogStore.show` resolution), the status view MUST NOT crash. The entry MUST still be listed at its position, marked as dangling — in text mode with a visible dangling indicator in place of the resolved title, and in JSON mode with a `dangling: true` field on the entry. Dangling entries MUST NOT be silently dropped from the view, and their presence MUST NOT change the exit code from 0.
+When a roadmap entry references a slug with no issue file in `spec/issues/` (surfaced as a failed `IssuesStore.show` resolution), the status view MUST NOT crash. The entry MUST still be listed at its position, marked as dangling — in text mode with a visible dangling indicator in place of the resolved title, and in JSON mode with a `dangling: true` field on the entry. Dangling entries MUST NOT be silently dropped from the view, and their presence MUST NOT change the exit code from 0.
 
 ### Scenario: Deleted backlog item shows as dangling
-- GIVEN a roadmap entry `old-idea` whose backlog file `spec/backlog/old-idea.md` was deleted after the entry was added
+- GIVEN a roadmap entry `old-idea` whose issue file `spec/issues/old-idea.md` was deleted after the entry was added
 - WHEN I run `metta roadmap`
 - THEN the view lists `old-idea` at its position marked as dangling instead of crashing, the remaining entries render normally with resolved titles, and the exit code is 0
 
@@ -62,15 +62,15 @@ When a roadmap entry references a backlog slug that no longer exists in `spec/ba
 
 ## Requirement: roadmap add appends an existing backlog item to the end of the queue
 
-`metta roadmap add <backlog-slug>` MUST append a reference to an existing backlog item at the end of the roadmap, with an optional `--note <text>` stored on the entry. Before writing, the command MUST verify the slug exists via `BacklogStore.exists`; a slug not present in `spec/backlog/` MUST be rejected with the JSON error envelope `{error: {code, type, message}}` with `type: 'not_found'` and exit code 4, leaving `spec/roadmap.md` unchanged. A slug already present on the roadmap MUST be rejected with `type: 'duplicate_entry'` and exit code 4, leaving the file unchanged. On success the command MUST auto-commit `spec/roadmap.md` via the existing `autoCommitFile` helper and, in JSON mode, MUST report the slug, its assigned position, and the commit outcome (`committed`, `commit_sha`). `BacklogStore` MUST be consumed read-only; `roadmap add` MUST NOT modify any file under `spec/backlog/`.
+`metta roadmap add <backlog-slug>` MUST append a reference to an existing backlog item at the end of the roadmap, with an optional `--note <text>` stored on the entry. Before writing, the command MUST verify the slug exists via `IssuesStore.exists`; a slug with no issue file `spec/issues/<slug>.md` MUST be rejected with the JSON error envelope `{error: {code, type, message}}` with `type: 'not_found'` and exit code 4, leaving `spec/roadmap.md` unchanged. A slug already present on the roadmap MUST be rejected with `type: 'duplicate_entry'` and exit code 4, leaving the file unchanged. On success the command MUST auto-commit `spec/roadmap.md` via the existing `autoCommitFile` helper and, in JSON mode, MUST report the slug, its assigned position, and the commit outcome (`committed`, `commit_sha`). `IssuesStore` MUST be consumed read-only; `roadmap add` MUST NOT modify any file under `spec/issues/`.
 
 ### Scenario: Valid slug appended with a note and auto-committed
-- GIVEN a backlog item `spec/backlog/foo.md` exists and `foo` is not on the roadmap
+- GIVEN a backlog item `spec/issues/foo.md` exists and `foo` is not on the roadmap
 - WHEN I run `metta roadmap add foo --note "after auth"` on the main branch
 - THEN the entry is appended at the last position of `spec/roadmap.md` with the note "after auth", the file is auto-committed via `autoCommitFile`, and the command exits 0
 
 ### Scenario: Unknown backlog slug is rejected as not_found
-- GIVEN the slug `nope` does not exist in `spec/backlog/`
+- GIVEN no issue file `spec/issues/nope.md` exists
 - WHEN I run `metta roadmap add nope --json`
 - THEN the command emits `{error: {code, type, message}}` with `type: 'not_found'` and exits with code 4, and `spec/roadmap.md` is byte-for-byte unchanged
 
@@ -95,14 +95,19 @@ When a roadmap entry references a backlog slug that no longer exists in `spec/ba
 - THEN each invocation emits the error envelope with `type: 'invalid_reorder'` and exits with code 4, and after all three invocations `spec/roadmap.md` is byte-for-byte identical to its state before the first invocation
 
 
-## Requirement: roadmap next activates the top entry through the backlog promote path and pops it
+## Requirement: roadmap next activates the top entry with a propose handoff and pops it
 
-`metta roadmap next` MUST take the first roadmap entry, resolve its backlog item, and hand off to activation via the exact same path `backlog promote` uses — resolving the item with `BacklogStore.show` and emitting the `metta propose "<title>"` handoff — such that any future change to promote's activation semantics automatically applies to `roadmap next`. After a successful handoff, the command MUST remove the top entry from the roadmap so the second entry becomes the new top, and MUST auto-commit the updated `spec/roadmap.md` via `autoCommitFile`. In JSON mode the success output MUST identify the activated slug and include the promote-style handoff message. On an empty roadmap the command MUST be a friendly no-op: it MUST emit `{"next": null}` in JSON mode, an informative message in text mode, exit code 0, and MUST perform no write and no commit.
+`metta roadmap next` MUST take the first roadmap entry, resolve its backlog item via `IssuesStore.show`, and emit the `metta propose "<title>"` activation handoff built by the `buildPromoteHandoff` helper in `src/cli/promote-handoff.ts`, of which `roadmap next` is the sole consumer. This activation path is deliberately decoupled from `backlog promote`, which performs zero writes and independently emits a `/metta-fix-issues <slug>` handoff. After a successful handoff, the command MUST remove the top entry from the roadmap so the second entry becomes the new top, and MUST auto-commit the updated `spec/roadmap.md` via `autoCommitFile`. In JSON mode the success output MUST identify the activated slug and include the `metta propose "<title>"` handoff message. On an empty roadmap the command MUST be a friendly no-op: it MUST emit `{"next": null}` in JSON mode, an informative message in text mode, exit code 0, and MUST perform no write and no commit. When the top entry is dangling — `IssuesStore.show` fails to resolve `spec/issues/<slug>.md` — the command MUST fail with the error envelope `type: 'not_found'` and exit code 4, carrying a recovery hint (restore the issue file, or reorder the entry off the top), and MUST NOT pop the entry, write `spec/roadmap.md`, or commit: silently popping a dangling entry would destroy roadmap intent (ADR-4).
 
 ### Scenario: Top entry activated and removed from the queue
 - GIVEN a roadmap whose top entry `foo` references an existing backlog item titled "Foo feature", with `bar` second
 - WHEN I run `metta roadmap next` on the main branch
-- THEN the backlog item is resolved via the same activation path as `backlog promote foo` (emitting the `metta propose "Foo feature"` handoff), the `foo` entry is removed so `bar` becomes the top of the roadmap, `spec/roadmap.md` is auto-committed, and the command exits 0
+- THEN the backlog item is resolved via `IssuesStore.show` and the `metta propose "Foo feature"` handoff is emitted, the `foo` entry is removed so `bar` becomes the top of the roadmap, `spec/roadmap.md` is auto-committed, and the command exits 0
+
+### Scenario: Dangling top entry fails not_found without popping
+- GIVEN the top roadmap entry `ghost` has no issue file `spec/issues/ghost.md`
+- WHEN I run `metta roadmap next --json` on the main branch
+- THEN the command emits the error envelope with `type: 'not_found'` and a recovery hint and exits with code 4, and `spec/roadmap.md` is byte-for-byte unchanged — the entry is not popped, and no write or commit occurs
 
 ### Scenario: Empty roadmap is a friendly no-op
 - GIVEN the roadmap has no entries
@@ -127,7 +132,7 @@ The mutating operations `roadmap add`, `roadmap reorder`, and `roadmap next` MUS
 
 ## Requirement: Roadmap failures use the standard error contract
 
-All roadmap command failures MUST use the existing JSON error envelope `{error: {code, type, message}}` in JSON mode and a human-readable message on stderr in text mode, with exit code 4 for not-found, validation, and branch-guard failures — matching the backlog command group's behavior. The `type` field MUST be one of the established discriminators: `'not_found'` for unknown backlog slugs, `'branch_guard'` for main-branch rejections, and the roadmap-specific `'invalid_reorder'` and `'duplicate_entry'` for reorder and add validation failures. A failing invocation MUST NOT leave a partially written `spec/roadmap.md`.
+All roadmap command failures MUST use the existing JSON error envelope `{error: {code, type, message}}` in JSON mode and a human-readable message on stderr in text mode, with exit code 4 for not-found, validation, and branch-guard failures — matching the backlog command group's behavior. The `type` field MUST be one of the established discriminators: `'not_found'` for unknown backlog slugs (including a dangling top entry on `roadmap next`), `'branch_guard'` for main-branch rejections, and the roadmap-specific `'invalid_reorder'` and `'duplicate_entry'` for reorder and add validation failures. Failures that do not map to one of those four discriminators MUST fall back to the defensive `'roadmap_error'` type rather than escaping the envelope. A failing invocation MUST NOT leave a partially written `spec/roadmap.md`.
 
 ### Scenario: Envelope shape is consistent across failure types
 - GIVEN a project with a populated roadmap
@@ -135,14 +140,14 @@ All roadmap command failures MUST use the existing JSON error envelope `{error: 
 - THEN every failure output parses as JSON with a single top-level `error` object containing numeric `code: 4`, one of the `type` values `'not_found'`, `'duplicate_entry'`, `'invalid_reorder'`, or `'branch_guard'`, and a non-empty `message`, and every process exits with code 4
 
 ### Scenario: Text mode reports the same failures on stderr
-- GIVEN the slug `nope` does not exist in `spec/backlog/`
+- GIVEN no issue file `spec/issues/nope.md` exists
 - WHEN I run `metta roadmap add nope` without `--json`
 - THEN a human-readable not-found message is written to stderr and the process exits with code 4
 
 
 ## Requirement: Roadmap wiring is additive to the CLI context and barrel exports
 
-The roadmap command group MUST be registered in the CLI entry point via `registerRoadmapCommand(program)` alongside the other `register*Command` calls. `RoadmapStore` MUST be added to the barrel export at `src/index.ts` and exposed as an additive field on `CliContext` via `createCliContext` in `src/cli/helpers.ts`. Existing modules MUST NOT change behavior: `BacklogStore` is consumed read-only (`exists`, `show`) and MUST NOT be modified, and all existing `metta backlog` subcommands MUST keep their current behavior verbatim.
+The roadmap command group MUST be registered in the CLI entry point via `registerRoadmapCommand(program)` alongside the other `register*Command` calls. `RoadmapStore` MUST be added to the barrel export at `src/index.ts` and exposed as an additive field on `CliContext` via `createCliContext` in `src/cli/helpers.ts`. Existing modules MUST NOT change behavior: `IssuesStore` is consumed read-only (`exists`, `show`) by the roadmap commands and MUST NOT be modified, and all existing `metta backlog` subcommands MUST keep their current behavior verbatim.
 
 ### Scenario: Command group and store are reachable through standard wiring
 - GIVEN the project is built
@@ -152,7 +157,7 @@ The roadmap command group MUST be registered in the CLI entry point via `registe
 ### Scenario: Backlog behavior is untouched
 - GIVEN the roadmap feature is installed
 - WHEN the existing `metta backlog add/list/show/promote/done` test suite runs
-- THEN all backlog commands behave exactly as before, with no change to promote's propose-handoff activation semantics
+- THEN all backlog commands behave exactly as before, with `backlog promote` keeping its zero-write `/metta-fix-issues <slug>` handoff semantics
 
 
 ## Requirement: Guard hook tiers roadmap forms — mutations Tier 2, status view unguarded
