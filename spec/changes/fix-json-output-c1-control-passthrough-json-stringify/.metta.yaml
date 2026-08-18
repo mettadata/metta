@@ -41,6 +41,8 @@ artifact_tokens:
   spec:
     context: 3415
     budget: 40000
+review_iterations: 1
+verify_iterations: 1
 worktree: /home/utx0/Code/metta/.metta/worktrees/fix-json-output-c1-control-passthrough-json-stringify
 token_usage:
   - task: metta-skill-host
