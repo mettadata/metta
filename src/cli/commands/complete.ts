@@ -37,6 +37,17 @@ const DROPPABLE_PLANNING_ARTIFACTS = new Set([
 const execAsync = promisify(execFile)
 
 /**
+ * Strip C0 control characters and DEL from a string destined for the
+ * terminal, so crafted filenames cannot inject escape sequences into
+ * human-readable output. JSON output is escape-safe by construction and
+ * keeps raw values.
+ */
+function stripControlChars(value: string): string {
+  // eslint-disable-next-line no-control-regex
+  return value.replace(/[\x00-\x1f\x7f]/g, '')
+}
+
+/**
  * Best-effort stamp of `artifact_timings[artifactId].completed` on the
  * change's metadata. Preserves any existing `started` value. Never throws
  * into the completion path — instrumentation MUST NOT block workflow.
@@ -237,8 +248,24 @@ export function registerCompleteCommand(program: Command): void {
         if (artifactId === 'implementation') {
           const mainRoot = await resolveMainCheckoutRoot(ctx.projectRoot, changeName, metadata)
           if (mainRoot !== null) {
-            const cmp = await compareMainTree(mainRoot, changeName)
-            if (!cmp.hasBaseline) {
+            // Fail-open on infrastructure faults: only a positive
+            // contamination detection (MainTreeContaminationError thrown
+            // below) may block completion. A failing git invocation inside
+            // the compare (missing/corrupted .git, git absent) is a
+            // check-infrastructure failure, not evidence of dirt — warn and
+            // proceed, consistent with the capture (warn-and-continue) and
+            // ship (fail-open skip) layer-3 surfaces.
+            let cmp: Awaited<ReturnType<typeof compareMainTree>> | null = null
+            try {
+              cmp = await compareMainTree(mainRoot, changeName)
+            } catch (gateErr) {
+              process.stderr.write(
+                `Warning: main-checkout cleanliness check skipped: ${getErrorMessage(gateErr)}\n`,
+              )
+            }
+            if (cmp === null) {
+              // Check skipped — warning already emitted above.
+            } else if (!cmp.hasBaseline) {
               // No baseline recorded (feature shipped mid-flight, scratch
               // wiped, or main_root mismatch): dirt cannot be attributed —
               // warn and pass, never a hard failure on absence.
@@ -248,8 +275,12 @@ export function registerCompleteCommand(program: Command): void {
             } else if (cmp.newDirt.length > 0) {
               // Lists ONLY the newly-dirty paths (+ XY status codes) —
               // pre-existing dirt never blocks and never appears here.
+              // Control characters are stripped from this human-readable
+              // listing (terminal-escape injection via crafted filenames);
+              // the raw paths travel on the error's newDirt payload,
+              // surfaced as `error.new_dirt` in --json mode.
               const listing = cmp.newDirt
-                .map(e => `  [${e.status}] ${e.path}`)
+                .map(e => `  [${e.status}] ${stripControlChars(e.path)}`)
                 .join('\n')
               throw new MainTreeContaminationError(
                 `Main checkout at ${mainRoot} accumulated new dirt during this worktree-hosted change:\n` +
@@ -742,7 +773,13 @@ export function registerCompleteCommand(program: Command): void {
         // Differentiate the layer-3 contamination gate via instanceof so
         // automation can distinguish it without a new exit code (D6).
         const type = err instanceof MainTreeContaminationError ? 'main_tree_contamination' : 'complete_error'
-        if (json) { outputJson({ error: { code: 4, type, message } }) } else { console.error(`Complete failed: ${message}`) }
+        // Contamination errors carry the raw newly-dirty entries in the JSON
+        // payload (the message's listing is control-char-stripped for
+        // terminal safety, so machine consumers read `new_dirt` for paths).
+        const errorPayload = err instanceof MainTreeContaminationError
+          ? { code: 4, type, message, new_dirt: err.newDirt }
+          : { code: 4, type, message }
+        if (json) { outputJson({ error: errorPayload }) } else { console.error(`Complete failed: ${message}`) }
         process.exit(4)
       }
     })

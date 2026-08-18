@@ -1790,6 +1790,65 @@ describe("CLI: instructions banners / complete tier downscale & upscale", { time
       expect(meta).toContain('implementation: complete')
     })
 
+    it('git failure during the compare: warns "cleanliness check skipped" on stderr and completes (fail-open)', async () => {
+      const { slug, worktreePath } = await createWorktreeQuickChange('git failure fail open case')
+      await captureMainTreeBaseline(tempDir, slug)
+      // Corrupt the MAIN checkout's git index AFTER the baseline is
+      // recorded: the gate's `git status` read now fails with an
+      // infrastructure error, not a contamination verdict. Only
+      // MainTreeContaminationError may block completion — any other error
+      // from the compare must warn and fall through. (The worktree keeps
+      // its own index, so the change-side git state is unaffected.)
+      await writeFile(join(tempDir, '.git', 'index'), 'garbage', 'utf8')
+
+      const { stderr, code } = await runCli(
+        ['complete', 'implementation', '--change', slug],
+        tempDir,
+      )
+      expect(code).toBe(0)
+      expect(stderr).toContain('main-checkout cleanliness check skipped')
+      const meta = await readFile(
+        join(worktreePath, 'spec', 'changes', slug, '.metta.yaml'),
+        'utf8',
+      )
+      expect(meta).toContain('implementation: complete')
+    })
+
+    it('control characters in a newly-dirty filename: stripped from human output, raw in --json new_dirt', async () => {
+      // A tracked filename carrying an ANSI escape (ESC) and a BEL — the
+      // terminal-injection class. porcelain -z reports paths verbatim, so
+      // the raw bytes reach the CLI; the human-readable listing must strip
+      // them while the JSON payload keeps the raw path.
+      const evilName = 'evil-\u001b[31mred-\u0007bell.txt'
+      const evilPath = await commitTrackedFile(evilName, 'original\n')
+      const { slug } = await createWorktreeQuickChange('control char filename case')
+      await captureMainTreeBaseline(tempDir, slug)
+      await writeFile(evilPath, 'contaminated\n', 'utf8')
+
+      const human = await runCli(
+        ['complete', 'implementation', '--change', slug],
+        tempDir,
+      )
+      expect(human.code).toBe(4)
+      // No control bytes reach the terminal…
+      expect(human.stderr).not.toContain('\u001b')
+      expect(human.stderr).not.toContain('\u0007')
+      // …but the stripped rendition of the path is still listed.
+      expect(human.stderr).toContain('[ M] evil-[31mred-bell.txt')
+
+      const jsonRun = await runCli(
+        ['--json', 'complete', 'implementation', '--change', slug],
+        tempDir,
+      )
+      expect(jsonRun.code).toBe(4)
+      const data = JSON.parse(jsonRun.stdout)
+      expect(data.error.type).toBe('main_tree_contamination')
+      // JSON output is escape-safe by construction: the payload carries the
+      // RAW path for machine consumers.
+      const dirtPaths = (data.error.new_dirt as Array<{ path: string }>).map(e => e.path)
+      expect(dirtPaths).toContain(evilName)
+    })
+
     it('non-worktree change: gate disengaged even with a dirty main and a present baseline', async () => {
       await disableWorktrees(tempDir)
       const dirtFile = await commitTrackedFile('local-dirt.txt', 'original\n')
