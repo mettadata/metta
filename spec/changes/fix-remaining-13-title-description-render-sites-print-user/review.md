@@ -28,3 +28,13 @@ No critical findings. All 16 intent sites verified wrapped; JSON paths byte-fait
 ## Disposition
 
 Findings 1-3 are the identical vulnerability class this change exists to close, inside files it touched; fixed in a fixup commit within this change (review iteration 2 confirms). Findings 4-7 accepted as-is (error path / test-scope / pre-existing duplication / explicitly out of scope).
+
+## Round 2 — fixup `b156eba4d`
+
+| Reviewer | Verdict |
+|----------|---------|
+| Correctness | PASS |
+| Security | PASS |
+| Quality | PASS |
+
+All three residual sites confirmed sanitized with the correct variant; JSON branches verified byte-faithful (hostile bytes round-trip in tests); `??` → `!== undefined` rewrite confirmed semantics-preserving; new tests (cli-gaps 3/3, cli-roadmap, cli-status) pass. No critical, major, or warning findings. Review loop clean — exit.

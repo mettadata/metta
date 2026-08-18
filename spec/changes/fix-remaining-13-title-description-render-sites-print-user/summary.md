@@ -36,3 +36,27 @@ All 16 intent-listed sites plus the intent's in-scope same-block free-text field
 | `npm run lint` | pass |
 | `npx tsc --noEmit` | pass |
 | `npm run build` | pass |
+
+## Verification
+
+Fixup commit `b156eba4d` additionally sanitized `gap.action` (multiline), `stories.justification` (multiline), and the `roadmap next` handoff line (single-line, text branch only), with new tests in `tests/cli-gaps.test.ts` (new file), `tests/cli-roadmap.test.ts`, `tests/cli-status.test.ts`.
+
+### Spec scenarios (verified against intent — quick workflow)
+
+- All 16 intent-listed render sites wrapped with the correct variant — PASS (verifier cited file:line for each)
+- Newline-preserving helper `stripControlSequencesMultiline` behaves per intent (LF preserved, CRLF→LF, per-line OSC/DCS bounding, idempotent) — PASS
+- JSON output paths byte-faithful — PASS (zero `strip` on `outputJson` lines; `--json` tests assert exact hostile bytes round-trip)
+- Tests cover list, heading, and multi-line body sites plus JSON fidelity — PASS (85/85 targeted; 93/93 after fixup)
+
+### Gate results (verification phase)
+
+| Gate | Result |
+|------|--------|
+| `npm test` (full suite, pre-fixup) | 2400/2400 pass, 127/127 files |
+| Targeted vitest (post-fixup, 4 touched files) | 93/93 pass |
+| `npx tsc --noEmit` | pass (pre- and post-fixup) |
+| `npm run lint` | pass (pre- and post-fixup) |
+
+### Review
+
+3 reviewers × 2 rounds: round 1 PASS_WITH_WARNINGS (×3) → fixup `b156eba4d` → round 2 PASS (×3). Security reviewer fuzzed the sanitizer with 20k adversarial strings: zero control-byte leaks, no ReDoS, idempotent.
