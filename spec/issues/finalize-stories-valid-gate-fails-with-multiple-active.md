@@ -5,3 +5,7 @@
 **Severity**: minor
 
 finalize stories-valid gate fails with multiple active changes when run from the main checkout: the gate template (templates/gates/stories-valid.yaml) invokes bare 'metta validate-stories' with no --change flag, and validate-stories errors 'Multiple active changes: ... Specify --change' when the session cwd's state sees more than one active change (e.g. a concurrent agent proposed another change). Finalize --change <name> already knows the change; the gate command should be scoped to it (template variable or gate-runner injection). Workaround used: run metta finalize with cwd inside the change worktree, where only that change is active. Hit during finalize of fix-json-output-c1-control-passthrough-json-stringify on 2026-08-18.
+
+## Corroboration — zeus consumer session (2026-08-19)
+
+Independently reproduced in zeus during the per-DEX-switch change (their PR #28): `metta finalize` run from the main checkout with TWO active changes present (per-DEX-switch + chain-stablecoin-consensus-usd-price-layer, PR #27) failed the stories-valid gate ambiguously — the gate is not `--change`-scoped and resolved the wrong change's artifacts. Workaround confirmed identical to the metta-repo incidents: running finalize from inside the change's own worktree (where only that change's spec/changes is visible) resolves it. Raises priority: this now hits any consumer running concurrent changes, which the worktree-per-change model explicitly encourages.
