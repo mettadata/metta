@@ -17,4 +17,6 @@ artifact_timings:
     completed: 2026-08-18T03:07:30.234Z
   implementation:
     completed: 2026-08-18T03:16:50.615Z
+review_iterations: 1
+verify_iterations: 1
 worktree: /home/utx0/Code/metta/.metta/worktrees/fix-five-src-side-test-files-still-live-outside-tests

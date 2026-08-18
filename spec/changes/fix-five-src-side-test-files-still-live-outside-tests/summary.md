@@ -21,3 +21,26 @@ Diff beyond renames: exactly one relative-import rewrite per file (5 insertions,
 | npx tsc --noEmit | clean |
 | npm run build | OK; 0 *.test.* files in dist/ |
 | Full npm test | 2439/2439 pass, 129 files |
+
+## Verification
+
+### Intent commitments (all PASS, verifier evidence)
+
+- Five files moved to stated targets via rename — git log --stat shows exactly 5 renames matching the intent table
+- Exactly one import rewrite per file, zero other body changes — 5 insertions/5 deletions total
+- No *.test.ts remains under src/ — find returns 0
+- tsconfig.json and vitest.config.ts byte-unchanged; both guards intact (exclude src/**/*.test.ts; include both test roots)
+- Targeted run of the five relocated suites — 74/74 pass; vitest list confirms collection from tests/
+
+### Gate results (verification phase)
+
+| Gate | Result |
+|------|--------|
+| npm test (full) | 2439/2439 pass, 129/129 files |
+| npx tsc --noEmit | pass |
+| npm run lint | pass |
+| npm run build | pass; find dist -name '*.test.*' → none |
+
+### Review
+
+3 reviewers, 1 round: PASS / PASS / PASS — zero findings.
