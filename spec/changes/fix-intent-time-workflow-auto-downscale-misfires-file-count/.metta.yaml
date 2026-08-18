@@ -61,3 +61,39 @@ token_usage:
     tokens: 12075
     timestamp: 2026-08-18T05:05:49.566Z
     source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 92313
+    timestamp: 2026-08-18T05:06:37.538Z
+    source: hook
+  - task: research
+    agent: metta-researcher
+    model: fable
+    tokens: 12696
+    timestamp: 2026-08-18T05:09:01.033Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 92346
+    timestamp: 2026-08-18T05:09:07.145Z
+    source: hook
+  - task: research
+    agent: metta-researcher
+    model: fable
+    tokens: 13712
+    timestamp: 2026-08-18T05:09:16.312Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 92373
+    timestamp: 2026-08-18T05:09:20.444Z
+    source: hook
+  - task: research
+    agent: metta-researcher
+    model: fable
+    tokens: 19882
+    timestamp: 2026-08-18T05:10:55.424Z
+    source: hook
