@@ -1,10 +1,46 @@
 import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest'
-import { askYesNo, handleError, outputJson, resolveChangeRoot, resolveProjectRoot } from '../src/cli/helpers.js'
+import {
+  askYesNo,
+  askYesNoDetailed,
+  handleError,
+  outputJson,
+  resolveChangeRoot,
+  resolveProjectRoot,
+} from '../src/cli/helpers.js'
 import { mkdtemp, rm, mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { z } from 'zod'
 import { recordVersionDrift, resetVersionDrift } from '../src/config/version-drift.js'
+
+// Scripted TTY prompt state for the askYesNoDetailed interactive-answer
+// tests. When `answers` is non-empty, the node:readline mock below
+// intercepts createInterface and replays the queued answer; otherwise it
+// delegates to the real implementation so every other test is unaffected —
+// same pattern as tests/cli-complete.test.ts's harness.
+const ttyPrompt = vi.hoisted(() => ({
+  answers: [] as string[],
+  questions: [] as string[],
+}))
+
+vi.mock('node:readline', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:readline')>()
+  return {
+    ...actual,
+    createInterface: (options: Parameters<typeof actual.createInterface>[0]) => {
+      if (ttyPrompt.answers.length === 0) {
+        return actual.createInterface(options)
+      }
+      return {
+        question(query: string, cb: (answer: string) => void): void {
+          ttyPrompt.questions.push(query)
+          cb(ttyPrompt.answers.shift() ?? '')
+        },
+        close(): void {},
+      } as unknown as ReturnType<typeof actual.createInterface>
+    },
+  }
+})
 
 describe('askYesNo', () => {
   const originalIsTTY = process.stdin.isTTY
@@ -59,6 +95,96 @@ describe('askYesNo', () => {
   it('defaults to false in jsonMode when defaultYes is omitted', async () => {
     setTTY(true)
     await expect(askYesNo('prompt?', { jsonMode: true })).resolves.toBe(false)
+  })
+})
+
+describe('askYesNoDetailed', () => {
+  const originalIsTTY = process.stdin.isTTY
+
+  beforeEach(() => {
+    ttyPrompt.answers = []
+    ttyPrompt.questions = []
+  })
+
+  afterEach(() => {
+    // Restore original TTY state so other tests are unaffected.
+    Object.defineProperty(process.stdin, 'isTTY', {
+      value: originalIsTTY,
+      configurable: true,
+      writable: true,
+    })
+    ttyPrompt.answers = []
+    ttyPrompt.questions = []
+  })
+
+  function setTTY(value: boolean | undefined): void {
+    Object.defineProperty(process.stdin, 'isTTY', {
+      value,
+      configurable: true,
+      writable: true,
+    })
+  }
+
+  it('non-TTY/jsonMode early return: viaDefault true, value === defaultYes', async () => {
+    setTTY(false)
+    await expect(askYesNoDetailed('prompt?', { defaultYes: true })).resolves.toEqual({
+      value: true,
+      viaDefault: true,
+    })
+    await expect(askYesNoDetailed('prompt?', { defaultYes: false })).resolves.toEqual({
+      value: false,
+      viaDefault: true,
+    })
+
+    setTTY(true)
+    await expect(
+      askYesNoDetailed('prompt?', { defaultYes: true, jsonMode: true }),
+    ).resolves.toEqual({ value: true, viaDefault: true })
+  })
+
+  it('empty answer: viaDefault true, value === defaultYes', async () => {
+    setTTY(true)
+    ttyPrompt.answers = ['']
+    await expect(askYesNoDetailed('prompt?', { defaultYes: true })).resolves.toEqual({
+      value: true,
+      viaDefault: true,
+    })
+  })
+
+  it('explicit y: viaDefault false, value true', async () => {
+    setTTY(true)
+    ttyPrompt.answers = ['y']
+    await expect(askYesNoDetailed('prompt?', { defaultYes: false })).resolves.toEqual({
+      value: true,
+      viaDefault: false,
+    })
+  })
+
+  it('explicit n: viaDefault false, value false', async () => {
+    setTTY(true)
+    ttyPrompt.answers = ['n']
+    await expect(askYesNoDetailed('prompt?', { defaultYes: true })).resolves.toEqual({
+      value: false,
+      viaDefault: false,
+    })
+  })
+
+  it('unrecognized answer: viaDefault true, value === defaultYes', async () => {
+    setTTY(true)
+    ttyPrompt.answers = ['garbage']
+    await expect(askYesNoDetailed('prompt?', { defaultYes: true })).resolves.toEqual({
+      value: true,
+      viaDefault: true,
+    })
+  })
+
+  it('askYesNo wrapper still returns the bare boolean', async () => {
+    setTTY(true)
+    ttyPrompt.answers = ['y']
+    await expect(askYesNo('prompt?', { defaultYes: false })).resolves.toBe(true)
+
+    ttyPrompt.answers = ['n']
+    await expect(askYesNo('prompt?', { defaultYes: true })).resolves.toBe(false)
   })
 })
 

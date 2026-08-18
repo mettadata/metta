@@ -363,10 +363,13 @@ export async function assertOnMainBranch(
 }
 
 /**
- * Interactive yes/no prompt helper. Returns the configured default
- * (false when unspecified) without prompting when stdin is not a TTY
- * or when `jsonMode` is set, making it safe to call from CLI commands
- * that may be invoked non-interactively or with --json.
+ * Interactive yes/no prompt helper, with cause detection. Returns the
+ * configured default (false when unspecified) without prompting when
+ * stdin is not a TTY or when `jsonMode` is set, making it safe to call
+ * from CLI commands that may be invoked non-interactively or with
+ * --json. `viaDefault` is `true` whenever the resolved value came from
+ * `defaultYes` rather than an explicit y/n answer — i.e. the non-TTY/
+ * jsonMode early return, an empty answer, or an unrecognized answer.
  *
  * When interactive: prints the question with an auto-appended suffix
  * (`[Y/n]` when defaultYes, otherwise `[y/N]`) unless the question
@@ -374,13 +377,13 @@ export async function assertOnMainBranch(
  * resolves based on the first character (y/Y → true, n/N → false,
  * anything else or empty → defaultYes ?? false).
  */
-export async function askYesNo(
+export async function askYesNoDetailed(
   question: string,
   opts?: { defaultYes?: boolean; jsonMode?: boolean },
-): Promise<boolean> {
+): Promise<{ value: boolean; viaDefault: boolean }> {
   const defaultYes = opts?.defaultYes ?? false
   if (!process.stdin.isTTY || opts?.jsonMode === true) {
-    return defaultYes
+    return { value: defaultYes, viaDefault: true }
   }
   // Auto-append the [y/N] or [Y/n] suffix unless the caller already
   // provided one. This keeps prompts consistent across the CLI and
@@ -390,26 +393,38 @@ export async function askYesNo(
   const suffix = defaultYes ? '[Y/n]' : '[y/N]'
   const rendered = hasSuffix ? question : `${trimmed} ${suffix}`
   const rl = createInterface({ input: process.stdin, output: process.stdout })
-  return new Promise<boolean>((resolve) => {
+  return new Promise<{ value: boolean; viaDefault: boolean }>((resolve) => {
     rl.question(rendered + ' ', (answer) => {
       rl.close()
       const trimmed = answer.trim()
       if (trimmed.length === 0) {
-        resolve(defaultYes)
+        resolve({ value: defaultYes, viaDefault: true })
         return
       }
       const first = trimmed[0]
       if (first === 'y' || first === 'Y') {
-        resolve(true)
+        resolve({ value: true, viaDefault: false })
         return
       }
       if (first === 'n' || first === 'N') {
-        resolve(false)
+        resolve({ value: false, viaDefault: false })
         return
       }
-      resolve(defaultYes)
+      resolve({ value: defaultYes, viaDefault: true })
     })
   })
+}
+
+/**
+ * Thin wrapper over {@link askYesNoDetailed} that discards the
+ * `viaDefault` cause and returns the bare boolean. Signature and
+ * behavior are unchanged for all existing call sites.
+ */
+export async function askYesNo(
+  question: string,
+  opts?: { defaultYes?: boolean; jsonMode?: boolean },
+): Promise<boolean> {
+  return (await askYesNoDetailed(question, opts)).value
 }
 
 /**
