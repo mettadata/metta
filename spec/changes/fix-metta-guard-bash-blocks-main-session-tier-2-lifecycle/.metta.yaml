@@ -1,11 +1,11 @@
 workflow: standard
 created: 2026-08-18T10:34:47.581Z
 status: active
-current_artifact: intent
+current_artifact: stories
 base_versions: {}
 artifacts:
-  intent: ready
-  stories: pending
+  intent: complete
+  stories: ready
   spec: pending
   research: pending
   design: pending
@@ -15,8 +15,22 @@ artifacts:
 artifact_timings:
   intent:
     started: 2026-08-18T10:34:52.103Z
+    completed: 2026-08-18T10:36:25.662Z
 artifact_tokens:
   intent:
     context: 763
     budget: 20000
 worktree: /home/utx0/Code/metta/.metta/worktrees/fix-metta-guard-bash-blocks-main-session-tier-2-lifecycle
+token_usage:
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 4741
+    timestamp: 2026-08-18T10:35:26.344Z
+    source: hook
+  - task: intent
+    agent: metta-proposer
+    model: fable
+    tokens: 5258
+    timestamp: 2026-08-18T10:36:19.577Z
+    source: hook
