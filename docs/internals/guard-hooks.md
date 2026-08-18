@@ -32,16 +32,18 @@ stdin, decides allow/block, and signals the result via exit code. A `0` exit
 permits the tool call; a non-zero exit (`2`) blocks it and surfaces the message
 written to stderr back to the model.
 
-Two hooks are registered in `.claude/settings.json`:
+Three hooks make up the layer. Two are registered globally in
+`.claude/settings.json`; the third is attached per-skill via frontmatter:
 
-| Hook | Matcher | Source |
+| Hook | Trigger | Source |
 |------|---------|--------|
-| Bash guard | `Bash` | `.claude/hooks/metta-guard-bash.mjs` |
-| Edit guard | `Edit\|Write\|NotebookEdit\|MultiEdit` | `.claude/hooks/metta-guard-edit.mjs` |
+| Bash guard | `Bash` tool calls (settings.json matcher) | `.claude/hooks/metta-guard-bash.mjs` |
+| Edit guard | `Edit\|Write\|NotebookEdit\|MultiEdit` (settings.json matcher) | `.claude/hooks/metta-guard-edit.mjs` |
+| Session mint | PreToolUse `Bash` hook declared in each Tier-2 skill's frontmatter | `.claude/hooks/metta-session-mint.mjs` |
 
 The runtime copies of these hooks live under `.claude/hooks/`; the canonical
 sources shipped to users live at `src/templates/hooks/`. Keep the two in sync —
-edits to one without the other will drift.
+`tests/hooks-byte-identity.test.ts` fails the build if they drift.
 
 ---
 
@@ -50,22 +52,24 @@ edits to one without the other will drift.
 `metta-guard-bash.mjs` intercepts every `Bash` tool call, scans the command
 string for `metta` invocations, classifies each one, and blocks the call if any
 invocation is a state-mutating subcommand that the caller is not authorized to
-run directly.
+run.
 
 ### Subcommand lists
 
-The guard maintains four hard-coded lists. Classification walks them in order.
+The guard maintains hard-coded lists. Classification walks them in order.
 
 | List | Members | Meaning |
 |------|---------|---------|
-| `ALLOWED_SUBCOMMANDS` | `status`, `instructions`, `progress`, `doctor`, `iteration`, `install` | Read-safe single-word forms. Always permitted. (`install` is an intentional pass-through for human/CI install; `iteration` only bumps a per-change counter.) |
-| `ALLOWED_TWO_WORD` | `issues list`, `gate list`, `changes list`, `backlog list`, `backlog show` | Read-only two-word forms. Always permitted. |
-| `BLOCKED_SUBCOMMANDS` | `propose`, `quick`, `auto`, `complete`, `finalize`, `ship`, `issue`, `fix-issue`, `fix-gap`, `refresh`, `import`, `init` | State-mutating single-word forms. Blocked unless bypassed. |
-| `BLOCKED_TWO_WORD` | `backlog add`, `backlog done`, `backlog promote`, `changes abandon` | State-mutating two-word forms. Blocked unless bypassed. |
+| `ALLOWED_SUBCOMMANDS` | `status`, `instructions`, `progress`, `doctor`, `next`, `iteration`, `model-escalation`, `tokens`, `install` | Read-safe single-word forms. Always permitted. (`install` is an intentional pass-through for human/CI install; `iteration`, `model-escalation`, and `tokens` are append-only instrumentation.) |
+| `ALLOWED_TWO_WORD` | `issues list`, `gate list`, `changes list`, `backlog list`, `backlog show`, `gaps list`, `gaps show`, `milestone list`, `milestone show`, `release status` | Read-only two-word forms. Always permitted. |
+| `ALLOWED_BARE` | `roadmap`, `release`, `backlog` | Bare (no-third-word) read-only status views, optionally with flags (`metta roadmap --json`). Their mutating two-word forms stay blocked. |
+| `BLOCKED_SUBCOMMANDS` | `propose`, `quick`, `auto`, `complete`, `finalize`, `ship`, `issue`, `fix-issue`, `fix-gap`, `refresh`, `import`, `init`, `verify` | State-mutating (or command-executing, for `verify`) single-word forms. Require tier authorization. |
+| `BLOCKED_TWO_WORD` | `backlog add/done/promote/migrate`, `changes abandon`, `milestone create`, `roadmap add/reorder/next/remove`, `release cut` | State-mutating two-word forms. Require tier authorization. |
 
-A fifth set, `SKILL_ENFORCED_SUBCOMMANDS` (`issue`, `fix-issue`, `propose`,
-`quick`, `auto`, `ship`), is a stricter subset of the blocked subcommands — see
-[the two-tier model](#two-tier-enforcement) below.
+A further set, `SKILL_ENFORCED_SUBCOMMANDS` (`issue`, `fix-issue`, `propose`,
+`quick`, `auto`, `ship`), is the **fork-tier (Tier 1)** subset of the blocked
+subcommands — see [the two-tier model](#two-tier-enforcement) below. Every
+other blocked form is **session-tier (Tier 2)**.
 
 ### Classification: allow / block / unknown
 
@@ -79,107 +83,204 @@ A fifth set, `SKILL_ENFORCED_SUBCOMMANDS` (`issue`, `fix-issue`, `propose`,
   rejection message tells the contributor to update the allowlist if the command
   is genuinely read-only.
 
+An invocation containing a `--` operand terminator anywhere in its arguments
+(bare, or a word whose quote-removed form is `--`) is always `unknown` — Commander
+dispatches what follows `--` as a subcommand, so no tier, fork identity, or
+session credential can authorize it. A `--` that is a proper substring of a
+longer quoted argument (`"hello -- world"`) is literal text and stays allowed.
+
 ### The tokenizer
 
-`tokenize(command)` splits the command on whitespace and walks the tokens,
-following shell chain separators (`&&`, `;`, `||`, `|`) to find every `metta`
-invocation. For each one it records:
+`tokenize(command)` splits the command into segments at unquoted chain-separator
+runs (`;`, `|`, `&`, `&&`, `||`, newlines — quote-aware, so a separator inside a
+quoted argument is literal text, not a boundary), then whitespace-tokenizes each
+segment looking for a leading `metta` invocation. For each one it records:
 
 - `sub` — the subcommand (token after `metta`)
 - `third` — the next token (for two-word forms)
-- `skillBypass` — whether an inline `METTA_SKILL=1` env-var prefix preceded the
-  invocation
+- `hasDoubleDash` — whether a live `--` operand terminator appears in the
+  invocation's argument span
 
 Leading env-var assignments (`FOO=bar metta ...`) are consumed before the
-`metta` token, and `METTA_SKILL=1` among them sets `skillBypass`.
-
-**Quote-aware skip-to-separator (recently fixed).** After it finds a `metta`
-invocation, the tokenizer skips the rest of that command's arguments up to the
-next chain separator before looking for another invocation. This prevents a word
-*inside a quoted argument* from being misparsed as a second `metta` call — for
-example, a propose description that literally contains the words
-`"metta finalize"`. Without this skip, the substring would be flagged as a
-blocked `finalize` call and the legitimate command would be rejected.
+`metta` token so the subcommand behind them is still detected. **Inline command
+text — including any env-var prefix — never carries authorization.** Tier 1
+trusts only the verified fork caller identity, and Tier 2 trusts only the minted
+session credential. (The historical inline `METTA_SKILL=1` bypass is retired and
+no longer recognized.)
 
 > The tokenizer is intentionally a coarse approximation of shell parsing, not a
-> real parser. It does not strip quotes or expand variables; it only needs to be
-> conservative enough to catch direct `metta <mutating-subcommand>` calls and
-> robust enough not to false-positive on quoted text. When extending it, keep
-> failing closed (unknown ⇒ block) as the guiding principle.
-
-### Two bypass signals and their trust properties
-
-The guard recognizes two distinct signals that a `metta` call is legitimately
-skill-initiated. Their trust levels differ, and that difference is the whole
-point of the design.
-
-1. **Inline `METTA_SKILL=1` prefix** — the env-var prefix on the command string
-   itself (`METTA_SKILL=1 metta issue ...`). This is **forgeable**: anything that
-   can construct a Bash command can prepend it, including an orchestrator that is
-   trying to route around the guard. It is recorded as `skillBypass` per
-   invocation. (A belt-and-suspenders check also honors `METTA_SKILL=1` set on
-   the hook *process's own* environment, near the top of `main()`.)
-
-2. **`event.agent_type`** — caller identity set by the Claude Code **runtime**
-   when a tool call fires from a forked subagent. `isTrustedSkillCaller(event)`
-   returns true only when `event.agent_type` is a string beginning with
-   `metta-`. This signal is **not forgeable via the command string** — the model
-   cannot set it; only the runtime does, and only for a genuine fork. This is the
-   strong trust anchor.
+> real parser. Wrapper prefixes (`command metta ...`, `env metta ...`, `sh -c`),
+> command substitution, subshells, and similar indirection are invisible to it —
+> an accepted limitation documented in the hook source. Defense in depth comes
+> from the two-tier trust model and the audit log, not from mechanically
+> detecting every indirection. When extending it, keep failing closed
+> (unknown ⇒ block) as the guiding principle.
 
 ### Two-tier enforcement
 
-The guard applies different requirements depending on the subcommand:
+Blocked subcommands are authorized through one of two trust anchors, neither of
+which can be forged from command text:
 
-- **Skill-enforced subcommands** (`SKILL_ENFORCED_SUBCOMMANDS`: `issue`,
-  `fix-issue`, `propose`, `quick`, `auto`, `ship`) require **BOTH** the inline
-  `METTA_SKILL=1` bypass **AND** a trusted `metta-*` `agent_type`. For these,
-  the inline prefix alone is no longer sufficient — a forgeable signal can't
-  unlock the highest-impact commands. The rejection message points the caller at
-  the matching skill (via `SKILL_HINT_MAP`, e.g. `propose → /metta-propose`).
+- **Tier 1 (fork-tier)** — `SKILL_ENFORCED_SUBCOMMANDS` (`issue`, `fix-issue`,
+  `propose`, `quick`, `auto`, `ship`) are authorized **solely** by a verified
+  fork caller identity: `isTrustedSkillCaller(event)` returns true only when
+  `event.agent_type` is a string beginning with `metta-`. The Claude Code
+  runtime sets this field itself when a tool call fires from a forked
+  `metta-skill-host` subagent; the model cannot set it.
 
-- **Every other blocked subcommand** (e.g. `complete`, `finalize`, `refresh`,
-  `import`, `init`, the blocked two-word forms) accepts the inline
-  `METTA_SKILL=1` bypass **alone**. This preserves existing skill-internal CLI
-  behavior for commands that the skill fork drives but which were not yet
-  migrated to the stricter tier.
+- **Tier 2 (session-tier)** — every other blocked form (`complete`, `finalize`,
+  `fix-gap`, `refresh`, `import`, `init`, `verify`, and the blocked two-word
+  forms) is authorized by a verified fork caller identity (a Tier-1 skill body
+  legitimately driving a Tier-2 subcommand) **or** by a valid per-skill
+  **session credential** — see the next section.
 
-The offender-finding logic encodes exactly this:
+Tier-2 rejections carry one of three reasons, threaded into the audit log and
+the block verdict: `missing-credential` (no structurally valid token at all),
+`credential-expired` (tokens exist but all are genuinely dead — see below), or
+`subcommand-not-in-scope` (an eligible token exists but none covers this
+subcommand).
 
-```js
-const offender = invocations.find((inv) => {
-  if (classify(inv) === 'allow') return false;          // never an offender
-  if (SKILL_ENFORCED_SUBCOMMANDS.has(inv.sub)) {
-    return !(inv.skillBypass && isTrustedSkillCaller(event)); // BOTH required
-  }
-  return !inv.skillBypass;                                // inline bypass enough
-});
-```
+### Tier-2 session credentials: minting and the two-band freshness model
+
+Tier-2 authorization rests on per-skill credential files at
+`<cwd>/.metta/scratch/skill-session/<slug>.token` (mode `0o600`), written by
+the **mint hook** and validated (and, when needed, re-primed) by the **guard**.
+
+> The original single-file credential at `.metta/scratch/skill-session.token`
+> is **retired**: the guard does not honor it, and the mint hook actively
+> deletes any lingering copy. Likewise retired is the earlier
+> single-band model in which freshness was judged only against the raw TTL of
+> the minted timestamp and refresh raced the guard during delegation windows —
+> everything below describes the current, deterministic two-band model.
+
+**Minting.** Each Tier-2 (non-forked) skill declares a PreToolUse Bash hook in
+its frontmatter: `node .claude/hooks/metta-session-mint.mjs <slug>`. The slug is
+a static, ship-time-authored string — never sourced from event data. On every
+Bash call inside the skill session, the mint hook:
+
+- mints/rotates **its own** `<slug>.token` when the token is absent, malformed,
+  or past **80% of its TTL** (sliding refresh — active use keeps it fresh);
+- writes the token atomically (temp file + same-directory rename), containing a
+  random `token` value (`randomUUID`), the skill slug, the skill's authorized
+  `subcommands` scope (from `SKILL_SCOPES`, the sole scope truth), `mintedAt`,
+  `ttlMs` (`TTL_MS = 300_000`, 5 minutes), and `sessionId` — stamped from the
+  runtime-supplied `event.session_id`;
+- cleans up **genuinely dead** sibling tokens — those past `ttlMs + GRACE_MS` —
+  plus stale `*.tmp` orphans. The cleanup horizon deliberately matches the
+  guard's re-prime horizon so housekeeping can never delete a token the guard
+  would still re-prime;
+- always exits `0`. It never blocks and never writes stderr guidance.
+
+**Two-band freshness (guard-side, judged at validation time).** The guard reads
+every structurally valid token in the directory and classifies each into bands
+(`GRACE_MS = 3_600_000`, 60 minutes — one shared constant across both hooks,
+pinned equal by the seam test suite):
+
+| Band | Predicate | Outcome on acceptance |
+|------|-----------|----------------------|
+| **Fresh** | `now - mintedAt < ttlMs` | audit reason `session-credential-verified` |
+| **Re-primable** | `sessionId === event.session_id` (strict string equality) **and** `now - mintedAt < ttlMs + GRACE_MS` | audit reason `session-credential-reprimed`; the guard **rewrites the token** (new random `token` value, `mintedAt = now`, atomic temp+rename, best-effort) |
+| **Dead** | neither band | `credential-expired` block |
+
+A call is authorized when **any** eligible (fresh or re-primable) token covers
+the subcommand's scope key — one skill's stale credential never blocks another
+active skill's own credential. If at least one in-scope token is fresh, the
+acceptance is a plain `session-credential-verified`. Only when authorization
+came **exclusively** via the re-primable band does the guard re-prime: it
+rewrites that token in place so the credential's clock restarts. The re-prime
+write is best-effort and never load-bearing — the authorize decision precedes
+the write, and a write failure never revokes the authorization.
+
+**Why the re-primable band exists.** The mint hook is declared in the skill's
+frontmatter, so it fires only on Bash calls the skill session itself issues.
+During **delegation windows** — when the skill hands work to subagents — no
+mint-refreshing Bash calls occur, and under the earlier single-band model the
+token silently aged past its raw TTL, blocking the lifecycle when control
+returned. The re-primable band lets the guard itself act as the re-priming half
+during those windows. Because the band is bound to the live session's
+runtime-supplied `session_id` (the same trust class as Tier 1's `agent_type`),
+a token left behind by a crashed or previous session matches nothing and
+authorizes nothing.
+
+**Determinism under parallel hooks.** Claude Code runs PreToolUse hooks in
+parallel with no ordering guarantee. The guard's verdict is a pure function of
+**(token file state, event fields, clock)** — no branch consults whether the
+separately scheduled mint hook has already fired on this event — so the outcome
+is invariant under hook ordering: mint-wrote-first yields a fresh-band
+acceptance, guard-read-first yields a re-prime acceptance, and if the mint hook
+never fires at all the re-prime path is self-sufficient.
+
+**Bounded lifetime and fail-closed degradations.**
+
+- The effective lifetime of a credential is `TTL + GRACE` (65 minutes) after
+  the **last mint or re-prime**. Active lifecycle use extends its own window;
+  once activity ceases, every credential dies within one bounded lifetime — an
+  idle session holds no standing authorization.
+- A missing or non-string `event.session_id` disables the re-primable band
+  entirely: the guard degrades to fresh-band-only (the pre-fix behavior),
+  fail-closed.
+- Old-format tokens without a `sessionId` field still validate and work in the
+  fresh band, but are never re-primable. No migration step; fail-closed
+  degradation.
+- The re-primable band contributes **freshness only, never scope**: scope
+  filtering runs over the token's `subcommands` array identically in both
+  bands, with `SKILL_SCOPES` in the mint hook as the sole scope truth.
+
+**`credential-expired` means genuinely dead.** The reason string is unchanged
+from earlier versions, but its semantic is now **narrower**: it is written only
+when every structurally valid token is dead — at least `TTL + GRACE` stale, or
+stamped with a different session's id past its raw TTL — and no fresh token
+exists. Under the retired single-band model the same string could fire a mere
+five minutes after minting, mid-lifecycle; that state now re-primes instead.
+Audit-log consumers parse the same string with a stricter meaning, and the new
+`staleness_ms` field (below) makes the shift observable.
 
 ### Exit codes & messages
 
-- **`exit 0`** — no offender. The call proceeds. Also taken early when stdin is
-  empty/unparseable, when `tool_name !== 'Bash'`, or when the hook process's own
-  `METTA_SKILL` env is `1`.
-- **`exit 2`** — an offender was found. The hook writes a targeted message to
-  stderr and blocks. Three distinct messages are produced:
-  - skill-enforced subcommand without a trusted `agent_type` (points to the
-    matching skill, notes that inline `METTA_SKILL=1` no longer suffices),
-  - `unknown` subcommand (asks the contributor to update the allowlist),
-  - plain `block` (points to the `/metta-<skill>` mapping in `CLAUDE.md`).
+- **`exit 0`** — no offender. Also taken early when stdin is empty or
+  unparseable, or when `tool_name !== 'Bash'`.
+- **`exit 2`** — blocked, with a targeted stderr message. Distinct block paths:
+  - background Bash (`run_in_background: true`) from a forked metta agent —
+    forked skills must complete synchronously;
+  - a `--` operand terminator anywhere in a metta invocation (unconditional,
+    tier-independent);
+  - a Tier-1 (skill-enforced) subcommand without a trusted `agent_type` —
+    points to the matching skill via `SKILL_HINT_MAP`;
+  - an `unknown` subcommand (asks the contributor to update the allowlist);
+  - a Tier-2 subcommand with `missing-credential`, `credential-expired`, or
+    `subcommand-not-in-scope` — points to the `/metta-<skill>` mapping and
+    notes that the per-skill credential is minted by the skill's entry point.
 
   Every message ends with the emergency-bypass hint.
 
 ### Audit log
 
 The guard appends one JSON line per relevant event to
-`<cwd>/.metta/logs/guard-bypass.log` via `appendAuditLog`. Each entry records the
-timestamp, verdict, subcommand/third token, observed `agent_type`,
-`skill_bypass` flag, a human reason, and the event keys. Verdicts logged include
-`block` (all three block paths) and `allow_with_bypass` (a non-enforced
-subcommand that was permitted because of an inline bypass — so the trail reflects
-*every* skill-bypass use, not just rejections). All log I/O errors are swallowed:
-an audit-log failure must never break the hook's primary enforcement path.
+`<cwd>/.metta/logs/guard-bypass.log` via `appendAuditLog`. Each entry records
+`ts`, `verdict` (`allow` or `block`), `subcommand`, `third`, the observed
+`agent_type`, a `reason`, the `tier` (`fork`, `session`, or `null`), and the
+event keys. All log I/O errors are swallowed: an audit-log failure must never
+break the hook's primary enforcement path.
+
+Session-tier entries carry the richer surface introduced with the two-band
+model:
+
+- **`session-credential-verified`** — Tier-2 acceptance via a fresh in-scope
+  token (or via a trusted fork caller, in which case `staleness_ms` is `null`).
+- **`session-credential-reprimed`** — Tier-2 acceptance that came only via the
+  re-primable band; the guard rewrote the authorizing token as a side effect.
+- **`staleness_ms`** (number | null) — on session-tier acceptances, the age of
+  the authorizing token at evaluation time; on `credential-expired` blocks, the
+  age of the *youngest* structurally valid token considered (evidence for
+  future horizon tuning); `null`/absent where it does not apply.
+- Block reasons: `missing-credential`, `credential-expired` (genuinely-dead
+  semantic, above), `subcommand-not-in-scope`, plus the tier-independent
+  `double-dash-operand-terminator`, `background-bash-from-fork`, `unknown`,
+  and the Tier-1 `skill-enforced subcommand without trusted agent_type`.
+
+Every session-tier authorization is logged — the trail shows each acceptance,
+which freshness band it came through, and how stale the credential was, not
+just rejections.
 
 ---
 
@@ -227,51 +328,41 @@ A prefix match only allows files that both start with the prefix **and** end in
 
 ---
 
-## `METTA_SKILL=1` ↔ `agent_type` and the metta-skill-host fork
+## Forked vs. interactive skills: how each gets authorized
 
-The two bypass signals map onto two different ways a skill can run.
+The two trust anchors map onto two different ways a skill can run.
 
 Several metta skills declare `context: fork` in their frontmatter
 (`metta-issue`, `metta-fix-issues`, `metta-propose`, `metta-quick`,
 `metta-auto`, `metta-ship`). When one of these runs, Claude Code forks it into an
 isolated subagent — the **`metta-skill-host`** agent — and the runtime stamps the
 fork's tool calls with `event.agent_type` beginning `metta-`. That is precisely
-the unforgeable signal `isTrustedSkillCaller` looks for. So when the forked host
-dispatches `METTA_SKILL=1 metta issue ...`, the Bash guard sees **both** signals
-and permits the skill-enforced subcommand.
+the unforgeable signal `isTrustedSkillCaller` looks for, and it is the sole
+Tier-1 authorization. A fork's verified identity also satisfies Tier 2, so a
+Tier-1 skill body may drive Tier-2 subcommands directly.
 
-Non-forked, **interactive** skills cannot get the trusted `agent_type`. The
-clearest example is `metta-init`, which uses `AskUserQuestion` and therefore must
-run in the interactive session rather than a fork — a fork can't prompt the user.
-Such skills have no trusted `agent_type` and rely on the inline `METTA_SKILL=1`
-prefix alone. This is why the non-enforced tier still accepts the forgeable
-signal: removing it would break interactive bootstrap flows.
-
-### Known limitation
-
-This split is the reason `METTA_SKILL=1` can't be fully retired today: the
-strongest design (require a trusted `agent_type` for *every* blocked subcommand)
-would lock out the interactive skills that legitimately can't fork. The
-forgeable inline bypass therefore remains the only path for those flows, leaving
-a residual trust gap on the non-enforced tier.
-
-Unifying the model — so that all blocked subcommands demand the unforgeable
-signal, without breaking interactive skills — is tracked by the open issue
-**`harden-metta-guard-bash-trust-model-unify-all-blocked`**
-(`spec/issues/harden-metta-guard-bash-trust-model-unify-all-blocked.md`). If you
-touch this layer, read that issue first.
+Non-forked, **interactive** skills (e.g. `metta-init`, which uses
+`AskUserQuestion` and therefore cannot run in a fork) never get a trusted
+`agent_type`. They are instead authorized by the Tier-2 session credential:
+each such skill's frontmatter declares the mint hook with its own ship-time
+slug, so invoking the skill mints a scoped credential that the guard then
+validates — and re-primes across delegation windows — for the lifetime of the
+skill session. The credential value never appears in any skill file, so it
+cannot be derived from reading skill instructions; the historical forgeable
+inline `METTA_SKILL=1` prefix is fully retired and carries no authorization on
+any tier.
 
 ---
 
 ## Emergency bypass
 
-Both hooks print the same escape hatch in their rejection messages: disable the
-hook in **`.claude/settings.local.json`**. `settings.local.json` is the
-machine-local override that layers over `settings.json`, so you can turn a guard
-off for yourself without editing the checked-in configuration. Use this only as a
-deliberate, temporary measure — the guards exist to protect the workflow's
-quality guarantees, and a disabled guard means direct CLI calls can once again
-ship unreviewed artifacts.
+Both guard hooks print the same escape hatch in their rejection messages:
+disable the hook in **`.claude/settings.local.json`**. `settings.local.json` is
+the machine-local override that layers over `settings.json`, so you can turn a
+guard off for yourself without editing the checked-in configuration. Use this
+only as a deliberate, temporary measure — the guards exist to protect the
+workflow's quality guarantees, and a disabled guard means direct CLI calls can
+once again ship unreviewed artifacts.
 
 ---
 
