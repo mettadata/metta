@@ -33,3 +33,20 @@ Three parallel reviewers (correctness, security, quality). All independently re-
 - R1 active-use lifetime extension — acknowledged in spec/design threat model; the silent variant is fixed by F2.
 - `session_id` stability across `--resume`/`--fork` undocumented — UAT item.
 - Unhandled-exception exit 1 in `main()` theoretical fail-open — pre-existing, not widened.
+
+---
+
+# Review round 2 (after fixes 24ef746b4, 4f3099488)
+
+| Reviewer | Verdict |
+|---|---|
+| Correctness | PASS |
+| Security | PASS |
+| Quality | PASS |
+
+- **F1 closed** — primer `TRUST_MODEL_BULLETS` corrected (both short/long variants; all three generator call sites route through it); regression pins in tests/delivery.test.ts (positive + negative, both variants). Repo-wide sweep: no generator/template presents the retired model as current; "any unexpired credential" no longer exists in the worktree.
+- **F2 closed** — empirically re-probed: blocked compound command exits 2 with token file byte-identical (sha256) and zero reprimed entries; clean call re-primes and logs `session-credential-reprimed` with correct staleness. Adversarial probes (offender last/middle/in-scope-failure) all side-effect-free. No TOCTOU within the invocation; no new throw site before a block verdict.
+- **F3 closed** — `authTok` selected explicitly with fresh-band preference; drives both re-prime target and `staleness_ms`.
+- Residuals: R2 unchanged; R1 keepalive now strictly audit-visible. Non-blocking suggestions recorded (redundant per-segment re-prime writes dedupe; F3 test comment overstates fixture ordering; header subcommand list omission — pre-existing).
+
+Suites: 377 passed / 2 env-gated skips; typecheck clean; both hook mirrors byte-identical.
