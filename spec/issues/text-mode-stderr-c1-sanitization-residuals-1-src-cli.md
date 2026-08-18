@@ -1,0 +1,7 @@
+# Text-mode/stderr C1 sanitization residuals: (1) src/cli/commands/install.ts:151 interpolates user-controlled settings.json statusLine value into a stderr warning via JSON.stringify, which escapes C0 but passes DEL/C1 (0x7f-0x9f) through raw; (2) src/cli/commands/config.ts:59 scalar branch String(value) prints user-influenced config string values raw in text mode; (3) src/cli/helpers.ts:266-276 text-mode error paths write user-influenced parser/error messages to stderr unsanitized. All are pre-existing text-mode residuals of the C1 injection family, flagged during review of fix-json-output-c1-control-passthrough-json-stringify (research-edge-inventory.md section 4). Candidate fix: route through stripControlSequences at these render edges.
+
+**Captured**: 2026-08-18
+**Status**: logged
+**Severity**: minor
+
+Text-mode/stderr C1 sanitization residuals: (1) src/cli/commands/install.ts:151 interpolates user-controlled settings.json statusLine value into a stderr warning via JSON.stringify, which escapes C0 but passes DEL/C1 (0x7f-0x9f) through raw; (2) src/cli/commands/config.ts:59 scalar branch String(value) prints user-influenced config string values raw in text mode; (3) src/cli/helpers.ts:266-276 text-mode error paths write user-influenced parser/error messages to stderr unsanitized. All are pre-existing text-mode residuals of the C1 injection family, flagged during review of fix-json-output-c1-control-passthrough-json-stringify (research-edge-inventory.md section 4). Candidate fix: route through stripControlSequences at these render edges.
