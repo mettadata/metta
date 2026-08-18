@@ -11,7 +11,7 @@ import {
 } from '../../stories/story-validator.js'
 import { parseSpec } from '../../specs/spec-parser.js'
 import { assertSafeSlug } from '../../util/slug.js'
-import { stripControlSequences } from '../../util/sanitize-text.js'
+import { stripControlSequences, stripControlSequencesMultiline } from '../../util/sanitize-text.js'
 
 async function resolveChangeName(ctx: CliContext, flagName?: string): Promise<string> {
   if (flagName) return flagName
@@ -106,7 +106,9 @@ export function registerValidateStoriesCommand(program: Command): void {
               console.log(`${s.id}: ${stripControlSequences(s.title)}`)
             }
           } else {
-            console.log(`[sentinel] ${stories.justification}`)
+            // Justification is a markdown paragraph — soft line breaks survive as
+            // `\n` in the extracted text, so preserve them while stripping controls.
+            console.log(`[sentinel] ${stripControlSequencesMultiline(stories.justification)}`)
           }
           for (const e of errors) {
             console.error(`  ERROR: ${e.message}`)

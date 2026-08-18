@@ -171,7 +171,9 @@ export function registerRoadmapCommand(program: Command): void {
         if (json) {
           outputJson({ next: top.slug, message: `Run: ${handoff}`, committed: commit.committed, commit_sha: commit.sha })
         } else {
-          console.log(`Next up: '${top.slug}' — activate by running: ${handoff}`)
+          // The handoff embeds the raw backlog item title; sanitize at the
+          // render edge only — the JSON branch above stays byte-faithful.
+          console.log(stripControlSequences(`Next up: '${top.slug}' — activate by running: ${handoff}`))
           console.log('  Removed from roadmap.')
           if (commit.committed) { console.log(`  Committed: ${commit.sha?.slice(0, 7)}`) }
           else if (commit.reason) { console.log(`  Not committed: ${commit.reason}`) }

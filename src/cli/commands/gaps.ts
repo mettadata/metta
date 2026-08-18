@@ -1,6 +1,6 @@
 import { Command } from 'commander'
 import { createCliContext, outputJson } from '../helpers.js'
-import { stripControlSequences } from '../../util/sanitize-text.js'
+import { stripControlSequences, stripControlSequencesMultiline } from '../../util/sanitize-text.js'
 
 export function registerGapsCommand(program: Command): void {
   const gaps = program
@@ -39,7 +39,7 @@ export function registerGapsCommand(program: Command): void {
           if (gap.impact) console.log(`Impact: ${stripControlSequences(gap.impact)}`)
           if (gap.relatedSpec) console.log(`Related Spec: ${stripControlSequences(gap.relatedSpec)}`)
           console.log('')
-          console.log(gap.action ?? `Promote to spec: metta propose --from-gap ${slug}`)
+          console.log(gap.action !== undefined ? stripControlSequencesMultiline(gap.action) : `Promote to spec: metta propose --from-gap ${slug}`)
         }
       } catch {
         if (json) { outputJson({ error: { code: 4, type: 'not_found', message: `Gap '${slug}' not found` } }) } else { console.error(`Gap '${slug}' not found`) }
