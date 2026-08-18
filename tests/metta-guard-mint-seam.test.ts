@@ -143,9 +143,12 @@ function spawnHook(args: string[], input: string, cwd: string): Promise<number> 
 // MUST NOT touch sessionId — the session binding survives backdating.
 const TIMESTAMP_FIELDS = ['mintedAt']
 
-function backdate(cwd: string, deltaMs: number): void {
+// `only` restricts the rewrite to a single directory entry (e.g. 'metta-plan.token')
+// so multi-token fixtures can hold one stale and one fresh credential at once.
+function backdate(cwd: string, deltaMs: number, only?: string): void {
   const dir = join(cwd, '.metta', 'scratch', 'skill-session')
   for (const name of readdirSync(dir)) {
+    if (only !== undefined && name !== only) continue
     const p = join(dir, name)
     try {
       const obj = JSON.parse(readFileSync(p, 'utf8')) as Record<string, unknown>
@@ -459,6 +462,53 @@ describe('metta-guard/mint seam', { timeout: 60_000 }, () => {
         expect(last.verdict).toBe('block')
         expect(last.reason).toBe('credential-expired')
         expect(last.tier).toBe('session')
+      })
+
+      // ----- F: review round 1 pins (F2/F3) -----
+      it('F2: blocked compound command performs NO re-prime — exit 2, zero reprimed audit entries, token file byte-untouched', () => {
+        const cwd = makeTempCwd()
+        expect(runMint(pair.mint, 'metta-next', cwd).code).toBe(0)
+        backdate(cwd, DELEGATION)
+        // The first segment alone would authorize via the re-prime band, but the
+        // second segment is an unknown subcommand — the whole command is blocked,
+        // so the deferred re-prime must never fire (no silent credential keepalive).
+        const before = readFileSync(tokenPath(cwd, 'metta-next'), 'utf8')
+        const { code } = runGuard(
+          pair.guard,
+          'metta complete research --change c; metta bogus-nonsense',
+          cwd,
+        )
+        expect(code).toBe(2)
+        const entries = readAuditEntries(cwd)
+        expect(entries.filter((e) => e.reason === 'session-credential-reprimed')).toEqual([])
+        expect(entries[entries.length - 1].verdict).toBe('block')
+        const after = readFileSync(tokenPath(cwd, 'metta-next'), 'utf8')
+        expect(after).toBe(before)
+      })
+
+      it('F3: stale re-primable token first + fresh token later — fresh token authorizes and owns staleness_ms (exit 0)', () => {
+        const cwd = makeTempCwd()
+        // Both SKILL_SCOPES cover `complete`: metta-plan and metta-execute. Mint
+        // metta-plan first so its directory entry precedes metta-execute's, then
+        // backdate ONLY metta-plan into the re-primable band — the in-scope set
+        // holds the stale token ahead of the fresh one.
+        expect(runMint(pair.mint, 'metta-plan', cwd).code).toBe(0)
+        expect(runMint(pair.mint, 'metta-execute', cwd).code).toBe(0)
+        backdate(cwd, DELEGATION, 'metta-plan.token')
+        const staleBefore = readFileSync(tokenPath(cwd, 'metta-plan'), 'utf8')
+        const { code, stderr } = runGuard(pair.guard, 'metta complete research --change c', cwd)
+        expect(code).toBe(0)
+        expect(stderr).toBe('')
+        const entries = readAuditEntries(cwd)
+        const last = entries[entries.length - 1]
+        expect(last.verdict).toBe('allow')
+        // Fresh band wins: verified (not reprimed), and staleness_ms is attributed
+        // to the authorizing fresh token, not the stale one sitting first.
+        expect(last.reason).toBe('session-credential-verified')
+        expect(typeof last.staleness_ms).toBe('number')
+        expect(last.staleness_ms as number).toBeLessThan(RAW_TTL)
+        // Fresh-band authorization triggers no re-prime: the stale token is untouched.
+        expect(readFileSync(tokenPath(cwd, 'metta-plan'), 'utf8')).toBe(staleBefore)
       })
 
       it('E7: degradation — guard event carries no session_id — re-prime disabled, exact pre-fix block (exit 2)', () => {

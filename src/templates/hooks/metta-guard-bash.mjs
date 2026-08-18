@@ -446,7 +446,7 @@ async function main() {
     }
     // Tier 2: fork body calling a Tier-2 sub from inside a Tier-1 skill's own body
     if (isTrustedSkillCaller(event)) {
-      tier2Accepted.push({ inv, reason: 'session-credential-verified', staleness_ms: null });
+      tier2Accepted.push({ inv, reason: 'session-credential-verified', staleness_ms: null, needsReprime: false, entry: null, now: null });
       return false;
     }
     const tokens = readSessionTokens(event.cwd);
@@ -487,23 +487,36 @@ async function main() {
     // freshness only, never scope: subcommands filtering is unchanged.
     const inScope = eligible.filter((t) => t.tok.subcommands.includes(key));
     if (inScope.length === 0) { tier2Reason = 'subcommand-not-in-scope'; return true; }
-    // Accept. If NO in-scope token is fresh, authorization came via the re-prime band
-    // only: rewrite that token (best-effort — failure never revokes the authorization).
+    // Accept. Select the authorizing token explicitly: a fresh-band token is
+    // preferred as the authorizing token whenever one is in scope; only when NO
+    // in-scope token is fresh does authorization fall to the re-prime band. Both
+    // the (deferred) re-prime target and the logged staleness_ms are attributed
+    // to this authorizing token — never to whichever token happens to sit first
+    // in directory/spread order.
     const viaFresh = inScope.some((t) => fresh.includes(t));
-    if (!viaFresh) reprimeToken(event.cwd, inScope[0], now);
+    const authTok = viaFresh ? inScope.find((t) => fresh.includes(t)) : inScope[0];
+    // The scan only RECORDS the acceptance (including whether a re-prime write is
+    // needed); the write itself is deferred to the !offender branch below so a
+    // blocked command leaves every token file byte-untouched.
     tier2Accepted.push({
       inv,
       reason: viaFresh ? 'session-credential-verified' : 'session-credential-reprimed',
-      staleness_ms: now - inScope[0].tok.mintedAt,
+      staleness_ms: now - authTok.tok.mintedAt,
+      needsReprime: !viaFresh,
+      entry: authTok,
+      now,
     });
     return false;
   });
 
   if (!offender) {
-    // Log every Tier-2 acceptance (verified fork caller or valid session token) so the
-    // audit trail records each session-tier authorization, which freshness band it came
-    // through (verified vs re-primed), and the authorizing token's staleness.
+    // Authorize-then-write, whole-command scoped: re-prime writes and acceptance
+    // logging run only after EVERY invocation in the command has been authorized.
+    // A blocked command (any offending segment) therefore never rewrites a token —
+    // no silent credential keepalive via deliberately-blocked compound commands.
+    // The write stays best-effort: a re-prime failure never revokes authorization.
     for (const acc of tier2Accepted) {
+      if (acc.needsReprime) reprimeToken(event.cwd, acc.entry, acc.now);
       appendAuditLog(event, 'allow', acc.inv, acc.reason, 'session', { staleness_ms: acc.staleness_ms });
     }
     process.exit(0);
