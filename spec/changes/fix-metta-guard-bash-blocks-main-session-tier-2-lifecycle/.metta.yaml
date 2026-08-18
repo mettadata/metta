@@ -31,6 +31,8 @@ artifact_timings:
   tasks:
     started: 2026-08-18T10:51:24.463Z
     completed: 2026-08-18T10:54:53.616Z
+  implementation:
+    started: 2026-08-18T10:54:58.776Z
 artifact_tokens:
   intent:
     context: 763
@@ -50,6 +52,9 @@ artifact_tokens:
   tasks:
     context: 13590
     budget: 40000
+  implementation:
+    context: 5278
+    budget: 10000
 worktree: /home/utx0/Code/metta/.metta/worktrees/fix-metta-guard-bash-blocks-main-session-tier-2-lifecycle
 token_usage:
   - task: metta-skill-host
