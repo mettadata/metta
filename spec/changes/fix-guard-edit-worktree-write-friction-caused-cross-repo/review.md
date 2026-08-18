@@ -49,3 +49,11 @@ Round-1 critical (ship wiring) and major (guard-bash DoS) verified genuinely res
 4. Silent cap/budget fail-open lacks an audit entry (`write-target-budget-exhausted`).
 5. `ship.ts:46` — `--branch ""` bypasses friendly missing-branch message; ship.ts double `readBaselineEntries` read.
 6. `complete.ts` stripControlChars misses C1 range (`\x80-\x9f`).
+
+# Review round 3 (post-fix commits 5564054da, 8ce031a0b) — FINAL
+
+Verdicts: Correctness PASS - Security PASS - Quality PASS
+
+All round-2 findings resolved with test coverage: describe timeout fixed (full suite 133 files / 2697 passed / 0 failed, exit 0), merge-safety + complete control-char stripping (C0+DEL+C1), arithmetic-<< phantom-terminator refusal (pure-numeric heredoc terminators rejected, residuals honestly documented), cap/budget audit entries (write-target-cap-exceeded / write-target-budget-exhausted), empty-branch guard, cached baseline read. Hook copies byte-identical; blocked-never-reprimes invariant intact.
+
+Non-blocking suggestions carried as follow-ups: shared stripControlChars util (tracked by existing issue text-mode-stderr-c1-sanitization-residuals-1-src-cli), hex/base numeric-literal terminator forms, C1 escaping in audit JSONL, cachedBaseline type tightening, vitest onTaskUpdate flake (environmental, predates change).
