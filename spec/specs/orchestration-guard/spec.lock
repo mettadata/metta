@@ -1,6 +1,6 @@
-version: 19
-hash: sha256:aaae72def18d
-updated: 2026-08-18T12:08:52.265Z
+version: 20
+hash: sha256:c13a700cfc42
+updated: 2026-08-18T16:16:20.200Z
 status: draft
 source: change
 requirements:
@@ -139,3 +139,71 @@ requirements:
       - time-advanced-expiry-gap-test-reproduces-and-passes-the-delegation-window
       - same-event-race-test-proves-ordering-independence
       - dead-credential-fail-closed-test-still-blocks
+  - id: executor-shell-writes-are-anchored-under-change-root
+    hash: sha256:66815d0272bd
+    scenarios:
+      - executor-template-forbids-bash-writes-outside-change-root
+      - existing-executor-rules-are-preserved
+  - id: silent-write-anomaly-triggers-stop-and-report-never-a-bash-fallback
+    hash: sha256:001238bd0b67
+    scenarios:
+      - non-landing-edit-result-leads-to-stop-not-bash-fallback
+      - template-inspection-finds-no-sanctioned-bash-fallback-path
+  - id: verifier-carries-the-same-shell-write-path-discipline
+    hash: sha256:44d6ca13d6e9
+    scenarios:
+      - verifier-template-contains-the-path-discipline-rule
+  - id: execute-skill-contract-binds-executors-to-path-discipline-and-escalates-stop-reports
+    hash: sha256:0aa6bffc1fb2
+    scenarios:
+      - skill-contract-escalates-a-silent-write-stop-report
+      - spawn-contract-names-the-path-discipline-binding
+  - id: guard-bash-blocks-bash-write-targets-that-resolve-into-the-main-checkout
+    hash: sha256:bee84be6f796
+    scenarios:
+      - redirection-into-the-main-checkout-is-blocked-with-a-diagnostic
+      - heredoc-tee-cp-and-mv-targets-are-covered
+      - writes-inside-the-change-s-own-worktree-pass
+      - no-worktree-hosted-active-change-means-no-write-target-check
+  - id: write-target-heuristic-fails-open-on-unparseable-commands-and-ignores-non-write-commands
+    hash: sha256:5a35d84b1656
+    scenarios:
+      - unresolvable-write-targets-fail-open
+      - non-write-commands-are-untouched
+  - id: write-target-check-leaves-existing-guard-bash-behavior-unchanged
+    hash: sha256:c7d807f20733
+    scenarios:
+      - pre-existing-guard-bash-test-suite-passes-unmodified
+      - metta-cli-invocations-are-classified-exactly-as-before
+  - id: write-target-check-ships-in-the-hook-template
+    hash: sha256:28c3c5ce1c6a
+    scenarios:
+      - consumer-install-receives-the-write-target-check
+  - id: main-checkout-cleanliness-baseline-is-recorded-before-worktree-execution
+    hash: sha256:79e3b2339fe0
+    scenarios:
+      - baseline-is-recorded-as-validated-state-at-execution-start
+      - non-worktree-changes-skip-the-baseline
+  - id: implementation-completion-fails-on-new-main-checkout-dirt
+    hash: sha256:1320eba88519
+    scenarios:
+      - new-main-checkout-dirt-fails-completion-with-the-offending-paths
+      - clean-run-completes-unchanged
+      - detection-never-mutates-the-main-checkout
+  - id: ship-preflight-verifies-main-checkout-cleanliness-for-worktree-hosted-changes
+    hash: sha256:53df2956e4bf
+    scenarios:
+      - ship-preflight-catches-main-checkout-contamination
+      - non-worktree-ships-are-unchanged
+  - id: pre-existing-main-checkout-dirt-warns-but-never-hard-blocks
+    hash: sha256:21535c86e984
+    scenarios:
+      - pre-existing-dirt-produces-a-warning-at-execution-start
+      - completion-passes-with-pre-existing-dirt-and-no-new-dirt
+      - only-new-paths-appear-in-the-failure-diagnostic
+  - id: tests-cover-write-target-classification-and-tree-clean-detection
+    hash: sha256:42d653d9ca40
+    scenarios:
+      - write-target-matrix-distinguishes-blocked-from-allowed
+      - baseline-compare-module-tests-cover-dirt-attribution
+      - new-blocking-tests-fail-against-pre-change-behavior

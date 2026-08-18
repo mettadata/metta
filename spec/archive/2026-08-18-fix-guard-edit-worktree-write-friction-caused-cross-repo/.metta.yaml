@@ -467,3 +467,15 @@ token_usage:
     tokens: 14166
     timestamp: 2026-08-18T15:26:29.615Z
     source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 60101
+    timestamp: 2026-08-18T15:36:23.645Z
+    source: hook
+  - task: implementation
+    agent: metta-executor
+    model: fable
+    tokens: 15106
+    timestamp: 2026-08-18T16:06:56.368Z
+    source: hook
