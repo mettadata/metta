@@ -114,16 +114,26 @@ export function resolveChangeRoot(
  *    `projectRoot` itself. Zero new machinery.
  * 2. In-worktree invocation: `metadata.worktree` is absent (discovery is
  *    local), but `projectRoot` IS the worktree checkout — detected via
- *    `detectWorktreeChangeName(projectRoot) === changeName`. The main root
- *    comes from stripping the `<worktreeDir>/<name>` suffix (pure path math,
- *    guard-edit precedent), cross-checked against — and falling back to —
+ *    `detectWorktreeChangeName(projectRoot) === changeName`, which assumes
+ *    the DEFAULT worktree dir. The main root comes from stripping the
+ *    `<worktreeDir>/<name>` suffix (pure path math, guard-edit precedent),
+ *    cross-checked against — and falling back to —
  *    `git rev-parse --path-format=absolute --git-common-dir`, whose result's
- *    dirname is the hosting checkout root (config-agnostic: covers layouts
- *    where the default-suffix math misses). On disagreement git is
- *    authoritative about the shared common dir, except when git reports the
- *    checkout as its own main (not a linked worktree) — then the git probe is
- *    uninformative and the path-math result stands.
+ *    dirname is the hosting checkout root (covering layouts under the
+ *    default dir where the suffix math misses, e.g. symlinked paths). On
+ *    disagreement git is authoritative about the shared common dir, except
+ *    when git reports the checkout as its own main (not a linked worktree) —
+ *    then the git probe is uninformative and the path-math result stands.
  * 3. Neither topology matches → `null`.
+ *
+ * Known limitation: a custom `git.worktree.dir` is NOT threaded through here.
+ * Both topology gates assume the default dir — (1) via `resolveChangeRoot`'s
+ * containment check (a worktree outside `<projectRoot>/.metta/worktrees/`
+ * falls back to `projectRoot`) and (2) via the default-dir change-name gate,
+ * which fails before the git probe runs, making the git cross-check
+ * unreachable for non-default dirs. Custom-dir projects therefore resolve to
+ * `null` — layer 3 silently disengages (fail-open, ship proceeds as
+ * non-worktree).
  */
 export async function resolveMainCheckoutRoot(
   projectRoot: string,

@@ -1,11 +1,32 @@
-import { join, resolve } from 'node:path'
+import { join } from 'node:path'
+import { existsSync } from 'node:fs'
 import { Command } from 'commander'
 import { createCliContext, outputJson, getErrorMessage, resolveMainCheckoutRoot } from '../helpers.js'
 import { loadGatesWithOverrides } from '../../gates/gate-registry.js'
 import { MergeSafetyPipeline, type MainCheckoutCleanInput } from '../../ship/merge-safety.js'
-import { StateStore } from '../../state/state-store.js'
-import { MainTreeBaselineSchema } from '../../schemas/tree-baseline.js'
-import { baselineRelPath, deleteMainTreeBaseline } from '../../util/git-tree-baseline.js'
+import { assertSafeSlug } from '../../util/slug.js'
+import { DEFAULT_WORKTREE_DIR } from '../../util/git-worktree.js'
+import { deleteMainTreeBaseline, readBaselineEntries } from '../../util/git-tree-baseline.js'
+
+interface ShipCommandOptions {
+  dryRun?: boolean
+  branch?: string
+}
+
+/**
+ * Branch-derived change names feed filesystem paths below (the worktree-dir
+ * probe and the baseline file). An unsafe segment silently disengages the
+ * main-checkout wiring (fail-open — ship behaves exactly as for a non-metta
+ * branch) rather than erroring the ship.
+ */
+function isSafeChangeName(name: string): boolean {
+  try {
+    assertSafeSlug(name, 'change name')
+    return true
+  } catch {
+    return false
+  }
+}
 
 export function registerShipCommand(program: Command): void {
   program
@@ -13,7 +34,7 @@ export function registerShipCommand(program: Command): void {
     .description('Merge worktree branch to main')
     .option('--dry-run', 'Preview merge without applying')
     .option('--branch <name>', 'Source branch to merge')
-    .action(async (options) => {
+    .action(async (options: ShipCommandOptions) => {
       const json = program.opts().json
       const ctx = createCliContext()
 
@@ -22,7 +43,7 @@ export function registerShipCommand(program: Command): void {
         const targetBranch = config.git?.pr_base ?? 'main'
         const sourceBranch = options.branch
 
-        if (!sourceBranch) {
+        if (sourceBranch === undefined) {
           if (json) {
             outputJson({
               status: 'info',
@@ -45,32 +66,35 @@ export function registerShipCommand(program: Command): void {
         // the input, reproducing non-worktree behavior (no step emitted).
         let mainCheckout: MainCheckoutCleanInput | undefined
         let cleanupTarget: { mainRoot: string; change: string } | undefined
-        const metaMatch = (sourceBranch as string).match(/^metta\/(.+)$/)
-        if (metaMatch) {
+        const metaMatch = sourceBranch.match(/^metta\/(.+)$/)
+        if (metaMatch !== null && isSafeChangeName(metaMatch[1])) {
           const changeName = metaMatch[1]
+          let mainRoot: string | null = null
           try {
             const metadata = await ctx.artifactStore.getChange(changeName)
-            const mainRoot = await resolveMainCheckoutRoot(ctx.projectRoot, changeName, metadata)
-            if (mainRoot !== null) {
-              let baselineEntries: MainCheckoutCleanInput['baselineEntries'] = null
-              try {
-                const store = new StateStore(join(mainRoot, '.metta'))
-                const baseline = await store.read(baselineRelPath(changeName), MainTreeBaselineSchema)
-                // A moved checkout makes the snapshot incomparable — treat a
-                // main_root mismatch as an absent baseline (the step skips).
-                if (resolve(baseline.main_root) === resolve(mainRoot)) {
-                  baselineEntries = baseline.entries
-                }
-              } catch {
-                // Missing/unreadable baseline: keep null so the step skips
-                // instead of comparing falsely.
-              }
-              mainCheckout = { root: mainRoot, baselineEntries }
-              cleanupTarget = { mainRoot, change: changeName }
-            }
+            mainRoot = await resolveMainCheckoutRoot(ctx.projectRoot, changeName, metadata)
           } catch {
-            // Change unknown or topology unresolvable — not worktree-hosted
-            // for our purposes; ship exactly as before.
+            // In the real finalize->ship flow the change is already archived
+            // (`metta finalize` moves spec/changes/<name> to spec/archive/),
+            // so getChange throws for every legitimate ship. Fall back to
+            // durable evidence that this projectRoot hosts the change's
+            // worktree: (a) the worktree checkout still on disk under this
+            // root, or (b) a Zod-validated baseline naming this root as its
+            // main_root. Anything else keeps null — ship exactly as before.
+            if (
+              existsSync(join(ctx.projectRoot, DEFAULT_WORKTREE_DIR, changeName)) ||
+              (await readBaselineEntries(ctx.projectRoot, changeName)) !== null
+            ) {
+              mainRoot = ctx.projectRoot
+            }
+          }
+          if (mainRoot !== null) {
+            // readBaselineEntries yields null for a missing/unreadable
+            // baseline or a moved checkout (main_root mismatch) — the step
+            // then skips instead of comparing falsely.
+            const baselineEntries = await readBaselineEntries(mainRoot, changeName)
+            mainCheckout = { root: mainRoot, baselineEntries }
+            cleanupTarget = { mainRoot, change: changeName }
           }
         }
 

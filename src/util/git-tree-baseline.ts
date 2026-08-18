@@ -134,6 +134,29 @@ export async function captureMainTreeBaseline(
 }
 
 /**
+ * Read a change's recorded baseline entries. Returns `null` when there is no
+ * usable baseline: missing file, unreadable/invalid content, or a `main_root`
+ * mismatch (checkout moved — the snapshot would be apples to oranges).
+ * Callers treat `null` as "no baseline" and warn/skip instead of comparing
+ * falsely.
+ */
+export async function readBaselineEntries(
+  mainRoot: string,
+  change: string,
+): Promise<TreeEntry[] | null> {
+  let baseline: MainTreeBaseline
+  try {
+    baseline = await baselineStore(mainRoot).read(baselineRelPath(change), MainTreeBaselineSchema)
+  } catch {
+    return null
+  }
+  if (resolve(baseline.main_root) !== resolve(mainRoot)) {
+    return null
+  }
+  return baseline.entries
+}
+
+/**
  * Compare the main checkout's current state against the recorded baseline.
  *
  * No baseline file, an unreadable baseline, or a `main_root` mismatch
@@ -144,19 +167,12 @@ export async function compareMainTree(
   mainRoot: string,
   change: string,
 ): Promise<{ hasBaseline: boolean; newDirt: TreeEntry[]; preExisting: TreeEntry[] }> {
-  const store = baselineStore(mainRoot)
-  const relPath = baselineRelPath(change)
-  let baseline: MainTreeBaseline
-  try {
-    baseline = await store.read(relPath, MainTreeBaselineSchema)
-  } catch {
-    return { hasBaseline: false, newDirt: [], preExisting: [] }
-  }
-  if (resolve(baseline.main_root) !== resolve(mainRoot)) {
+  const entries = await readBaselineEntries(mainRoot, change)
+  if (entries === null) {
     return { hasBaseline: false, newDirt: [], preExisting: [] }
   }
   const current = await readMainTreeStatus(mainRoot)
-  const { newDirt, preExisting } = diffTreeState(baseline.entries, current)
+  const { newDirt, preExisting } = diffTreeState(entries, current)
   return { hasBaseline: true, newDirt, preExisting }
 }
 
