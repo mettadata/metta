@@ -6,7 +6,7 @@ base_versions: {}
 artifacts:
   intent: complete
   implementation: complete
-  verification: ready
+  verification: complete
 complexity_score:
   score: 1
   signals:
@@ -18,8 +18,12 @@ artifact_timings:
     completed: 2026-08-18T03:27:01.628Z
   implementation:
     completed: 2026-08-18T03:47:53.312Z
+  verification:
+    completed: 2026-08-18T04:10:41.607Z
 artifact_tokens:
   intent:
     context: 763
     budget: 20000
+review_iterations: 1
+verify_iterations: 1
 worktree: /home/utx0/Code/metta/.metta/worktrees/fix-finalize-dry-run-diverges-applying-run-spec
