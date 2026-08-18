@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from 'vitest'
 import { spawnSync } from 'node:child_process'
 import { join } from 'node:path'
 import { readFile } from 'node:fs/promises'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 
 // metta-session-mint PreToolUse hook tests: the Tier-2 credential-minting half
@@ -19,6 +19,9 @@ const HOOK_SOURCES = [
 ]
 
 const TTL_MS = 300000
+// Mirrors GRACE_MS in metta-session-mint.mjs (and metta-guard-bash.mjs): siblings
+// within ttlMs + GRACE_MS are still re-primable by the guard and must be KEPT.
+const GRACE_MS = 3_600_000
 
 // Per-skill scope table (must mirror SKILL_SCOPES in metta-session-mint.mjs,
 // per design.md's Data Model section).
@@ -42,6 +45,7 @@ interface TokenFile {
   subcommands: string[]
   mintedAt: number
   ttlMs: number
+  sessionId?: string | null
 }
 
 function runHook(
@@ -60,8 +64,15 @@ function runHook(
   return { code: result.status ?? -1, stderr: result.stderr ?? '' }
 }
 
-function bashEvent(command: string, cwd: string, toolName = 'Bash'): Record<string, unknown> {
-  return { tool_name: toolName, tool_input: { command }, cwd }
+function bashEvent(
+  command: string,
+  cwd: string,
+  toolName = 'Bash',
+  sessionId?: string,
+): Record<string, unknown> {
+  const event: Record<string, unknown> = { tool_name: toolName, tool_input: { command }, cwd }
+  if (sessionId !== undefined) event.session_id = sessionId
+  return event
 }
 
 function tokenDir(cwd: string): string {
@@ -124,22 +135,37 @@ describe('metta-session-mint hook', { timeout: 30_000 }, () => {
 
       it('mints a payload with exactly the expected keys and values', () => {
         const cwd = makeTempCwd()
+        const sessionId = 'sess-mint-payload-test'
         const before = Date.now()
-        const { code } = runHook(hookPath, 'metta-next', bashEvent('metta status --json', cwd), {
-          cwd,
-        })
+        const { code } = runHook(
+          hookPath,
+          'metta-next',
+          bashEvent('metta status --json', cwd, 'Bash', sessionId),
+          { cwd },
+        )
         const after = Date.now()
         expect(code).toBe(0)
         const tok = readToken(cwd, 'metta-next')
         expect(Object.keys(tok).sort()).toEqual(
-          ['mintedAt', 'skill', 'subcommands', 'token', 'ttlMs'].sort(),
+          ['mintedAt', 'sessionId', 'skill', 'subcommands', 'token', 'ttlMs'].sort(),
         )
         expect(tok.token).toMatch(V4_UUID_RE)
         expect(tok.skill).toBe('metta-next')
         expect(tok.subcommands).toEqual(['complete', 'finalize'])
         expect(tok.ttlMs).toBe(TTL_MS)
+        expect(tok.sessionId).toBe(sessionId)
         expect(tok.mintedAt).toBeGreaterThanOrEqual(before)
         expect(tok.mintedAt).toBeLessThanOrEqual(after)
+      })
+
+      it('stamps sessionId as null when the event omits session_id', () => {
+        const cwd = makeTempCwd()
+        const { code } = runHook(hookPath, 'metta-next', bashEvent('metta status --json', cwd), {
+          cwd,
+        })
+        expect(code).toBe(0)
+        const tok = readToken(cwd, 'metta-next')
+        expect(tok.sessionId).toBeNull()
       })
 
       it('rotates a stale token (mintedAt older than 80% of ttlMs)', () => {
@@ -232,13 +258,13 @@ describe('metta-session-mint hook', { timeout: 30_000 }, () => {
         expect(tok.subcommands).toEqual(['complete', 'finalize'])
       })
 
-      it('deletes expired sibling token files on mint, keeps fresh ones', () => {
+      it('deletes genuinely dead sibling token files on mint, keeps fresh and re-primable ones', () => {
         const cwd = makeTempCwd()
         seedToken(cwd, {
           token: '33333333-3333-4333-8333-333333333333',
           skill: 'metta-refresh',
           subcommands: ['refresh'],
-          mintedAt: Date.now() - TTL_MS - 1000, // expired
+          mintedAt: Date.now() - TTL_MS - GRACE_MS - 60_000, // past ttlMs + GRACE_MS: dead
           ttlMs: TTL_MS,
         })
         seedToken(cwd, {
@@ -248,13 +274,34 @@ describe('metta-session-mint hook', { timeout: 30_000 }, () => {
           mintedAt: Date.now(), // fresh
           ttlMs: TTL_MS,
         })
+        seedToken(cwd, {
+          token: '66666666-6666-4666-8666-666666666666',
+          skill: 'metta-plan',
+          subcommands: ['complete'],
+          mintedAt: Date.now() - TTL_MS - 60_000, // between ttlMs and ttlMs + GRACE_MS: re-primable
+          ttlMs: TTL_MS,
+        })
         const { code } = runHook(hookPath, 'metta-next', bashEvent('metta status --json', cwd), {
           cwd,
         })
         expect(code).toBe(0)
-        expect(existsSync(tokenPath(cwd, 'metta-refresh'))).toBe(false) // expired sibling removed
+        expect(existsSync(tokenPath(cwd, 'metta-refresh'))).toBe(false) // dead sibling removed
         expect(existsSync(tokenPath(cwd, 'metta-verify'))).toBe(true) // fresh sibling kept
+        // Sibling inside the guard's re-prime horizon is KEPT (previously deleted):
+        // cleanup must never starve a token the guard would still re-prime.
+        expect(existsSync(tokenPath(cwd, 'metta-plan'))).toBe(true)
         expect(existsSync(tokenPath(cwd, 'metta-next'))).toBe(true) // own token minted
+      })
+
+      it('atomic write: mint leaves no *.tmp residue and the token parses as JSON', () => {
+        const cwd = makeTempCwd()
+        const { code } = runHook(hookPath, 'metta-next', bashEvent('metta status --json', cwd), {
+          cwd,
+        })
+        expect(code).toBe(0)
+        const names = readdirSync(tokenDir(cwd))
+        expect(names.filter((n) => n.endsWith('.tmp'))).toEqual([])
+        expect(() => readToken(cwd, 'metta-next')).not.toThrow()
       })
 
       it('removes a lingering legacy single-file token on mint', () => {
