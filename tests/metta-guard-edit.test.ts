@@ -288,7 +288,11 @@ describe('metta-guard-edit hook worktree awareness', { timeout: 60_000 }, () => 
         // when probed from repoDir (the derived probe root) or demoWorktree
         // itself. This keeps the case deterministic; real aggregation truth
         // is owned by the real-CLI block (`metta-guard-edit hook real-CLI
-        // topology`), not this shim.
+        // topology`), not this shim. The demoWorktree branch of this
+        // condition is not exercised under V1c — the derived probe root for
+        // a worktree-hosted target is always repoDir (the main root), never
+        // demoWorktree itself; it exists only to model the general shape of
+        // one-directional aggregation, not a reachable probe path here.
         await writeFile(
           join(binDir, 'metta'),
           [

@@ -87,7 +87,7 @@ function deriveProbeRoot(checkoutRoot) {
   if (
     basename(worktreesDir) === 'worktrees' &&
     basename(mettaDir) === '.metta' &&
-    hostRoot !== mettaDir                      // guard filesystem-root degenerate cases
+    hostRoot !== mettaDir                      // defensive; unreachable in practice — the basename checks already exclude root-degenerate paths
   ) {
     return hostRoot
   }
