@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync } from 'nod
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { setProjectField } from './config-writer.js'
+import { setProjectField } from '../src/config/config-writer.js'
 
 describe('setProjectField', () => {
   let tmpDir: string

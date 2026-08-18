@@ -9,7 +9,7 @@ import {
   distMtimeFallbackCheck,
   distStampCheck,
   readBuildStamp,
-} from './build-stamp.js'
+} from '../src/config/build-stamp.js'
 
 const execAsync = promisify(execFile)
 
