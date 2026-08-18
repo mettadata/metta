@@ -132,49 +132,131 @@ export function registerRoadmapCommand(program: Command): void {
     })
 
   roadmap
+    .command('remove')
+    .argument('<target>', '1-based position or entry slug')
+    .option('--on-branch <name>', 'Acknowledge non-main branch and proceed')
+    .description('Remove a roadmap entry by position or slug')
+    .action(async (target, options) => {
+      const json = program.opts().json
+      const ctx = createCliContext()
+      try {
+        const config = await ctx.configLoader.load()
+        // Branch guard runs BEFORE reading roadmap state, mirroring add/reorder.
+        await assertOnMainBranch(ctx.projectRoot, config.git?.pr_base ?? 'main', options.onBranch)
+        // All-digit input is ALWAYS a position (ADR-1): `remove 0` flows as an
+        // out-of-range position, never a literal slug "0".
+        const parsed: string | number = /^\d+$/.test(target) ? Number(target) : target
+        const { entry, position } = await ctx.roadmapStore.remove(parsed)
+        const filePath = join(ctx.projectRoot, 'spec', 'roadmap.md')
+        const commit = await autoCommitFile(
+          ctx.projectRoot,
+          filePath,
+          `chore: remove roadmap entry ${entry.slug}`,
+        )
+        if (json) {
+          outputJson({ removed: entry.slug, position, committed: commit.committed, commit_sha: commit.sha })
+        } else {
+          console.log(`Removed from roadmap (was position ${position}): ${entry.slug}`)
+          if (commit.committed) { console.log(`  Committed: ${commit.sha?.slice(0, 7)}`) }
+          else if (commit.reason) { console.log(`  Not committed: ${commit.reason}`) }
+        }
+      } catch (err) {
+        const { type, message } = mapRoadmapError(err)
+        exitWithError(json, type, message)
+      }
+    })
+
+  roadmap
     .command('next')
     .option('--on-branch <name>', 'Acknowledge non-main branch and proceed')
-    .description('Activate the top roadmap entry via the backlog promote path and pop it')
+    .option('--prune', 'Also remove the skipped dangling entries in the same write and commit')
+    .description(
+      'Activate the first healthy roadmap entry via the backlog promote path and pop it, ' +
+        'skipping (and warning on) any dangling entries ahead of it. Use --prune to remove ' +
+        'the skipped dangling entries in the same write and commit.',
+    )
     .action(async (options) => {
       const json = program.opts().json
       const ctx = createCliContext()
       try {
         const config = await ctx.configLoader.load()
         await assertOnMainBranch(ctx.projectRoot, config.git?.pr_base ?? 'main', options.onBranch)
+
+        // Phase 1 — plan (read-only, no store mutation, no output): walk the
+        // roadmap from the top, classifying each entry healthy/dangling via
+        // issuesStore.show. The first healthy entry is the activation
+        // candidate; dangling entries ahead of it are collected, never
+        // fail-stopped (ADR-3 supersedes roadmap-feature ADR-4).
         const entries = await ctx.roadmapStore.list()
-        const top = entries[0]
-        if (top === undefined) {
+        const skipped: string[] = []
+        let candidate: { slug: string; title: string } | null = null
+        for (const entry of entries) {
+          try {
+            const item = await ctx.issuesStore.show(entry.slug)
+            candidate = { slug: entry.slug, title: item.title }
+            break
+          } catch {
+            skipped.push(entry.slug)
+          }
+        }
+
+        // Phase 2 — report + mutate. One stderr warning per skipped slug, in
+        // BOTH output modes (ADR-5) — stdout stays a single JSON document.
+        for (const slug of skipped) {
+          process.stderr.write(
+            `Warning: skipping dangling roadmap entry '${slug}' — spec/issues/${slug}.md not found. ` +
+              `Remedy: metta roadmap remove ${slug}, or restore spec/issues/${slug}.md\n`,
+          )
+        }
+
+        if (entries.length === 0) {
           // Empty roadmap is a no-op, not an error: no write, no commit.
-          if (json) { outputJson({ next: null }) } else {
+          if (json) { outputJson({ next: null, skipped: [], pruned: [] }) } else {
             console.log('Roadmap is empty — nothing to activate.')
           }
           return
         }
-        let title: string
-        try {
-          const item = await ctx.issuesStore.show(top.slug)
-          title = item.title
-        } catch {
-          // Dangling top entry (ADR-4): fail with not_found, no pop, no write,
-          // no commit — silently popping would destroy roadmap intent.
-          exitWithError(
-            json,
-            'not_found',
-            `Roadmap top entry '${top.slug}' has no backlog item. ` +
-              `Restore spec/issues/${top.slug}.md, or move it off the top with: metta roadmap reorder <slug...>`,
-          )
+
+        if (candidate === null) {
+          // All entries dangling: guidance, not an error. No store call at
+          // all — --prune is structurally inert here.
+          const message =
+            `All ${entries.length} roadmap entries are dangling — nothing to activate. ` +
+            'Remove them (metta roadmap remove <slug>) or restore the issue files under spec/issues/.'
+          if (json) {
+            process.stderr.write(`${message}\n`)
+            outputJson({ next: null, message, skipped, pruned: [] })
+          } else {
+            console.log(message)
+          }
+          return
         }
-        const handoff = buildPromoteHandoff({ title })
-        await ctx.roadmapStore.removeTop()
+
+        const handoff = buildPromoteHandoff({ title: candidate.title })
+        const toRemove = options.prune ? [...skipped, candidate.slug] : [candidate.slug]
+        await ctx.roadmapStore.removeSlugs(toRemove)
+        const pruned = options.prune ? skipped : []
         const filePath = join(ctx.projectRoot, 'spec', 'roadmap.md')
-        const commit = await autoCommitFile(ctx.projectRoot, filePath, `chore: pop roadmap entry ${top.slug}`)
+        // Base prefix preserved verbatim for log-grep automation; suffix only
+        // appended when pruning actually removed entries.
+        let commitMessage = `chore: pop roadmap entry ${candidate.slug}`
+        if (pruned.length > 0) commitMessage += ` (pruned ${pruned.length} dangling)`
+        const commit = await autoCommitFile(ctx.projectRoot, filePath, commitMessage)
         if (json) {
-          outputJson({ next: top.slug, message: `Run: ${handoff}`, committed: commit.committed, commit_sha: commit.sha })
+          outputJson({
+            next: candidate.slug,
+            message: `Run: ${handoff}`,
+            skipped,
+            pruned,
+            committed: commit.committed,
+            commit_sha: commit.sha,
+          })
         } else {
           // The handoff embeds the raw backlog item title; sanitize at the
           // render edge only — the JSON branch above stays byte-faithful.
-          console.log(stripControlSequences(`Next up: '${top.slug}' — activate by running: ${handoff}`))
+          console.log(stripControlSequences(`Next up: '${candidate.slug}' — activate by running: ${handoff}`))
           console.log('  Removed from roadmap.')
+          if (pruned.length > 0) { console.log(`  Pruned ${pruned.length} dangling entries.`) }
           if (commit.committed) { console.log(`  Committed: ${commit.sha?.slice(0, 7)}`) }
           else if (commit.reason) { console.log(`  Not committed: ${commit.reason}`) }
         }
