@@ -379,6 +379,147 @@ describe('ChangeMetadataSchema', () => {
     expect(result.success).toBe(false)
   })
 
+  it('accepts metadata with a populated downscale_decision and round-trips it', () => {
+    const downscaleDecision = {
+      from_tier: 'standard' as const,
+      to_tier: 'quick' as const,
+      justification: 'collapsed standard -> quick: interactive explicit yes',
+      timestamp: '2026-07-14T12:00:00Z',
+    }
+    const data = {
+      workflow: 'quick',
+      created: '2026-07-14T12:00:00Z',
+      status: 'active',
+      current_artifact: 'spec',
+      base_versions: {},
+      artifacts: {},
+      downscale_decision: downscaleDecision,
+    }
+    const result = ChangeMetadataSchema.safeParse(data)
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.downscale_decision).toEqual(downscaleDecision)
+      expect(result.data.downscale_decision?.from_tier).toBe('standard')
+      expect(result.data.downscale_decision?.to_tier).toBe('quick')
+    }
+  })
+
+  it('accepts legacy metadata omitting downscale_decision (field undefined)', () => {
+    const data = {
+      workflow: 'standard',
+      created: '2026-07-14T12:00:00Z',
+      status: 'active',
+      current_artifact: 'spec',
+      base_versions: {},
+      artifacts: {},
+    }
+    const result = ChangeMetadataSchema.safeParse(data)
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.downscale_decision).toBeUndefined()
+    }
+  })
+
+  it('accepts downscale_decision present with escalation absent (independent parallel fields)', () => {
+    const data = {
+      workflow: 'quick',
+      created: '2026-07-14T12:00:00Z',
+      status: 'active',
+      current_artifact: 'spec',
+      base_versions: {},
+      artifacts: {},
+      downscale_decision: {
+        from_tier: 'standard',
+        to_tier: 'quick',
+        justification: 'collapsed standard -> quick: auto_accept_recommendation',
+        timestamp: '2026-07-14T12:00:00Z',
+      },
+    }
+    const result = ChangeMetadataSchema.safeParse(data)
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.downscale_decision).toBeDefined()
+      expect(result.data.escalation).toBeUndefined()
+    }
+  })
+
+  it('rejects downscale_decision with an empty justification', () => {
+    const data = {
+      workflow: 'quick',
+      created: '2026-07-14T12:00:00Z',
+      status: 'active',
+      current_artifact: 'spec',
+      base_versions: {},
+      artifacts: {},
+      downscale_decision: {
+        from_tier: 'standard',
+        to_tier: 'quick',
+        justification: '',
+        timestamp: '2026-07-14T12:00:00Z',
+      },
+    }
+    const result = ChangeMetadataSchema.safeParse(data)
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects downscale_decision with an invalid tier value', () => {
+    const data = {
+      workflow: 'quick',
+      created: '2026-07-14T12:00:00Z',
+      status: 'active',
+      current_artifact: 'spec',
+      base_versions: {},
+      artifacts: {},
+      downscale_decision: {
+        from_tier: 'standard',
+        to_tier: 'ludicrous',
+        justification: 'collapsed standard -> quick: interactive explicit yes',
+        timestamp: '2026-07-14T12:00:00Z',
+      },
+    }
+    const result = ChangeMetadataSchema.safeParse(data)
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects downscale_decision with a non-datetime timestamp', () => {
+    const data = {
+      workflow: 'quick',
+      created: '2026-07-14T12:00:00Z',
+      status: 'active',
+      current_artifact: 'spec',
+      base_versions: {},
+      artifacts: {},
+      downscale_decision: {
+        from_tier: 'standard',
+        to_tier: 'quick',
+        justification: 'collapsed standard -> quick: interactive explicit yes',
+        timestamp: 'not-a-timestamp',
+      },
+    }
+    const result = ChangeMetadataSchema.safeParse(data)
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects downscale_decision with an unknown key (.strict())', () => {
+    const data = {
+      workflow: 'quick',
+      created: '2026-07-14T12:00:00Z',
+      status: 'active',
+      current_artifact: 'spec',
+      base_versions: {},
+      artifacts: {},
+      downscale_decision: {
+        from_tier: 'standard',
+        to_tier: 'quick',
+        justification: 'collapsed standard -> quick: interactive explicit yes',
+        timestamp: '2026-07-14T12:00:00Z',
+        cause: 'auto_accept_recommendation',
+      },
+    }
+    const result = ChangeMetadataSchema.safeParse(data)
+    expect(result.success).toBe(false)
+  })
+
   it('parses legacy metadata with no model_escalations/model_runs keys unchanged', () => {
     const data = {
       workflow: 'standard',
