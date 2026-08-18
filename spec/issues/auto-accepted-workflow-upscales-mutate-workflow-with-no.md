@@ -1,0 +1,10 @@
+---
+priority: low
+---
+# auto-accepted workflow upscales mutate workflow with no decision record — audit asymmetry vs downscales: fix-intent-time-workflow-auto-downscale-misfires-file-count added a Zod-validated downscale_decision record for every accepted downscale, but the intent-time upscale branch (src/cli/commands/complete.ts ~408-446) and the post-implementation upscale path (~507-539) still rewrite workflow with no equivalent record when auto_accept_recommendation is true. Same auditability gap the downscale fix closed. Also noted by the same review: the post-impl upscale path loads the target workflow graph AFTER its state write, so a loadWorkflow failure there strands workflow upscaled with a stale activeGraph — worth fixing together. Candidate fix: an upscale_decision record (or generalize downscale_decision to tier_decision) folded into the same updateChange, plus reordering the post-impl graph load before the write. Origin: security reviewer of the downscale-misfire change, 2026-08-18.
+
+**Captured**: 2026-08-18
+**Status**: logged
+**Severity**: minor
+
+auto-accepted workflow upscales mutate workflow with no decision record — audit asymmetry vs downscales: fix-intent-time-workflow-auto-downscale-misfires-file-count added a Zod-validated downscale_decision record for every accepted downscale, but the intent-time upscale branch (src/cli/commands/complete.ts ~408-446) and the post-implementation upscale path (~507-539) still rewrite workflow with no equivalent record when auto_accept_recommendation is true. Same auditability gap the downscale fix closed. Also noted by the same review: the post-impl upscale path loads the target workflow graph AFTER its state write, so a loadWorkflow failure there strands workflow upscaled with a stale activeGraph — worth fixing together. Candidate fix: an upscale_decision record (or generalize downscale_decision to tier_decision) folded into the same updateChange, plus reordering the post-impl graph load before the write. Origin: security reviewer of the downscale-misfire change, 2026-08-18.
