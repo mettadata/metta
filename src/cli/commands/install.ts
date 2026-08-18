@@ -327,6 +327,7 @@ Banned patterns and forbidden operations.
 local.yaml
 logs/
 state.lock
+scratch/
 `
         // Best-effort write with the exclusive `wx` flag: if .metta/.gitignore
         // already exists from a prior install run, the EEXIST is expected and we

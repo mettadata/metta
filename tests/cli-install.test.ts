@@ -113,13 +113,18 @@ describe("CLI: install / init / stack detection", { timeout: 30000 }, () => {
       await write(join(tempDir, '.metta', 'state.yaml'), 'x\n', 'utf8')
       await mkdirP(join(tempDir, '.metta', 'logs'), { recursive: true })
       await write(join(tempDir, '.metta', 'logs', 'run.log'), 'x\n', 'utf8')
+      // scratch/ holds skill-session credentials and tree baselines — machine-
+      // local state that must never enter a consumer project's history.
+      await mkdirP(join(tempDir, '.metta', 'scratch'), { recursive: true })
+      await write(join(tempDir, '.metta', 'scratch', 'skill-session.token'), 'x\n', 'utf8')
       const { stdout } = await execAsync(
         'git',
-        ['check-ignore', '.metta/state.yaml', '.metta/logs/run.log'],
+        ['check-ignore', '.metta/state.yaml', '.metta/logs/run.log', '.metta/scratch/skill-session.token'],
         { cwd: tempDir }
       )
       expect(stdout).toContain('.metta/state.yaml')
       expect(stdout).toContain('.metta/logs/run.log')
+      expect(stdout).toContain('.metta/scratch/skill-session.token')
     })
 
     it('fresh install stamps installed_version with the running package version and config stays schema-valid', async () => {
