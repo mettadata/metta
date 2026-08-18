@@ -1,15 +1,15 @@
 workflow: standard
 created: 2026-08-18T08:11:38.674Z
 status: active
-current_artifact: design
+current_artifact: tasks
 base_versions: {}
 artifacts:
   intent: complete
   stories: complete
   spec: complete
   research: complete
-  design: ready
-  tasks: pending
+  design: complete
+  tasks: ready
   implementation: pending
   verification: pending
 complexity_score:
@@ -26,6 +26,8 @@ artifact_timings:
     completed: 2026-08-18T08:16:41.255Z
   research:
     completed: 2026-08-18T08:21:05.747Z
+  design:
+    completed: 2026-08-18T08:25:29.237Z
 worktree: /home/utx0/Code/metta/.metta/worktrees/fix-roadmap-entry-lifecycle-dangling-entries
 token_usage:
   - task: metta-skill-host
@@ -99,4 +101,16 @@ token_usage:
     model: fable
     tokens: 14831
     timestamp: 2026-08-18T08:20:36.156Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 127072
+    timestamp: 2026-08-18T08:21:27.433Z
+    source: hook
+  - task: design
+    agent: metta-architect
+    model: fable
+    tokens: 20443
+    timestamp: 2026-08-18T08:25:17.589Z
     source: hook
