@@ -1432,8 +1432,10 @@ Scenarios:
 ### roadmap next activates the top entry with a propose handoff and pops it
 
 Scenarios:
-- Top entry activated and removed from the queue
-- Dangling top entry fails not_found without popping
+- Dangling head is skipped and the first healthy entry activates
+- Multiple consecutive dangling entries each warn and all remain
+- --prune removes skipped dangling entries in the same write and commit
+- All-dangling roadmap is a non-error no-op with guidance
 - Empty roadmap is a friendly no-op
 
 ### Mutating roadmap operations enforce main-branch and auto-commit discipline
@@ -1447,6 +1449,7 @@ Scenarios:
 Scenarios:
 - Envelope shape is consistent across failure types
 - Text mode reports the same failures on stderr
+- Dangling entries no longer surface through the error contract on next
 
 ### Roadmap wiring is additive to the CLI context and barrel exports
 
@@ -1472,6 +1475,28 @@ Scenarios:
 Scenarios:
 - Populated roadmap answers routing without user re-litigation
 - Empty roadmap yields a clean fallback signal
+
+### roadmap remove deletes a targeted entry by position or slug
+
+Scenarios:
+- Remove by position renumbers through the canonical writer
+- Remove by slug deletes the matching entry
+- Missing target fails not_found with no write
+
+### Issue resolution auto-retires referencing roadmap entries
+
+Scenarios:
+- backlog done retires the roadmap entry atomically
+- fix-issue --remove-issue retires the roadmap entry atomically
+- Non-roadmapped resolution is byte-for-byte unchanged behavior
+- JSON reporting of the retirement is additive
+
+### Skipped dangling entries are machine-detectable from roadmap next output
+
+Scenarios:
+- JSON output enumerates skipped slugs in order
+- Nothing skipped yields an empty skip signal
+- Text warnings name every skipped slug for script consumption
 
 ## Schemas Specification
 
