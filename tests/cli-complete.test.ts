@@ -645,6 +645,50 @@ describe("CLI: instructions banners / complete tier downscale & upscale", { time
       expect(meta.downscale_decision).toBeUndefined()
     })
 
+    it('workflow_locked interactive TTY, empty answer: [y/N] prompt, workflow kept, workflow_locked escalation, no decision record', async () => {
+      // Reuses the T-C2 in-process TTY harness (runCompleteInteractive /
+      // Object.defineProperty(process.stdin, 'isTTY')) to lock down that a
+      // workflow_locked change defaults to No even when the session is
+      // genuinely interactive: the prompt still renders (unlike the
+      // non-interactive fail-closed path), but its default flips to No and
+      // an empty answer must keep the chosen workflow.
+      await installFixture(tempDir)
+      await disableWorktrees(tempDir)
+      // Explicit --workflow sets workflow_locked: true, which flips the
+      // downscale default back to No even in an interactive TTY session.
+      await runCli(['propose', 'downscale locked tty', '--workflow', 'standard'], tempDir)
+      const changeDir = join(tempDir, 'spec', 'changes', 'downscale-locked-tty')
+      await writeFile(join(changeDir, 'intent.md'), oneFileIntent('Downscale Locked Tty'), 'utf8')
+
+      await runCompleteInteractive('downscale-locked-tty', '', tempDir)
+
+      // Prompt rendered with the No-default suffix (workflow_locked keeps No).
+      expect(ttyPrompt.questions.length).toBeGreaterThan(0)
+      expect(ttyPrompt.questions[0]).toContain('collapse workflow to /metta-trivial?')
+      expect(ttyPrompt.questions[0]).toContain('[y/N]')
+
+      const meta = await readChangeMetaYaml('downscale-locked-tty')
+      // Empty answer takes the No default: workflow stays put.
+      expect(meta.workflow).toBe('standard')
+      const artifacts = meta.artifacts as Record<string, string>
+      expect(artifacts).toHaveProperty('stories')
+      expect(artifacts).toHaveProperty('spec')
+      // Escalation recorded with the workflow_locked justification cause.
+      const esc = meta.escalation as {
+        from_tier: string
+        to_tier: string
+        justification: string
+        timestamp: string
+      }
+      expect(esc).toBeDefined()
+      expect(esc.from_tier).toBe('trivial')
+      expect(esc.to_tier).toBe('standard')
+      expect(esc.justification).toContain('workflow_locked')
+      expect(esc.timestamp).toBeDefined()
+      // No decision record on the No path.
+      expect(meta.downscale_decision).toBeUndefined()
+    })
+
     it('recommendation matches current workflow: no prompt, no banner, no change', async () => {
       await installFixture(tempDir)
       await disableWorktrees(tempDir)

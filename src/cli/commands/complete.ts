@@ -307,6 +307,11 @@ export function registerCompleteCommand(program: Command): void {
                   const fileCount = score.signals.file_count
                   // Downscale defaults to Yes unless the workflow was explicitly
                   // locked (e.g. via --workflow); reached only when interactive.
+                  // `jsonMode: json` is provably false here -- this branch is
+                  // only reached when `nonInteractive` (`!TTY || json`) is
+                  // false, so `json` is always false at this point. Passed
+                  // through anyway to keep the call shape consistent with the
+                  // other askYesNoDetailed/askYesNo call sites in this file.
                   const { value, viaDefault } = await askYesNoDetailed(
                     color(
                       `Scored as ${recommendedTier} (${fileCount} files) -- collapse workflow to /metta-${recommendedTier}?`,
@@ -321,6 +326,17 @@ export function registerCompleteCommand(program: Command): void {
                 }
 
                 if (takeYes) {
+                  // Narrow acceptCause to non-null at the type level before it
+                  // is folded into the decision record's justification string.
+                  // `takeYes` is only ever set true in lockstep with an
+                  // `acceptCause` assignment above, so this branch is an
+                  // invariant guard, not a reachable failure mode -- but a
+                  // regression here must surface as a stderr advisory (via the
+                  // enclosing catch), never as a silently-persisted
+                  // "...: null" justification.
+                  if (acceptCause === null) {
+                    throw new Error('internal invariant violated: takeYes without acceptCause')
+                  }
                   // Load the target workflow graph and rebuild the artifact map.
                   const targetGraph = await ctx.workflowEngine.loadWorkflow(
                     recommendedTier,
@@ -373,14 +389,28 @@ export function registerCompleteCommand(program: Command): void {
                     : nonInteractive
                       ? `kept ${currentWorkflow}: non-interactive fail-closed`
                       : `kept ${currentWorkflow}: declined downscale`
-                  await ctx.artifactStore.updateChange(changeName, {
-                    escalation: {
-                      from_tier: recommendedTier,
-                      to_tier: currentWorkflow,
-                      justification,
-                      timestamp: new Date().toISOString(),
-                    },
-                  })
+                  // Single-slot overwrite guard: `escalation` holds exactly one
+                  // record, so a repeated `complete intent` run on the same
+                  // from/to tier pair must not clobber an earlier run's
+                  // justification (e.g. a deliberate interactive decline
+                  // replaced by a later non-interactive fail-closed rerun).
+                  // First record wins for a given tier pair; a genuinely
+                  // different tier pair (or no existing record) still writes.
+                  const existingEscalation = currentMetadata.escalation
+                  const sameTierPairAlreadyRecorded =
+                    existingEscalation !== undefined &&
+                    existingEscalation.from_tier === recommendedTier &&
+                    existingEscalation.to_tier === currentWorkflow
+                  if (!sameTierPairAlreadyRecorded) {
+                    await ctx.artifactStore.updateChange(changeName, {
+                      escalation: {
+                        from_tier: recommendedTier,
+                        to_tier: currentWorkflow,
+                        justification,
+                        timestamp: new Date().toISOString(),
+                      },
+                    })
+                  }
                   // Informational banner only.
                   const banner = renderBanner(score, currentWorkflow)
                   if (banner) {
@@ -459,8 +489,16 @@ export function registerCompleteCommand(program: Command): void {
                 }
               }
             }
-          } catch {
-            // Scoring / downscale is advisory-only and must not block the complete command.
+          } catch (err) {
+            // Scoring / downscale is advisory-only and must not block the
+            // complete command -- but a failure here (e.g. the accept-path
+            // updateChange after the "Auto-accepting recommendation..."
+            // banner already printed) must not fail silently: the console
+            // would otherwise claim a workflow collapse that never
+            // persisted. Warn on stderr; keep the exit code untouched.
+            process.stderr.write(
+              `Advisory: workflow scoring step failed: ${getErrorMessage(err)}\n`,
+            )
           }
         }
 

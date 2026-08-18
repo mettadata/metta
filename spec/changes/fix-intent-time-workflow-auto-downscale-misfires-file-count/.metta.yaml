@@ -37,6 +37,7 @@ artifact_tokens:
   intent:
     context: 763
     budget: 20000
+review_iterations: 1
 worktree: /home/utx0/Code/metta/.metta/worktrees/fix-intent-time-workflow-auto-downscale-misfires-file-count
 token_usage:
   - task: metta-skill-host
@@ -188,4 +189,52 @@ token_usage:
     model: sonnet
     tokens: 2873
     timestamp: 2026-08-18T06:04:08.408Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 108422
+    timestamp: 2026-08-18T06:05:16.811Z
+    source: hook
+  - task: implementation
+    agent: metta-reviewer
+    model: fable
+    tokens: 8672
+    timestamp: 2026-08-18T06:12:09.984Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 108449
+    timestamp: 2026-08-18T06:12:16.490Z
+    source: hook
+  - task: implementation
+    agent: metta-reviewer
+    model: fable
+    tokens: 12166
+    timestamp: 2026-08-18T06:12:49.374Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 108638
+    timestamp: 2026-08-18T06:12:54.794Z
+    source: hook
+  - task: implementation
+    agent: metta-reviewer
+    model: fable
+    tokens: 13797
+    timestamp: 2026-08-18T06:13:06.665Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 110586
+    timestamp: 2026-08-18T06:13:42.391Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 9195
+    timestamp: 2026-08-18T06:14:45.494Z
     source: hook
