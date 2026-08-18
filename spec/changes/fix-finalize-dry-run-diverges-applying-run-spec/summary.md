@@ -20,3 +20,26 @@ Commits: `73ad3200a` (spec delta), `9a23c806a` (refactor), `9f90e75d5` (tests).
 ## Workflow note
 
 The CLI auto-downscaled this change standard → quick at intent completion (complexity score 1, file_count 3) — another occurrence of open issue `intent-time-workflow-auto-downscale-misfires-on-file-count-0`. The quick routing was kept (no state hand-edits); the spec delta the intent commits to was authored anyway (SpecMerger merges `spec.md` independent of the artifact graph), and full 3-reviewer / 3-verifier fan-outs run regardless of tier.
+
+## Verification
+
+### Spec Scenarios
+
+All delta requirements/scenarios verified with cited test evidence (`tests/spec-merger.test.ts` 20/20, `tests/finalizer.test.ts` 33/33):
+
+- [x] MODIFIED `Spec Delta Merge` — merge-target name exists verbatim in the living spec; dry-run requirement-not-found for MODIFIED (501) / RENAMED (538) / REMOVED (576); apply-mode conflict + no-write (456); ADDED idempotency/noop scenarios (382, 426)
+- [x] `Dry-Run And Apply Merge Result Parity` — deep result equality on a fixture mixing noop + clean + three conflict classes (607, `toEqual` at 693) with zero-write assertion; finalizer step-3 gate catches requirement-not-found, applying merge never invoked (finalizer.test.ts:302, merge spy called once with dryRun)
+- [x] `All-Or-Nothing Spec Merge Apply` — conflicting delta N leaves spec.md, spec.lock, and specs/ tree byte-identical (702); zero-conflict multi-delta commits all staged results (783, 320)
+- [x] `Staged Composition Of Same-Capability Deltas` — ADDED-then-MODIFIED composes in apply (783) and classifies identically in dry-run (821)
+
+Non-blocking notes: finalizer-layer scenario uses MODIFIED where the spec text names REMOVED (same conflict class, covered at merger layer); multi-capability lock-hash assertion is composed from two tests rather than one verbatim scenario test.
+
+### Gate Results
+
+| Gate | Result |
+|------|--------|
+| tests (`npm test`) | PASS — 128 files, 2432/2432 |
+| typecheck / lint | PASS |
+| build | PASS |
+
+Review: 3 reviewers, 1 iteration — security PASS, correctness/quality PASS_WITH_WARNINGS; all warnings fixed in 5453a802a; pre-existing RENAMED-collision data loss logged as issue `spec-merger-renamed-delta-re-key-silently-loses-a`.
