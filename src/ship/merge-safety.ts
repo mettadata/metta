@@ -3,6 +3,10 @@ import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 import type { GateRegistry } from '../gates/gate-registry.js'
+// Pure functions only (D7): the pipeline stays StateStore-free — the ship
+// command resolves topology and reads the baseline, then feeds the result in.
+import { diffTreeState, parsePorcelain } from '../util/git-tree-baseline.js'
+import type { TreeEntry } from '../schemas/tree-baseline.js'
 
 const execAsync = promisify(exec)
 
@@ -19,8 +23,22 @@ export interface MergeSafetyResult {
   snapshotTag?: string
 }
 
+/**
+ * Caller-fed input for the `main-checkout-clean` step, provided by the ship
+ * command only for worktree-hosted ships. `baselineEntries === null` means no
+ * baseline was recorded — the step skips rather than comparing falsely.
+ */
+export interface MainCheckoutCleanInput {
+  root: string
+  baselineEntries: TreeEntry[] | null
+}
+
 export class MergeSafetyPipeline {
-  constructor(private cwd: string, private gateRegistry?: GateRegistry) {}
+  constructor(
+    private cwd: string,
+    private gateRegistry?: GateRegistry,
+    private options?: { mainCheckout?: MainCheckoutCleanInput },
+  ) {}
 
   private async git(args: string): Promise<string> {
     const { stdout } = await execAsync(`git ${args}`, { cwd: this.cwd })
@@ -109,6 +127,62 @@ export class MergeSafetyPipeline {
         return { status: 'failure', steps }
       }
       steps.push({ step: 'finalize-check', status: 'pass', detail: archiveMatches[0] })
+    }
+
+    // Step: main-checkout-clean — emitted only for worktree-hosted ships,
+    // where the ship command resolved the hosting main checkout and fed its
+    // implementation-time baseline in. Non-worktree ships get no input, no
+    // step, and a byte-identical step list. New dirt (paths absent from the
+    // baseline or with a changed XY status) fails the ship; pre-existing dirt
+    // only ever warns. Detection only — never mutates the main checkout.
+    const mainCheckout = this.options?.mainCheckout
+    if (mainCheckout !== undefined) {
+      if (mainCheckout.baselineEntries === null) {
+        steps.push({
+          step: 'main-checkout-clean',
+          status: 'skip',
+          detail: 'no baseline recorded — cannot attribute dirt',
+        })
+      } else {
+        let current: TreeEntry[] | null = null
+        try {
+          const { stdout } = await execAsync(
+            'git status --porcelain=v1 -z --untracked-files=no',
+            { cwd: mainCheckout.root },
+          )
+          current = parsePorcelain(stdout)
+        } catch {
+          // Fail-open: an unreadable main checkout must never block a ship —
+          // skip, mirroring the missing-baseline path.
+          steps.push({
+            step: 'main-checkout-clean',
+            status: 'skip',
+            detail: `could not read git status of main checkout at ${mainCheckout.root}`,
+          })
+        }
+        if (current !== null) {
+          const { newDirt, preExisting } = diffTreeState(mainCheckout.baselineEntries, current)
+          if (newDirt.length > 0) {
+            const paths = newDirt.map(e => `${e.status} ${e.path}`).join(', ')
+            steps.push({
+              step: 'main-checkout-clean',
+              status: 'fail',
+              detail: `main checkout at ${mainCheckout.root} accumulated new dirt since the implementation baseline: ${paths}`,
+            })
+            return { status: 'failure', steps }
+          }
+          if (preExisting.length > 0) {
+            const paths = preExisting.map(e => `${e.status} ${e.path}`).join(', ')
+            steps.push({
+              step: 'main-checkout-clean',
+              status: 'pass',
+              detail: `warning: pre-existing dirt in main checkout (present at baseline, not attributed to this change): ${paths}`,
+            })
+          } else {
+            steps.push({ step: 'main-checkout-clean', status: 'pass', detail: 'main checkout clean' })
+          }
+        }
+      }
     }
 
     // Step 0: Record starting branch and check working tree is clean
