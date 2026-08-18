@@ -1334,10 +1334,11 @@ Scenarios:
 - Full permutation rewrites the order
 - Omission, addition, and duplicate are each rejected with no partial write
 
-### roadmap next activates the top entry through the backlog promote path and pops it
+### roadmap next activates the top entry with a propose handoff and pops it
 
 Scenarios:
 - Top entry activated and removed from the queue
+- Dangling top entry fails not_found without popping
 - Empty roadmap is a friendly no-op
 
 ### Mutating roadmap operations enforce main-branch and auto-commit discipline
