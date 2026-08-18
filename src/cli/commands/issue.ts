@@ -2,6 +2,7 @@ import { Command } from 'commander'
 import { join } from 'node:path'
 import { assertOnMainBranch, autoCommitFile, createCliContext, outputJson, readPipedStdin, getErrorMessage } from '../helpers.js'
 import { SLUG_RE } from '../../util/slug.js'
+import { stripControlSequences, stripControlSequencesMultiline } from '../../util/sanitize-text.js'
 import type { Severity } from '../../issues/issues-store.js'
 
 const PRIORITIES = ['high', 'medium', 'low'] as const
@@ -86,7 +87,7 @@ export function registerIssueCommand(program: Command): void {
         if (list.length === 0) { console.log('No issues logged.') } else {
           for (const i of list) {
             const ideaMarker = i.type === 'idea' ? '[idea] ' : ''
-            console.log(`  ${ideaMarker}[${i.severity}] ${i.slug.padEnd(30)} ${i.title}`)
+            console.log(`  ${ideaMarker}[${i.severity}] ${i.slug.padEnd(30)} ${stripControlSequences(i.title)}`)
           }
         }
       }
@@ -102,11 +103,11 @@ export function registerIssueCommand(program: Command): void {
       try {
         const issue = await ctx.issuesStore.show(slug)
         if (json) { outputJson(issue) } else {
-          console.log(`# ${issue.title}`)
+          console.log(`# ${stripControlSequences(issue.title)}`)
           console.log(`Severity: ${issue.severity}`)
           console.log(`Status: ${issue.status}`)
           console.log('')
-          console.log(issue.description)
+          console.log(stripControlSequencesMultiline(issue.description))
         }
       } catch {
         if (json) { outputJson({ error: { code: 4, type: 'not_found', message: `Issue '${slug}' not found` } }) } else { console.error(`Issue '${slug}' not found`) }

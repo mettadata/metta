@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { mkdtemp, rm, readFile } from 'node:fs/promises'
+import { mkdtemp, rm, readFile, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -263,6 +263,37 @@ describe('CLI: roadmap', { timeout: 300000 }, () => {
       expect(existsSync(roadmapPath())).toBe(false)
       const { stdout: logAfter } = await execAsync('git', ['log', '--format=%s'], { cwd: tempDir })
       expect(logAfter).toBe(logBefore)
+    })
+
+    it('sanitizes the promote handoff title in text mode while JSON stays byte-faithful', async () => {
+      await seedBacklog('Evil one')
+      await seedBacklog('Evil two')
+      // Inject ANSI color sequences into both stored titles.
+      for (const [slug, heading] of [
+        ['evil-one', '# Evil one'],
+        ['evil-two', '# Evil two'],
+      ] as const) {
+        const path = join(tempDir, 'spec', 'issues', `${slug}.md`)
+        const original = await readFile(path, 'utf8')
+        const hostile = original.replace(heading, heading.replace('Evil', '\x1b[31mEVIL\x1b[0m'))
+        expect(hostile).not.toBe(original)
+        await writeFile(path, hostile, 'utf8')
+      }
+      await runCli(['roadmap', 'add', 'evil-one'], tempDir)
+      await runCli(['roadmap', 'add', 'evil-two'], tempDir)
+
+      // JSON branch: the handoff message carries the title byte-faithfully.
+      const jsonRes = await runCli(['--json', 'roadmap', 'next'], tempDir)
+      expect(jsonRes.code).toBe(0)
+      const data = JSON.parse(jsonRes.stdout) as { next: string; message: string }
+      expect(data.next).toBe('evil-one')
+      expect(data.message).toBe('Run: metta propose "\x1b[31mEVIL\x1b[0m one"')
+
+      // Text branch: escape sequences are stripped at the render edge.
+      const textRes = await runCli(['roadmap', 'next'], tempDir)
+      expect(textRes.code).toBe(0)
+      expect(textRes.stdout).toContain('activate by running: metta propose "EVIL two"')
+      expect(textRes.stdout).not.toContain('\x1b')
     })
 
     it('dangling top entry exits 4 with not_found naming both remedies and does not pop', async () => {

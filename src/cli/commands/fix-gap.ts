@@ -4,6 +4,7 @@ import { promisify } from 'node:util'
 import { join } from 'node:path'
 import { readFile } from 'node:fs/promises'
 import { createCliContext, outputJson } from '../helpers.js'
+import { stripControlSequences } from '../../util/sanitize-text.js'
 
 const execAsync = promisify(execFile)
 
@@ -90,13 +91,13 @@ export function registerFixGapCommand(program: Command): void {
           if (json) {
             outputJson({ gap: { slug: gapName, ...gap } })
           } else {
-            console.log(`# Gap: ${gap.title}`)
+            console.log(`# Gap: ${stripControlSequences(gap.title)}`)
             console.log(`Status: ${gap.status}`)
-            if (gap.source) console.log(`Source: ${gap.source}`)
-            if (gap.claim) console.log(`Claim: ${gap.claim}`)
-            if (gap.evidence) console.log(`Evidence: ${gap.evidence}`)
-            if (gap.impact) console.log(`Impact: ${gap.impact}`)
-            if (gap.relatedSpec) console.log(`Related Spec: ${gap.relatedSpec}`)
+            if (gap.source) console.log(`Source: ${stripControlSequences(gap.source)}`)
+            if (gap.claim) console.log(`Claim: ${stripControlSequences(gap.claim)}`)
+            if (gap.evidence) console.log(`Evidence: ${stripControlSequences(gap.evidence)}`)
+            if (gap.impact) console.log(`Impact: ${stripControlSequences(gap.impact)}`)
+            if (gap.relatedSpec) console.log(`Related Spec: ${stripControlSequences(gap.relatedSpec)}`)
             console.log('')
             console.log(`Delegate to skill: metta execute --skill fix-gap --target ${gapName}`)
           }
@@ -156,7 +157,7 @@ export function registerFixGapCommand(program: Command): void {
               console.log(`Showing ${options.severity} gaps only:\n`)
             }
             for (const g of filtered) {
-              console.log(`  [${g.severity.toUpperCase().padEnd(8)}] [${g.status}] ${g.slug.padEnd(30)} ${g.title}`)
+              console.log(`  [${g.severity.toUpperCase().padEnd(8)}] [${g.status}] ${g.slug.padEnd(30)} ${stripControlSequences(g.title)}`)
             }
           }
         } catch {

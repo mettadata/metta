@@ -354,6 +354,34 @@ describe("CLI: status / next / changes / doctor / gate / validate-stories", { ti
       expect(data.error.message).toContain('stories.md not found')
     })
 
+    it('strips escapes from the sentinel justification in text mode, JSON byte-faithful', async () => {
+      await installFixture(tempDir)
+      await disableWorktrees(tempDir)
+      const changeDir = join(tempDir, 'spec', 'changes', 'my-feature')
+      await mkdir(changeDir, { recursive: true })
+      // Multi-line justification (markdown soft break) with hostile escapes.
+      const stories =
+        '# No user stories — internal/infrastructure change\n' +
+        '\n' +
+        '**Justification:** first \x1b[31mline of the rationale\n' +
+        'second \x9bline of the rationale\n'
+      await writeFile(join(changeDir, 'stories.md'), stories, 'utf8')
+
+      const text = await runCli(['validate-stories', '--change', 'my-feature'], tempDir)
+      expect(text.code).toBe(0)
+      // Escapes stripped, LF line structure preserved.
+      expect(text.stdout).toContain('[sentinel] first line of the rationale\nsecond line of the rationale')
+      expect(text.stdout).not.toContain('\x1b')
+      expect(text.stdout).not.toContain('\x9b')
+
+      const jsonRes = await runCli(['--json', 'validate-stories', '--change', 'my-feature'], tempDir)
+      expect(jsonRes.code).toBe(0)
+      const data = JSON.parse(jsonRes.stdout) as { ok: boolean; internal: boolean; justification: string }
+      expect(data.ok).toBe(true)
+      expect(data.internal).toBe(true)
+      expect(data.justification).toBe('first \x1b[31mline of the rationale\nsecond \x9bline of the rationale')
+    })
+
     it('--help shows the command description', async () => {
       const { stdout, code } = await runCli(['validate-stories', '--help'], tempDir)
       expect(code).toBe(0)

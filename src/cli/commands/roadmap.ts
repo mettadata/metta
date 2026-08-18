@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { assertOnMainBranch, autoCommitFile, createCliContext, outputJson, getErrorMessage } from '../helpers.js'
 import { buildPromoteHandoff } from '../promote-handoff.js'
 import { RoadmapValidationError } from '../../roadmap/roadmap-store.js'
+import { stripControlSequences } from '../../util/sanitize-text.js'
 
 // Error envelope helper: all roadmap failures exit 4 with
 // { error: { code: 4, type, message } } (JSON) or the message on stderr (text).
@@ -61,8 +62,8 @@ export function registerRoadmapCommand(program: Command): void {
           console.log('Roadmap is empty. Add entries with: metta roadmap add <backlog-slug>')
         } else {
           for (const row of view) {
-            const label = row.dangling ? '(dangling — backlog item missing)' : row.title
-            const noteSuffix = row.note !== null ? ` — ${row.note}` : ''
+            const label = row.dangling ? '(dangling — backlog item missing)' : stripControlSequences(row.title ?? '')
+            const noteSuffix = row.note !== null ? ` — ${stripControlSequences(row.note)}` : ''
             console.log(`  ${row.position}. ${row.slug.padEnd(30)} ${label}${noteSuffix}`)
           }
         }
@@ -170,7 +171,9 @@ export function registerRoadmapCommand(program: Command): void {
         if (json) {
           outputJson({ next: top.slug, message: `Run: ${handoff}`, committed: commit.committed, commit_sha: commit.sha })
         } else {
-          console.log(`Next up: '${top.slug}' — activate by running: ${handoff}`)
+          // The handoff embeds the raw backlog item title; sanitize at the
+          // render edge only — the JSON branch above stays byte-faithful.
+          console.log(stripControlSequences(`Next up: '${top.slug}' — activate by running: ${handoff}`))
           console.log('  Removed from roadmap.')
           if (commit.committed) { console.log(`  Committed: ${commit.sha?.slice(0, 7)}`) }
           else if (commit.reason) { console.log(`  Not committed: ${commit.reason}`) }

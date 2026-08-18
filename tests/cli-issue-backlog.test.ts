@@ -468,6 +468,62 @@ describe("CLI: issue / fix-issue / backlog / branch-safety / check-constitution"
   })
 
 
+  describe('render-edge sanitization (text stripped, JSON byte-faithful)', () => {
+    const HOSTILE_ISSUE =
+      '# \x1b[31mEVIL\x1b[0m heading\n' +
+      '\n' +
+      '**Captured**: 2026-08-18\n' +
+      '**Status**: logged\n' +
+      '**Severity**: minor\n' +
+      '\n' +
+      'first \x1b[2Jbody line\n' +
+      'second \x9bbody line\n'
+
+    async function seedHostileIssue(): Promise<void> {
+      await installFixture(tempDir)
+      await runCli(['issue', 'placeholder', '--severity', 'minor'], tempDir)
+      await writeFile(join(tempDir, 'spec', 'issues', 'placeholder.md'), HOSTILE_ISSUE, 'utf8')
+    }
+
+    it('issues list strips escape sequences from titles in text mode only', async () => {
+      await seedHostileIssue()
+
+      const text = await runCli(['issues', 'list'], tempDir)
+      expect(text.code).toBe(0)
+      expect(text.stdout).toContain('EVIL heading')
+      expect(text.stdout).not.toContain('\x1b')
+
+      const jsonRes = await runCli(['--json', 'issues', 'list'], tempDir)
+      expect(jsonRes.code).toBe(0)
+      const data = JSON.parse(jsonRes.stdout) as { issues: Array<{ slug: string; title: string }> }
+      const row = data.issues.find((i) => i.slug === 'placeholder')
+      expect(row?.title).toBe('\x1b[31mEVIL\x1b[0m heading')
+    })
+
+    it('issues show strips the heading and preserves body newlines in text mode', async () => {
+      await seedHostileIssue()
+
+      const text = await runCli(['issues', 'show', 'placeholder'], tempDir)
+      expect(text.code).toBe(0)
+      expect(text.stdout).toContain('# EVIL heading')
+      // Multi-line body: escapes stripped, LF line structure preserved.
+      expect(text.stdout).toContain('first body line\nsecond body line')
+      expect(text.stdout).not.toContain('\x1b')
+      expect(text.stdout).not.toContain('\x9b')
+    })
+
+    it('issues show --json carries title and description byte-faithfully', async () => {
+      await seedHostileIssue()
+
+      const jsonRes = await runCli(['--json', 'issues', 'show', 'placeholder'], tempDir)
+      expect(jsonRes.code).toBe(0)
+      const data = JSON.parse(jsonRes.stdout) as { title: string; description: string }
+      expect(data.title).toBe('\x1b[31mEVIL\x1b[0m heading')
+      expect(data.description).toBe('first \x1b[2Jbody line\nsecond \x9bbody line')
+    })
+  })
+
+
   describe('metta backlog (bare form)', () => {
     it('defaults to the read-only list and exits 0', async () => {
       await installFixture(tempDir)
