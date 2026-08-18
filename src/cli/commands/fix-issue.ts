@@ -65,7 +65,10 @@ export function registerFixIssueCommand(program: Command): void {
           try {
             const addArgs = [join('spec', 'issues'), join('spec', 'issues', 'resolved')]
             // Conditional staging only — unconditional staging would sweep a
-            // pre-dirty spec/roadmap.md into this commit (ADR-7).
+            // pre-dirty spec/roadmap.md into this commit (ADR-7). Even so, staging
+            // it here folds any pre-existing uncommitted edits to that file into
+            // this commit (whole-file canonical write) — accepted risk, recorded
+            // in design.md's Risks & Mitigations (Retire-hit pre-dirty accept).
             if (retired !== null) addArgs.push(join('spec', 'roadmap.md'))
             await execAsync('git', ['add', ...addArgs], { cwd: ctx.projectRoot })
             await execAsync('git', ['commit', '-m', `fix(issues): remove resolved issue ${slug}`], { cwd: ctx.projectRoot })

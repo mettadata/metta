@@ -377,6 +377,50 @@ describe('CLI: roadmap', { timeout: 300000 }, () => {
       expect(textRes.stdout).not.toContain('\x1b')
     })
 
+    // ENOENT-only dangling classification (review follow-up): an existing-but-
+    // malformed issue file must NOT be classified dangling — it must not be
+    // silently skipped/pruned. Only confirmed absence (ENOENT, via
+    // issuesStore.exists) is dangling. `next` surfaces the parse error and
+    // stops, mirroring the pre-ADR-3 conservative fail-stop for this one case.
+    it('an existing-but-malformed issue file is not classified dangling — next fails with a mapped error, entry survives untouched', async () => {
+      const slug = await seedBacklog('Foo feature')
+      await runCli(['roadmap', 'add', slug], tempDir)
+      // Opens a YAML frontmatter fence but never closes it — a genuine parse
+      // failure on a file that DOES exist, distinct from ENOENT.
+      await writeFile(join(tempDir, 'spec', 'issues', `${slug}.md`), '---\ntype: idea\n# Foo feature\n', 'utf-8')
+
+      const { stdout, code } = await runCli(['--json', 'roadmap', 'next'], tempDir)
+      expect(code).toBe(4)
+      const data = JSON.parse(stdout) as { error: { code: number; type: string; message: string } }
+      expect(data.error).toBeDefined()
+      expect(data.error.message).toMatch(/frontmatter/i)
+
+      // Untouched: no write, no commit, entry still present in the roadmap.
+      const view = await runCli(['--json', 'roadmap'], tempDir)
+      const viewData = JSON.parse(view.stdout) as { roadmap: Array<{ slug: string }> }
+      expect(viewData.roadmap.map((row) => row.slug)).toEqual([slug])
+    })
+
+    it('an existing-but-malformed issue file is not pruned even with --prune: next still fails, no write, no commit', async () => {
+      const slug = await seedBacklog('Foo feature')
+      await runCli(['roadmap', 'add', slug], tempDir)
+      await writeFile(join(tempDir, 'spec', 'issues', `${slug}.md`), '---\ntype: idea\n# Foo feature\n', 'utf-8')
+
+      const { stdout: countBefore } = await execAsync('git', ['rev-list', '--count', 'HEAD'], { cwd: tempDir })
+
+      const { stdout, code } = await runCli(['--json', 'roadmap', 'next', '--prune'], tempDir)
+      expect(code).toBe(4)
+      const data = JSON.parse(stdout) as { error: { code: number; type: string; message: string } }
+      expect(data.error).toBeDefined()
+
+      const { stdout: countAfter } = await execAsync('git', ['rev-list', '--count', 'HEAD'], { cwd: tempDir })
+      expect(countAfter).toBe(countBefore)
+
+      const view = await runCli(['--json', 'roadmap'], tempDir)
+      const viewData = JSON.parse(view.stdout) as { roadmap: Array<{ slug: string }> }
+      expect(viewData.roadmap.map((row) => row.slug)).toEqual([slug])
+    })
+
     // C12: inverts the old ADR-4 fail-stop test — dangling entries no longer
     // surface through the error contract on `next`; the healthy second entry
     // activates instead.

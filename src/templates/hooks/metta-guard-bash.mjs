@@ -63,7 +63,7 @@ const BLOCKED_TWO_WORD = new Map([
   // `milestone create` mutates state (writes spec/milestones/<slug>.md) — Tier-2 scope
   // key 'milestone:create', minted only by the metta-backlog skill.
   ['milestone', new Set(['create'])],
-  ['roadmap', new Set(['add', 'reorder', 'next'])],
+  ['roadmap', new Set(['add', 'reorder', 'next', 'remove'])],
   // `release cut` mutates state (version bump, tag, release commit) — Tier-2 scope
   // key 'release:cut', minted only by the metta-release skill.
   ['release', new Set(['cut'])],

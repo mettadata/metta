@@ -133,7 +133,7 @@ export function registerRoadmapCommand(program: Command): void {
 
   roadmap
     .command('remove')
-    .argument('<target>', '1-based position or entry slug')
+    .argument('<target>', '1-based position or entry slug (all-digit input is always treated as a position)')
     .option('--on-branch <name>', 'Acknowledge non-main branch and proceed')
     .description('Remove a roadmap entry by position or slug')
     .action(async (target, options) => {
@@ -191,13 +191,24 @@ export function registerRoadmapCommand(program: Command): void {
         const skipped: string[] = []
         let candidate: { slug: string; title: string } | null = null
         for (const entry of entries) {
-          try {
-            const item = await ctx.issuesStore.show(entry.slug)
-            candidate = { slug: entry.slug, title: item.title }
-            break
-          } catch {
+          // Dangling classification is by CONFIRMED ABSENCE only (issuesStore.exists,
+          // the same file-presence primitive `roadmap add` uses), not by catching any
+          // failure out of `show`. An entry whose file genuinely does not exist is the
+          // only state that is dangling / prune-eligible. If the file DOES exist but
+          // `show` still throws (malformed frontmatter, EACCES, a transient fs error),
+          // that is an ambiguous, non-dangling state — fail toward preserving the
+          // entry: let the error propagate to the outer catch (mapped + exit 4),
+          // mirroring the pre-ADR-3 conservative fail-stop posture for this one case,
+          // rather than silently classifying it dangling and risking deletion under
+          // `--prune`.
+          const found = await ctx.issuesStore.exists(entry.slug)
+          if (!found) {
             skipped.push(entry.slug)
+            continue
           }
+          const item = await ctx.issuesStore.show(entry.slug)
+          candidate = { slug: entry.slug, title: item.title }
+          break
         }
 
         // Phase 2 — report + mutate. One stderr warning per skipped slug, in
@@ -238,9 +249,15 @@ export function registerRoadmapCommand(program: Command): void {
         const pruned = options.prune ? skipped : []
         const filePath = join(ctx.projectRoot, 'spec', 'roadmap.md')
         // Base prefix preserved verbatim for log-grep automation; suffix only
-        // appended when pruning actually removed entries.
+        // appended when pruning actually removed entries. The pruned slugs
+        // themselves go in the commit body (not the subject) so `git log`
+        // (and `git show`) give a full audit trail of exactly which dangling
+        // entries this commit deleted, without disturbing subject-line greps.
         let commitMessage = `chore: pop roadmap entry ${candidate.slug}`
-        if (pruned.length > 0) commitMessage += ` (pruned ${pruned.length} dangling)`
+        if (pruned.length > 0) {
+          commitMessage += ` (pruned ${pruned.length} dangling)`
+          commitMessage += `\n\nPruned dangling entries:\n${pruned.map((slug) => `- ${slug}`).join('\n')}`
+        }
         const commit = await autoCommitFile(ctx.projectRoot, filePath, commitMessage)
         if (json) {
           outputJson({

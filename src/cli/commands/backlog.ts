@@ -284,6 +284,10 @@ export function registerBacklogCommand(program: Command): void {
           [
             join('spec', 'issues', `${slug}.md`),
             join('spec', 'issues', 'resolved', `${slug}.md`),
+            // Retire-hit pre-dirty accept: staging spec/roadmap.md here folds any
+            // pre-existing uncommitted edits to that file into this archive
+            // commit (whole-file canonical write) — accepted risk, recorded in
+            // design.md's Risks & Mitigations (Retire-hit pre-dirty accept).
             ...(retired !== null ? [join('spec', 'roadmap.md')] : []),
           ],
           `chore: archive shipped backlog item ${slug}`,
