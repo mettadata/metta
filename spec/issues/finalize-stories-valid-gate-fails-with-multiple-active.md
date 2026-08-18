@@ -1,0 +1,7 @@
+# finalize stories-valid gate fails with multiple active changes when run from the main checkout: the gate template (templates/gates/stories-valid.yaml) invokes bare 'metta validate-stories' with no --change flag, and validate-stories errors 'Multiple active changes: ... Specify --change' when the session cwd's state sees more than one active change (e.g. a concurrent agent proposed another change). Finalize --change <name> already knows the change; the gate command should be scoped to it (template variable or gate-runner injection). Workaround used: run metta finalize with cwd inside the change worktree, where only that change is active. Hit during finalize of fix-json-output-c1-control-passthrough-json-stringify on 2026-08-18.
+
+**Captured**: 2026-08-18
+**Status**: logged
+**Severity**: minor
+
+finalize stories-valid gate fails with multiple active changes when run from the main checkout: the gate template (templates/gates/stories-valid.yaml) invokes bare 'metta validate-stories' with no --change flag, and validate-stories errors 'Multiple active changes: ... Specify --change' when the session cwd's state sees more than one active change (e.g. a concurrent agent proposed another change). Finalize --change <name> already knows the change; the gate command should be scoped to it (template variable or gate-runner injection). Workaround used: run metta finalize with cwd inside the change worktree, where only that change is active. Hit during finalize of fix-json-output-c1-control-passthrough-json-stringify on 2026-08-18.
