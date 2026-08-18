@@ -1,6 +1,6 @@
-version: 18
-hash: sha256:a6adc65723c3
-updated: 2026-08-18T01:24:44.604Z
+version: 19
+hash: sha256:aaae72def18d
+updated: 2026-08-18T12:08:52.265Z
 status: draft
 source: change
 requirements:
@@ -15,10 +15,13 @@ requirements:
       - fork-dispatched-subcommand-with-verified-caller-identity-is-accepted
       - fork-dispatched-subcommand-without-verified-caller-identity-is-rejected
   - id: main-session-lifecycle-subcommands-require-a-non-forgeable-session-credential
-    hash: sha256:3bda2dea9ffd
+    hash: sha256:84937248e09c
     scenarios:
       - sanctioned-skill-driven-call-with-a-valid-credential-is-accepted
-      - expired-out-of-scope-or-malformed-credential-is-rejected
+      - immediate-tier-2-call-after-in-context-skill-invocation-is-authorized
+      - tier-2-call-from-a-worktree-cwd-resolves-the-credential-and-is-authorized
+      - live-credential-is-never-rejected-on-freshness-grounds
+      - genuinely-dead-out-of-scope-or-malformed-credential-is-rejected
       - credential-forgery-requires-an-audit-visible-act-outside-command-text
       - no-credential-present-is-rejected-with-skill-guidance
       - concurrent-skill-credentials-do-not-interfere
@@ -28,11 +31,14 @@ requirements:
       - an-unrecognized-subcommand-is-blocked-not-silently-allowed
       - a-newly-added-unknown-subcommand-does-not-silently-pass-until-classified
   - id: every-rejection-and-every-tier-2-acceptance-is-recorded
-    hash: sha256:092b7f686ee9
+    hash: sha256:09839ca08141
     scenarios:
       - a-session-tier-rejection-is-recorded-with-tier-and-reason
       - a-session-tier-acceptance-is-recorded
       - a-fork-tier-rejection-is-recorded-with-tier-and-reason
+      - credential-expired-is-written-only-for-genuinely-dead-credentials
+      - new-acceptance-paths-are-recorded-distinctly
+      - live-skill-sessions-produce-no-false-expiry-entries
   - id: skill-contracts-reference-only-the-sanctioned-authorization-mechanism
     hash: sha256:8f8ad071a0d3
     scenarios:
@@ -44,9 +50,10 @@ requirements:
       - background-bash-from-a-verified-fork-tier-caller-is-rejected
       - background-bash-from-a-caller-without-verified-fork-identity-is-unaffected-by-this-rule
   - id: the-trust-model-is-documented-where-operators-and-contributors-will-read-it
-    hash: sha256:470115ebb1ce
+    hash: sha256:1a8c7a80cea7
     scenarios:
       - header-documentation-describes-both-tiers-and-the-emergency-bypass
+      - hook-headers-describe-the-corrected-freshness-model
       - generated-workflow-guidance-matches-the-documented-model
   - id: fork-dispatch-completion-guarantee
     hash: sha256:029b61076b30
@@ -100,3 +107,35 @@ requirements:
       - inverted-topology-test-catches-the-original-defect
       - topology-coverage-does-not-come-from-a-cwd-answering-shim
       - both-topologies-are-covered-alongside-existing-cases
+  - id: deterministic-tier-2-freshness-resolution-independent-of-hook-ordering
+    hash: sha256:6839857b7f41
+    scenarios:
+      - expired-but-refreshable-token-is-authorized-before-any-mint-hook-refresh-lands
+      - authorization-outcome-is-invariant-under-mint-guard-hook-ordering
+      - no-new-runtime-ordering-guarantee-is-assumed
+  - id: skill-activity-signal-is-non-forgeable-and-written-only-at-genuine-skill-invocation
+    hash: sha256:2b29abe33dc1
+    scenarios:
+      - fabricated-activity-evidence-from-command-text-does-not-authorize
+      - activity-signal-originates-only-from-sanctioned-invocation-machinery
+      - activity-signal-never-widens-scope
+  - id: credential-freshness-survives-subagent-delegation-windows
+    hash: sha256:b29f633526c7
+    scenarios:
+      - token-outlives-the-raw-ttl-across-a-delegation-window-and-still-authorizes
+      - sliding-refresh-for-active-sessions-is-retained
+      - genuinely-dead-credentials-still-fail-closed
+  - id: freshness-fix-leaves-all-other-guard-behavior-unchanged
+    hash: sha256:64f2211d98cd
+    scenarios:
+      - missing-credential-still-blocks-exactly-as-before
+      - out-of-scope-subcommand-still-blocks-exactly-as-before
+      - tier-1-fork-path-and-classification-surfaces-are-unchanged
+      - retired-single-file-credential-remains-unhonored
+  - id: integration-tests-exercise-the-mint-validate-seam
+    hash: sha256:d04c27c095bb
+    scenarios:
+      - immediate-call-seam-test-passes-from-both-cwds
+      - time-advanced-expiry-gap-test-reproduces-and-passes-the-delegation-window
+      - same-event-race-test-proves-ordering-independence
+      - dead-credential-fail-closed-test-still-blocks
