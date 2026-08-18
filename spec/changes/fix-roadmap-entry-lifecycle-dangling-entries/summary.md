@@ -18,3 +18,33 @@ Store 29 (S1-S14 suites), cli-roadmap 30 (C1-C16 incl. the inverted ADR-4 fail-s
 ## Breaking change (intended, spec'd)
 
 Automation depending on `roadmap next` exit-4 on dangling heads must switch to the `skipped` JSON field / stderr warnings. Commit-message prefix `chore: pop roadmap entry <slug>` preserved for log-based checks.
+
+## Verification
+
+### Spec Scenarios
+
+All 6 requirements (3 MODIFIED, 3 ADDED) and all 19 scenarios verified with passing-test evidence (349/349 across the four touched suites; per-scenario citations in the verification report):
+
+- [x] `next` skip-and-warn: dangling head skipped with per-slug remedies, ghost survives (454/481); `--prune` same-write/same-commit with slug-listing commit body (508); all-dangling and empty no-ops, prune-inert byte-identically (541/332); old exit-4 fail-stop gone (inverted C12 at 427)
+- [x] Error contract: five failure types uniform (685); dangling no longer routes through the error envelope
+- [x] Branch/auto-commit discipline: all four verbs guarded, guard-before-validation (637/650/661), `--on-branch` escape (668)
+- [x] `roadmap remove`: position + slug + dangling, renumber, auto-commit, typed not_found, `spec/issues/` untouched (250/266/291; store S1-S14)
+- [x] Auto-retire: same-commit atomicity via `git show` (R1/R4), non-roadmapped byte-identical + pre-dirty stays out of commit (R2/R5), fail-open injection (R6), `retired_roadmap_entry` additivity (R3)
+- [x] Machine-detectable skip signal: `skipped`/`pruned` JSON ordering and distinction, empty-signal contract intact, one stderr line per slug (481/508/584/607)
+- [x] ENOENT-only dangling: malformed-existing-file NOT dangling and NOT pruned (385/404)
+- [x] Guard/mint/skill coverage of `roadmap remove` (guard tests 959/971/982; mint scope granted)
+
+Non-blocking note: `tests/metta-session-mint.test.ts` EXPECTED_SCOPES omits metta-roadmap, so mint-side granting of `roadmap:remove` is untested (guard-side verification is tested).
+
+### Gate Results
+
+| Gate | Result |
+|------|--------|
+| tests (`npm test`) | PASS — 129 files, 2504/2504, no flakes |
+| typecheck / lint | PASS |
+| build | PASS |
+| hook template/deployed/dist sync (guard-bash, session-mint) | PASS — byte-identical |
+| removeTop sweep | PASS — zero references |
+| archive immutability | PASS — spec/archive/ untouched |
+
+Review: 3 reviewers, 1 iteration — quality PASS, correctness/security PASS_WITH_WARNINGS; all warnings fixed in 991f5ed02 (ENOENT-only classification, guard/mint/skill coverage, pre-dirty acceptance recorded, prune audit trail, help text).
