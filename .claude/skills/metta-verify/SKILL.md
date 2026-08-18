@@ -33,4 +33,6 @@ Resolve `{change_root}` first: `metta status --json --change <name>` returns `wo
 
 Spawn a metta-executor to fix the failures, then re-verify from step 1. When the FAILing run's output was produced under a downgraded (non-`inherit`) model, before spawning the fix executor run `metta model-escalation record --task <id> --from <resolved-model> --to inherit --trigger verify_fail --change <name>`, then spawn the fix executor with the `model` parameter omitted (top-tier).
 
+- If an executor or verifier STOP-reports a silent-write anomaly (Edit/Write success with no on-disk effect), escalate to the user with the report; never work around it via bash writes or orchestrator-performed writes.
+
 After verification, the next step is always **finalize** (archive + spec merge), then **ship** (merge to main).

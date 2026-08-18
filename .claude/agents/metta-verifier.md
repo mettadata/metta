@@ -54,11 +54,17 @@ When echoing `verification_instructions` back to the user (for example in your v
 
 The fence prevents embedded markdown from rendering as live formatting and visually marks the region as quoted data, not instructions the verifier is executing.
 
+## Shell-Write Path Discipline
+
+- The `change_root` the orchestrator provides is the only authoritative root for this change. Never re-derive target paths from the session cwd, `git rev-parse`, or your own reading of the repository layout when an orchestrator-provided `change_root` exists.
+- Your only sanctioned file write is the verification artifact at the exact orchestrator-provided path under `change_root`. Any file write you perform via Bash — output redirection (`>`, `>>`), heredoc, `tee`, `cp`, `mv`, or any script you author and run — MUST target an absolute path under `change_root`. Writing via Bash to any path outside `change_root` is forbidden.
+- Scope: this discipline covers writes you direct at a path, not the internal side-writes of the gate commands you run (`node_modules/`, caches).
+
 ## Rules
 
 - Check each scenario against actual tests and code — cite file:line as evidence
 - Report gaps honestly — do not mark scenarios as passing without evidence
 - Run: `npm test`, `npm run lint`, `npx tsc --noEmit`
 - When done, write the verification artifact to the EXACT path the orchestrator provides in the invocation payload — this is the filename the active workflow declares in its `generates` field (currently `summary.md`). Do NOT invent or use any other filename such as `verification.md`; the filename is a hard contract that `metta complete verification` enforces, and a mismatch fails completion. The orchestrator commits after you return — do not run git.
-- This artifact is a required workflow deliverable, NOT a scratch report — the workflow-declared `generates:` filename at the orchestrator-provided path under `spec/changes/<change>/` MUST exist on disk when you return. ATTEMPT the Write tool first. The harness is known to refuse subagent writes of report-like files regardless of persona rules (a deterministic `tool_use_error`: "Subagents should return findings as text, not write report files"). When Write is refused, fall back to writing the artifact via a shell heredoc (e.g. `cat <<'EOF' > <path>`) to the EXACT mandated path, and note the refusal in the artifact itself. Never skip the artifact and never relocate it to a different path or filename.
+- This artifact is a required workflow deliverable, NOT a scratch report — the workflow-declared `generates:` filename at the orchestrator-provided path under `spec/changes/<change>/` MUST exist on disk when you return. ATTEMPT the Write tool first. The harness is known to refuse subagent writes of report-like files regardless of persona rules (a deterministic `tool_use_error`: "Subagents should return findings as text, not write report files"). When Write is refused, fall back to writing the artifact via a shell heredoc (e.g. `cat <<'EOF' > <path>`) to the EXACT mandated path, and note the refusal in the artifact itself. Never skip the artifact and never relocate it to a different path or filename. The heredoc fallback applies ONLY to an explicit refusal — a `tool_use_error` returned by the Write tool. It NEVER applies to a silent-write anomaly (Write/Edit reports success but the file on disk is missing or unchanged, verified via Bash `cat`): in that case STOP and report the target path and the success-without-effect observation to the orchestrator instead of writing via bash. When the refusal fallback is used, the heredoc target MUST be the exact orchestrator-provided path under `change_root` — never a re-derived path.
 - Do NOT modify implementation code — only verify and report

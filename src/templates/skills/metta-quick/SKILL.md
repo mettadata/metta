@@ -218,4 +218,5 @@ You are the **orchestrator** for a quick change (intent → implementation → r
 - Commit ownership: the orchestrator commits planning, review, and verification artifacts after each subagent returns. The executor subagent commits atomically per task during implementation. Planning-artifact subagents (proposer, researcher, architect, planner, product) write files only — they do not run git.
 - Direct local merge of the change branch into main (`git merge`) is forbidden — every change ships through a pushed branch and a GitHub PR
 - If a dispatched step appears orphaned, follow the residual orphaning recovery protocol in metta-skill-host.md.
+- If an executor or verifier STOP-reports a silent-write anomaly (Edit/Write success with no on-disk effect), escalate to the user with the report; never work around it via bash writes or orchestrator-performed writes.
 - If the change turns out to be complex, tell the user to use `/metta:propose` instead
