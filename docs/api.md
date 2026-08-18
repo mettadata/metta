@@ -9,6 +9,9 @@
 
 Scenarios:
 - score_computed_from_impact_section
+- zero_file_intent_is_no_signal
+- single_file_intent_still_scores
+- zero_files_at_summary_time_remains_real_signal
 - score_absent_before_intent_written
 - score_not_recomputed_on_intent_edit
 - score_uses_actual_files_from_summary_for_post_impl_recompute
@@ -47,7 +50,9 @@ Scenarios:
 ### AutoDownscalePromptAtIntent
 
 Scenarios:
-- non_tty_unlocked_auto_downscales
+- non_tty_downscale_fails_closed
+- json_mode_downscale_fails_closed
+- auto_accept_opt_in_still_collapses_non_interactively
 - interactive_unlocked_shows_yes_default
 - locked_change_defaults_to_no
 
@@ -148,6 +153,20 @@ Scenarios:
 Scenarios:
 - reports_mean_artifact_count
 - no_data_renders_without_misleading_zero
+
+### DownscaleDecisionSchema
+
+Scenarios:
+- schema_accepts_populated_downscale_decision
+- schema_accepts_legacy_file_without_downscale_decision
+- downscale_decision_coexists_with_escalation_semantics
+
+### DownscaleDecisionRecording
+
+Scenarios:
+- auto_accept_collapse_writes_decision_record
+- interactive_yes_collapse_writes_decision_record
+- decline_path_unchanged_writes_escalation_not_decision
 
 ## Artifact Store
 

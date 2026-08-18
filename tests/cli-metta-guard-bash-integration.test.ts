@@ -412,7 +412,7 @@ describe('metta-guard-bash integration', { timeout: 60_000 }, () => {
       expect(code).toBe(0)
     })
 
-    it('mint hook scope for metta-roadmap grants exactly roadmap:add/reorder/next', () => {
+    it('mint hook scope for metta-roadmap grants exactly roadmap:add/reorder/next/remove', () => {
       const mint = spawnSync('node', [MINT_TEMPLATE_PATH, 'metta-roadmap'], {
         input: JSON.stringify(bashEvent('metta roadmap --json', { cwd: tempDir })),
         encoding: 'utf8',
@@ -434,10 +434,15 @@ describe('metta-guard-bash integration', { timeout: 60_000 }, () => {
         subcommands: string[]
       }
       expect(token.skill).toBe('metta-roadmap')
-      expect(token.subcommands).toEqual(['roadmap:add', 'roadmap:reorder', 'roadmap:next'])
+      expect(token.subcommands).toEqual(['roadmap:add', 'roadmap:reorder', 'roadmap:next', 'roadmap:remove'])
 
-      // The minted credential authorizes each of the three roadmap mutations…
-      for (const command of ['metta roadmap add foo', 'metta roadmap reorder a b', 'metta roadmap next']) {
+      // The minted credential authorizes each of the four roadmap mutations…
+      for (const command of [
+        'metta roadmap add foo',
+        'metta roadmap reorder a b',
+        'metta roadmap next',
+        'metta roadmap remove foo',
+      ]) {
         const { code, stderr } = runHook(bashEvent(command, { cwd: tempDir }), { cwd: tempDir })
         expect(code, `expected allow for: ${command}\n${stderr}`).toBe(0)
       }

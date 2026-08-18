@@ -265,17 +265,46 @@ export function registerBacklogCommand(program: Command): void {
         await ctx.issuesStore.archive(slug, changeName)
         await ctx.issuesStore.remove(slug)
 
+        // Auto-retire hook: after the archive succeeds and before the commit,
+        // fold a matching roadmap entry into the SAME commit. Fail-open —
+        // a retire failure only warns; the archive commit proceeds (ADR-6).
+        let retired: string | null = null
+        try {
+          const removed = await ctx.roadmapStore.retire(slug)
+          if (removed.length > 0) retired = slug
+        } catch (err) {
+          process.stderr.write(
+            `Warning: failed to retire roadmap entry '${slug}' — ${getErrorMessage(err)}. ` +
+            `Remove it manually with: metta roadmap remove ${slug}\n`,
+          )
+        }
+
         const commit = await commitPaths(
           ctx.projectRoot,
-          [join('spec', 'issues', `${slug}.md`), join('spec', 'issues', 'resolved', `${slug}.md`)],
+          [
+            join('spec', 'issues', `${slug}.md`),
+            join('spec', 'issues', 'resolved', `${slug}.md`),
+            // Retire-hit pre-dirty accept: staging spec/roadmap.md here folds any
+            // pre-existing uncommitted edits to that file into this archive
+            // commit (whole-file canonical write) — accepted risk, recorded in
+            // design.md's Risks & Mitigations (Retire-hit pre-dirty accept).
+            ...(retired !== null ? [join('spec', 'roadmap.md')] : []),
+          ],
           `chore: archive shipped backlog item ${slug}`,
         )
 
         if (json) {
-          outputJson({ archived: slug, shipped_in: changeName ?? null, committed: commit.committed, commit_sha: commit.sha })
+          outputJson({
+            archived: slug,
+            shipped_in: changeName ?? null,
+            committed: commit.committed,
+            commit_sha: commit.sha,
+            retired_roadmap_entry: retired,
+          })
         } else {
           console.log(`Archived backlog item: ${slug}`)
           if (changeName) { console.log(`  Shipped-in: ${changeName}`) }
+          if (retired !== null) { console.log(`  Retired roadmap entry: ${retired}`) }
           if (commit.committed) { console.log(`  Committed: ${commit.sha?.slice(0, 7)}`) }
         }
       } catch (err) {

@@ -29,7 +29,7 @@ const SKILL_SCOPES = {
   'metta-init': ['init', 'refresh'],
   'metta-backlog': ['backlog:add', 'backlog:done', 'backlog:promote', 'backlog:migrate', 'milestone:create'],
   'metta-fix-gap': ['fix-gap', 'complete', 'finalize'],
-  'metta-roadmap': ['roadmap:add', 'roadmap:reorder', 'roadmap:next'],
+  'metta-roadmap': ['roadmap:add', 'roadmap:reorder', 'roadmap:next', 'roadmap:remove'],
   'metta-release': ['release:cut'],
 };
 

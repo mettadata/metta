@@ -2,7 +2,7 @@ import { Command } from 'commander'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { join } from 'node:path'
-import { createCliContext, outputJson } from '../helpers.js'
+import { createCliContext, outputJson, getErrorMessage } from '../helpers.js'
 import { stripControlSequences, stripControlSequencesMultiline } from '../../util/sanitize-text.js'
 
 const execAsync = promisify(execFile)
@@ -46,16 +46,40 @@ export function registerFixIssueCommand(program: Command): void {
           }
           await ctx.issuesStore.archive(slug)
           await ctx.issuesStore.remove(slug)
+
+          // Auto-retire hook: after the archive succeeds and before the
+          // commit, fold a matching roadmap entry into the SAME commit.
+          // Fail-open — a retire failure only warns; the archive commit
+          // proceeds (ADR-6). No branch guard here — inherited posture (ADR-7).
+          let retired: string | null = null
           try {
-            await execAsync('git', ['add', join('spec', 'issues'), join('spec', 'issues', 'resolved')], { cwd: ctx.projectRoot })
+            const removed = await ctx.roadmapStore.retire(slug)
+            if (removed.length > 0) retired = slug
+          } catch (err) {
+            process.stderr.write(
+              `Warning: failed to retire roadmap entry '${slug}' — ${getErrorMessage(err)}. ` +
+              `Remove it manually with: metta roadmap remove ${slug}\n`,
+            )
+          }
+
+          try {
+            const addArgs = [join('spec', 'issues'), join('spec', 'issues', 'resolved')]
+            // Conditional staging only — unconditional staging would sweep a
+            // pre-dirty spec/roadmap.md into this commit (ADR-7). Even so, staging
+            // it here folds any pre-existing uncommitted edits to that file into
+            // this commit (whole-file canonical write) — accepted risk, recorded
+            // in design.md's Risks & Mitigations (Retire-hit pre-dirty accept).
+            if (retired !== null) addArgs.push(join('spec', 'roadmap.md'))
+            await execAsync('git', ['add', ...addArgs], { cwd: ctx.projectRoot })
             await execAsync('git', ['commit', '-m', `fix(issues): remove resolved issue ${slug}`], { cwd: ctx.projectRoot })
           } catch {
             // git not available or nothing to commit
           }
           if (json) {
-            outputJson({ removed: slug })
+            outputJson({ removed: slug, retired_roadmap_entry: retired })
           } else {
             console.log(`Removed issue: ${slug}`)
+            if (retired !== null) { console.log(`  Retired roadmap entry: ${retired}`) }
           }
         } catch {
           if (json) {

@@ -1,29 +1,29 @@
-version: 12
-hash: sha256:0cb2b6d01ec3
-updated: 2026-07-26T02:36:40.652Z
+version: 13
+hash: sha256:e0d27898a315
+updated: 2026-08-18T10:19:47.114Z
 status: draft
 source: change
 requirements:
   - id: roadmap-persists-as-a-single-ordered-markdown-file-managed-by-roadmapstore
-    hash: sha256:0498e304c481
+    hash: sha256:5a7ff380950d
     scenarios:
       - entries-round-trip-through-format-and-parse-in-order
       - missing-roadmap-file-reads-as-an-empty-roadmap
       - unsafe-slug-is-rejected-at-the-store-boundary
   - id: default-roadmap-command-is-a-read-only-ordered-status-view
-    hash: sha256:96f512e5b9d8
+    hash: sha256:22a383a3f8df
     scenarios:
       - populated-roadmap-listed-in-order
       - json-view-mirrors-the-text-view
       - read-only-view-runs-on-any-branch-without-a-guard
       - empty-roadmap-renders-a-friendly-empty-state
   - id: dangling-entries-are-surfaced-never-fatal
-    hash: sha256:26ddfe265f20
+    hash: sha256:4dd51e20e813
     scenarios:
       - deleted-backlog-item-shows-as-dangling
       - dangling-flag-present-in-json-output
   - id: roadmap-add-appends-an-existing-backlog-item-to-the-end-of-the-queue
-    hash: sha256:9557a1d4b0d6
+    hash: sha256:be0856e93dc9
     scenarios:
       - valid-slug-appended-with-a-note-and-auto-committed
       - unknown-backlog-slug-is-rejected-as-not-found
@@ -33,28 +33,32 @@ requirements:
     scenarios:
       - full-permutation-rewrites-the-order
       - omission-addition-and-duplicate-are-each-rejected-with-no-partial-write
-  - id: roadmap-next-activates-the-top-entry-through-the-backlog-promote-path-and-pops-it
-    hash: sha256:f539df95f9be
+  - id: roadmap-next-activates-the-top-entry-with-a-propose-handoff-and-pops-it
+    hash: sha256:872fabc9b72f
     scenarios:
-      - top-entry-activated-and-removed-from-the-queue
+      - dangling-head-is-skipped-and-the-first-healthy-entry-activates
+      - multiple-consecutive-dangling-entries-each-warn-and-all-remain
+      - prune-removes-skipped-dangling-entries-in-the-same-write-and-commit
+      - all-dangling-roadmap-is-a-non-error-no-op-with-guidance
       - empty-roadmap-is-a-friendly-no-op
   - id: mutating-roadmap-operations-enforce-main-branch-and-auto-commit-discipline
-    hash: sha256:9669ed9d1d69
+    hash: sha256:4cb1af089a45
     scenarios:
       - non-main-branch-blocks-each-mutation
       - escape-hatch-permits-a-deliberate-off-main-mutation
   - id: roadmap-failures-use-the-standard-error-contract
-    hash: sha256:93dc3ef2452b
+    hash: sha256:09ba9974f8d5
     scenarios:
       - envelope-shape-is-consistent-across-failure-types
       - text-mode-reports-the-same-failures-on-stderr
+      - dangling-entries-no-longer-surface-through-the-error-contract-on-next
   - id: roadmap-wiring-is-additive-to-the-cli-context-and-barrel-exports
-    hash: sha256:51244fb113dc
+    hash: sha256:af8ed9fd2c65
     scenarios:
       - command-group-and-store-are-reachable-through-standard-wiring
       - backlog-behavior-is-untouched
   - id: guard-hook-tiers-roadmap-forms-mutations-tier-2-status-view-unguarded
-    hash: sha256:48d9dec29b51
+    hash: sha256:56489d75f74f
     scenarios:
       - uncredentialed-ai-session-is-blocked-from-roadmap-mutations
       - read-only-view-passes-the-guard-without-a-credential
@@ -69,3 +73,22 @@ requirements:
     scenarios:
       - populated-roadmap-answers-routing-without-user-re-litigation
       - empty-roadmap-yields-a-clean-fallback-signal
+  - id: roadmap-remove-deletes-a-targeted-entry-by-position-or-slug
+    hash: sha256:e751ca9d2f4e
+    scenarios:
+      - remove-by-position-renumbers-through-the-canonical-writer
+      - remove-by-slug-deletes-the-matching-entry
+      - missing-target-fails-not-found-with-no-write
+  - id: issue-resolution-auto-retires-referencing-roadmap-entries
+    hash: sha256:08c43d659b80
+    scenarios:
+      - backlog-done-retires-the-roadmap-entry-atomically
+      - fix-issue-remove-issue-retires-the-roadmap-entry-atomically
+      - non-roadmapped-resolution-is-byte-for-byte-unchanged-behavior
+      - json-reporting-of-the-retirement-is-additive
+  - id: skipped-dangling-entries-are-machine-detectable-from-roadmap-next-output
+    hash: sha256:47bc365fb6cd
+    scenarios:
+      - json-output-enumerates-skipped-slugs-in-order
+      - nothing-skipped-yields-an-empty-skip-signal
+      - text-warnings-name-every-skipped-slug-for-script-consumption

@@ -956,6 +956,44 @@ describe('metta-guard-bash hook', { timeout: 30_000 }, () => {
           expect(code).toBe(0)
         })
 
+        it('blocks `metta roadmap remove x` without a session credential — Tier-2 missing-credential (exit 2)', () => {
+          const cwd = makeTempCwd()
+          const { code, stderr } = runHook(hookPath, bashEvent('metta roadmap remove x', { cwd }), { cwd })
+          expect(code).toBe(2)
+          const entries = readAuditEntries(cwd)
+          const last = entries[entries.length - 1]
+          expect(last.verdict).toBe('block')
+          expect(last.reason).toBe('missing-credential')
+          expect(last.tier).toBe('session')
+          expect(stderr).toContain('/metta-')
+        })
+
+        it('allows `metta roadmap remove x` with a valid roadmap:remove-scoped session token (exit 0)', () => {
+          const cwd = makeTempCwd()
+          seedToken(cwd, {
+            skill: 'metta-roadmap',
+            subcommands: ['roadmap:add', 'roadmap:reorder', 'roadmap:next', 'roadmap:remove'],
+          })
+          const { code, stderr } = runHook(hookPath, bashEvent('metta roadmap remove x', { cwd }), { cwd })
+          expect(code).toBe(0)
+          expect(stderr).toBe('')
+        })
+
+        it('blocks `metta roadmap remove x` when the token scope does not include roadmap:remove (exit 2)', () => {
+          const cwd = makeTempCwd()
+          seedToken(cwd, {
+            skill: 'metta-roadmap',
+            subcommands: ['roadmap:add', 'roadmap:reorder', 'roadmap:next'],
+          })
+          const { code } = runHook(hookPath, bashEvent('metta roadmap remove x', { cwd }), { cwd })
+          expect(code).toBe(2)
+          const entries = readAuditEntries(cwd)
+          const last = entries[entries.length - 1]
+          expect(last.verdict).toBe('block')
+          expect(last.reason).toBe('subcommand-not-in-scope')
+          expect(last.tier).toBe('session')
+        })
+
         it('accepts a fork body calling a Tier-2 sub without any token (trusted agent_type) (exit 0)', () => {
           const cwd = makeTempCwd()
           const { code } = runHook(

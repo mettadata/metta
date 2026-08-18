@@ -164,19 +164,130 @@ describe('RoadmapStore', () => {
     })
   })
 
-  describe('removeTop()', () => {
-    it('pops entry 1 and returns it; the next entry becomes top', async () => {
-      await store.add('top-item', 'top note')
-      await store.add('runner-up')
-      const popped = await store.removeTop()
-      expect(popped).toEqual({ slug: 'top-item', note: 'top note' })
-      expect(await store.list()).toEqual([{ slug: 'runner-up' }])
-      // Canonical rewrite renumbers the survivor to ordinal 1.
-      expect(await readFile(roadmapPath(), 'utf8')).toBe('# Roadmap\n\n1. `runner-up`\n')
+  describe('remove()', () => {
+    beforeEach(async () => {
+      await store.add('a')
+      await store.add('foo', 'foo note')
+      await store.add('c')
     })
 
-    it('returns null on an empty roadmap with no write', async () => {
-      expect(await store.removeTop()).toBeNull()
+    it('S1: remove(2) returns the entry and position, and renumbers canonically', async () => {
+      const result = await store.remove(2)
+      expect(result).toEqual({ entry: { slug: 'foo', note: 'foo note' }, position: 2 })
+      expect(await readFile(roadmapPath(), 'utf8')).toBe('# Roadmap\n\n1. `a`\n2. `c`\n')
+    })
+
+    it('S2: remove(slug) preserves surviving notes verbatim', async () => {
+      await store.reorder(['a', 'foo', 'c'])
+      await store.remove('a')
+      expect(await store.list()).toEqual([
+        { slug: 'foo', note: 'foo note' },
+        { slug: 'c' },
+      ])
+    })
+
+    it('S3: removing the only entry leaves the header-only file', async () => {
+      await store.remove('a')
+      await store.remove('c')
+      await store.remove('foo')
+      expect(await readFile(roadmapPath(), 'utf8')).toBe('# Roadmap\n\n')
+      expect(await store.list()).toEqual([])
+    })
+
+    it('S4: remove(0) and remove(length+1) throw typed not_found, file byte-for-byte unchanged', async () => {
+      const before = await readFile(roadmapPath(), 'utf8')
+      const err1 = await store.remove(0).catch((e: unknown) => e)
+      expect(err1).toBeInstanceOf(RoadmapValidationError)
+      expect((err1 as RoadmapValidationError).type).toBe('not_found')
+      const err2 = await store.remove(4).catch((e: unknown) => e)
+      expect(err2).toBeInstanceOf(RoadmapValidationError)
+      expect((err2 as RoadmapValidationError).type).toBe('not_found')
+      expect(await readFile(roadmapPath(), 'utf8')).toBe(before)
+    })
+
+    it('S5: remove(absent slug) throws typed not_found, file unchanged', async () => {
+      const before = await readFile(roadmapPath(), 'utf8')
+      const err = await store.remove('absent').catch((e: unknown) => e)
+      expect(err).toBeInstanceOf(RoadmapValidationError)
+      expect((err as RoadmapValidationError).type).toBe('not_found')
+      expect((err as RoadmapValidationError).message).toBe(
+        "No roadmap entry with slug 'absent'",
+      )
+      expect(await readFile(roadmapPath(), 'utf8')).toBe(before)
+    })
+
+    it('S6: remove() on a missing file throws not_found without creating the file', async () => {
+      const emptyStore = new RoadmapStore(await mkdtemp(join(tmpdir(), 'metta-roadmap-empty-')))
+      const err = await emptyStore.remove('anything').catch((e: unknown) => e)
+      expect(err).toBeInstanceOf(RoadmapValidationError)
+      expect((err as RoadmapValidationError).type).toBe('not_found')
+    })
+  })
+
+  describe('removeSlugs()', () => {
+    beforeEach(async () => {
+      await store.add('a')
+      await store.add('foo')
+      await store.add('c')
+    })
+
+    it('S7: removes a middle entry in a single write, renumbers canonically', async () => {
+      const removed = await store.removeSlugs(['foo'])
+      expect(removed).toEqual([{ slug: 'foo' }])
+      expect(await readFile(roadmapPath(), 'utf8')).toBe('# Roadmap\n\n1. `a`\n2. `c`\n')
+    })
+
+    it('S8: removes multiple slugs in one call, returning them in roadmap order', async () => {
+      const removed = await store.removeSlugs(['c', 'a'])
+      expect(removed).toEqual([{ slug: 'a' }, { slug: 'c' }])
+      expect(await store.list()).toEqual([{ slug: 'foo' }])
+    })
+
+    it('S9: unknown slug throws typed not_found, file untouched', async () => {
+      const before = await readFile(roadmapPath(), 'utf8')
+      const err = await store.removeSlugs(['a', 'unknown']).catch((e: unknown) => e)
+      expect(err).toBeInstanceOf(RoadmapValidationError)
+      expect((err as RoadmapValidationError).type).toBe('not_found')
+      expect(await readFile(roadmapPath(), 'utf8')).toBe(before)
+    })
+
+    it('S10: empty input is a no-op returning [] with no write', async () => {
+      const before = await readFile(roadmapPath(), 'utf8')
+      expect(await store.removeSlugs([])).toEqual([])
+      expect(await readFile(roadmapPath(), 'utf8')).toBe(before)
+    })
+  })
+
+  describe('retire()', () => {
+    it('S11: retires a matching slug, returning it and renumbering canonically', async () => {
+      await store.add('a')
+      await store.add('foo')
+      await store.add('c')
+      const removed = await store.retire('foo')
+      expect(removed).toEqual([{ slug: 'foo' }])
+      expect(await readFile(roadmapPath(), 'utf8')).toBe('# Roadmap\n\n1. `a`\n2. `c`\n')
+    })
+
+    it('S12: retires ALL hand-written duplicates of a slug', async () => {
+      await writeFile(
+        roadmapPath(),
+        '# Roadmap\n\n1. `dup`\n2. `keep`\n3. `dup`\n',
+        'utf8',
+      )
+      const removed = await store.retire('dup')
+      expect(removed).toEqual([{ slug: 'dup' }, { slug: 'dup' }])
+      expect(await store.list()).toEqual([{ slug: 'keep' }])
+    })
+
+    it('S13: no match returns [] with the file byte-for-byte unchanged', async () => {
+      await store.add('a')
+      const before = await readFile(roadmapPath(), 'utf8')
+      expect(await store.retire('nope')).toEqual([])
+      expect(await readFile(roadmapPath(), 'utf8')).toBe(before)
+    })
+
+    it('S14: retire on a missing file returns [] and does not create it', async () => {
+      expect(await store.retire('anything')).toEqual([])
       expect(existsSync(roadmapPath())).toBe(false)
     })
   })
