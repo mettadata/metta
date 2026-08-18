@@ -1,6 +1,6 @@
-version: 12
-hash: sha256:0457acadb439
-updated: 2026-07-17T03:21:21.413Z
+version: 18
+hash: sha256:a6adc65723c3
+updated: 2026-08-18T01:24:44.604Z
 status: draft
 source: change
 requirements:
@@ -15,12 +15,13 @@ requirements:
       - fork-dispatched-subcommand-with-verified-caller-identity-is-accepted
       - fork-dispatched-subcommand-without-verified-caller-identity-is-rejected
   - id: main-session-lifecycle-subcommands-require-a-non-forgeable-session-credential
-    hash: sha256:f9deb2656d3f
+    hash: sha256:3bda2dea9ffd
     scenarios:
       - sanctioned-skill-driven-call-with-a-valid-credential-is-accepted
       - expired-out-of-scope-or-malformed-credential-is-rejected
       - credential-forgery-requires-an-audit-visible-act-outside-command-text
       - no-credential-present-is-rejected-with-skill-guidance
+      - concurrent-skill-credentials-do-not-interfere
   - id: unrecognized-metta-subcommands-fail-closed
     hash: sha256:73d3e3c648ff
     scenarios:
@@ -71,3 +72,31 @@ requirements:
       - a-blocked-turn-end-is-recorded-with-tier-and-reason
       - a-rejected-async-dispatch-shape-is-recorded-with-tier-and-reason
       - a-recovery-protocol-invocation-is-discernible-from-recorded-evidence
+  - id: worktree-edits-are-allowed-under-the-inverted-hosting-topology
+    hash: sha256:cc95e5403573
+    scenarios:
+      - inverted-hosting-topology-edit-is-allowed
+      - empty-answer-from-the-target-root-alone-does-not-block
+      - subagents-no-longer-need-the-heredoc-fallback
+  - id: canonical-worktree-topology-remains-allowed
+    hash: sha256:7bddd7b8f0a6
+    scenarios:
+      - canonical-topology-edit-is-still-allowed
+  - id: guard-still-blocks-when-no-change-is-active-in-either-root
+    hash: sha256:686e04f34d63
+    scenarios:
+      - no-active-change-anywhere-still-blocks
+  - id: probe-failures-continue-to-fail-open
+    hash: sha256:914abc1bef1c
+    scenarios:
+      - each-probe-failure-mode-fails-open
+  - id: init-phase-and-issues-allow-lists-are-unchanged
+    hash: sha256:c039fe298b35
+    scenarios:
+      - allow-listed-paths-still-pass-without-an-active-change
+  - id: regression-tests-exercise-real-discovery-semantics-for-the-inverted-topology
+    hash: sha256:34b3e7d220e1
+    scenarios:
+      - inverted-topology-test-catches-the-original-defect
+      - topology-coverage-does-not-come-from-a-cwd-answering-shim
+      - both-topologies-are-covered-alongside-existing-cases
