@@ -29,3 +29,13 @@ Tier-1 fork identity, scope lists, tokenizer, `--` handling, `missing-credential
 
 - UAT: confirm `session_id` stability across `--resume`/`--fork` (undocumented; both outcomes fail-closed-safe).
 - Deviation note (Task 2.2): `docs/internals/guard-hooks.md` was stale beyond the lifecycle paragraph (retired inline `METTA_SKILL=1` bypass presented as current); the whole Bash-guard portion was rewritten to match the landed hooks.
+
+## Review (2 rounds)
+
+Round 1: correctness PASS_WITH_WARNINGS, security PASS_WITH_WARNINGS (M1), quality NEEDS_CHANGES (F1). Fixes landed: `24ef746b4` (F2 deferred re-prime to `!offender` branch + F3 authorizing-token attribution, with seam pin tests), `4f3099488` (F1 workflow-primer Tier-2 wording + delivery test pins). Round 2: all three reviewers PASS. Details in review.md.
+
+## Verification (3 parallel verifiers)
+
+- Full suite: 130 files, 2543 passed, 2 skipped (env-gated stress smokes), 0 failed; `npm run build` exit 0. (One vitest-internal worker RPC timeout note; no test implicated.)
+- `npx tsc --noEmit` and `npm run lint`: zero errors; both hook mirrors byte-identical (`cmp` silent).
+- Spec sweep: all 34 scenarios across R1–R8 discharged with cited test/doc evidence; zero gaps. Evidence notes (non-gaps): fork-tier audit `tier` field rests on code inspection + block-record test; B1/C1 red-pre-fix is documented verification (merge-base extraction), not an automated bi-version CI run.
