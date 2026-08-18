@@ -262,7 +262,30 @@ function splitCommandSegments(command) {
 // bash syntax error that never executes anyway), interpreter/wrapper
 // indirection (`sh -c '...'`, `python -c`, `xargs`, `rsync`, `dd of=`,
 // `install`, `git -C <main> checkout/apply`), and process substitution
-// (`>(...)`). NOTE the fail direction is deliberately OPPOSITE to the
+// (`>(...)`). Additional documented residuals:
+// - `>|` noclobber redirects fail OPEN: the `|` is treated as a chain
+//   separator, so the target lands in a fresh segment carrying no operator
+//   and is never extracted.
+// - Source-side mutations are out of scope by design: `mv <main-file>
+//   elsewhere`, `rm <main-file>`, `sed -i <main-file>`, `curl -o` and
+//   friends mutate or remove main-checkout files without appearing as a
+//   write DESTINATION here — that residual is covered by layer 3 (the
+//   main-checkout tree-clean detection), not by this check.
+// - Multi-change probe payloads fail OPEN: a `metta status --json` response
+//   shaped `{changes:[...]}` (no top-level string `worktree` field) yields a
+//   null probe context, so targets under that checkout are allowed.
+// - Escaped operators over-block: bash treats `\>` as a literal `>`
+//   character, but this extractor still sees the `>` and extracts the next
+//   word as a target — the error direction is a false block, never a missed
+//   one.
+// - Heredoc BODY lines are NOT scanned: stripHeredocBodies() below drops the
+//   lines between a `<<`/`<<-` WORD operator and its terminator line before
+//   extraction, so prose inside a heredoc mentioning `> /abs/path` never
+//   produces a target (a redirect on the heredoc COMMAND line itself is
+//   still extracted). The stripper uses per-line quote masks — a multi-line
+//   quoted string containing `<<` can therefore over-strip subsequent lines,
+//   which errs fail-open, consistent with this extractor's direction.
+// NOTE the fail direction is deliberately OPPOSITE to the
 // metta-invocation tokenizer in this file: unparseable input fails CLOSED for
 // metta CLI classification but fails OPEN here — for write targets the spec
 // mandates fail-open, and the residual is covered by the executor shell-write
@@ -270,13 +293,73 @@ function splitCommandSegments(command) {
 // (layer 3).
 // ---------------------------------------------------------------------------
 
+// Timeout-DoS hardening (review F2): a command padded with many absolute
+// redirect targets must never push this hook past the harness per-hook
+// timeout — a killed hook produces no block AND no audit entry, silently
+// defeating the fail-closed metta-invocation scan that runs after this check.
+// Three bounds keep the worst case flat: targets are DEDUPED, capped at
+// MAX_WRITE_TARGET_CHECKS (targets beyond the cap are dropped — explicit
+// fail-open), and the whole checkWriteTargets pass runs under an internal
+// wall-clock budget of WRITE_TARGET_BUDGET_MS — when exceeded, remaining
+// targets are abandoned (explicit fail-open) and control falls through to the
+// offender scan. resolveTargetRoot additionally caches its git answer per
+// nearest-existing-ancestor directory, so N nonexistent paths under one
+// ancestor cost one subprocess, not N.
+const MAX_WRITE_TARGET_CHECKS = 16;
+const WRITE_TARGET_BUDGET_MS = 2000;
+
+// Drop heredoc BODY lines from `command` before write-target extraction (see
+// the KNOWN LIMITATION header above). Tracks `<<`/`<<-` WORD operators
+// (quoted, backslash-escaped, or bare WORDs all reduce to the same
+// terminator, mirroring bash quote removal) on command lines, then skips
+// every subsequent newline-delimited line up to and including the matching
+// terminator line (leading tabs stripped for `<<-`). `<<<` here-strings are
+// not heredocs and are skipped. Multiple heredocs on one command line queue
+// their terminators in order of appearance, matching bash. An unterminated
+// heredoc drops the rest of the command — fail open.
+function stripHeredocBodies(command) {
+  if (!command.includes('<<')) return command; // fast path: no heredoc syntax at all
+  const lines = command.split('\n');
+  const kept = [];
+  const pending = []; // queued { term, stripTabs } in body order
+  for (const rawLine of lines) {
+    if (pending.length > 0) {
+      // Inside a heredoc body: never scanned, only checked against the
+      // current terminator.
+      const bodyLine = rawLine.endsWith('\r') ? rawLine.slice(0, -1) : rawLine;
+      const cmp = pending[0].stripTabs ? bodyLine.replace(/^\t+/, '') : bodyLine;
+      if (cmp === pending[0].term) pending.shift();
+      continue;
+    }
+    const { quoted } = computeQuoteMask(rawLine);
+    for (let i = 0; i < rawLine.length - 1; i++) {
+      if (rawLine[i] !== '<' || rawLine[i + 1] !== '<' || quoted[i]) continue;
+      if (i > 0 && rawLine[i - 1] === '<') continue;      // tail of `<<<`
+      if (rawLine[i + 2] === '<') { i += 2; continue; }    // `<<<` here-string
+      let j = i + 2;
+      let stripTabs = false;
+      if (rawLine[j] === '-') { stripTabs = true; j++; }
+      while (j < rawLine.length && /[ \t]/.test(rawLine[j])) j++;
+      let word = '';
+      while (j < rawLine.length && !/[\s<>|&;()]/.test(rawLine[j])) { word += rawLine[j]; j++; }
+      const term = stripQuoteChars(word).replace(/\\/g, '');
+      if (term.length > 0) pending.push({ term, stripTabs });
+      i = j - 1;
+    }
+    kept.push(rawLine);
+  }
+  return kept.join('\n');
+}
+
 // Pure. Returns confident absolute candidate write targets for `command`;
 // returns [] for the overwhelming majority of commands (the zero-subprocess
 // fast path). Built on the same splitCommandSegments/computeQuoteMask/
 // stripQuoteChars utilities as the metta tokenizer above.
 function extractWriteTargets(command) {
   const out = [];
-  for (const segment of splitCommandSegments(command)) {
+  // Heredoc bodies are data, not command text — strip them first so a body
+  // line mentioning `> /abs/path` never yields a target (review F3).
+  for (const segment of splitCommandSegments(stripHeredocBodies(command))) {
     const { quoted, unterminated } = computeQuoteMask(segment);
     // Unterminated quoting: extraction is not confident -> fail OPEN (see the
     // KNOWN LIMITATION header above; deliberately opposite to the tokenizer's
@@ -388,26 +471,34 @@ function toPhysicalPath(target) {
 // this check: any failure (git missing, target outside any repo) returns null
 // so the caller SKIPS the target (fail open) instead of falling back to the
 // session cwd — a target outside every git checkout can never be a
-// main-checkout contamination.
+// main-checkout contamination. Results are cached per nearest-existing-
+// ancestor directory (module-level cache IS per-event — the hook process is
+// one event), and `/dev/` targets short-circuit to null without a subprocess:
+// `> /dev/null` is ubiquitous and can never be a checkout write.
+const targetRootCache = new Map();
 async function resolveTargetRoot(target) {
   if (!target) return null;
+  if (target === '/dev' || target.startsWith('/dev/')) return null; // cheap short-circuit
   let dir = dirname(target);
   while (!existsSync(dir)) {
     const parent = dirname(dir);
     if (parent === dir) break;
     dir = parent;
   }
+  if (targetRootCache.has(dir)) return targetRootCache.get(dir);
+  let root = null;
   try {
     const { stdout } = await execFileAsync('git', ['rev-parse', '--show-toplevel'], {
       cwd: dir,
       timeout: 5000,
     });
     const top = stdout.trim();
-    if (top) return top;
+    if (top) root = top;
   } catch {
     // Not a git checkout (or git unavailable) — fail open via null.
   }
-  return null;
+  targetRootCache.set(dir, root);
+  return root;
 }
 
 // Derive the root for the active-change probe. A metta-managed worktree's
@@ -473,8 +564,16 @@ function isInsidePath(child, root) {
 // are an accepted non-goal). Everything outside H (/tmp, scratchpads, other
 // repos) never matches. Returns null (allow) or the first block descriptor
 // { target, mainRoot, worktreeRoot }.
-async function checkWriteTargets(event, targets) {
-  for (const target of targets) {
+// DoS bounds (review F2, see the constants above): targets are deduped, only
+// the first MAX_WRITE_TARGET_CHECKS unique targets are checked (the rest are
+// dropped — fail open), and the whole pass abandons remaining targets once
+// WRITE_TARGET_BUDGET_MS of wall clock has elapsed (fail open), falling
+// through to the offender scan either way.
+async function checkWriteTargets(targets) {
+  const deadline = Date.now() + WRITE_TARGET_BUDGET_MS;
+  const unique = [...new Set(targets)].slice(0, MAX_WRITE_TARGET_CHECKS);
+  for (const target of unique) {
+    if (Date.now() > deadline) return null; // budget exhausted — abandon rest, fail open
     const physical = toPhysicalPath(target);
     const checkoutRoot = await resolveTargetRoot(physical);
     if (checkoutRoot === null) continue; // not in any git checkout — fail open
@@ -687,7 +786,7 @@ async function main() {
   try {
     const targets = extractWriteTargets(command);
     if (targets.length > 0) {
-      const hit = await checkWriteTargets(event, targets);
+      const hit = await checkWriteTargets(targets);
       if (hit) {
         appendAuditLog(event, 'block', { sub: null, third: null }, 'worktree-write-target', null,
           { target: hit.target, mainRoot: hit.mainRoot, worktreeRoot: hit.worktreeRoot });

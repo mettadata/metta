@@ -1496,6 +1496,107 @@ describe('metta-guard-bash worktree write-target check', { timeout: 60_000 }, ()
         }
       })
 
+      // ----- Heredoc body skipping (review F3) -----
+      it('allows a worktree-targeted heredoc whose BODY mentions a main-checkout redirect (exit 0)', () => {
+        const script = join(worktreeDir, 'script.sh')
+        const mainTarget = join(mainDir, 'src', 'f.txt')
+        const command = `cat > ${script} <<'EOF'\necho hi > ${mainTarget}\nEOF`
+        const { code, stderr } = runHookShim(hookPath, bashEvent(command))
+        expect(stderr).toBe('')
+        expect(code).toBe(0)
+      })
+
+      it('still blocks the zeus shape with an UNQUOTED heredoc word — redirect on the command line itself (exit 2)', () => {
+        const target = join(mainDir, 'notes.md')
+        const command = `cat <<EOF > ${target}\nhello\nEOF`
+        const { code, stderr } = runHookShim(hookPath, bashEvent(command))
+        expect(code).toBe(2)
+        expect(stderr).toContain(target)
+        expect(stderr).toContain(worktreeDir)
+      })
+
+      it('resumes scanning after the heredoc terminator — main-checkout write after EOF still blocked (exit 2)', () => {
+        const script = join(worktreeDir, 'script.sh')
+        const mainTarget = join(mainDir, 'src', 'after.txt')
+        const command = `cat > ${script} <<EOF\nbody text\nEOF\necho x > ${mainTarget}`
+        const { code, stderr } = runHookShim(hookPath, bashEvent(command))
+        expect(code).toBe(2)
+        expect(stderr).toContain(mainTarget)
+      })
+
+      // ----- Timeout-DoS hardening: dedupe / cap / budget (review F2) -----
+      it('many distinct bogus absolute targets + a blocked metta call: completes fast, offender scan still blocks (exit 2)', () => {
+        const pad = Array.from(
+          { length: 60 },
+          (_, i) => `echo x > /metta-wtw-bogus-${i}/f.txt`,
+        ).join(' ; ')
+        const started = Date.now()
+        const { code, stderr } = runHookShim(hookPath, bashEvent(`${pad} ; metta finalize`))
+        expect(Date.now() - started).toBeLessThan(5000)
+        expect(code).toBe(2)
+        expect(stderr).toContain('metta finalize')
+      })
+
+      it('many distinct bogus absolute targets + an allowed metta call: completes fast (exit 0)', () => {
+        const pad = Array.from(
+          { length: 60 },
+          (_, i) => `echo x > /metta-wtw-bogus-${i}/f.txt`,
+        ).join(' ; ')
+        const started = Date.now()
+        const { code, stderr } = runHookShim(hookPath, bashEvent(`${pad} ; metta status`))
+        expect(Date.now() - started).toBeLessThan(5000)
+        expect(stderr).toBe('')
+        expect(code).toBe(0)
+      })
+
+      it('dedupe: one main-checkout target repeated far past the cap still blocks (exit 2)', () => {
+        const target = join(mainDir, 'src', 'f.txt')
+        const pad = Array.from({ length: 60 }, () => `echo x > ${target}`).join(' ; ')
+        const { code, stderr } = runHookShim(hookPath, bashEvent(pad))
+        expect(code).toBe(2)
+        expect(stderr).toContain(target)
+      })
+
+      it('cap: a real main-checkout target among the FIRST targets still blocks despite bogus padding after it (exit 2)', () => {
+        const target = join(mainDir, 'src', 'f.txt')
+        const pad = Array.from(
+          { length: 40 },
+          (_, i) => `echo x > /metta-wtw-bogus-${i}/f.txt`,
+        ).join(' ; ')
+        const { code, stderr } = runHookShim(hookPath, bashEvent(`echo x > ${target} ; ${pad}`))
+        expect(code).toBe(2)
+        expect(stderr).toContain(target)
+      })
+
+      it('cap: a main-checkout target BEYOND the first 16 unique targets is dropped — explicit fail open (exit 0)', () => {
+        const target = join(mainDir, 'src', 'f.txt')
+        const pad = Array.from(
+          { length: 20 },
+          (_, i) => `echo x > /metta-wtw-bogus-${i}/f.txt`,
+        ).join(' ; ')
+        const { code, stderr } = runHookShim(hookPath, bashEvent(`${pad} ; echo x > ${target}`))
+        expect(stderr).toBe('')
+        expect(code).toBe(0)
+      })
+
+      // ----- /dev/ short-circuit (review F7) -----
+      it('short-circuits `/dev/` targets without spawning git (exit 0, git never invoked)', () => {
+        const markerBin = join(fixtureDir, 'marker-bin')
+        mkdirSync(markerBin, { recursive: true })
+        const marker = join(fixtureDir, 'git-invoked.marker')
+        writeFileSync(
+          join(markerBin, 'git'),
+          `#!/bin/sh\ntouch ${marker}\nexit 1\n`,
+          { mode: 0o755 },
+        )
+        const { code, stderr } = runHookShim(hookPath, bashEvent('echo x > /dev/null'), {
+          path: markerBin,
+        })
+        expect(stderr).toBe('')
+        expect(code).toBe(0)
+        expect(existsSync(marker)).toBe(false)
+      })
+
       // ----- Tier-2 token-untouched invariant (design D8) -----
       // A compound command combining an authorized Tier-2 metta call with a
       // blocked main-checkout write must exit 2 AND leave the session token
