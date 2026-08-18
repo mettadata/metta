@@ -1,0 +1,35 @@
+# fix-roadmap-entry-lifecycle-dangling-entries
+
+## Problem
+
+Roadmap entries have no exit path once their referenced issue is resolved. Since PR#85 unified backlog items with issues, resolving an item archives its file from `spec/issues/<slug>.md` to `spec/issues/resolved/<slug>.md` — which makes the corresponding roadmap entry *dangling* as the **normal end state of every shipped entry**, not an accident. Observed live in the zeus consumer after M1 shipped (2026-08-18): shipped entries piled up at the head of `spec/roadmap.md` with no supported way to retire them. Three concrete failures (issue `roadmap-has-no-entry-lifecycle-after-its-referenced-issue`, major):
+
+1. **`metta roadmap next` fail-stops on a dangling head.** The handler (`src/cli/commands/roadmap.ts:157-165`) implements ADR-4: when `IssuesStore.show` fails for the top slug, it exits 4 with `type: 'not_found'` and refuses to pop. ADR-4 was defensible when dangling meant accidental file deletion; post-PR#85 it blocks the primary activation flow in the common case, and the recovery hint it prints (restore the issue file, or `roadmap reorder`) is wrong-footed — the full-permutation `reorder` can only shuffle a dangling entry deeper, never remove it.
+2. **No remove primitive exists.** `RoadmapStore` (`src/roadmap/roadmap-store.ts:112-161`) exposes only `add`, `reorder` (exact-permutation), and `removeTop`. There is no `remove(target)` in the store and no `roadmap remove` CLI subcommand, so retiring any entry — dangling or abandoned — requires hand-editing `spec/roadmap.md`, a CLI-owned file with a canonical writer.
+3. **Resolution paths have zero roadmap knowledge.** `backlog done` (`src/cli/commands/backlog.ts:238-286`) and `fix-issue --remove-issue` (`src/cli/commands/fix-issue.ts:34-69`) archive the issue and commit, but never touch the roadmap — every resolution of a roadmapped item manufactures a new dangling entry by construction.
+
+## Proposal
+
+Give roadmap entries a complete lifecycle: a manual remove primitive, dangling-tolerant activation, and automatic retirement at the moment of issue resolution.
+
+1. **`metta roadmap remove <position|slug>`** — new `RoadmapStore.remove(target)` primitive plus CLI subcommand. Accepts a 1-based position or an entry slug; a missing target fails with a typed `not_found` error (extending the `RoadmapValidationError` discriminator pattern, mapped through `mapRoadmapError` into the exit-4 envelope). On success: splice the entry, save through the existing canonical renumber path (`save` → `RoadmapSchema.parse` → `formatRoadmap`), and auto-commit `spec/roadmap.md` via `autoCommitFile`, consistent with `add`/`reorder`. Main-branch guard applies as on the other mutating subcommands.
+2. **`roadmap next` skips dangling entries.** Instead of ADR-4's fail-stop, `next` walks the roadmap from the top, warns for each dangling entry — naming the slug and the remedy (`metta roadmap remove <slug>`, or restore `spec/issues/<slug>.md`) — and activates the first entry whose issue resolves. The skip is **non-destructive by default**: dangling entries stay in place; only the activated healthy entry is removed. An opt-in `--prune` flag additionally removes the skipped dangling entries in the same write/commit. All-dangling and empty roadmaps are non-error no-ops with clear guidance. The artifact trail (design/spec delta) formally supersedes ADR-4 for the roadmap-feature spec, which currently mandates the fail-stop (`spec/specs/roadmap-feature/spec.md`, the `roadmap next` requirement).
+3. **Auto-retire on resolution.** After `backlog done` and `fix-issue --remove-issue` successfully archive an issue, remove any roadmap entry referencing that slug and include `spec/roadmap.md` in the same commit (extending the existing `commitPaths` / `git add` path lists), so the archive and the roadmap retirement land atomically. When no roadmap entry references the slug, behavior is unchanged. Solution 1 remains the manual escape hatch for entries abandoned without resolution.
+
+Optionally, surface dangling counts in status/progress rollups only if it falls out cheaply from existing roadmap reads (the bare `metta roadmap` view already flags dangling rows) — design may drop this without ceremony.
+
+## Impact
+
+- **Users/operators:** the primary `roadmap next` flow stops hard-failing after every shipped milestone; shipped entries retire themselves; abandoned entries have a one-command manual exit instead of hand-editing a CLI-owned file.
+- **Code:** `src/roadmap/roadmap-store.ts` (new `remove` primitive, possibly a `not_found` discriminator on `RoadmapValidationError`), `src/cli/commands/roadmap.ts` (new subcommand; rewritten `next` head-resolution loop), `src/cli/commands/backlog.ts` and `src/cli/commands/fix-issue.ts` (post-archive roadmap retirement + commit path lists). Matching test files updated/added per the 1:1 test ratio; store logic stays in the functional-core/imperative-shell split with Zod on every write.
+- **Spec/contract:** supersedes ADR-4 — the roadmap-feature requirement that a dangling top entry MUST fail `not_found` flips to skip-with-warning. This is a **behavior change** for any automation that relied on exit 4 to detect dangling heads; the new warning output and `--prune` flag are the replacement signal. `backlog done` / `fix-issue --remove-issue` JSON output may grow a field reporting the retired roadmap entry (additive).
+- **Related minor issue** `metta-roadmap-next-mutates-on-invocation-with-no-read-only`: this change keeps `next` as a mutating activation command (skip logic changes *which* entry pops, not *whether* popping is the default), so read-only-by-default does not naturally fall out. Lean: leave it open — see Out of Scope. Research/design may reverse this if they end up reworking the `next` handler contract anyway (e.g. a `--pop` gate composes cleanly with the skip loop); if so, record it as an explicit scope addition.
+
+## Out of Scope
+
+- **Making `roadmap next` read-only by default** (issue `metta-roadmap-next-mutates-on-invocation-with-no-read-only`, minor). It is an orthogonal breaking change to the activation contract touching the `metta-roadmap` skill and guard scopes; final call deferred to research/design per Impact above. The issue stays logged unless design explicitly absorbs it.
+- Undo/restore affordances for popped or removed entries (e.g. `roadmap restore`); git history remains the recovery path.
+- Any change to `roadmap add`, `reorder` semantics (full-permutation contract stands), the entry-line grammar of `spec/roadmap.md`, or `buildPromoteHandoff`.
+- Retroactive cleanup tooling or migrations for consumers' existing dangling entries beyond what `roadmap remove` and `next --prune` already provide.
+- Roadmap entries referencing anything other than issue-store slugs (milestones, changes); the referenced-issue model is unchanged.
+- The stale-help-text issue `roadmap-ts-137-cli-help-text-for-roadmap-next-still-says` except where the rewritten `next` behavior forces its description text to change anyway.
