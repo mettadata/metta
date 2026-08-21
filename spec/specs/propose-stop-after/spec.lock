@@ -1,21 +1,23 @@
-version: 8
-hash: sha256:92d49d1a1d23
-updated: 2026-04-28T13:49:11.391Z
+version: 9
+hash: sha256:51523ab25038
+updated: 2026-08-21T23:56:29.187Z
 status: draft
 source: change
 requirements:
   - id: metta-propose-must-accept-a-stop-after-artifact-option
-    hash: sha256:8bf7fa7126b9
+    hash: sha256:e2f01d329438
     scenarios:
       - option-appears-in-cli-help
       - option-is-accepted-with-a-valid-value
-      - option-is-omitted-full-lifecycle-behavior-preserved
+      - option-is-accepted-with-the-ship-value-and-persisted
+      - option-is-omitted-no-stop-after-field-is-persisted
   - id: stop-after-must-be-validated-against-the-resolved-workflow
-    hash: sha256:3aba4088d573
+    hash: sha256:6ea2e72d2019
     scenarios:
-      - unknown-artifact-id-is-rejected-before-any-side-effects
-      - execution-phase-artifact-id-is-rejected
-      - planning-phase-id-from-a-non-default-workflow-is-accepted
+      - ship-is-accepted-for-any-workflow
+      - unknown-artifact-id-is-still-rejected-and-the-valid-list-names-ship
+      - execution-phase-artifact-id-is-still-rejected
+      - existing-planning-phase-values-keep-their-semantics
   - id: change-record-schema-must-persist-stop-after-as-an-optional-field
     hash: sha256:5735d97e6fd3
     scenarios:
@@ -28,12 +30,11 @@ requirements:
       - createchange-writes-stop-after-when-supplied
       - createchange-omits-stop-after-when-not-supplied
   - id: propose-skill-must-honor-the-stop-after-boundary
-    hash: sha256:ac0af7bd3b51
+    hash: sha256:93db5c29f29d
     scenarios:
-      - skill-parses-and-forwards-stop-after-from-arguments
-      - skill-exits-cleanly-at-the-stop-after-boundary-for-tasks
-      - skill-exits-cleanly-at-the-stop-after-boundary-for-spec
-      - skill-behaves-identically-when-no-stop-after-is-set
+      - skill-parses-and-forwards-ship-from-arguments
+      - stop-after-ship-restores-run-to-merge
+      - planning-phase-boundary-for-tasks-is-unchanged
   - id: metta-status-must-surface-stop-after-in-json-output
     hash: sha256:d0a577317ed5
     scenarios:
@@ -49,3 +50,28 @@ requirements:
     scenarios:
       - tests-can-assert-the-handoff-line-shape
       - no-implementation-implying-lines-appear
+  - id: propose-skill-default-path-must-stop-at-pr-open
+    hash: sha256:fb5e8c10ed40
+    scenarios:
+      - default-propose-run-ends-at-an-open-pr
+      - main-does-not-contain-the-change-after-a-default-run
+      - the-user-can-land-the-pr-without-rework
+  - id: both-propose-skill-md-copies-must-carry-the-pr-open-default-and-stay-in-sync
+    hash: sha256:b3248dfbf7b3
+    scenarios:
+      - default-path-instructions-end-at-pr-creation-in-both-copies
+      - the-two-copies-agree
+  - id: grep-assert-tests-must-guard-the-propose-skill-against-unconditional-merge
+    hash: sha256:9c1e81d6a5e6
+    scenarios:
+      - tests-pass-on-the-updated-skill-files
+      - tests-fail-when-unconditional-merge-is-reintroduced
+  - id: metta-auto-and-metta-fix-issues-must-retain-run-to-merge-behavior
+    hash: sha256:170a0002bd65
+    scenarios:
+      - metta-auto-still-runs-to-merge
+      - metta-fix-issues-still-runs-to-merge
+  - id: claude-md-workflow-wording-must-state-the-pr-open-default
+    hash: sha256:839a230fce18
+    scenarios:
+      - workflow-section-describes-the-pr-open-default
