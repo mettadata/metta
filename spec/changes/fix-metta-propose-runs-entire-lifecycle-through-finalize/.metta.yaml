@@ -21,9 +21,14 @@ artifact_timings:
   intent:
     started: 2026-08-21T22:57:12.920Z
     completed: 2026-08-21T22:58:22.098Z
+  stories:
+    started: 2026-08-21T22:58:25.382Z
 artifact_tokens:
   intent:
     context: 763
+    budget: 20000
+  stories:
+    context: 2161
     budget: 20000
 worktree: /home/utx0/Code/metta/.metta/worktrees/fix-metta-propose-runs-entire-lifecycle-through-finalize
 token_usage:
