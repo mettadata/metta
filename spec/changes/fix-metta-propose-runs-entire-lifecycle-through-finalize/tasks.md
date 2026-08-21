@@ -6,7 +6,7 @@ Authoritative blueprint: `spec/changes/fix-metta-propose-runs-entire-lifecycle-t
 
 ## Batch 1 (no dependencies)
 
-- [ ] **Task 1.1: Restructure both propose SKILL.md copies (ship gate, --ship alias, Critical reword)**
+- [x] **Task 1.1: Restructure both propose SKILL.md copies (ship gate, --ship alias, Critical reword)**
   - **Files**: `.claude/skills/metta-propose/SKILL.md`, `src/templates/skills/metta-propose/SKILL.md` (BOTH copies, byte-identical — same edits applied to each; existing sync tests will fail otherwise)
   - **Action**: Read design.md §§1–3 ("Propose SKILL.md — Step 8 restructure", "Critical section reword", "Step 1 `--ship` alias + Step 3 clarifier") in the change root and apply all four edits to BOTH files identically:
     1. **Step 1** — immediately after the existing `--stop-after` parse block (~lines 45–51), insert:
@@ -32,7 +32,7 @@ Authoritative blueprint: `spec/changes/fix-metta-propose-runs-entire-lifecycle-t
   - **Verify**: `diff .claude/skills/metta-propose/SKILL.md src/templates/skills/metta-propose/SKILL.md` is empty; `grep -c 'Ship opt-in — the following' .claude/skills/metta-propose/SKILL.md` returns 1; `grep -n 'unless the user asked to leave it open\|Do NOT stop after the last artifact\|finalize + ship must happen\|Critical: You MUST verify, finalize, and ship' .claude/skills/metta-propose/SKILL.md` returns nothing; `npx vitest run tests/skill-discovery-loop.test.ts tests/grounding.test.ts tests/template-deploy-sync.test.ts` passes.
   - **Done**: Both copies byte-identical, all four anchors present exactly as specified, forbidden strings absent, existing sync/grounding tests green.
 
-- [ ] **Task 1.2: `propose.ts` — accept `ship` as a stop-after sentinel**
+- [x] **Task 1.2: `propose.ts` — accept `ship` as a stop-after sentinel**
   - **Files**: `src/cli/commands/propose.ts`
   - **Action**: Apply the three localized edits from design.md §4:
     1. Replace the `--stop-after` option help description (~lines 17–20) with: `'Stop after the named planning artifact (e.g. intent, stories, spec, research, design, tasks), or ship to run through merge'`
@@ -47,7 +47,7 @@ Authoritative blueprint: `spec/changes/fix-metta-propose-runs-entire-lifecycle-t
   - **Verify**: `npx tsc --noEmit` passes; `npx vitest run tests/cli-propose-stop-after.test.ts` passes (existing tests only at this point).
   - **Done**: `--stop-after ship` validates for any workflow and persists `stop_after: ship`; unknown values still exit 4 with `ship` in the valid list; help text names `ship`.
 
-- [ ] **Task 1.3: `refresh.ts` + checked-in `CLAUDE.md` propose bullet (atomic pair)**
+- [x] **Task 1.3: `refresh.ts` + checked-in `CLAUDE.md` propose bullet (atomic pair)**
   - **Files**: `src/cli/commands/refresh.ts`, `CLAUDE.md` (repo root of the change root — both in ONE task; landing one without the other leaves generator and doc out of sync)
   - **Action**: Per design.md §5:
     1. In `refresh.ts` (~line 131, inside `buildWorkflowSection()`), replace the `/metta-propose` lifecycle bullet push with *(anchor, generated verbatim)*:
@@ -64,7 +64,7 @@ Authoritative blueprint: `spec/changes/fix-metta-propose-runs-entire-lifecycle-t
 
 ## Batch 2 (depends on Batch 1)
 
-- [ ] **Task 2.1: New grep-assert test `tests/skill-propose-ship-gate.test.ts`**
+- [x] **Task 2.1: New grep-assert test `tests/skill-propose-ship-gate.test.ts`**
   - **Depends on**: Task 1.1 (anchors must exist in the skill files)
   - **Files**: `tests/skill-propose-ship-gate.test.ts` (new)
   - **Action**: Create the test per design.md §6, modeled on `tests/skill-discovery-loop.test.ts` (readFile + `toContain`/`not.toContain`, same path-constant pattern). Define constants verbatim:
@@ -84,7 +84,7 @@ Authoritative blueprint: `spec/changes/fix-metta-propose-runs-entire-lifecycle-t
   - **Verify**: `npx vitest run tests/skill-propose-ship-gate.test.ts` passes; `npx tsc --noEmit` passes.
   - **Done**: New test file passes against the updated skill files and would fail if unconditional merge text reappears in either propose copy.
 
-- [ ] **Task 2.2: Extend `tests/cli-propose-stop-after.test.ts` for `ship`**
+- [x] **Task 2.2: Extend `tests/cli-propose-stop-after.test.ts` for `ship`**
   - **Depends on**: Task 1.2 (CLI must accept `ship`)
   - **Files**: `tests/cli-propose-stop-after.test.ts`
   - **Action**: Per design.md §6, using the existing `runCli` harness and fixture setup in the file, add:
@@ -97,7 +97,7 @@ Authoritative blueprint: `spec/changes/fix-metta-propose-runs-entire-lifecycle-t
 
 ## Batch 3 (depends on Batch 2)
 
-- [ ] **Task 3.1: Full verification sweep**
+- [x] **Task 3.1: Full verification sweep**
   - **Depends on**: Tasks 2.1, 2.2 (and transitively all of Batch 1)
   - **Files**: none (read-only verification; fix-forward only if a failure traces to this change's edits)
   - **Action**: From the change root run, in order: `npx tsc --noEmit`, then `npm test` (full suite), then explicitly `npx vitest run tests/skill-propose-ship-gate.test.ts tests/cli-propose-stop-after.test.ts tests/skill-discovery-loop.test.ts tests/grounding.test.ts tests/template-deploy-sync.test.ts tests/cli-skills.test.ts`. If any failure is caused by this change (e.g. skill-copy drift, a paraphrased anchor, a missed forbidden string), fix the offending file from Batch 1/2 per its task spec and re-run. Confirm `git -C <change root> status` shows only the intended files modified/added: the two SKILL.md copies, `src/cli/commands/propose.ts`, `src/cli/commands/refresh.ts`, `CLAUDE.md`, `tests/skill-propose-ship-gate.test.ts`, `tests/cli-propose-stop-after.test.ts` (plus change artifacts under `spec/changes/`). Notably: no edits to metta-auto or metta-fix-issues skills, no schema files, no workflow YAMLs, no `src/delivery/workflow-primer.ts`.
