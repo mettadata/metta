@@ -23,3 +23,14 @@
 
 - Commander wraps help text at 80 columns, so the help test asserts `ship` within the full `--stop-after` option entry (flag line + continuation) rather than one physical line — same intent, robust to wrapping.
 - Skill-level default is instruction-level, not runtime-enforced; the grep-assert tests guard the instructions.
+
+## Verify phase (3 verifiers, iteration #1)
+
+- **Test suite:** 134/134 files, 2709 passed, 2 skipped, 0 failed.
+- **Typecheck + lint:** `npx tsc --noEmit` clean; `npm run lint` clean.
+- **Spec coverage:** PASS — all 8 delta requirements verified, 22/23 scenarios COVERED, 1 PARTIAL (non-default-workflow stop-after id untestable due to known full-workflow template issue; validation is generically buildOrder-driven). Mutation test confirmed the ship-gate grep-assert fails when an unconditional `gh pr merge` is reinjected.
+
+## Review phase
+
+- Round 1: Correctness PASS, Security PASS_WITH_WARNINGS, Quality PASS_WITH_WARNINGS. Two majors fixed in `c53dfe94c`: quick-reroute now carries the PR-open default over; `--ship` parsing constrained to standalone flag token with a mandatory "Ship opt-in detected" announcement. Step 8.d made the exhaustive no-merge else-branch; stale "finalize/merge" label fixed.
+- Round 2: Correctness PASS, Security PASS_WITH_WARNINGS, Quality PASS_WITH_WARNINGS. Both majors confirmed closed; residual warnings all fail safe (worst case stops at open PR) — recorded in review.md with a follow-up recommendation.
