@@ -30,6 +30,8 @@ artifact_timings:
   research:
     started: 2026-08-21T23:01:54.990Z
     completed: 2026-08-21T23:05:32.653Z
+  design:
+    started: 2026-08-21T23:05:35.888Z
 artifact_tokens:
   intent:
     context: 763
@@ -43,6 +45,9 @@ artifact_tokens:
   research:
     context: 4507
     budget: 60000
+  design:
+    context: 5843
+    budget: 80000
 worktree: /home/utx0/Code/metta/.metta/worktrees/fix-metta-propose-runs-entire-lifecycle-through-finalize
 token_usage:
   - task: metta-skill-host
