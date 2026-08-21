@@ -22,7 +22,7 @@ Before parsing flags or creating any change state, YOU (the orchestrator) MUST c
 
 Routing decision:
 
-- **Description matches the criteria AND the caller did NOT pass an explicit `--workflow` flag:** do NOT proceed to Step 1 or the standard proposal pipeline. Run `metta quick` instead — follow the metta-quick skill flow for the same description, then stop; none of the numbered steps below run.
+- **Description matches the criteria AND the caller did NOT pass an explicit `--workflow` flag:** do NOT proceed to Step 1 or the standard proposal pipeline. Run `metta quick` instead — follow the metta-quick skill flow for the same description, then stop; none of the numbered steps below run. When rerouting, the PR-open default carries over: the quick flow's merge steps MUST be skipped and the run MUST stop at the open PR (reporting the PR URL) unless `--ship` was present in the original propose invocation.
 - **Caller passed an explicit `--workflow` flag (any value):** defer to that choice without overriding it — skip this routing decision and proceed to Step 1, passing the flag through as written.
 - **Description does not match the criteria and no flag was passed:** proceed to Step 1 normally.
 
@@ -53,6 +53,8 @@ Routing decision:
    **Parse optional `--ship` from `$ARGUMENTS`:**
 
    - If `$ARGUMENTS` contains the token `--ship`, remove it from `$ARGUMENTS` and set `STOP_AFTER = "ship"`. `--ship` is an alias for `--stop-after ship` — forward it to the CLI as `--stop-after ship` (there is no CLI `--ship` flag). If both `--ship` and `--stop-after <value>` are present, `--ship` takes precedence.
+   - Treat `--ship` as the ship opt-in ONLY when it appears as a standalone flag token in leading or trailing position — NOT when it appears inside quotes or as the subject/topic of the description text (e.g. a description *about* a ship flag or shipping behavior).
+   - When the ship opt-in IS detected, the orchestrator MUST announce before proceeding: `Ship opt-in detected: this run will merge to main after CI passes.` — so a misparse is visible at Step 1, not at merge time.
    - The remaining text is the description.
 
    Then run:
@@ -112,7 +114,7 @@ Routing decision:
    - `ship` is not a planning boundary: when `STOP_AFTER = "ship"` (or persisted `stop_after: ship`), this check never fires for any artifact — do not hunt for a `ship` artifact; continue the loop to `all_complete` and apply the Step 8 ship opt-in.
    - When the boundary is reached, the orchestrator MUST:
      a. NOT spawn any further planning subagent for the next artifact.
-     b. NOT proceed to Step 4 (research synthesis), Step 5 (implementation), Step 6 (review), Step 7 (verification), or Step 8 (finalize/merge). All subsequent steps are skipped in their entirety.
+     b. NOT proceed to Step 4 (research synthesis), Step 5 (implementation), Step 6 (review), Step 7 (verification), or Step 8 (finalize/PR). All subsequent steps are skipped in their entirety.
      c. NOT spawn any `metta-executor`, `metta-reviewer`, or `metta-verifier` agent. NOT call `metta finalize` or `git merge`.
      d. Print exactly one handoff line, formatted EXACTLY as:
         ``Stopped after `<artifact>`. Run `<resume-command>` to <next-action>.``
@@ -280,7 +282,7 @@ Routing decision:
    b. `git -C "{change_root}" push -u origin metta/<change-name>` → push the feature branch to the remote
    c. `gh pr create --title "<conventional-commit-style title from the change>" --body "<summary from summary.md or intent.md highlights>"` → open a PR. The body MUST end with `🤖 Generated with [Claude Code](https://claude.com/claude-code)`
    d. **Default path ends at an open PR. Do NOT merge; report the PR URL and stop.**
-      When `STOP_AFTER` is empty (and the change record has no persisted `stop_after`), report exactly:
+      When `STOP_AFTER` (or the change record's persisted `stop_after`) is anything other than `ship`, report exactly:
       ``PR open for review: <pr-url>. Run `/metta-ship` to land it, or merge the PR on GitHub yourself.``
       then proceed to Step 9 and return control to the user. On this default path you MUST NOT watch CI checks as a precursor to merging, MUST NOT merge the PR, and MUST NOT perform post-merge cleanup (main pull, branch/worktree removal).
 
