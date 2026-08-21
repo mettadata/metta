@@ -71,7 +71,7 @@ Only escalate to the user for **subjective judgments** — scope boundaries, cos
 Cite the source URL when presenting findings so the user can verify the answer.
 
 ### Lifecycle skills
-- `/metta-propose <description>` — start a new change (standard workflow)
+- `/metta-propose <description>` — start a new change (standard workflow); ends at an open PR — merge via `--ship` or `/metta-ship`
 - `/metta-quick <description>` — quick mode, skip planning
 - `/metta-auto <description>` — full lifecycle loop (discover → build → verify → ship)
 - `/metta-plan` — build planning artifacts for the active change
