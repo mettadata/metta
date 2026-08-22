@@ -16,7 +16,7 @@ export function registerProposeCommand(program: Command): void {
     .option('--auto, --accept-recommended', 'auto-accept adaptive routing recommendations')
     .option(
       '--stop-after <artifact>',
-      'Stop after the named planning artifact (e.g. intent, stories, spec, research, design, tasks)',
+      'Stop after the named planning artifact (e.g. intent, stories, spec, research, design, tasks), or ship to run through merge',
     )
     .action(async (description, options, command) => {
       const json = program.opts().json
@@ -36,11 +36,13 @@ export function registerProposeCommand(program: Command): void {
         // Validate --stop-after against the resolved workflow's buildOrder.
         // Reject execution-phase ids and unknown ids BEFORE creating any change state.
         const stopAfter: string | undefined = options.stopAfter
-        if (stopAfter !== undefined) {
+        // The special value 'ship' is a lifecycle sentinel (run through merge),
+        // valid for every workflow — it bypasses buildOrder validation entirely.
+        if (stopAfter !== undefined && stopAfter !== 'ship') {
           const planningIds = graph.buildOrder.filter(
             id => id !== 'implementation' && id !== 'verification',
           )
-          const validList = planningIds.join(', ')
+          const validList = planningIds.join(', ') + ', ship'
           if (stopAfter === 'implementation' || stopAfter === 'verification') {
             throw new Error(
               `--stop-after value '${stopAfter}' is an execution-phase artifact and is not a valid stop point. Valid values are: ${validList}.`,

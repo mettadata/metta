@@ -128,7 +128,7 @@ export function buildWorkflowSection(): string {
   lines.push('')
 
   lines.push('### Lifecycle skills')
-  lines.push('- `/metta-propose <description>` — start a new change (standard workflow)')
+  lines.push('- `/metta-propose <description>` — start a new change (standard workflow); ends at an open PR — merge via `--ship` or `/metta-ship`')
   lines.push('- `/metta-quick <description>` — quick mode, skip planning')
   lines.push('- `/metta-auto <description>` — full lifecycle loop (discover → build → verify → ship)')
   lines.push('- `/metta-plan` — build planning artifacts for the active change')

@@ -59,6 +59,19 @@ describe('metta propose --stop-after', { timeout: 30000 }, () => {
     expect(yaml).toContain('stop_after: tasks')
   })
 
+  it('persists stop_after: ship', async () => {
+    const { stdout, code } = await runCli(
+      ['--json', 'propose', 'demo ship stop', '--stop-after', 'ship'],
+      tempDir,
+    )
+    expect(code).toBe(0)
+    const data = JSON.parse(stdout)
+    expect(data.stop_after).toBe('ship')
+    const yamlPath = join(tempDir, 'spec', 'changes', data.change, '.metta.yaml')
+    const yaml = await readFile(yamlPath, 'utf8')
+    expect(yaml).toContain('stop_after: ship')
+  })
+
   it('rejects unknown --stop-after value with helpful error and writes no state', async () => {
     const { stdout, stderr, code } = await runCli(
       ['--json', 'propose', 'reject unknown stop', '--stop-after', 'spex'],
@@ -70,6 +83,8 @@ describe('metta propose --stop-after', { timeout: 30000 }, () => {
     // Error MUST list the valid planning ids for the standard workflow
     expect(text).toContain('intent')
     expect(text).toContain('tasks')
+    // The valid-value list now names the ship sentinel
+    expect(text).toContain('ship')
     // No change directory should have been created
     const reject = await pathExists(join(tempDir, 'spec', 'changes', 'reject-unknown-stop'))
     expect(reject).toBe(false)
@@ -135,6 +150,18 @@ describe('metta propose --stop-after', { timeout: 30000 }, () => {
     const yaml = await readFile(yamlPath, 'utf8')
     expect(yaml).toContain('stop_after: spec')
     expect(yaml).toContain('auto_accept_recommendation: true')
+  })
+
+  it('--help names ship on the --stop-after option line', async () => {
+    const { stdout } = await runCli(['propose', '--help'], tempDir)
+    const start = stdout.indexOf('--stop-after')
+    expect(start).toBeGreaterThanOrEqual(0)
+    // The option entry may wrap; take the flag line plus its wrapped
+    // continuation lines (up to the next flag entry, e.g. "-h, --help").
+    const rest = stdout.slice(start)
+    const nextFlag = rest.search(/\n\s*-/)
+    const entry = nextFlag === -1 ? rest : rest.slice(0, nextFlag)
+    expect(entry).toContain('ship')
   })
 
   it('metta status --json surfaces stop_after when set', async () => {

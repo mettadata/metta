@@ -22,7 +22,7 @@ Before parsing flags or creating any change state, YOU (the orchestrator) MUST c
 
 Routing decision:
 
-- **Description matches the criteria AND the caller did NOT pass an explicit `--workflow` flag:** do NOT proceed to Step 1 or the standard proposal pipeline. Run `metta quick` instead — follow the metta-quick skill flow for the same description, then stop; none of the numbered steps below run.
+- **Description matches the criteria AND the caller did NOT pass an explicit `--workflow` flag:** do NOT proceed to Step 1 or the standard proposal pipeline. Run `metta quick` instead — follow the metta-quick skill flow for the same description, then stop; none of the numbered steps below run. When rerouting, the PR-open default carries over: the quick flow's merge steps MUST be skipped and the run MUST stop at the open PR (reporting the PR URL) unless `--ship` was present in the original propose invocation.
 - **Caller passed an explicit `--workflow` flag (any value):** defer to that choice without overriding it — skip this routing decision and proceed to Step 1, passing the flag through as written.
 - **Description does not match the criteria and no flag was passed:** proceed to Step 1 normally.
 
@@ -48,7 +48,14 @@ Routing decision:
    - Otherwise, `STOP_AFTER = ""` (empty string).
    - The remaining text is the description.
    - Valid artifact ids are owned by the CLI and the resolved workflow's `buildOrder`; do NOT validate the value here — pass through and let `metta propose` reject unknown ids and execution-phase ids (`implementation`, `verification`) with a clear error before any change state is written.
-   - **Scope of `STOP_AFTER`:** when non-empty, this names a planning-phase artifact (e.g. `intent`, `stories`, `spec`, `research`, `design`, `tasks` for the standard workflow). The orchestrator MUST honor this boundary in Step 3 — see "Stop-after boundary check" there.
+   - **Scope of `STOP_AFTER`:** when non-empty, this names a planning-phase artifact (e.g. `intent`, `stories`, `spec`, `research`, `design`, `tasks` for the standard workflow). The orchestrator MUST honor this boundary in Step 3 — see "Stop-after boundary check" there. The special value `ship` is NOT a planning-phase artifact: it means "run to merge" and is handled by the Step 8 ship opt-in, never by the Step 3 boundary check.
+
+   **Parse optional `--ship` from `$ARGUMENTS`:**
+
+   - If `$ARGUMENTS` contains the token `--ship`, remove it from `$ARGUMENTS` and set `STOP_AFTER = "ship"`. `--ship` is an alias for `--stop-after ship` — forward it to the CLI as `--stop-after ship` (there is no CLI `--ship` flag). If both `--ship` and `--stop-after <value>` are present, `--ship` takes precedence.
+   - Treat `--ship` as the ship opt-in ONLY when it appears as a standalone flag token in leading or trailing position — NOT when it appears inside quotes or as the subject/topic of the description text (e.g. a description *about* a ship flag or shipping behavior).
+   - When the ship opt-in IS detected, the orchestrator MUST announce before proceeding: `Ship opt-in detected: this run will merge to main after CI passes.` — so a misparse is visible at Step 1, not at merge time.
+   - The remaining text is the description.
 
    Then run:
    `metta propose "<description>" --workflow <name> --stop-after <value> --json` (when both flags present)
@@ -104,9 +111,10 @@ Routing decision:
    - The boundary is reached when EITHER of these is true:
      1. `STOP_AFTER` (set in Step 1) is non-empty AND equals the artifact id just passed to `metta complete`.
      2. The change record's persisted `stop_after` field (read via `metta status --json --change <name>`) is non-empty AND equals that artifact id. This second check provides robustness if `STOP_AFTER` was lost from local state for any reason; both checks should agree.
+   - `ship` is not a planning boundary: when `STOP_AFTER = "ship"` (or persisted `stop_after: ship`), this check never fires for any artifact — do not hunt for a `ship` artifact; continue the loop to `all_complete` and apply the Step 8 ship opt-in.
    - When the boundary is reached, the orchestrator MUST:
      a. NOT spawn any further planning subagent for the next artifact.
-     b. NOT proceed to Step 4 (research synthesis), Step 5 (implementation), Step 6 (review), Step 7 (verification), or Step 8 (finalize/merge). All subsequent steps are skipped in their entirety.
+     b. NOT proceed to Step 4 (research synthesis), Step 5 (implementation), Step 6 (review), Step 7 (verification), or Step 8 (finalize/PR). All subsequent steps are skipped in their entirety.
      c. NOT spawn any `metta-executor`, `metta-reviewer`, or `metta-verifier` agent. NOT call `metta finalize` or `git merge`.
      d. Print exactly one handoff line, formatted EXACTLY as:
         ``Stopped after `<artifact>`. Run `<resume-command>` to <next-action>.``
@@ -273,15 +281,23 @@ Routing decision:
    a. `metta finalize --json --change <name>` → runs gates, archives, merges specs
    b. `git -C "{change_root}" push -u origin metta/<change-name>` → push the feature branch to the remote
    c. `gh pr create --title "<conventional-commit-style title from the change>" --body "<summary from summary.md or intent.md highlights>"` → open a PR. The body MUST end with `🤖 Generated with [Claude Code](https://claude.com/claude-code)`
-   d. `gh pr checks <pr-number> --watch --fail-fast` → wait for all CI checks on the PR to complete before merging. If any check fails or is cancelled, do NOT merge — report the failing check(s) and the PR URL to the user and stop. If gh reports that no checks are reported yet (checks can lag PR creation by a few seconds), wait ~10s and retry the command
-   e. `gh pr merge <pr-number> --merge` → land the PR immediately, unless the user asked to leave it open for review — in that case stop here and report the PR URL instead of merging
-   f. Back on `main`: `git pull --ff-only`, then clean up the change branch and worktree
+   d. **Default path ends at an open PR. Do NOT merge; report the PR URL and stop.**
+      When `STOP_AFTER` (or the change record's persisted `stop_after`) is anything other than `ship`, report exactly:
+      ``PR open for review: <pr-url>. Run `/metta-ship` to land it, or merge the PR on GitHub yourself.``
+      then proceed to Step 9 and return control to the user. On this default path you MUST NOT watch CI checks as a precursor to merging, MUST NOT merge the PR, and MUST NOT perform post-merge cleanup (main pull, branch/worktree removal).
+
+   **Ship opt-in — the following sub-steps run ONLY when `STOP_AFTER = "ship"` (or the change record's persisted `stop_after` is `ship`):**
+
+   e. `gh pr checks <pr-number> --watch --fail-fast` → wait for all CI checks on the PR to complete before merging. If any check fails or is cancelled, do NOT merge — report the failing check(s) and the PR URL to the user and stop. If gh reports that no checks are reported yet (checks can lag PR creation by a few seconds), wait ~10s and retry the command
+   f. `gh pr merge <pr-number> --merge` → land the PR
+   g. Back on `main`: `git pull --ff-only`, then clean up the change branch and worktree
 9. Report to user what was done
 
-## Critical: You MUST verify, finalize, and ship
+## Critical: verify, finalize, and open the PR
 
 - Do NOT skip verification — a metta-verifier agent MUST run gates and confirm spec compliance
-- Do NOT stop after the last artifact — finalize + ship must happen
+- Do NOT stop before the PR exists — when no planning-phase `stop_after` boundary fired in Step 3, finalize, push, and `gh pr create` are mandatory on every completed run
+- Merging is NOT part of the default path. Watching CI checks, merging the PR, and post-merge cleanup happen only under the Step 8 ship opt-in (`stop_after = ship`); otherwise stop at the open PR and hand off to `/metta-ship`
 - If metta finalize fails gates, spawn a metta-executor to fix, then retry
 - Direct local merge of the change branch into main (`git merge`) is forbidden — every change ships through a pushed branch and a GitHub PR
 - If a dispatched step appears orphaned, follow the residual orphaning recovery protocol in metta-skill-host.md.
