@@ -1,6 +1,6 @@
-version: 42
-hash: sha256:b82cca1d863b
-updated: 2026-08-18T04:18:42.751Z
+version: 43
+hash: sha256:5c9e8c184658
+updated: 2026-08-23T07:48:41.430Z
 status: draft
 source: change
 requirements:
@@ -95,10 +95,13 @@ requirements:
       - no-stories-and-no-spec-scenarios-fall-back-to-intent-plus-summary
       - generation-is-never-skipped-by-tier-when-enabled
   - id: uat-configuration-toggle
-    hash: sha256:e62e60ce6f33
+    hash: sha256:c2c0c3d04655
     scenarios:
       - disabled-toggle-skips-generation-cleanly
       - omitted-uat-key-defaults-to-enabled
+      - disabled-enforcement-skips-the-ship-path-uat-run
+      - omitted-enforce-on-ship-defaults-to-enforced
+      - fresh-install-scaffolds-explicit-enforcement-without-overwriting-existing-configs
       - invalid-uat-config-is-rejected-strictly
   - id: uat-path-in-finalize-output
     hash: sha256:8cdcb4cadbc4
@@ -228,3 +231,49 @@ requirements:
     scenarios:
       - a-later-delta-composes-with-an-earlier-delta-against-the-same-capability
       - dry-run-classifies-composed-same-capability-deltas-identically
+  - id: uat-gate-before-pr-hand-back
+    hash: sha256:5291d659ad7d
+    scenarios:
+      - ship-skill-spawns-the-runner-against-the-archived-uat-before-hand-back
+      - never-hand-back-an-unexecuted-uat
+      - metta-ship-can-spawn-subagents
+  - id: inline-uat-orchestration-contract-in-ship-skills
+    hash: sha256:24cca1d6896c
+    scenarios:
+      - valid-run-diff-is-committed-on-the-change-branch
+      - unexpected-diff-shape-is-not-blindly-committed
+      - no-second-runner-path-exists
+  - id: uat-run-summary-in-pr-body-or-comment
+    hash: sha256:98b7c849caab
+    scenarios:
+      - pr-body-carries-the-run-summary-at-creation
+      - existing-pr-receives-the-summary-as-a-comment
+      - run-record-merges-to-main-with-the-change
+  - id: uat-failure-blocks-ready-hand-back
+    hash: sha256:f9ca09e08db0
+    scenarios:
+      - failed-step-halts-the-ship-path
+      - all-pass-run-proceeds-to-hand-back
+      - manual-acceptance-steps-skip-without-blocking
+  - id: uat-gate-before-merge-on-run-to-merge-paths
+    hash: sha256:bf4432a21523
+    scenarios:
+      - merge-waits-for-uat-results
+      - uat-failure-leaves-the-pr-open-and-unmerged
+  - id: ship-skill-toggle-readability-without-guard-violation
+    hash: sha256:9d8b4f84851b
+    scenarios:
+      - skills-resolve-the-toggle-without-a-guard-block
+      - config-read-mechanism-outcome
+      - finalize-output-mechanism-outcome
+  - id: grep-assert-coverage-of-ship-path-uat-gate
+    hash: sha256:d279cf28df74
+    scenarios:
+      - tests-pass-on-compliant-skill-files
+      - dropped-or-reordered-gate-fails-the-suite
+  - id: idempotent-uat-recording-across-propose-stop-and-ship
+    hash: sha256:bd5a54610ab9
+    scenarios:
+      - propose-hands-back-a-pr-that-already-carries-the-run-record
+      - ship-of-an-unchanged-branch-does-not-duplicate-the-record
+      - genuine-re-run-appends-per-existing-semantics
