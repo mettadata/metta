@@ -120,7 +120,7 @@ Fulfills: US-3
 
 ## MODIFIED: Requirement: UAT Configuration Toggle
 
-The project config MUST gain a `uat` section validated by a strict Zod `UatConfigSchema` (mirroring `DocsConfigSchema`) registered on the strict `ProjectConfigSchema` in `src/schemas/project-config.ts`, with two boolean fields, each defaulting to `true`: `enabled` and `enforce_on_ship`. `ConfigLoader` MUST supply the parsed `uat` config to the finalizer the same way `config.docs` is read today. When `uat.enabled` is `false`, finalize MUST skip UAT generation entirely — no `UAT.md` is written and no UAT path is reported — while all other finalize behavior proceeds unchanged. When `uat.enforce_on_ship` is `false`, ship-path skills MUST skip the mandatory pre-hand-back UAT run entirely and proceed exactly as they did before the gate existed. Existing `.metta/config.yaml` files that omit the `uat` key, or either field within it, MUST remain valid with the omitted value defaulting to `true`. The schema MUST reject unknown keys within the `uat` block and non-boolean values for either field with a validation error rather than silently accepting them.
+The project config MUST gain a `uat` section validated by a strict Zod `UatConfigSchema` (mirroring `DocsConfigSchema`) registered on the strict `ProjectConfigSchema` in `src/schemas/project-config.ts`, with two boolean fields, each defaulting to `true`: `enabled` and `enforce_on_ship`. `ConfigLoader` MUST supply the parsed `uat` config to the finalizer the same way `config.docs` is read today. When `uat.enabled` is `false`, finalize MUST skip UAT generation entirely — no `UAT.md` is written and no UAT path is reported — while all other finalize behavior proceeds unchanged. When `uat.enforce_on_ship` is `false`, ship-path skills MUST skip the mandatory pre-hand-back UAT run entirely and proceed exactly as they did before the gate existed. Existing `.metta/config.yaml` files that omit the `uat` key, or either field within it, MUST remain valid with the omitted value defaulting to `true`. Enforcement MUST additionally default to on at scaffold time: the `.metta/config.yaml` scaffold written by `metta install` (the `configContent` written in `src/cli/commands/install.ts`) MUST include a `uat` block carrying `enforce_on_ship: true` explicitly, so opting out is always an explicit consumer action; the scaffold write MUST preserve its existing never-overwrite semantics (flag `'wx'`), so an existing config is never modified or overwritten. The schema MUST reject unknown keys within the `uat` block and non-boolean values for either field with a validation error rather than silently accepting them.
 Fulfills: US-6
 
 ### Scenario: Disabled toggle skips generation cleanly
@@ -142,6 +142,12 @@ Fulfills: US-6
 - GIVEN `.metta/config.yaml` whose `uat` block has no `enforce_on_ship` key
 - WHEN the strict `UatConfigSchema` validates config
 - THEN the effective value is `true` and the ship-path UAT gate is enforced
+
+### Scenario: Fresh install scaffolds explicit enforcement without overwriting existing configs
+- GIVEN a fresh project with no `.metta/config.yaml`
+- WHEN `metta install` runs
+- THEN the scaffolded `.metta/config.yaml` contains a `uat` block with `enforce_on_ship: true` written explicitly
+- AND when a `.metta/config.yaml` already exists, the scaffold write leaves it untouched (flag `'wx'` semantics preserved)
 
 ### Scenario: Invalid uat config is rejected strictly
 - GIVEN a `uat` config block containing an unknown key or a non-boolean value for `enabled` or `enforce_on_ship`
