@@ -16,9 +16,14 @@ artifact_timings:
   intent:
     started: 2026-08-23T06:12:34.932Z
     completed: 2026-08-23T06:17:34.195Z
+  stories:
+    started: 2026-08-23T06:17:45.923Z
 artifact_tokens:
   intent:
     context: 763
+    budget: 20000
+  stories:
+    context: 3323
     budget: 20000
 worktree: /home/utx0/Code/metta/.metta/worktrees/enforce-agent-executed-uat-run-results-attached-pr-before
 token_usage:
