@@ -23,3 +23,9 @@ Every ship-path skill now runs the archived UAT.md through the metta-uat-runner 
 - Toggle rides `metta finalize --json` (no guard-hook changes); absent field in older payloads is treated as `true`.
 - Reuse short-circuit: HEAD commit subject `docs(<change>): UAT run record` means the branch is unchanged since a recorded run — reuse as evidence, comment on the PR, no double-append.
 - Dry-run finalize reports hardcoded `true` (config never loaded there); skills gate only on the real payload.
+
+## Verification results (iteration 1)
+
+- Tests: PASS — 135/135 files, 2756 passed, 2 skipped, 0 failures (verify/tests.md)
+- Typecheck + lint: PASS — both exit 0 (verify/tsc-lint.md)
+- Spec traceability: PASS — all 24 scenarios across 8 delta requirements evidenced by named passing tests or mandating skill text in both copies (verify/scenarios.md)
