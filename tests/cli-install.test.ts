@@ -86,6 +86,39 @@ describe("CLI: install / init / stack detection", { timeout: 30000 }, () => {
       expect(result.success).toBe(true)
     })
 
+    it('scaffolds an explicit uat block with enforce_on_ship true', async () => {
+      const { code } = await runCli(['install', '--git-init'], tempDir)
+      expect(code).toBe(0)
+      const { readFile } = await import('node:fs/promises')
+      const configRaw = await readFile(join(tempDir, '.metta', 'config.yaml'), 'utf8')
+      expect(configRaw).toContain('uat:')
+      const parsed = parse(configRaw)
+      expect(parsed.uat).toEqual({ enforce_on_ship: true })
+      // The scaffolded content must still validate against the config schema.
+      const result = ProjectConfigSchema.safeParse(parsed)
+      expect(result.success).toBe(true)
+    })
+
+    it('re-install leaves an existing config.yaml byte-untouched — no uat block injected (wx semantics)', async () => {
+      await runCli(['install', '--git-init'], tempDir)
+      const { readFile, writeFile } = await import('node:fs/promises')
+      const configPath = join(tempDir, '.metta', 'config.yaml')
+      // Simulate a pre-existing config from before the uat scaffold: strip the
+      // uat block but keep the stamped installed_version so re-stamping is a
+      // value-level no-op and any byte change would come from install itself.
+      const scaffolded = await readFile(configPath, 'utf8')
+      const withoutUat = scaffolded
+        .split('\n')
+        .filter((l) => !/^uat:/.test(l) && !/^  # Ship-path skills/.test(l) && !/^  enforce_on_ship:/.test(l))
+        .join('\n')
+      await writeFile(configPath, withoutUat, 'utf8')
+      const { code } = await runCli(['install'], tempDir)
+      expect(code).toBe(0)
+      const after = await readFile(configPath, 'utf8')
+      expect(after).toBe(withoutUat)
+      expect(after).not.toContain('uat:')
+    })
+
     it('re-install preserves a user-edited config.yaml (wx flag — no overwrite, no duplicate models block)', async () => {
       await runCli(['install', '--git-init'], tempDir)
       const { readFile, writeFile } = await import('node:fs/promises')

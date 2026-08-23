@@ -44,6 +44,7 @@ export type DocsConfig = z.infer<typeof DocsConfigSchema>
 
 export const UatConfigSchema = z.object({
   enabled: z.boolean().default(true),
+  enforce_on_ship: z.boolean().default(true),
 }).strict()
 
 export type UatConfig = z.infer<typeof UatConfigSchema>

@@ -30,6 +30,13 @@ export interface FinalizeResult {
   /** Set only when UAT generation failed and finalize degraded. */
   uatError?: string
   /**
+   * Effective `uat.enforce_on_ship` from project config; hardcoded `true` on
+   * abort/dry-run paths (config never loaded there); ship skills gate only on
+   * the real (non-dry-run) success payload; absent in older payloads means
+   * consumers treat as `true` (fail-toward-enforce).
+   */
+  uatEnforceOnShip: boolean
+  /**
    * Post-archive path to the generated TOKENS.md; null when generation was
    * disabled, skipped (dry-run / abort paths / no projectRoot), or degraded.
    */
@@ -98,6 +105,7 @@ export class Finalizer {
         refreshed: false,
         incompleteArtifacts,
         uatPath: null,
+        uatEnforceOnShip: true,
         tokensPath: null,
       }
     }
@@ -117,6 +125,7 @@ export class Finalizer {
         docsGenerated: [],
         refreshed: false,
         uatPath: null,
+        uatEnforceOnShip: true,
         tokensPath: null,
       }
     }
@@ -143,6 +152,7 @@ export class Finalizer {
           docsGenerated: [],
           refreshed: false,
           uatPath: null,
+          uatEnforceOnShip: true,
           tokensPath: null,
         }
       }
@@ -160,6 +170,7 @@ export class Finalizer {
         docsGenerated: [],
         refreshed: false,
         uatPath: null,
+        uatEnforceOnShip: true,
         tokensPath: null,
       }
     }
@@ -181,6 +192,7 @@ export class Finalizer {
         docsGenerated: [],
         refreshed: false,
         uatPath: null,
+        uatEnforceOnShip: true,
         tokensPath: null,
       }
     }
@@ -188,12 +200,18 @@ export class Finalizer {
     // Step 5b: Generate UAT.md (pre-archive so the move sweeps it in)
     let uatGenerated = false
     let uatError: string | undefined
+    // Fail-toward-enforce: config-load failure or missing projectRoot keeps
+    // the default `true`.
+    let uatEnforceOnShip = true
     let configLoader: import('../config/config-loader.js').ConfigLoader | undefined
     if (this.projectRoot) {
       try {
         const { ConfigLoader } = await import('../config/config-loader.js')
         configLoader ??= new ConfigLoader(this.projectRoot)
         const config = await configLoader.load()
+        // Set before the enabled branch so `uat.enabled: false` (uatPath
+        // null) still reports the configured enforce value.
+        uatEnforceOnShip = config.uat.enforce_on_ship
         if (config.uat.enabled) {
           const { generateUat } = await import('./uat-generator.js')
           const uatResult = await generateUat({
@@ -303,6 +321,7 @@ export class Finalizer {
       refreshed,
       uatPath,
       ...(uatError ? { uatError } : {}),
+      uatEnforceOnShip,
       tokensPath,
       ...(tokensError ? { tokensError } : {}),
     }

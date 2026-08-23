@@ -284,6 +284,9 @@ models:
   # Model-tier routing: planning/review always top-tier; executors on
   # trivial/quick changes run sonnet. Alternatives: quality (all top-tier), budget (haiku/sonnet).
   profile: balanced
+uat:
+  # Ship-path skills run the archived UAT.md before hand-back; set false to opt out.
+  enforce_on_ship: true
 `
         await writeFile(join(root, '.metta', 'config.yaml'), configContent, { flag: 'wx' }).catch(() => {
           // Config already exists
