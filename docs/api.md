@@ -567,6 +567,9 @@ Scenarios:
 Scenarios:
 - Disabled toggle skips generation cleanly
 - Omitted uat key defaults to enabled
+- Disabled enforcement skips the ship-path UAT run
+- Omitted enforce_on_ship defaults to enforced
+- Fresh install scaffolds explicit enforcement without overwriting existing configs
 - Invalid uat config is rejected strictly
 
 ### UAT Path In Finalize Output
@@ -718,6 +721,60 @@ Scenarios:
 Scenarios:
 - A later delta composes with an earlier delta against the same capability
 - Dry-run classifies composed same-capability deltas identically
+
+### UAT Gate Before PR Hand-Back
+
+Scenarios:
+- Ship skill spawns the runner against the archived UAT before hand-back
+- Never hand back an unexecuted UAT
+- metta-ship can spawn subagents
+
+### Inline UAT Orchestration Contract In Ship Skills
+
+Scenarios:
+- Valid run diff is committed on the change branch
+- Unexpected diff shape is not blindly committed
+- No second runner path exists
+
+### UAT Run Summary In PR Body Or Comment
+
+Scenarios:
+- PR body carries the run summary at creation
+- Existing PR receives the summary as a comment
+- Run record merges to main with the change
+
+### UAT Failure Blocks Ready Hand-Back
+
+Scenarios:
+- Failed step halts the ship path
+- All-pass run proceeds to hand-back
+- Manual-acceptance steps skip without blocking
+
+### UAT Gate Before Merge On Run-To-Merge Paths
+
+Scenarios:
+- Merge waits for UAT results
+- UAT failure leaves the PR open and unmerged
+
+### Ship Skill Toggle Readability Without Guard Violation
+
+Scenarios:
+- Skills resolve the toggle without a guard block
+- Config-read mechanism outcome
+- Finalize-output mechanism outcome
+
+### Grep-Assert Coverage Of Ship-Path UAT Gate
+
+Scenarios:
+- Tests pass on compliant skill files
+- Dropped or reordered gate fails the suite
+
+### Idempotent UAT Recording Across Propose Stop And Ship
+
+Scenarios:
+- Propose hands back a PR that already carries the run record
+- Ship of an unchanged branch does not duplicate the record
+- Genuine re-run appends per existing semantics
 
 ## fix-issues-command
 
@@ -1377,14 +1434,16 @@ Scenarios:
 Scenarios:
 - option appears in CLI help
 - option is accepted with a valid value
-- option is omitted, full-lifecycle behavior preserved
+- option is accepted with the `ship` value and persisted
+- option is omitted, no `stop_after` field is persisted
 
 ### `--stop-after` MUST be validated against the resolved workflow
 
 Scenarios:
-- unknown artifact id is rejected before any side effects
-- execution-phase artifact id is rejected
-- planning-phase id from a non-default workflow is accepted
+- `ship` is accepted for any workflow
+- unknown artifact id is still rejected and the valid list names `ship`
+- execution-phase artifact id is still rejected
+- existing planning-phase values keep their semantics
 
 ### change-record schema MUST persist `stop_after` as an optional field
 
@@ -1402,10 +1461,9 @@ Scenarios:
 ### propose skill MUST honor the `stop_after` boundary
 
 Scenarios:
-- skill parses and forwards `--stop-after` from `$ARGUMENTS`
-- skill exits cleanly at the stop-after boundary for `tasks`
-- skill exits cleanly at the stop-after boundary for `spec`
-- skill behaves identically when no `stop_after` is set
+- skill parses and forwards `--ship` from `$ARGUMENTS`
+- `stop_after: ship` restores run-to-merge
+- planning-phase boundary for `tasks` is unchanged
 
 ### `metta status` MUST surface `stop_after` in JSON output
 
@@ -1424,6 +1482,36 @@ Scenarios:
 Scenarios:
 - tests can assert the handoff line shape
 - no implementation-implying lines appear
+
+### propose skill default path MUST stop at PR-open
+
+Scenarios:
+- default propose run ends at an open PR
+- main does not contain the change after a default run
+- the user can land the PR without rework
+
+### both propose SKILL.md copies MUST carry the PR-open default and stay in sync
+
+Scenarios:
+- default-path instructions end at PR creation in both copies
+- the two copies agree
+
+### grep-assert tests MUST guard the propose skill against unconditional merge
+
+Scenarios:
+- tests pass on the updated skill files
+- tests fail when unconditional merge is reintroduced
+
+### `/metta-auto` and `/metta-fix-issues` MUST retain run-to-merge behavior
+
+Scenarios:
+- `/metta-auto` still runs to merge
+- `/metta-fix-issues` still runs to merge
+
+### CLAUDE.md workflow wording MUST state the PR-open default
+
+Scenarios:
+- workflow section describes the PR-open default
 
 ## release-versioning
 

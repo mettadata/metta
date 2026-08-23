@@ -32,7 +32,7 @@
 0 requirements
 
 ### Finalize and Ship
-38 requirements
+46 requirements
 
 ### fix-issues-command
 4 requirements
@@ -53,7 +53,7 @@
 36 requirements
 
 ### propose-stop-after
-8 requirements
+13 requirements
 
 ### release-versioning
 14 requirements
