@@ -656,6 +656,7 @@ The system MUST do ghostly things.
       expect(result.archiveName).toMatch(/^\d{4}-\d{2}-\d{2}-uat-success-test$/)
       expect(result.uatPath).toBe(join(scopedSpecDir, 'archive', result.archiveName, 'UAT.md'))
       expect(result.uatError).toBeUndefined()
+      expect(result.uatEnforceOnShip).toBe(true) // schema default
 
       const uatContent = await readFile(result.uatPath!, 'utf-8')
       expect(uatContent).toContain('# UAT: uat-success-test')
@@ -680,6 +681,28 @@ The system MUST do ghostly things.
       expect(archived).not.toContain('UAT.md')
     })
 
+    it('reflects an explicit enforce_on_ship: false on the success payload', async () => {
+      await writeConfig('uat:\n  enforce_on_ship: false\n')
+
+      await createCompleteChange('uat no enforce test', 'uat-no-enforce-test')
+      const result = await scopedFinalizer.finalize('uat-no-enforce-test')
+
+      expect(result.archiveName).toMatch(/^\d{4}-\d{2}-\d{2}-uat-no-enforce-test$/)
+      expect(result.uatEnforceOnShip).toBe(false)
+    })
+
+    it('reports the configured enforce value even when uat.enabled is false', async () => {
+      await writeConfig('uat:\n  enabled: false\n  enforce_on_ship: false\n')
+
+      await createCompleteChange('uat off enforce test', 'uat-off-enforce-test')
+      const result = await scopedFinalizer.finalize('uat-off-enforce-test')
+
+      // enabled: false skips generation (uatPath null) but the enforce value
+      // is read before the enabled branch, so it still reflects config.
+      expect(result.uatPath).toBeNull()
+      expect(result.uatEnforceOnShip).toBe(false)
+    })
+
     it('dry-run returns uatPath null and writes no UAT.md', async () => {
       await writeConfig()
 
@@ -689,6 +712,7 @@ The system MUST do ghostly things.
       expect(result.archiveName).toBe('(dry-run)')
       expect(result.uatPath).toBeNull()
       expect(result.uatError).toBeUndefined()
+      expect(result.uatEnforceOnShip).toBe(true) // dry-run never loads config
 
       const changeFiles = await readdir(join(scopedSpecDir, 'changes', 'uat-dry-run-test'))
       expect(changeFiles).not.toContain('UAT.md')
@@ -707,6 +731,7 @@ The system MUST do ghostly things.
       expect(result.archiveName).toBe('')
       expect(result.uatPath).toBeNull()
       expect(result.uatError).toBeUndefined()
+      expect(result.uatEnforceOnShip).toBe(true) // abort paths hardcode true
 
       const changeFiles = await readdir(join(scopedSpecDir, 'changes', 'uat-incomplete-test'))
       expect(changeFiles).not.toContain('UAT.md')
@@ -736,6 +761,7 @@ The system MUST conflict on this delta.
       expect(result.archiveName).toBe('')
       expect(result.uatPath).toBeNull()
       expect(result.uatError).toBeUndefined()
+      expect(result.uatEnforceOnShip).toBe(true) // abort paths hardcode true
 
       const changeFiles = await readdir(join(scopedSpecDir, 'changes', 'uat-conflict-test'))
       expect(changeFiles).not.toContain('UAT.md')
@@ -768,6 +794,7 @@ The system MUST conflict on this delta.
       expect(result.archiveName).toBe('')
       expect(result.uatPath).toBeNull()
       expect(result.uatError).toBeUndefined()
+      expect(result.uatEnforceOnShip).toBe(true) // abort paths hardcode true
 
       const changeFiles = await readdir(join(scopedSpecDir, 'changes', 'uat-gate-fail-test'))
       expect(changeFiles).not.toContain('UAT.md')
