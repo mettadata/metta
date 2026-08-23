@@ -11,7 +11,7 @@ artifacts:
   design: complete
   tasks: complete
   implementation: complete
-  verification: ready
+  verification: complete
 artifact_timings:
   intent:
     started: 2026-08-23T06:12:34.932Z
@@ -34,6 +34,8 @@ artifact_timings:
   implementation:
     started: 2026-08-23T06:39:30.039Z
     completed: 2026-08-23T07:22:30.993Z
+  verification:
+    completed: 2026-08-23T07:38:29.096Z
 artifact_tokens:
   intent:
     context: 763
@@ -56,6 +58,8 @@ artifact_tokens:
   implementation:
     context: 6537
     budget: 10000
+review_iterations: 1
+verify_iterations: 1
 worktree: /home/utx0/Code/metta/.metta/worktrees/enforce-agent-executed-uat-run-results-attached-pr-before
 token_usage:
   - task: metta-skill-host
@@ -339,4 +343,76 @@ token_usage:
     model: fable
     tokens: 4982
     timestamp: 2026-08-23T07:22:24.728Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 56855
+    timestamp: 2026-08-23T07:23:09.288Z
+    source: hook
+  - task: implementation
+    agent: metta-reviewer
+    model: fable
+    tokens: 8365
+    timestamp: 2026-08-23T07:25:36.927Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 56894
+    timestamp: 2026-08-23T07:25:49.732Z
+    source: hook
+  - task: implementation
+    agent: metta-reviewer
+    model: fable
+    tokens: 11887
+    timestamp: 2026-08-23T07:26:24.274Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 56937
+    timestamp: 2026-08-23T07:26:34.365Z
+    source: hook
+  - task: implementation
+    agent: metta-reviewer
+    model: fable
+    tokens: 13128
+    timestamp: 2026-08-23T07:28:20.925Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 60065
+    timestamp: 2026-08-23T07:29:07.934Z
+    source: hook
+  - task: verification
+    agent: metta-verifier
+    model: fable
+    tokens: 916
+    timestamp: 2026-08-23T07:29:39.653Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 60100
+    timestamp: 2026-08-23T07:29:51.396Z
+    source: hook
+  - task: verification
+    agent: metta-verifier
+    model: fable
+    tokens: 12408
+    timestamp: 2026-08-23T07:34:37.507Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 60137
+    timestamp: 2026-08-23T07:34:43.143Z
+    source: hook
+  - task: verification
+    agent: metta-verifier
+    model: fable
+    tokens: 794
+    timestamp: 2026-08-23T07:38:14.375Z
     source: hook
