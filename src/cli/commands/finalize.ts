@@ -164,6 +164,7 @@ export function registerFinalizeCommand(program: Command): void {
             gates: result.gates,
             merged: result.specMerge.merged,
             uatPath: result.uatPath,
+            uatEnforceOnShip: result.uatEnforceOnShip,
             ...(result.uatError ? { uatWarning: result.uatError } : {}),
             tokensPath: result.tokensPath,
             ...(result.tokensError ? { tokensWarning: result.tokensError } : {}),
@@ -192,6 +193,7 @@ export function registerFinalizeCommand(program: Command): void {
             console.log(`  Archived as: ${result.archiveName}`)
             console.log(`  Specs merged: ${result.specMerge.merged.join(', ') || 'none'}`)
             if (result.uatPath) console.log(`  UAT script: ${result.uatPath}`)
+            if (!result.uatEnforceOnShip) console.log('  UAT enforcement: off')
             if (result.uatError) console.error(color(`Warning: UAT generation failed: ${result.uatError}`, 33))
             if (result.tokensPath) console.log(`  Tokens report: ${result.tokensPath}`)
             if (result.tokensError) console.error(color(`Warning: tokens report generation failed: ${result.tokensError}`, 33))
