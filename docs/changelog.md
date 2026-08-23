@@ -5,7 +5,25 @@
 
 ## Unreleased
 
-### 2026-08-18 — fix-spec-specs-roadmap-feature-spec-md-normative-drift-lines
+### 2026-08-23 — enforce-agent-executed-uat-run-results-attached-pr-before
+
+# Ship-path UAT gate — agent-executed UAT runs with results attached to the PR
+
+## What changed
+
+Every ship-path skill — `metta-ship`, `metta-propose`, `metta-quick`, `metta-auto`, `metta-fix-issues`, `metta-fix-gap` — now runs the change's archived UAT script via the `metta-uat-runner` subagent between finalize and push. The run's results are attached to the PR as a `## UAT results` summary: included in the PR body at create time, or posted as a comment when the PR already exists.
+
+## Behavior change
+
+Any failed UAT step is a blocker. On `quick`/`auto`/`fix-issues`/`fix-gap` the PR is still pushed and opened, but it is left **open, unmerged, and flagged** on failure — a visible change from the previous auto-merge behavior. On a blocked gate, `fix-issues` and `fix-gap` leave the issue/gap file in place rather than removing it. Manual-acceptance steps are reported as skipped and never block the gate.
+
+## Opt-out and configuration
+
+- Opt out via `uat.enforce_on_ship: false` in `.metta/config.yaml` (default `true`)
+- `metta install` now scaffolds `uat.enforce_on_ship: true` explicitly in the config
+- `metta finalize --json` now emits a `uatEnforceOnShip` field
+
+
 
 # Implementation Summary — fix-spec-specs-roadmap-feature-spec-md-normative-drift-lines
 
