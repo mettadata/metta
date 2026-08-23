@@ -171,3 +171,165 @@ token_usage:
     tokens: 19607
     timestamp: 2026-08-23T06:39:12.232Z
     source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 34317
+    timestamp: 2026-08-23T06:39:55.719Z
+    source: hook
+  - task: implementation
+    agent: metta-executor
+    model: fable
+    tokens: 6358
+    timestamp: 2026-08-23T06:46:35.793Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 34445
+    timestamp: 2026-08-23T06:46:45.252Z
+    source: hook
+  - task: implementation
+    agent: metta-executor
+    model: fable
+    tokens: 11016
+    timestamp: 2026-08-23T07:02:44.514Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 43835
+    timestamp: 2026-08-23T07:04:07.580Z
+    source: hook
+  - task: implementation
+    agent: metta-executor
+    model: fable
+    tokens: 7257
+    timestamp: 2026-08-23T07:04:51.603Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 43863
+    timestamp: 2026-08-23T07:04:55.002Z
+    source: hook
+  - task: implementation
+    agent: metta-executor
+    model: fable
+    tokens: 6603
+    timestamp: 2026-08-23T07:05:08.803Z
+    source: hook
+  - task: implementation
+    agent: metta-executor
+    model: fable
+    tokens: 5417
+    timestamp: 2026-08-23T07:05:11.027Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 44127
+    timestamp: 2026-08-23T07:05:13.046Z
+    source: hook
+  - task: implementation
+    agent: metta-executor
+    model: fable
+    tokens: 6892
+    timestamp: 2026-08-23T07:05:13.989Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 44177
+    timestamp: 2026-08-23T07:05:22.917Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 44227
+    timestamp: 2026-08-23T07:05:31.266Z
+    source: hook
+  - task: implementation
+    agent: metta-executor
+    model: fable
+    tokens: 6175
+    timestamp: 2026-08-23T07:05:31.684Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 44284
+    timestamp: 2026-08-23T07:05:35.542Z
+    source: hook
+  - task: implementation
+    agent: metta-executor
+    model: fable
+    tokens: 10143
+    timestamp: 2026-08-23T07:05:40.715Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 44310
+    timestamp: 2026-08-23T07:05:50.394Z
+    source: hook
+  - task: implementation
+    agent: metta-executor
+    model: fable
+    tokens: 8636
+    timestamp: 2026-08-23T07:06:01.517Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 48449
+    timestamp: 2026-08-23T07:06:51.354Z
+    source: hook
+  - task: implementation
+    agent: metta-executor
+    model: fable
+    tokens: 2349
+    timestamp: 2026-08-23T07:07:24.342Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 48478
+    timestamp: 2026-08-23T07:07:29.459Z
+    source: hook
+  - task: implementation
+    agent: metta-executor
+    model: fable
+    tokens: 4832
+    timestamp: 2026-08-23T07:07:51.658Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 48516
+    timestamp: 2026-08-23T07:07:55.484Z
+    source: hook
+  - task: implementation
+    agent: metta-executor
+    model: fable
+    tokens: 6476
+    timestamp: 2026-08-23T07:10:05.148Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 49771
+    timestamp: 2026-08-23T07:10:32.467Z
+    source: hook
+  - task: implementation
+    agent: metta-executor
+    model: fable
+    tokens: 2790
+    timestamp: 2026-08-23T07:20:28.130Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 54007
+    timestamp: 2026-08-23T07:21:24.189Z
+    source: hook
