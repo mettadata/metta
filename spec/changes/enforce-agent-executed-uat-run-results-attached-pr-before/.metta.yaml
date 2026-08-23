@@ -1,11 +1,11 @@
 workflow: standard
 created: 2026-08-23T06:11:57.361Z
 status: active
-current_artifact: intent
+current_artifact: stories
 base_versions: {}
 artifacts:
-  intent: ready
-  stories: pending
+  intent: complete
+  stories: ready
   spec: pending
   research: pending
   design: pending
@@ -15,8 +15,28 @@ artifacts:
 artifact_timings:
   intent:
     started: 2026-08-23T06:12:34.932Z
+    completed: 2026-08-23T06:17:34.195Z
 artifact_tokens:
   intent:
     context: 763
     budget: 20000
 worktree: /home/utx0/Code/metta/.metta/worktrees/enforce-agent-executed-uat-run-results-attached-pr-before
+token_usage:
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 4448
+    timestamp: 2026-08-23T06:12:40.937Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 8066
+    timestamp: 2026-08-23T06:16:32.318Z
+    source: hook
+  - task: intent
+    agent: metta-proposer
+    model: fable
+    tokens: 5230
+    timestamp: 2026-08-23T06:17:29.851Z
+    source: hook
