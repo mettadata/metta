@@ -170,9 +170,13 @@ describe('CLI: finalize UAT output', { timeout: 60000 }, () => {
   it('uat.enabled false: uatPath null, no uatWarning key, no human UAT script line', async () => {
     await installFixture(tempDir)
     await disableWorktrees(tempDir)
+    // Merge into the scaffolded uat block via YAML — install now writes a
+    // `uat:` section, so a raw append would create a duplicate map key.
+    const YAML = (await import('yaml')).default
     const configPath = join(tempDir, '.metta', 'config.yaml')
-    const config = await readFile(configPath, 'utf8')
-    await writeFile(configPath, `${config}uat:\n  enabled: false\n`, 'utf8')
+    const configDoc = YAML.parse(await readFile(configPath, 'utf8')) as Record<string, unknown>
+    configDoc.uat = { ...(configDoc.uat as Record<string, unknown> | undefined), enabled: false }
+    await writeFile(configPath, YAML.stringify(configDoc, { lineWidth: 0 }), 'utf8')
 
     await runCli(['quick', 'uat off json'], tempDir)
     await runCli(['quick', 'uat off human'], tempDir)
