@@ -209,14 +209,14 @@ project:
     expect(loader.globalPath).toBe(join(homedir(), '.metta'))
   })
 
-  it('defaults uat to { enabled: true } when config omits uat', async () => {
+  it('defaults uat to { enabled: true, enforce_on_ship: true } when config omits uat', async () => {
     await writeFile(join(projectDir, '.metta', 'config.yaml'), `
 project:
   name: "No Uat Block"
 `)
     const loader = new ConfigLoader(projectDir, globalDir)
     const config = await loader.load()
-    expect(config.uat).toEqual({ enabled: true })
+    expect(config.uat).toEqual({ enabled: true, enforce_on_ship: true })
   })
 
   it('honors explicit uat.enabled: false', async () => {
@@ -228,7 +228,48 @@ uat:
 `)
     const loader = new ConfigLoader(projectDir, globalDir)
     const config = await loader.load()
-    expect(config.uat).toEqual({ enabled: false })
+    expect(config.uat).toEqual({ enabled: false, enforce_on_ship: true })
+  })
+
+  it('defaults uat.enforce_on_ship to true when the key is omitted from an explicit uat block', async () => {
+    await writeFile(join(projectDir, '.metta', 'config.yaml'), `
+project:
+  name: "Enforce Omitted"
+uat:
+  enabled: true
+`)
+    const loader = new ConfigLoader(projectDir, globalDir)
+    const config = await loader.load()
+    expect(config.uat.enforce_on_ship).toBe(true)
+  })
+
+  it('defaults uat.enforce_on_ship to true when the config file is missing entirely', async () => {
+    const loader = new ConfigLoader(projectDir, globalDir)
+    const config = await loader.load()
+    expect(config.uat.enforce_on_ship).toBe(true)
+  })
+
+  it('honors explicit uat.enforce_on_ship: false', async () => {
+    await writeFile(join(projectDir, '.metta', 'config.yaml'), `
+project:
+  name: "Enforce Disabled"
+uat:
+  enforce_on_ship: false
+`)
+    const loader = new ConfigLoader(projectDir, globalDir)
+    const config = await loader.load()
+    expect(config.uat).toEqual({ enabled: true, enforce_on_ship: false })
+  })
+
+  it('rejects non-boolean uat.enforce_on_ship without coercion', async () => {
+    await writeFile(join(projectDir, '.metta', 'config.yaml'), `
+project:
+  name: "Enforce Non Boolean"
+uat:
+  enforce_on_ship: "yes"
+`)
+    const loader = new ConfigLoader(projectDir, globalDir)
+    await expect(loader.load()).rejects.toThrow(/boolean/i)
   })
 
   it('rejects unknown keys inside the uat block', async () => {
