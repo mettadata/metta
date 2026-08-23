@@ -28,6 +28,8 @@ artifact_timings:
   design:
     started: 2026-08-23T06:30:33.692Z
     completed: 2026-08-23T06:35:29.621Z
+  tasks:
+    started: 2026-08-23T06:35:30.319Z
 artifact_tokens:
   intent:
     context: 763
@@ -44,6 +46,9 @@ artifact_tokens:
   design:
     context: 6465
     budget: 80000
+  tasks:
+    context: 11056
+    budget: 40000
 worktree: /home/utx0/Code/metta/.metta/worktrees/enforce-agent-executed-uat-run-results-attached-pr-before
 token_usage:
   - task: metta-skill-host
