@@ -21,9 +21,14 @@ artifact_timings:
   intent:
     started: 2026-08-25T23:54:05.981Z
     completed: 2026-08-25T23:55:12.170Z
+  stories:
+    started: 2026-08-25T23:55:16.196Z
 artifact_tokens:
   intent:
     context: 763
+    budget: 20000
+  stories:
+    context: 2412
     budget: 20000
 worktree: /home/utx0/Code/metta/.metta/worktrees/fix-milestone-status-write-once-dead-field-no-close
 token_usage:
