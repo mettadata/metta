@@ -1,22 +1,41 @@
 workflow: standard
 created: 2026-08-25T23:54:01.085Z
 status: active
-current_artifact: intent
+current_artifact: stories
 base_versions: {}
 artifacts:
-  intent: ready
-  stories: pending
+  intent: complete
+  stories: ready
   spec: pending
   research: pending
   design: pending
   tasks: pending
   implementation: pending
   verification: pending
+complexity_score:
+  score: 2
+  signals:
+    file_count: 4
+  recommended_workflow: standard
 artifact_timings:
   intent:
     started: 2026-08-25T23:54:05.981Z
+    completed: 2026-08-25T23:55:12.170Z
 artifact_tokens:
   intent:
     context: 763
     budget: 20000
 worktree: /home/utx0/Code/metta/.metta/worktrees/fix-milestone-status-write-once-dead-field-no-close
+token_usage:
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 3223
+    timestamp: 2026-08-25T23:54:27.070Z
+    source: hook
+  - task: intent
+    agent: metta-proposer
+    model: fable
+    tokens: 3274
+    timestamp: 2026-08-25T23:55:06.852Z
+    source: hook
