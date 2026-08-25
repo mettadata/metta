@@ -27,6 +27,8 @@ artifact_timings:
   spec:
     started: 2026-08-25T23:56:15.643Z
     completed: 2026-08-25T23:58:14.236Z
+  research:
+    started: 2026-08-25T23:58:18.542Z
 artifact_tokens:
   intent:
     context: 763
@@ -37,6 +39,9 @@ artifact_tokens:
   spec:
     context: 4159
     budget: 40000
+  research:
+    context: 4598
+    budget: 60000
 worktree: /home/utx0/Code/metta/.metta/worktrees/fix-milestone-status-write-once-dead-field-no-close
 token_usage:
   - task: metta-skill-host
