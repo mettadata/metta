@@ -117,6 +117,22 @@ describe('CLI: release', { timeout: 60000 }, () => {
       expect(payload.recommendedBump).toBe('minor')
       expect(payload.unreleasedChanges).toBe(1)
       expect(payload.warnings).toEqual([])
+      // Schema-resolved config echo (defaults when the keys are omitted).
+      expect(payload.onShip).toBe('auto')
+      expect(payload.allowMajorPre1).toBe(false)
+      expect(payload.githubRelease).toBe(false)
+    })
+
+    it('--json echoes explicit github_release from the config', async () => {
+      await setupProject(tempDir, { githubRelease: true })
+
+      const { stdout, code } = await runCli(['release', 'status', '--json'], tempDir)
+
+      expect(code).toBe(0)
+      const payload = JSON.parse(stdout) as Record<string, unknown>
+      expect(payload.onShip).toBe('auto')
+      expect(payload.allowMajorPre1).toBe(false)
+      expect(payload.githubRelease).toBe(true)
     })
 
     it('missing release: config yields an actionable error naming release.scheme and release.version_file', async () => {
@@ -148,7 +164,9 @@ describe('CLI: release', { timeout: 60000 }, () => {
       expect(code).toBe(0)
       expect(stdout).toContain('Release 0.2.0 cut (tag v0.2.0).')
       // The exact manual push command — the CLI never pushes.
-      expect(stdout).toContain('git push --follow-tags')
+      expect(stdout).toContain('The tag was NOT pushed.')
+      expect(stdout).toContain('git push --follow-tags origin main')
+      expect(stdout).toContain('gh release create v0.2.0 --verify-tag')
 
       // Version file bumped.
       const pkg = JSON.parse(await readFile(join(tempDir, 'package.json'), 'utf8')) as { version: string }
@@ -193,19 +211,37 @@ describe('CLI: release', { timeout: 60000 }, () => {
       expect(await git(tempDir, ['log', '-1', '--format=%s'])).toBe('feat: initial')
     })
 
-    it('--github fails fast before any mutation when release.github_release is false in config', async () => {
-      await setupProject(tempDir, { githubRelease: false })
+    it('--github errors pre-mutation naming the removed flag and the fixed cut → push → publish sequence', async () => {
+      await setupProject(tempDir, { githubRelease: true })
 
       const { stderr, code } = await runCli(['release', 'cut', '--yes', '--github'], tempDir)
 
-      expect(code).toBe(4)
-      expect(stderr).toContain('release.github_release is disabled in config')
-      // Zero mutations.
+      expect(code).not.toBe(0)
+      expect(stderr).toContain('--github has been removed')
+      expect(stderr).toContain('git push --follow-tags origin main')
+      expect(stderr).toContain('--verify-tag')
+      // Zero mutations: version file, changelog, commit, and tag untouched.
       const pkg = JSON.parse(await readFile(join(tempDir, 'package.json'), 'utf8')) as { version: string }
       expect(pkg.version).toBe('0.1.0')
       expect(await fileExists(join(tempDir, 'spec', 'releases.yaml'))).toBe(false)
+      expect(await fileExists(join(tempDir, 'docs', 'changelog.md'))).toBe(false)
+      expect(await git(tempDir, ['log', '-1', '--format=%s'])).toBe('feat: initial')
       expect(await git(tempDir, ['tag', '--list'])).toBe('')
       expect(await git(tempDir, ['status', '--porcelain'])).toBe('')
+    })
+
+    it('--json success output includes the extracted changelog notes string', async () => {
+      await setupProject(tempDir)
+
+      const { stdout, code } = await runCli(['release', 'cut', '--yes', '--bump', 'minor', '--json'], tempDir)
+
+      expect(code).toBe(0)
+      const payload = JSON.parse(stdout) as Record<string, unknown>
+      expect(payload.status).toBe('success')
+      expect(payload.version).toBe('0.2.0')
+      expect(payload.tag).toBe('v0.2.0')
+      expect(typeof payload.notes).toBe('string')
+      expect(payload.notes as string).toContain('Added change a.')
     })
 
     it('non-TTY without --yes aborts cleanly with nothing written', async () => {
