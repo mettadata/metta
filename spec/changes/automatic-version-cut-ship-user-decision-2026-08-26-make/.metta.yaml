@@ -24,6 +24,8 @@ artifact_timings:
   stories:
     started: 2026-08-26T07:47:00.033Z
     completed: 2026-08-26T07:48:08.778Z
+  spec:
+    started: 2026-08-26T07:48:12.927Z
 artifact_tokens:
   intent:
     context: 763
@@ -31,6 +33,9 @@ artifact_tokens:
   stories:
     context: 3061
     budget: 20000
+  spec:
+    context: 5203
+    budget: 40000
 worktree: /home/utx0/Code/metta/.metta/worktrees/automatic-version-cut-ship-user-decision-2026-08-26-make
 escalation:
   from_tier: quick
