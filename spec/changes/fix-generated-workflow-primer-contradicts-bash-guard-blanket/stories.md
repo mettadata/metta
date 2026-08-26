@@ -48,7 +48,7 @@
 ## US-4: All three wording copies agree
 
 **As a** metta contributor working in the metta repo itself
-**I want** metta's own CLAUDE.md `Metta Workflow` section and `docs/workflows/README.md` to carry the same corrected, scoped wording as the generated primer
+**I want to** see metta's own CLAUDE.md `Metta Workflow` section and `docs/workflows/README.md` carry the same corrected, scoped wording as the generated primer
 **So that** I am not misled by the same blanket ban in-house, and no document contradicts the guard's actual behavior anywhere in the project
 **Priority:** P2
 **Independent Test Criteria:** After the change, metta's CLAUDE.md `metta:workflow` region (regenerated via refresh) and the "Core rule: skills, not CLI" section of `docs/workflows/README.md` both scope the ban to mutating commands and acknowledge the permitted read-only surface, with no remaining blanket-ban wording.
@@ -63,7 +63,7 @@
 ## US-5: Correct wording propagates and survives refresh
 
 **As an** operator of a metta consumer project (e.g., zeus)
-**I want** the next `metta refresh` (or `metta init`/`install` scaffold) to emit the corrected primer into my project's `metta:workflow` region
+**I want to** have the next `metta refresh` (or `metta init`/`install` scaffold) emit the corrected primer into my project's `metta:workflow` region
 **So that** my sessions stop reporting permitted commands as forbidden, hand-patched local corrections inside the generated region become unnecessary, and refresh no longer silently reverts fixes back to wrong wording
 **Priority:** P1
 **Independent Test Criteria:** Running refresh in a consumer project whose CLAUDE.md contains the old blanket-ban wording (or commit-919720e-style local corrections) replaces the region with the corrected upstream primer.
