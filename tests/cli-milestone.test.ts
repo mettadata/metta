@@ -141,6 +141,32 @@ describe('CLI: milestone create / list / show', { timeout: 60000 }, () => {
       expect(stdout).toContain('target 2026-09-30')
     })
 
+    it('text mode keeps columns aligned across ▸ / ✓ / ✗ markers', async () => {
+      await installFixture(tempDir)
+      await runCli(['milestone', 'create', 'a-open', '--name', 'Open one'], tempDir)
+      await runCli(['milestone', 'create', 'b-closed', '--name', 'Closed one'], tempDir)
+      await runCli(['milestone', 'create', 'c-abandoned', '--name', 'Abandoned one'], tempDir)
+      await runCli(['milestone', 'close', 'b-closed'], tempDir)
+      await runCli(['milestone', 'close', 'c-abandoned', '--abandoned'], tempDir)
+
+      const { stdout, code } = await runCli(['milestone', 'list'], tempDir)
+      expect(code).toBe(0)
+      const lines = stdout.split('\n').filter((l) => l.trim().length > 0)
+      expect(lines).toHaveLength(3)
+
+      const markers = lines.map((l) => l.trim()[0])
+      expect(markers).toContain('▸')
+      expect(markers).toContain('✓')
+      expect(markers).toContain('✗')
+
+      // Every marker is a single UTF-16 unit at the same column, and the
+      // padEnd(30) slug column keeps the counts column aligned.
+      const slugStarts = lines.map((l) => l.search(/[a-z]/))
+      expect(new Set(slugStarts).size).toBe(1)
+      const countStarts = lines.map((l) => l.search(/\d+\/\d+ resolved/))
+      expect(new Set(countStarts).size).toBe(1)
+    })
+
     it('surfaces dangling milestone references as warnings with exit 0', async () => {
       await installFixture(tempDir)
       await runCli(['milestone', 'create', 'v0-6', '--name', 'v0.6'], tempDir)
@@ -170,6 +196,212 @@ describe('CLI: milestone create / list / show', { timeout: 60000 }, () => {
       const textRun = await runCli(['milestone', 'list'], tempDir)
       expect(textRun.code).toBe(0)
       expect(textRun.stdout).toContain('No milestones.')
+    })
+  })
+
+  describe('metta milestone close', () => {
+    it('closes an open milestone: frontmatter, commit message, JSON shape', async () => {
+      await installFixture(tempDir)
+      await runCli(['milestone', 'create', 'v0-6', '--name', 'v0.6'], tempDir)
+
+      const { stdout, code } = await runCli(['--json', 'milestone', 'close', 'v0-6'], tempDir)
+      expect(code).toBe(0)
+      const data = JSON.parse(stdout)
+      expect(data.slug).toBe('v0-6')
+      expect(data.status).toBe('closed')
+      expect(data.committed).toBe(true)
+      expect(data.commit_sha).toBeTruthy()
+
+      const file = await readFile(join(tempDir, 'spec', 'milestones', 'v0-6.md'), 'utf8')
+      expect(file).toContain('status: closed')
+      const { stdout: log } = await execAsync('git', ['log', '--format=%s'], { cwd: tempDir })
+      expect(log).toContain('chore: close milestone v0-6')
+    })
+
+    it('--abandoned writes abandoned with the same commit message', async () => {
+      await installFixture(tempDir)
+      await runCli(['milestone', 'create', 'v0-6', '--name', 'v0.6'], tempDir)
+
+      const { stdout, code } = await runCli(['--json', 'milestone', 'close', 'v0-6', '--abandoned'], tempDir)
+      expect(code).toBe(0)
+      const data = JSON.parse(stdout)
+      expect(data.status).toBe('abandoned')
+
+      const file = await readFile(join(tempDir, 'spec', 'milestones', 'v0-6.md'), 'utf8')
+      expect(file).toContain('status: abandoned')
+      const { stdout: log } = await execAsync('git', ['log', '--format=%s'], { cwd: tempDir })
+      expect(log).toContain('chore: close milestone v0-6')
+    })
+
+    it('text mode reports Closed / Abandoned respectively', async () => {
+      await installFixture(tempDir)
+      await runCli(['milestone', 'create', 'a-ms', '--name', 'A'], tempDir)
+      await runCli(['milestone', 'create', 'b-ms', '--name', 'B'], tempDir)
+
+      const closed = await runCli(['milestone', 'close', 'a-ms'], tempDir)
+      expect(closed.code).toBe(0)
+      expect(closed.stdout).toContain('Closed milestone: a-ms')
+
+      const abandoned = await runCli(['milestone', 'close', 'b-ms', '--abandoned'], tempDir)
+      expect(abandoned.code).toBe(0)
+      expect(abandoned.stdout).toContain('Abandoned milestone: b-ms')
+    })
+
+    it('already-closed milestone exits 4 with milestone_conflict and a byte-identical file', async () => {
+      await installFixture(tempDir)
+      await runCli(['milestone', 'create', 'v0-6', '--name', 'v0.6'], tempDir)
+      await runCli(['milestone', 'close', 'v0-6'], tempDir)
+
+      const milestonePath = join(tempDir, 'spec', 'milestones', 'v0-6.md')
+      const bytesBefore = await readFile(milestonePath)
+
+      const { stdout, code } = await runCli(['--json', 'milestone', 'close', 'v0-6'], tempDir)
+      expect(code).toBe(4)
+      const data = JSON.parse(stdout)
+      expect(data.error.code).toBe(4)
+      expect(data.error.type).toBe('milestone_conflict')
+      expect(data.error.message).toBe("Milestone 'v0-6' is already closed")
+
+      const bytesAfter = await readFile(milestonePath)
+      expect(bytesAfter.equals(bytesBefore)).toBe(true)
+    })
+
+    it('missing slug exits 4 with not_found and creates no file', async () => {
+      await installFixture(tempDir)
+      const { stdout, code } = await runCli(['--json', 'milestone', 'close', 'does-not-exist'], tempDir)
+      expect(code).toBe(4)
+      const data = JSON.parse(stdout)
+      expect(data.error.type).toBe('not_found')
+      expect(data.error.message).toContain('does-not-exist')
+      expect(existsSync(join(tempDir, 'spec', 'milestones', 'does-not-exist.md'))).toBe(false)
+    })
+
+    it('blocks on a feature branch with branch_guard without --on-branch', async () => {
+      await installFixture(tempDir)
+      await runCli(['milestone', 'create', 'v0-6', '--name', 'v0.6'], tempDir)
+      await execAsync('git', ['checkout', '-b', 'metta/feature'], { cwd: tempDir })
+      const { stdout, code } = await runCli(['--json', 'milestone', 'close', 'v0-6'], tempDir)
+      expect(code).toBe(4)
+      const data = JSON.parse(stdout)
+      expect(data.error.type).toBe('branch_guard')
+    })
+  })
+
+  describe('metta milestone update', () => {
+    it('--description replaces the body only', async () => {
+      await installFixture(tempDir)
+      await runCli(
+        ['milestone', 'create', 'v0-6', '--name', 'v0.6', '--target', '2026-09-30', '--description', 'Old body'],
+        tempDir,
+      )
+
+      const { stdout, code } = await runCli(
+        ['--json', 'milestone', 'update', 'v0-6', '--description', 'New body'],
+        tempDir,
+      )
+      expect(code).toBe(0)
+      const data = JSON.parse(stdout)
+      expect(data.slug).toBe('v0-6')
+      expect(data.changed).toEqual(['description'])
+      expect(data.committed).toBe(true)
+
+      const file = await readFile(join(tempDir, 'spec', 'milestones', 'v0-6.md'), 'utf8')
+      expect(file).toContain('name: v0.6')
+      expect(file).toContain('target: 2026-09-30')
+      expect(file).toContain('status: open')
+      expect(file).toContain('New body')
+      expect(file).not.toContain('Old body')
+      const { stdout: log } = await execAsync('git', ['log', '--format=%s'], { cwd: tempDir })
+      expect(log).toContain('chore: update milestone v0-6')
+    })
+
+    it('--clear-target removes the target key and reports changed: [target]', async () => {
+      await installFixture(tempDir)
+      await runCli(['milestone', 'create', 'v0-6', '--name', 'v0.6', '--target', '2026-09-30'], tempDir)
+
+      const { stdout, code } = await runCli(['--json', 'milestone', 'update', 'v0-6', '--clear-target'], tempDir)
+      expect(code).toBe(0)
+      const data = JSON.parse(stdout)
+      expect(data.changed).toEqual(['target'])
+
+      const file = await readFile(join(tempDir, 'spec', 'milestones', 'v0-6.md'), 'utf8')
+      expect(file).not.toContain('target:')
+    })
+
+    it('--status open reopens a closed milestone', async () => {
+      await installFixture(tempDir)
+      await runCli(['milestone', 'create', 'v0-6', '--name', 'v0.6'], tempDir)
+      await runCli(['milestone', 'close', 'v0-6'], tempDir)
+
+      const { stdout, code } = await runCli(['--json', 'milestone', 'update', 'v0-6', '--status', 'open'], tempDir)
+      expect(code).toBe(0)
+      const data = JSON.parse(stdout)
+      expect(data.changed).toEqual(['status'])
+
+      const show = await runCli(['--json', 'milestone', 'show', 'v0-6'], tempDir)
+      expect(JSON.parse(show.stdout).status).toBe('open')
+    })
+
+    it('invalid target date exits 4 naming target with a byte-identical file', async () => {
+      await installFixture(tempDir)
+      await runCli(['milestone', 'create', 'v0-6', '--name', 'v0.6', '--target', '2026-09-30'], tempDir)
+      const milestonePath = join(tempDir, 'spec', 'milestones', 'v0-6.md')
+      const bytesBefore = await readFile(milestonePath)
+
+      const { stdout, code } = await runCli(
+        ['--json', 'milestone', 'update', 'v0-6', '--target', '2026-02-30'],
+        tempDir,
+      )
+      expect(code).toBe(4)
+      const data = JSON.parse(stdout)
+      expect(data.error.code).toBe(4)
+      expect(data.error.type).toBe('milestone_error')
+      expect(data.error.message).toContain('target')
+
+      const bytesAfter = await readFile(milestonePath)
+      expect(bytesAfter.equals(bytesBefore)).toBe(true)
+    })
+
+    it('missing slug exits 4 with not_found', async () => {
+      await installFixture(tempDir)
+      const { stdout, code } = await runCli(
+        ['--json', 'milestone', 'update', 'does-not-exist', '--name', 'New'],
+        tempDir,
+      )
+      expect(code).toBe(4)
+      const data = JSON.parse(stdout)
+      expect(data.error.type).toBe('not_found')
+      expect(data.error.message).toContain('does-not-exist')
+    })
+
+    it('zero field options exits 4 with the file untouched', async () => {
+      await installFixture(tempDir)
+      await runCli(['milestone', 'create', 'v0-6', '--name', 'v0.6'], tempDir)
+      const milestonePath = join(tempDir, 'spec', 'milestones', 'v0-6.md')
+      const bytesBefore = await readFile(milestonePath)
+
+      const { stdout, code } = await runCli(['--json', 'milestone', 'update', 'v0-6'], tempDir)
+      expect(code).toBe(4)
+      const data = JSON.parse(stdout)
+      expect(data.error.type).toBe('milestone_error')
+      expect(data.error.message).toBe(
+        'At least one field option is required (--name, --target, --clear-target, --description, --status)',
+      )
+
+      const bytesAfter = await readFile(milestonePath)
+      expect(bytesAfter.equals(bytesBefore)).toBe(true)
+    })
+
+    it('--target with --clear-target is rejected by Commander', async () => {
+      await installFixture(tempDir)
+      await runCli(['milestone', 'create', 'v0-6', '--name', 'v0.6'], tempDir)
+      const { stderr, code } = await runCli(
+        ['milestone', 'update', 'v0-6', '--target', '2026-09-30', '--clear-target'],
+        tempDir,
+      )
+      expect(code).not.toBe(0)
+      expect(code).not.toBe(4)
+      expect(stderr).toContain('cannot be used with')
     })
   })
 
