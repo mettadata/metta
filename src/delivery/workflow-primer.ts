@@ -1,16 +1,42 @@
 /**
  * Workflow primer text emitted into CLAUDE.md. Two variants:
- * - "short": scaffold use (metta init / install). Single mandate line + three entry points.
- * - "long": authoritative regeneration use (metta refresh). Adds "Forbidden" subsection with
- *   full CLI-call prohibition list and the humans-at-terminal scope caveat.
+ * - "short": scaffold use (metta init / install). Scoped mandate + pointer line + three
+ *   entry points.
+ * - "long": authoritative regeneration use (metta refresh). Adds the "Forbidden" subsection
+ *   enumerating the guard's blocked surface and a "Read-only queries" subsection enumerating
+ *   its allowed surface.
  *
- * The mandate sentence is identical across both variants so downstream CLAUDE.md consumers
- * see consistent wording regardless of which generator ran last.
+ * The mandate scopes the skill requirement to state-mutating metta commands and names the
+ * `metta-guard-bash` PreToolUse hook as the enforcement authority. It is a single shared
+ * constant so both variants render it byte-identically — an invariant now pinned by test
+ * (tests/delivery.test.ts, "Workflow primer scoped mandate").
+ *
+ * The enumerated allow/block lists below are hand-synced with
+ * src/templates/hooks/metta-guard-bash.mjs (and its deployed copy) and guarded by the seam
+ * test in tests/delivery.test.ts — drift fails CI.
  */
 
 const MANDATE =
-  '**AI orchestrators MUST invoke the matching metta skill — never call the CLI directly.** ' +
+  '**State-mutating metta commands MUST go through the matching metta skill — never as direct CLI calls from an AI orchestrator session.** ' +
+  'Enforcement authority is the `metta-guard-bash` PreToolUse hook: it blocks mutating and unrecognized commands (fail-closed) but permits a read-only query surface directly. ' +
   '(Humans running the CLI in a terminal are unaffected — this rule scopes to AI-driven sessions.)'
+
+const READ_ONLY_POINTER =
+  'Read-only queries (`metta status`, `metta progress`, `metta issues list`, …) are permitted directly; the guard fails closed, so attempting a query is always safe.'
+
+// SYNC: mirrors the ALLOWED_SUBCOMMANDS / ALLOWED_TWO_WORD / ALLOWED_BARE lists in
+// src/templates/hooks/metta-guard-bash.mjs — edit both together; the seam test in
+// tests/delivery.test.ts fails on drift.
+const READ_ONLY_SURFACE_BULLETS = [
+  '### Read-only queries (permitted directly)',
+  '',
+  "The `metta-guard-bash` hook allows these directly — no skill needed. This list mirrors the hook's allow-lists at generation time; the hook, not this text, is authoritative:",
+  '- Single-word: `status`, `instructions`, `progress`, `doctor`, `next`, `iteration`, `model-escalation`, `tokens`, `install` (`iteration`/`model-escalation`/`tokens` append instrumentation records and `install` writes scaffolding — guard-allowed, though not strictly read-only)',
+  '- Two-word: `issues list`, `gate list`, `changes list`, `backlog list|show`, `gaps list|show`, `milestone list|show`, `release status`',
+  '- Bare (flags only): `roadmap`, `release`, `backlog` (e.g. `metta roadmap --json`)',
+  '',
+  'Run bare `metta` for the full current command listing. When in doubt about a command not listed here, attempt it — the guard fails closed and blocks anything unrecognized, so an attempt is always safe and never mutates state.',
+]
 
 const ENTRY_POINTS_BULLETS = [
   '- `/metta-quick <description>` — small, scoped fixes (bug fixes, one-file edits, tiny refactors)',
@@ -30,6 +56,8 @@ export function workflowPrimerShort(): string[] {
     '### How to work',
     '',
     MANDATE,
+    '',
+    READ_ONLY_POINTER,
     '',
     'Primary entry points:',
     ...ENTRY_POINTS_BULLETS,
@@ -57,8 +85,13 @@ export function workflowPrimerLong(): string[] {
     '',
     '### Forbidden',
     '',
-    '- Invoking `metta quick`, `metta propose`, `metta finalize`, `metta complete`, `metta issue`, or any other `metta <cmd>` directly from an AI orchestrator session. Use the matching skill.',
+    // SYNC: mirrors the BLOCKED_SUBCOMMANDS / BLOCKED_TWO_WORD lists in
+    // src/templates/hooks/metta-guard-bash.mjs — edit both together; the seam test in
+    // tests/delivery.test.ts fails on drift.
+    '- Invoking any state-mutating metta command directly from an AI orchestrator session: `propose`, `quick`, `auto`, `complete`, `finalize`, `ship`, `issue`, `fix-issue`, `fix-gap`, `refresh`, `import`, `init`, `verify`, `backlog add/done/promote/migrate`, `changes abandon`, `milestone create/close/update`, `roadmap add/reorder/next/remove`, `release cut`. Use the matching skill.',
     '- Writing placeholder content like `"intent stub"` or `"summary stub"` to any artifact file to satisfy `metta complete`. Artifacts must carry real content authored by the matching `metta-*` subagent.',
+    '',
+    ...READ_ONLY_SURFACE_BULLETS,
     '',
     '### Research discipline',
     '',
