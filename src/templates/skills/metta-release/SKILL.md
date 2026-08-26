@@ -14,7 +14,7 @@ Drive the `metta release` CLI. The CLI owns version bumping, changelog rendering
 
 ## Steps
 
-1. Run `metta release status --json` first (allow-listed read-only; this also completes a Bash cycle so the session credential minted by the hook is in place before `cut`). Parse the output: current version, derived bump level (`recommendedBump`), target version, pending changes, and `githubRelease` (whether the config enables GitHub publication).
+1. Run `metta release status --json` first (allow-listed read-only; this also completes a Bash cycle so the session credential minted by the hook is in place before `cut`). Parse the output: the current `version`, the derived bump level (`recommendedBump`), the unreleased change count (`unreleasedChanges`), and `githubRelease` (whether the config enables GitHub publication).
 
 2. Use `AskUserQuestion` to confirm the release decisions:
    - **Bump level** — present the derived level as the recommended option alongside the other levels (`major | minor | patch`); the user may accept the derivation or override it.

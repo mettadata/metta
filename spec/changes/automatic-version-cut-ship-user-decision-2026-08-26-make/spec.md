@@ -124,12 +124,12 @@ When `release.on_ship` is `prompt`, the ship-path release step MUST report the n
 
 ## ADDED: Requirement: Off Mode Preserves On-Demand Releasing
 
-When `release.on_ship` is `off`, ship-path skills MUST run no post-merge release step at all: behavior is identical to the on-demand-only releasing that existed before this capability change, with releases cut solely via `/metta-release`. (Traces: US-3; intent proposal item 2 mode semantics.)
+When `release.on_ship` is `off`, ship-path skills MUST perform no release mutation after the merge: beyond the read-only `metta release status` call used to learn the configured mode, no release activity occurs — no bump derivation is applied, no cut, no tag push, and no GitHub release. Behavior is otherwise identical to the on-demand-only releasing that existed before this capability change, with releases cut solely via `/metta-release`. (Traces: US-3; intent proposal item 2 mode semantics.)
 
-### Scenario: Off mode ships without any release activity
+### Scenario: Off mode ships without any release mutation
 - GIVEN `release.on_ship: off`
 - WHEN a ship-path skill completes the merge and main push
-- THEN no release status call, no bump derivation, and no cut runs, and releasing remains fully on-demand via `/metta-release`
+- THEN no release mutation occurs (no cut, no push, no GitHub release), no bump derivation is applied, and releasing remains fully on-demand via `/metta-release`
 
 ### Scenario: Off mode leaves surrounding ship behavior untouched
 - GIVEN `release.on_ship: off`
