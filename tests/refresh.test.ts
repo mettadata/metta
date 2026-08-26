@@ -115,6 +115,11 @@ A composable framework.
       expect(result).toContain('### Setup skills')
     })
 
+    it('includes the read-only queries subsection', () => {
+      const result = buildWorkflowSection()
+      expect(result).toContain('### Read-only queries (permitted directly)')
+    })
+
     it('includes all skills', () => {
       const result = buildWorkflowSection()
       const skills = [
