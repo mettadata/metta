@@ -110,6 +110,10 @@ export const ReleaseConfigSchema = z.object({
   }),
   tag_prefix: z.string().default('v'),
   github_release: z.boolean().default(false),
+  on_ship: z.enum(['auto', 'prompt', 'off'], {
+    errorMap: () => ({ message: "release.on_ship: must be one of 'auto', 'prompt', 'off'" }),
+  }).default('auto'),
+  allow_major_pre_1: z.boolean().default(false),
 }).strict()
 
 export type ReleaseConfig = z.infer<typeof ReleaseConfigSchema>
