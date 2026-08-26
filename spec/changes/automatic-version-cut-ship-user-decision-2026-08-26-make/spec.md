@@ -265,3 +265,55 @@ The test suite MUST include grep-assert tests, in line with the existing skill-c
 - GIVEN the post-merge release step is deleted from one ship-path skill file
 - WHEN the grep-assert tests run
 - THEN the test for that skill fails, naming the file missing the release step
+
+
+## MODIFIED: Requirement: Opt-In GitHub Release Publication
+
+Creation of a GitHub release via the `gh` CLI MUST remain strictly opt-in via `release.github_release`: when the flag is disabled or omitted, no `gh` command MUST be executed anywhere in the release flow. Publication MUST no longer be a step inside the release cut: `ReleasePipeline.cut()` MUST be purely local (version file, changelog, release commit, annotated tag), the in-cut `gh` step MUST be removed, and the `--github` flag MUST be removed from `metta release cut` — invoking `metta release cut --github` MUST fail with an error that names the removed flag and points to the fixed cut → push → publish sequence, performing no release mutation.
+
+When `release.github_release` is `true`, publication MUST be performed by the skill-side post-push step, only after the tag exists on the remote: the skill MUST first probe `gh release view <tag>` and MUST skip creation when a release for the tag already exists (idempotent re-run), otherwise it MUST run `gh release create <tag> --verify-tag --notes-file -` with the version's changelog section as the notes body. `--verify-tag` MUST be present so `gh` aborts — rather than silently creating a wrong tag from default-branch HEAD — if the tag is not on the remote. To supply the notes body without re-parsing `docs/changelog.md`, `metta release cut --json` MUST emit the extracted changelog-section notes string for the cut version. On the on-demand `/metta-release` path, the same post-push sequence applies and the tag-carrying push preceding publication MUST be gated on explicit per-run user confirmation; on ship paths it rides the single already-authorized main push with `--follow-tags`. (Traces: US-4; research decision "Local-only cut + skill-side verified GitHub publish", adopted riders 1–4 and 6.)
+
+### Scenario: Release created only after the tag is on the remote
+- GIVEN `release.github_release: true` and a ship-path release step whose local cut has completed
+- WHEN the authorized main push with `--follow-tags` lands the tag on the remote and the publication step runs
+- THEN the skill probes `gh release view <tag>`, finds no existing release, and runs `gh release create <tag> --verify-tag --notes-file -` with the version's changelog section as the notes body — and no `gh` command ran at any earlier point in the flow
+
+### Scenario: Removed --github flag errors with a pointer to the fixed sequence
+- GIVEN a caller invoking `metta release cut --github`
+- WHEN the command is parsed
+- THEN it exits with an error stating that `--github` has been removed and pointing to the cut → push → publish sequence, and no version file, changelog, commit, tag, or `gh` invocation occurs
+
+### Scenario: Idempotent probe skips an already-published release
+- GIVEN a re-run of the publication step for a tag whose GitHub release already exists
+- WHEN the skill probes `gh release view <tag>`
+- THEN the probe finds the existing release, `gh release create` is not invoked, and the step completes without error or duplicate release
+
+### Scenario: cut --json supplies the notes body
+- GIVEN a cut of version `0.7.0` invoked as `metta release cut --yes --json`
+- WHEN the cut completes
+- THEN the JSON output includes the extracted changelog-section notes string for `0.7.0`, so the skill passes it to `--notes-file -` without re-parsing `docs/changelog.md`
+
+### Scenario: On-demand release confirms the push before publishing
+- GIVEN `release.github_release: true` and a developer running `/metta-release` on demand
+- WHEN the local cut completes
+- THEN the skill asks for explicit per-run confirmation before running `git push --follow-tags origin main`, and only after that push lands does it run the same probe-then-create publication step
+
+
+## MODIFIED: Requirement: Graceful Degradation When gh Unavailable
+
+Graceful degradation MUST apply at the skill-side post-push publication step (the in-cut GitHub step no longer exists): when `release.github_release` is `true` but `gh` is missing from PATH, unauthenticated, or the `gh release create` invocation fails, the completed local release (version file rewrite, changelog, release commit, annotated tag) and the already-pushed tag MUST remain intact — the failure MUST NOT roll back or invalidate any of them, MUST NOT unwind or un-merge the ship, and MUST NOT block the ship-path skill or the on-demand `/metta-release` from completing. The skill MUST warn with a message naming the cause (missing binary vs. unauthenticated vs. create failure) and reporting the exact manual command — `gh release create <tag> --verify-tag` with the notes — so the developer can publish later. Because the publication step probes `gh release view <tag>` before creating, a later re-run (on-demand or manual) MUST be able to publish the release for the already-pushed tag without re-cutting and without duplicating an existing release. (Traces: US-4, US-6; research decision "Local-only cut + skill-side verified GitHub publish", adopted rider 6; base US-5 acceptance criteria.)
+
+### Scenario: Missing gh binary warns with the manual command and the ship continues
+- GIVEN `release.github_release: true` and `gh` is not installed on PATH
+- WHEN a ship-path release step reaches the post-push publication step
+- THEN the release commit, annotated tag, and tag push all stand, the skill warns that `gh` was not found and reports the exact `gh release create <tag> --verify-tag` command to run manually, and the ship completes successfully with the merge and main push untouched
+
+### Scenario: Failed gh release create warns and continues, re-runnable later
+- GIVEN `gh` is installed and authenticated but `gh release create <tag> --verify-tag` fails (e.g. API outage or transient error)
+- WHEN the publication step handles the failure
+- THEN the skill warns naming the create failure, the ship (or on-demand release) completes without any rollback of the local release or pushed tag, and a later run of the publication step probes `gh release view <tag>`, finds no release, and publishes it for the same tag without re-cutting
+
+### Scenario: Unauthenticated gh degrades the on-demand release the same way
+- GIVEN `gh` is installed but unauthenticated and a developer runs `/metta-release` with `release.github_release: true`
+- WHEN the confirmed push lands and the publication step runs
+- THEN the local release and pushed tag succeed, the warning identifies the authentication problem and how to authenticate and retry publication, and the on-demand release completes rather than failing
