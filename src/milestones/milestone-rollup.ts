@@ -4,7 +4,7 @@ import type { IssueRecord } from '../issues/issues-store.js'
 export interface MilestoneRollup {
   slug: string
   name: string
-  status: 'open' | 'closed'
+  status: Milestone['status']
   target?: string
   open: number
   resolved: number
