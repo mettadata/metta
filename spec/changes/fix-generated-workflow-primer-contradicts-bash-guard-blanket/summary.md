@@ -53,3 +53,17 @@ cannot silently drift again.
 - Known residual (out of scope, per design): `docs/internals/guard-hooks.md` carries a
   fourth hand-synced copy of the allow-lists; deployment-level skew (consumer refresh
   without reinstall) is not addressed by this change.
+
+## Verification (3 parallel verifiers, iteration 1)
+
+- **Test suite**: no deterministic failures attributable to the change. Full-suite runs on a
+  loaded machine hit 10s CLI-fixture timeout flakes (SIGTERM/exit 143, different test set
+  each run); every failed subset passes in isolation (151/151 final), and an earlier
+  fully green solo run recorded 135 files, 2812 passed / 2 skipped / 0 failed.
+- **Typecheck/lint**: `npx tsc --noEmit` clean, `npm run lint` clean (exit 0).
+- **Spec coverage**: PASS — all 15 scenarios across the 5 requirements have concrete
+  evidence (test names in tests/delivery.test.ts / tests/refresh.test.ts, or file/line
+  citations for doc-content scenarios). Both consumer-refresh scenarios rest on composed
+  evidence (content-agnostic region replacement + primer content pins) — sound, noted.
+- **Review**: correctness PASS_WITH_WARNINGS (minor test-hardening suggestions), security
+  PASS, quality PASS. No critical or major findings; see review.md.
