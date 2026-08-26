@@ -21,15 +21,20 @@ artifact_timings:
   intent:
     started: 2026-08-26T07:44:57.207Z
     completed: 2026-08-26T07:46:27.353Z
+  stories:
+    started: 2026-08-26T07:47:00.033Z
 artifact_tokens:
   intent:
     context: 763
+    budget: 20000
+  stories:
+    context: 3061
     budget: 20000
 worktree: /home/utx0/Code/metta/.metta/worktrees/automatic-version-cut-ship-user-decision-2026-08-26-make
 escalation:
   from_tier: quick
   to_tier: standard
-  justification: "kept standard: non-interactive fail-closed"
+  justification: "kept standard: multi-surface change (release schema + 6 ship-path skills + guard/mint hooks + spec deltas + grep-assert tests) exceeds quick's single-file/localized scope"
   timestamp: 2026-08-26T07:46:27.413Z
 token_usage:
   - task: metta-skill-host
