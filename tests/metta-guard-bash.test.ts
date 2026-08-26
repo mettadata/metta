@@ -105,6 +105,27 @@ describe('metta-guard-bash hook', { timeout: 30_000 }, () => {
         expect(code).toBe(2)
       })
 
+      it('blocks `metta milestone close x` two-word without credential (exit 2)', () => {
+        const { code } = runHook(hookPath, bashEvent('metta milestone close x'))
+        expect(code).toBe(2)
+      })
+
+      it('blocks `metta milestone update x` two-word without credential (exit 2)', () => {
+        const { code } = runHook(hookPath, bashEvent('metta milestone update x'))
+        expect(code).toBe(2)
+      })
+
+      // Read-only milestone verbs stay credential-free.
+      it('allows `metta milestone list` two-word (exit 0)', () => {
+        const { code } = runHook(hookPath, bashEvent('metta milestone list'))
+        expect(code).toBe(0)
+      })
+
+      it('allows `metta milestone show x` two-word (exit 0)', () => {
+        const { code } = runHook(hookPath, bashEvent('metta milestone show x'))
+        expect(code).toBe(0)
+      })
+
       // ----- Unknown subcommands (conservative-block) -----
       it('blocks unknown single-word `metta unknowncmd` conservatively (exit 2)', () => {
         const { code, stderr } = runHook(hookPath, bashEvent('metta unknowncmd'))
@@ -986,6 +1007,49 @@ describe('metta-guard-bash hook', { timeout: 30_000 }, () => {
           const { code, stderr } = runHook(hookPath, bashEvent('metta roadmap remove x', { cwd }), { cwd })
           expect(code).toBe(0)
           expect(stderr).toBe('')
+        })
+
+        it('allows `metta milestone close x` with a metta-backlog token covering milestone:close (exit 0)', () => {
+          const cwd = makeTempCwd()
+          seedToken(cwd, {
+            skill: 'metta-backlog',
+            subcommands: [
+              'backlog:add', 'backlog:done', 'backlog:promote', 'backlog:migrate',
+              'milestone:create', 'milestone:close', 'milestone:update',
+            ],
+          })
+          const { code, stderr } = runHook(hookPath, bashEvent('metta milestone close x', { cwd }), { cwd })
+          expect(code).toBe(0)
+          expect(stderr).toBe('')
+        })
+
+        it('allows `metta milestone update x` with a metta-backlog token covering milestone:update (exit 0)', () => {
+          const cwd = makeTempCwd()
+          seedToken(cwd, {
+            skill: 'metta-backlog',
+            subcommands: [
+              'backlog:add', 'backlog:done', 'backlog:promote', 'backlog:migrate',
+              'milestone:create', 'milestone:close', 'milestone:update',
+            ],
+          })
+          const { code, stderr } = runHook(hookPath, bashEvent('metta milestone update x', { cwd }), { cwd })
+          expect(code).toBe(0)
+          expect(stderr).toBe('')
+        })
+
+        it('blocks `metta milestone close x` when the token scope lacks milestone:close (exit 2)', () => {
+          const cwd = makeTempCwd()
+          seedToken(cwd, {
+            skill: 'metta-backlog',
+            subcommands: ['backlog:add', 'backlog:done', 'backlog:promote', 'milestone:create'],
+          })
+          const { code } = runHook(hookPath, bashEvent('metta milestone close x', { cwd }), { cwd })
+          expect(code).toBe(2)
+          const entries = readAuditEntries(cwd)
+          const last = entries[entries.length - 1]
+          expect(last.verdict).toBe('block')
+          expect(last.reason).toBe('subcommand-not-in-scope')
+          expect(last.tier).toBe('session')
         })
 
         it('blocks `metta roadmap remove x` when the token scope does not include roadmap:remove (exit 2)', () => {

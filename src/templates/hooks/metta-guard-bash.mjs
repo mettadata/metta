@@ -76,9 +76,10 @@ const BLOCKED_SUBCOMMANDS = new Set([
 const BLOCKED_TWO_WORD = new Map([
   ['backlog', new Set(['add', 'done', 'promote', 'migrate'])],
   ['changes', new Set(['abandon'])],
-  // `milestone create` mutates state (writes spec/milestones/<slug>.md) — Tier-2 scope
-  // key 'milestone:create', minted only by the metta-backlog skill.
-  ['milestone', new Set(['create'])],
+  // `milestone create`/`close`/`update` mutate state (write spec/milestones/<slug>.md) —
+  // Tier-2 scope keys 'milestone:create', 'milestone:close', 'milestone:update', minted
+  // only by the metta-backlog skill.
+  ['milestone', new Set(['create', 'close', 'update'])],
   ['roadmap', new Set(['add', 'reorder', 'next', 'remove'])],
   // `release cut` mutates state (version bump, tag, release commit) — Tier-2 scope
   // key 'release:cut', minted only by the metta-release skill.
