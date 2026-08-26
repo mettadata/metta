@@ -78,7 +78,7 @@
 ## US-6: Cross-referenced sync reminders for maintainers
 
 **As a** metta maintainer editing the guard hook or the primer
-**I want** sync-reminder comments in both `workflow-primer.ts` and the allow-list blocks of `metta-guard-bash.mjs` pointing at each other
+**I want to** find sync-reminder comments in both `workflow-primer.ts` and the allow-list blocks of `metta-guard-bash.mjs` pointing at each other
 **So that** whoever changes the allow surface or the documented list knows the sibling file must move with it, reducing the chance of a fresh primer/guard contradiction
 **Priority:** P2
 **Independent Test Criteria:** Both files contain a comment referencing the other by path near the hand-synced lists, and the hook change is comment-only with zero behavioral difference.
