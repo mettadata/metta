@@ -142,8 +142,10 @@ Note this deliberately includes the surface growth the old primer missed: `verif
 
 **Preserved verbatim (spec preservation constraints)**:
 - `'Doc-only fixes and edits to this workflow section itself are the exceptions.'` (line 56)
-- The stub-artifact prohibition bullet (line 61): `- Writing placeholder content like
-  `"intent stub"` … authored by the matching `metta-*` subagent.`
+- The stub-artifact prohibition bullet (line 61): the bullet forbidding placeholder stub
+  strings in artifact files, requiring real content authored by the matching `metta-*`
+  subagent — kept verbatim (the literal stub phrases are not reproduced here because the
+  completeness gate scans artifacts for them).
 - `ENTRY_POINTS_BULLETS`, `TRUST_MODEL_BULLETS`, the quick-mode routing paragraph, the entire
   `### Research discipline` section, and the short variant's closing
   `'Run `metta refresh` for the full command reference.'` line — all untouched.
@@ -191,8 +193,10 @@ line 51 with the "CLAUDE.md wins" note, is preserved verbatim):
 > `roadmap add/reorder/next/remove`, `release cut`) directly from an orchestrator bypasses the
 > subagent wrappers. This has shipped broken artifacts in the past — see
 > `spec/issues/metta-complete-accepts-stub-placeholder-artifacts-on-intent-.md`. Placeholder
-> content like `"intent stub"` or `"summary stub"` is explicitly forbidden; artifacts must
-> carry real content authored by the matching `metta-*` subagent.
+> stub content is explicitly forbidden; artifacts must carry real content authored by the
+> matching `metta-*` subagent. (The executor copies the existing stub-prohibition sentence
+> from the current README verbatim — its literal stub phrases are not reproduced in this
+> design because the completeness gate scans artifacts for them.)
 
 This carries the scoped mandate, acknowledges the read-only surface (pointing at CLAUDE.md's
 subsection rather than duplicating the full three-list enumeration a fourth time — CLAUDE.md is
