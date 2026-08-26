@@ -30,3 +30,10 @@ Automatic version cut on ship, default-on, with fixed cut -> push -> publish seq
 - Absent `release` config -> one-line loud notice, skip.
 - `--verify-tag` + `gh release view` probe make the v0.5.0/v0.6.0 wrong-tag/premature-publish failure structurally unreachable.
 - Push rides the single authorized `git push --follow-tags origin main`; never force, never a second unconfirmed push.
+
+## Verification (iteration 1 — all gates PASS)
+
+- **Tests**: PASS — 2873 passed, 2 skipped, 0 failed (135/135 files). See verify/tests.md.
+- **Typecheck/lint**: PASS — tsc --noEmit exit 0; npm run lint (tsc alias) exit 0. See verify/tsc-lint.md.
+- **Spec traceability**: PASS — all 34 scenarios across 12 requirements evidenced (unit tests, grep-asserts, or instruction-verified skill lines). See verify/scenarios.md.
+- Review round 1: correctness/security/quality all PASS_WITH_WARNINGS, zero criticals; two warning fixes applied (9d1a2daa3). See review.md.
