@@ -1,6 +1,6 @@
-version: 30
-hash: sha256:43f91d9f2103
-updated: 2026-08-18T02:28:41.403Z
+version: 31
+hash: sha256:0a7ed91dd6b4
+updated: 2026-08-26T01:06:03.015Z
 status: draft
 source: change
 requirements:
@@ -75,11 +75,13 @@ requirements:
       - shipped-in-stamp-survives-the-new-archive-path
       - done-commits-only-the-archived-pair-of-paths
   - id: milestone-store-with-zod-validated-frontmatter-and-cli
-    hash: sha256:49b88f48b187
+    hash: sha256:765a64cdca7f
     scenarios:
       - milestone-created-with-defaults
       - creating-a-duplicate-milestone-is-refused
       - invalid-milestone-status-is-rejected
+      - abandoned-status-validates-through-the-schema
+      - pre-existing-open-and-closed-files-are-unaffected
   - id: milestone-and-priority-assignment-via-issue-frontmatter
     hash: sha256:c64f15b00189
     scenarios:
@@ -163,3 +165,39 @@ requirements:
       - config-get-escapes-c1-controls-identically-to-outputjson
       - tasks-json-rendering-routes-through-the-shared-helper
       - helper-is-idempotent-and-precise-at-range-boundaries
+  - id: milestone-store-update-applies-validated-patches
+    hash: sha256:17dbd846f285
+    scenarios:
+      - status-patch-preserves-untouched-fields
+      - target-is-cleared-from-frontmatter
+      - invalid-patch-is-rejected-and-the-file-is-untouched
+      - updating-a-missing-milestone-fails-without-side-effects
+  - id: milestone-close-cli-verb-transitions-to-a-terminal-state
+    hash: sha256:301e6616455d
+    scenarios:
+      - open-milestone-is-closed-and-auto-committed
+      - abandoned-flag-writes-the-abandoned-state
+      - closing-an-already-terminal-milestone-is-a-conflict
+      - closing-a-missing-milestone-reports-not-found
+      - main-branch-guard-applies-to-close
+  - id: milestone-update-cli-verb-edits-mutable-fields
+    hash: sha256:809066e704a6
+    scenarios:
+      - description-is-replaced-without-touching-other-fields
+      - clear-target-removes-the-field
+      - a-mistakenly-closed-milestone-is-reopened
+      - invalid-field-value-fails-validation-and-leaves-the-file-untouched
+      - updating-a-missing-milestone-reports-not-found
+      - no-field-options-is-an-error
+  - id: renderers-and-rollups-handle-the-abandoned-state
+    hash: sha256:f13e879a6fd5
+    scenarios:
+      - list-sorts-terminal-states-after-open-with-distinct-markers
+      - show-reports-the-abandoned-state-accurately
+      - status-and-progress-render-abandoned-without-crashing
+      - open-and-closed-output-stays-byte-compatible
+  - id: guard-authorization-for-milestone-close-and-update
+    hash: sha256:f2615db1215a
+    scenarios:
+      - authorized-skill-context-may-invoke-the-new-verbs
+      - unauthorized-context-is-blocked-identically
