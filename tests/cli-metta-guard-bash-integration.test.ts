@@ -584,7 +584,7 @@ describe('metta-guard-bash integration', { timeout: 60_000 }, () => {
       expect(stderr).toContain('unknown')
     })
 
-    it('mint hook scope for metta-backlog grants backlog:add/done/promote/migrate and milestone:create', () => {
+    it('mint hook scope for metta-backlog grants backlog:add/done/promote/migrate and milestone:create/close/update', () => {
       const mint = spawnSync('node', [MINT_TEMPLATE_PATH, 'metta-backlog'], {
         input: JSON.stringify(bashEvent('metta backlog list', { cwd: tempDir })),
         encoding: 'utf8',
@@ -612,6 +612,8 @@ describe('metta-guard-bash integration', { timeout: 60_000 }, () => {
         'backlog:promote',
         'backlog:migrate',
         'milestone:create',
+        'milestone:close',
+        'milestone:update',
       ])
 
       // The minted credential authorizes the new Tier-2 mutations…

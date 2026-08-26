@@ -1,10 +1,16 @@
 import type { Milestone } from './milestones-store.js'
 import type { IssueRecord } from '../issues/issues-store.js'
 
+/**
+ * Single glyph source for milestone status markers across all render sites
+ * (milestone list, status, progress) so glyphs cannot drift.
+ */
+export const MILESTONE_MARKERS = { open: '▸', closed: '✓', abandoned: '✗' } as const
+
 export interface MilestoneRollup {
   slug: string
   name: string
-  status: 'open' | 'closed'
+  status: Milestone['status']
   target?: string
   open: number
   resolved: number
@@ -20,7 +26,8 @@ export interface MilestoneRollup {
  * slug has no milestone file produce a warning string (naming the issue and
  * the unknown slug), never a failure. Issues without a `milestone` field
  * contribute to no bucket and no warning. Milestones with zero issues roll up
- * 0/0/0 at 0%. Rollups are sorted open-first, then slug ascending.
+ * 0/0/0 at 0%. Rollups are sorted open-first, then terminal, then slug
+ * ascending.
  */
 export function computeMilestoneRollups(
   milestones: Milestone[],
@@ -74,10 +81,10 @@ export function computeMilestoneRollups(
     rollup.percent = rollup.total === 0 ? 0 : Math.round((rollup.resolved / rollup.total) * 100)
   }
 
-  rollups.sort((a, b) => {
-    if (a.status !== b.status) return a.status === 'open' ? -1 : 1
-    return a.slug < b.slug ? -1 : a.slug > b.slug ? 1 : 0
-  })
+  const rank = (s: Milestone['status']): number => (s === 'open' ? 0 : 1)
+  rollups.sort(
+    (a, b) => rank(a.status) - rank(b.status) || (a.slug < b.slug ? -1 : a.slug > b.slug ? 1 : 0),
+  )
 
   return { rollups, warnings }
 }

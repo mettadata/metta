@@ -32,7 +32,9 @@ const SKILL_SCOPES = {
   'metta-refresh': ['refresh'],
   'metta-import': ['import'],
   'metta-init': ['init', 'refresh'],
-  'metta-backlog': ['backlog:add', 'backlog:done', 'backlog:promote', 'backlog:migrate', 'milestone:create'],
+  // Milestone mutation scopes mint only via metta-backlog; future ship/finalize-driven
+  // closers need their own scope extension here rather than reusing this one.
+  'metta-backlog': ['backlog:add', 'backlog:done', 'backlog:promote', 'backlog:migrate', 'milestone:create', 'milestone:close', 'milestone:update'],
   'metta-fix-gap': ['fix-gap', 'complete', 'finalize'],
   'metta-roadmap': ['roadmap:add', 'roadmap:reorder', 'roadmap:next', 'roadmap:remove'],
   'metta-release': ['release:cut'],

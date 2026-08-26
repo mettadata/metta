@@ -1088,6 +1088,8 @@ Scenarios:
 - Milestone created with defaults
 - Creating a duplicate milestone is refused
 - Invalid milestone status is rejected
+- Abandoned status validates through the schema
+- Pre-existing open and closed files are unaffected
 
 ### Milestone and priority assignment via issue frontmatter
 
@@ -1185,6 +1187,47 @@ Scenarios:
 - config get escapes C1 controls identically to outputJson
 - Tasks --json rendering routes through the shared helper
 - Helper is idempotent and precise at range boundaries
+
+### Milestone store update applies validated patches
+
+Scenarios:
+- Status patch preserves untouched fields
+- Target is cleared from frontmatter
+- Invalid patch is rejected and the file is untouched
+- Updating a missing milestone fails without side effects
+
+### Milestone close CLI verb transitions to a terminal state
+
+Scenarios:
+- Open milestone is closed and auto-committed
+- Abandoned flag writes the abandoned state
+- Closing an already-terminal milestone is a conflict
+- Closing a missing milestone reports not found
+- Main-branch guard applies to close
+
+### Milestone update CLI verb edits mutable fields
+
+Scenarios:
+- Description is replaced without touching other fields
+- Clear-target removes the field
+- A mistakenly closed milestone is reopened
+- Invalid field value fails validation and leaves the file untouched
+- Updating a missing milestone reports not found
+- No field options is an error
+
+### Renderers and rollups handle the abandoned state
+
+Scenarios:
+- List sorts terminal states after open with distinct markers
+- Show reports the abandoned state accurately
+- Status and progress render abandoned without crashing
+- Open and closed output stays byte-compatible
+
+### Guard authorization for milestone close and update
+
+Scenarios:
+- Authorized skill context may invoke the new verbs
+- Unauthorized context is blocked identically
 
 ## orchestration-guard
 

@@ -23,7 +23,7 @@ export const MilestoneFrontmatterSchema = z.object({
     .regex(ISO_DATE_RE)
     .refine(isRealCalendarDate, { message: 'target must be a real calendar date (YYYY-MM-DD)' })
     .optional(),
-  status: z.enum(['open', 'closed']).default('open'),
+  status: z.enum(['open', 'closed', 'abandoned']).default('open'),
 }).strict()
 
 export type MilestoneFrontmatter = z.infer<typeof MilestoneFrontmatterSchema>

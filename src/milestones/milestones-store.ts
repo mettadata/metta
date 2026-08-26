@@ -11,8 +11,16 @@ export interface Milestone {
   slug: string
   name: string
   target?: string
-  status: 'open' | 'closed'
+  status: MilestoneFrontmatter['status']
   description: string
+}
+
+export interface MilestonePatch {
+  name?: string
+  target?: string
+  clearTarget?: boolean
+  status?: Milestone['status']
+  description?: string
 }
 
 // Frontmatter block at offset 0: opening fence, YAML lines, closing fence on
@@ -134,6 +142,44 @@ export class MilestonesStore {
     }
     const content = await this.state.readRaw(relPath)
     return parseMilestone(content, slug, relPath)
+  }
+
+  async update(slug: string, patch: MilestonePatch): Promise<Milestone> {
+    assertSafeSlug(slug)
+
+    if (patch.target !== undefined && patch.clearTarget) {
+      throw new Error('clearTarget and target are mutually exclusive')
+    }
+
+    const relPath = join('milestones', `${slug}.md`)
+    if (!(await this.state.exists(relPath))) {
+      throw new Error(`Milestone '${slug}' not found`)
+    }
+
+    const content = await this.state.readRaw(relPath)
+    const current = parseMilestone(content, slug, relPath)
+
+    const nextTarget = patch.clearTarget ? undefined : (patch.target ?? current.target)
+    const next = {
+      name: patch.name ?? current.name,
+      ...(nextTarget !== undefined ? { target: nextTarget } : {}),
+      status: patch.status ?? current.status,
+    }
+
+    // Full resulting frontmatter re-validated before any I/O — a failing
+    // patch throws here and the file stays byte-identical by construction.
+    const validated = validateFrontmatter(next, relPath)
+
+    const description = patch.description ?? current.description
+    await this.state.writeRaw(relPath, formatMilestone(validated, description))
+
+    return {
+      slug,
+      name: validated.name,
+      target: validated.target,
+      status: validated.status,
+      description: description.trim(),
+    }
   }
 
   async exists(slug: string): Promise<boolean> {

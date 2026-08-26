@@ -33,7 +33,7 @@ const EXPECTED_SCOPES: Record<string, string[]> = {
   'metta-refresh': ['refresh'],
   'metta-import': ['import'],
   'metta-init': ['init', 'refresh'],
-  'metta-backlog': ['backlog:add', 'backlog:done', 'backlog:promote', 'backlog:migrate', 'milestone:create'],
+  'metta-backlog': ['backlog:add', 'backlog:done', 'backlog:promote', 'backlog:migrate', 'milestone:create', 'milestone:close', 'milestone:update'],
   'metta-fix-gap': ['fix-gap', 'complete', 'finalize'],
 }
 

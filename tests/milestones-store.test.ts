@@ -81,13 +81,41 @@ describe('MilestonesStore', () => {
     expect(after).toBe(before)
   })
 
-  it('rejects invalid status naming the allowed values open/closed', async () => {
+  it('rejects invalid status naming the allowed values open/closed/abandoned', async () => {
     await seedMilestoneFile('v0-6', '---\nname: v0.6\nstatus: shipped\n---\nbody\n')
 
     await expect(store.show('v0-6')).rejects.toThrow(
-      /status: .*'open' \| 'closed'.*received 'shipped'/,
+      /status: .*'open' \| 'closed' \| 'abandoned'.*received 'shipped'/,
     )
     await expect(store.list()).rejects.toThrow(/status/)
+  })
+
+  it('accepts a seeded status: abandoned file', async () => {
+    await seedMilestoneFile('v0-6', '---\nname: v0.6\nstatus: abandoned\n---\ndropped\n')
+
+    const milestone = await store.show('v0-6')
+    expect(milestone.status).toBe('abandoned')
+    expect(milestone.description).toBe('dropped')
+  })
+
+  it('parses seeded pre-change open and closed files identically (back-compat)', async () => {
+    await seedMilestoneFile('v0-6', '---\nname: v0.6\ntarget: "2026-09-30"\nstatus: open\n---\nrelease\n')
+    await seedMilestoneFile('v0-5', '---\nname: v0.5\nstatus: closed\n---\nshipped release\n')
+
+    expect(await store.show('v0-6')).toEqual({
+      slug: 'v0-6',
+      name: 'v0.6',
+      target: '2026-09-30',
+      status: 'open',
+      description: 'release',
+    })
+    expect(await store.show('v0-5')).toEqual({
+      slug: 'v0-5',
+      name: 'v0.5',
+      target: undefined,
+      status: 'closed',
+      description: 'shipped release',
+    })
   })
 
   it('rejects a malformed target naming the field', async () => {
@@ -123,6 +151,109 @@ describe('MilestonesStore', () => {
   it('throws on a milestone file with no frontmatter block', async () => {
     await seedMilestoneFile('bare', '# just a heading\n')
     await expect(store.show('bare')).rejects.toThrow(/missing YAML frontmatter/)
+  })
+
+  describe('update', () => {
+    it('patches status while preserving name, target, and body', async () => {
+      await store.create('v0-6', {
+        name: 'v0.6',
+        target: '2026-09-30',
+        description: 'Backlog/milestone unification release.',
+      })
+
+      const updated = await store.update('v0-6', { status: 'closed' })
+      expect(updated).toEqual({
+        slug: 'v0-6',
+        name: 'v0.6',
+        target: '2026-09-30',
+        status: 'closed',
+        description: 'Backlog/milestone unification release.',
+      })
+
+      const shown = await store.show('v0-6')
+      expect(shown).toEqual(updated)
+    })
+
+    it('clearTarget removes the target key entirely from the raw file', async () => {
+      await store.create('v0-6', { name: 'v0.6', target: '2026-09-30', description: 'body' })
+
+      const updated = await store.update('v0-6', { clearTarget: true })
+      expect(updated.target).toBeUndefined()
+
+      const raw = await readFile(join(tempDir, 'milestones', 'v0-6.md'), 'utf-8')
+      expect(raw).not.toContain('target:')
+      expect(raw).toContain('name: v0.6')
+      expect(raw).toContain('body')
+    })
+
+    it('rejects an invalid target date naming the field and leaves the file byte-identical', async () => {
+      await store.create('v0-6', { name: 'v0.6', target: '2026-09-30', description: 'body' })
+      const path = join(tempDir, 'milestones', 'v0-6.md')
+      const before = await readFile(path, 'utf-8')
+
+      await expect(store.update('v0-6', { target: '2026-02-30' })).rejects.toThrow(
+        /target: .*real calendar date/,
+      )
+
+      expect(await readFile(path, 'utf-8')).toBe(before)
+    })
+
+    it('rejects an empty name naming the field and leaves the file byte-identical', async () => {
+      await store.create('v0-6', { name: 'v0.6', description: 'body' })
+      const path = join(tempDir, 'milestones', 'v0-6.md')
+      const before = await readFile(path, 'utf-8')
+
+      await expect(store.update('v0-6', { name: '' })).rejects.toThrow(/name/)
+
+      expect(await readFile(path, 'utf-8')).toBe(before)
+    })
+
+    it('rejects target and clearTarget together', async () => {
+      await store.create('v0-6', { name: 'v0.6' })
+      await expect(
+        store.update('v0-6', { target: '2026-09-30', clearTarget: true }),
+      ).rejects.toThrow(/clearTarget and target are mutually exclusive/)
+    })
+
+    it('throws not-found for a missing slug without creating a file', async () => {
+      await expect(store.update('never-created', { status: 'closed' })).rejects.toThrow(
+        /Milestone 'never-created' not found/,
+      )
+      expect(await store.exists('never-created')).toBe(false)
+    })
+
+    it('round-trips abandoned status through show', async () => {
+      await store.create('v0-6', { name: 'v0.6', description: 'dropped scope' })
+
+      const updated = await store.update('v0-6', { status: 'abandoned' })
+      expect(updated.status).toBe('abandoned')
+
+      const shown = await store.show('v0-6')
+      expect(shown.status).toBe('abandoned')
+      expect(shown.description).toBe('dropped scope')
+    })
+
+    it('treats an empty patch as a validated no-op', async () => {
+      await store.create('v0-6', { name: 'v0.6', target: '2026-09-30', description: 'body' })
+      const path = join(tempDir, 'milestones', 'v0-6.md')
+      const before = await readFile(path, 'utf-8')
+
+      const updated = await store.update('v0-6', {})
+      expect(updated).toEqual({
+        slug: 'v0-6',
+        name: 'v0.6',
+        target: '2026-09-30',
+        status: 'open',
+        description: 'body',
+      })
+      expect(await readFile(path, 'utf-8')).toBe(before)
+    })
+
+    it('rejects path-traversal slugs', async () => {
+      await expect(store.update('../escape', { status: 'closed' })).rejects.toThrow(
+        /Invalid milestone slug/,
+      )
+    })
   })
 
   it('rejects path-traversal slugs on create/show/exists', async () => {
