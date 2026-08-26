@@ -1,0 +1,65 @@
+# Research: Skill-Side GitHub Publish
+
+Approach evaluated for the automatic-version-cut-on-ship change: keep the `ReleasePipeline` TypeScript untouched (except possibly deprecating `--github`), and have the ship-path skill instructions orchestrate the fixed sequence themselves — cut without `--github`, push with `--follow-tags`, then run `gh release create` directly from the skill.
+
+## Approach
+
+The six ship-path skills (`metta-ship`, `metta-propose` ship opt-in, `metta-quick`, `metta-auto`, `metta-fix-issues`, `metta-fix-gap`) gain a post-merge release stage in their markdown instructions:
+
+1. `metta release status --json` (already on the guard's read-only allow-list, `ALLOWED_TWO_WORD` in `.claude/hooks/metta-guard-bash.mjs:67`).
+2. Derive/confirm bump per `release.on_ship` mode, apply the pre-1.0 major guard.
+3. `metta release cut --bump <level> --yes --json` — **never** `--github`.
+4. Append `--follow-tags` to the single user-authorized main push so the annotated tag rides it.
+5. Only if `release.github_release: true`: the skill itself runs `gh release create <tag> --title <tag> --verify-tag --notes-file -` with the changelog section as the body, degrading gracefully (warn-and-continue) when `gh` is absent, unauthenticated, or the create fails.
+
+The pipeline's `gh` step (`src/release/release-pipeline.ts:509-528`) and `src/release/gh-release.ts` stay as-is; `--github` on the CLI (`src/cli/commands/release.ts:81`) is deprecated with a warning that names the ordering hazard, or removed.
+
+## How It Would Work (concrete)
+
+**Where the stage lands.** Every ship-path skill already carries the identical post-merge tail — `gh pr merge <pr-number> --merge` → `git pull --ff-only` on main → cleanup → dist rebuild (`metta-ship/SKILL.md` steps 7–9; the same numbered sequence exists in all five other skills, confirmed by grep). The release stage inserts between the fast-forward/rebuild and the final hand-back, exactly where the spec's "Post-Merge Release Flow On Ship Paths" requirement positions it.
+
+**The push.** Today the tag never leaves the local repo: the CLI prints "The tag was NOT pushed. Publish it manually with: git push --follow-tags" (`release.ts:30`). Under this approach the skill appends `--follow-tags` to the main push it already performs post-merge. `git push --follow-tags` pushes annotated tags reachable from the pushed ref — no force, no second push, satisfying the "rides the single authorized push" constraint.
+
+**The gh call.** The guard hook classifies only `metta` invocations (plus a write-target check); `gh` and `git` commands pass through entirely unguarded — so the skill-side `gh release create` needs **zero guard or mint-hook work**. The command should carry `--verify-tag`, which per the gh manual "abort[s] in case the git tag doesn't already exist in the remote repository"[^1]. This matters doubly: without it, `gh release create` on a not-yet-pushed tag does not fail — it **silently auto-creates a tag from the latest state of the default branch**[^1], which is precisely the v0.5.0/v0.6.0 corruption mode (wrong remote tag, subsequent `--follow-tags` push rejected). The current `createGithubRelease` in `gh-release.ts:91` does *not* pass `--verify-tag`; the skill-side command can, making the mis-ordering structurally impossible even if a future skill edit reorders steps — the spec's "Tag-not-on-remote race structurally impossible" scenario gets a mechanical enforcement, not just an ordering convention.
+
+**Release notes.** Yes, the content is accessible. `cut` regenerates `docs/changelog.md` (`regen-changelog` step) and commits it in the release commit, with a `## <version> — <date>` section per release — the exact section `extractChangelogSection` (`release-pipeline.ts:540`) feeds to gh today. The skill (an AI agent) reads `docs/changelog.md` and passes that section via `--notes-file -` with a heredoc (the same fragile-quoting fallback the ship skills already prescribe for `gh pr create`). Fallbacks if extraction is awkward: `--generate-notes` (GitHub-generated) or `--notes-from-tag` (tag annotation — poor, the tag message is just `Release <version>`). Optional micro-enhancement without violating "no second cut path": have `cut --json` include the extracted notes string in `ReleaseCutResult` so the skill needn't re-parse the changelog (one field, ~5 lines, reuses the existing private method).
+
+**Guard/mint changes still required (shared with every approach).** Five of the six ship paths run as `context: fork` / `agent: metta-skill-host`; the guard's Tier-2 branch auto-accepts any blocked-two-word call from a trusted fork caller (`metta-guard-bash.mjs:881`), so `release cut --yes` from those forks is **already authorized today** with no changes. Only `metta-fix-gap` is a main-session Tier-2 skill; its mint scope (`SKILL_SCOPES['metta-fix-gap']: ['fix-gap', 'complete', 'finalize']` in `metta-session-mint.mjs`) needs `release:cut` appended. This delta is identical under any approach and is not a differentiator.
+
+**On-demand `/metta-release` parity — yes, it needs the same fix.** The spec's "Single Cut Path" requirement demands the on-demand path "benefit from the same cut/push/GitHub sequencing fix," and today's `metta-release/SKILL.md` step 3 passes `--github` before any push (the live bug) while its rules say the skill "NEVER pushes." Under this approach the skill changes to: drop `--github`; when the user opted into GitHub publication, use `AskUserQuestion` to request explicit push authorization, run `git push --follow-tags origin main`, then `gh release create ... --verify-tag`; on decline, print both manual commands and stop. The "never pushes" rule relaxes to "pushes only with the user's explicit per-run confirmation," which is exactly the constitution's actual constraint ("No auto-push to remote without explicit user confirmation") — the current absolute rule was over-strict, and keeping it would make a correctly-sequenced GitHub release impossible for this skill.
+
+## Pros
+
+- **No pipeline surgery; smallest TypeScript delta.** The only defensible-but-optional code changes are a `--github` deprecation warning and the optional notes field in `cut --json`. `ReleasePipeline`, its 7-step mutation group, rollback semantics, and tests are untouched — lowest regression risk on the one code path that mutates version state.
+- **The ordering fix lives where the ordering problem lives.** The push is already skill-side (it *must* be — "no auto-push without explicit user confirmation" means the CLI can never push, so no CLI-resident step can ever run *after* the push in one invocation). Any CLI-side alternative needs a second CLI entry point (`release publish`) that the skills would have to call at exactly the same point in their instructions — same drift surface, plus new code. Skill-side is the minimal-machinery expression of the settled sequence.
+- **`--verify-tag` gives a structural guarantee** the current TypeScript path lacks: gh itself aborts if the tag is not on the remote, and prevents the silent wrong-tag auto-creation that caused the v0.5.0/v0.6.0 failures.[^1]
+- **Zero guard/authorization surface for the publish step** — `gh` and `git` are unguarded; only the shared `release:cut` mint-scope addition for `metta-fix-gap` is needed.
+- **Notes quality preserved**: the same changelog section the pipeline uses today reaches the release body; the AI reads a committed file, no plumbing needed.
+- **Graceful degradation is natural in instruction mode**: "if `gh` is missing/unauthenticated, warn, report the manual command, continue" is one prose sentence, and warn-and-continue is already the mandated failure posture for the whole release stage.
+
+## Cons
+
+- **Degradation logic becomes prose, not typed code.** `gh-release.ts` encodes probe order (binary → auth → create) and typed outcomes with exact remedy strings; the skill version is an AI following instructions. Behavior is less deterministic and untestable by unit tests — only grep-asserts verify the *instructions* exist, not that they execute correctly.
+- **`gh-release.ts` and the pipeline `gh` step become vestigial on all AI paths** — live-but-deprecated code whose broken ordering remains reachable by humans running `metta release cut --github` unless the flag is removed or warned on. Leaving it silently intact contradicts the spirit of "structurally impossible."
+- **Notes extraction is soft-duplicated**: the `## <version> — <date>` section heuristic exists in `extractChangelogSection` and again as prose in skill instructions; a changelog heading-format change must update both (mitigated by the optional `cut --json` notes field).
+- **Sequence carried in 12 markdown files** (6 skills × 2 trees: `src/templates/skills/` and `.claude/skills/`). Drift is the standing risk of all skill-carried behavior.
+- **`/metta-release` needs a rules change** (relaxing "NEVER pushes" to confirmed-push), which is a behavioral change to an existing skill contract, not just an addition.
+
+## Complexity
+
+Moderate, and mostly *already mandated by the spec regardless of approach*: the "Ship-Step Instructions" requirement obliges all six skill files to document the full release flow (modes, sequence, rails, posture), and the "Grep-Assert Coverage" requirement obliges the skill-content tests — so the 12-file instruction surface and its test scaffolding are a sunk cost common to every option. What this approach *adds* on top is only the gh command block (~6–10 lines per skill, or one shared canonical block). Drift mitigations already exist and transfer directly:
+
+- `tests/skill-uat-ship-gate.test.ts` is the exact template: a frozen byte-identical canonical sentence asserted once per file across all six ship skills in both trees, plus `indexOf`-ordering asserts (gate before `gh pr create`, before `gh pr merge`). A sibling `skill-release-ship-step.test.ts` asserts: canonical release-stage sentence present once; positioned after `git pull --ff-only` and before hand-back; `--follow-tags` present; `gh release create` appears after the push text; `--verify-tag` present; `metta-release/SKILL.md` no longer contains `--github`.
+- `tests/cli-skills.test.ts` / `template-deploy-sync.test.ts` already pin template↔deployed byte-identity, so the two trees cannot diverge silently.
+
+TypeScript test surface: near zero — one `cli-release.test.ts` case if the `--github` deprecation warning is added; one pipeline test if the optional notes-in-JSON field is added. No changes to the mutation-group or rollback tests.
+
+## Fit
+
+Strong fit with the project's stated execution model — "instruction mode: metta manages state and specs while the AI tool executes the work." The division of labor lands cleanly: the CLI remains the sole authority over state mutations (version file, releases record, changelog, commit, tag — all inside the one `ReleasePipeline.cut` path, satisfying "Single Cut Path"), while remote-side effects (push, GitHub release) stay with the AI executor, which is *already* where every other remote interaction in the ship flow lives — `git push`, `gh pr create`, `gh pr checks --watch`, `gh pr merge`, `gh pr comment` are all skill-side today. A skill-side `gh release create` is the seventh gh/git command in an established pattern, not a new category. It also composes with the constitution's push constraint: because the CLI can never push, "GitHub release after push" can only be a post-push actor's job, and in this architecture the post-push actor is the skill. The main tension is philosophical: correctness of the ordering now rests on instructions + grep-asserts rather than compiled code — accepted elsewhere in this codebase for strictly heavier guarantees (the UAT merge gate).
+
+## Verdict
+
+Recommended, with two riders. This approach implements the settled sequence with the smallest possible TypeScript delta, puts the post-push GitHub step in the only place the architecture allows a post-push step to exist (the CLI is constitutionally barred from pushing), matches the established pattern where all seven existing remote gh/git operations are skill-side, and — via `--verify-tag` — delivers a *stronger* structural guarantee against the v0.5.0/v0.6.0 failure than the current TypeScript path has. Its real costs (12-file instruction surface, grep-assert-only verification) are almost entirely mandated by the spec for any approach, so they don't differentiate. Riders: (1) don't leave `--github` silently intact — emit a deprecation warning (or remove it) so the broken ordering is unreachable without notice, and require `--verify-tag` in the canonical skill sentence so the guarantee is grep-asserted; (2) update `/metta-release` in the same change — drop `--github`, add a user-confirmed `git push --follow-tags` followed by the same gh block — since the spec's on-demand-parity scenario cannot be met otherwise. Consider the optional `cut --json` notes field to eliminate the one genuine logic duplication (changelog section extraction).
+
+[^1]: https://cli.github.com/manual/gh_release_create accessed 2026-08-26
