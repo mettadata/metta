@@ -484,6 +484,22 @@ describe('CLI: milestone create / list / show', { timeout: 60000 }, () => {
       expect(bytesAfter.equals(bytesBefore)).toBe(true)
     })
 
+    it('reports the abandoned state accurately in both modes', async () => {
+      await installFixture(tempDir)
+      await runCli(['milestone', 'create', 'v0-6', '--name', 'v0.6'], tempDir)
+      const closed = await runCli(['--json', 'milestone', 'close', 'v0-6', '--abandoned'], tempDir)
+      expect(closed.code).toBe(0)
+      expect(JSON.parse(closed.stdout).status).toBe('abandoned')
+
+      const text = await runCli(['milestone', 'show', 'v0-6'], tempDir)
+      expect(text.code).toBe(0)
+      expect(text.stdout).toContain('Status: abandoned')
+
+      const json = await runCli(['--json', 'milestone', 'show', 'v0-6'], tempDir)
+      expect(json.code).toBe(0)
+      expect(JSON.parse(json.stdout).status).toBe('abandoned')
+    })
+
     it('unknown slug exits 4 with not_found', async () => {
       await installFixture(tempDir)
       const { stdout, code } = await runCli(['--json', 'milestone', 'show', 'does-not-exist'], tempDir)
