@@ -47,7 +47,7 @@
 13 requirements
 
 ### issue-logging
-29 requirements
+34 requirements
 
 ### orchestration-guard
 36 requirements
