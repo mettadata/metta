@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { computeMilestoneRollups } from '../src/milestones/milestone-rollup.js'
+import { computeMilestoneRollups, MILESTONE_MARKERS } from '../src/milestones/milestone-rollup.js'
 import type { Milestone } from '../src/milestones/milestones-store.js'
 import type { IssueRecord } from '../src/issues/issues-store.js'
 
@@ -137,6 +137,68 @@ describe('computeMilestoneRollups', () => {
     expect(rollups.map(r => r.slug)).toEqual(['v0-6', 'v0-8', 'v0-1', 'v0-5'])
   })
 
+  it('sorts mixed open/closed/abandoned open-first, then terminal slug-ascending', () => {
+    const { rollups } = computeMilestoneRollups(
+      [
+        milestone({ slug: 'v0-3', status: 'abandoned' }),
+        milestone({ slug: 'v0-5', status: 'closed' }),
+        milestone({ slug: 'v0-8' }),
+        milestone({ slug: 'v0-1', status: 'abandoned' }),
+        milestone({ slug: 'v0-4', status: 'closed' }),
+        milestone({ slug: 'v0-6' }),
+      ],
+      [],
+      [],
+    )
+    // Open group first (slug ascending), then the terminal group (closed and
+    // abandoned interleaved) slug ascending — no closed/abandoned sub-ordering.
+    expect(rollups.map(r => r.slug)).toEqual(['v0-6', 'v0-8', 'v0-1', 'v0-3', 'v0-4', 'v0-5'])
+  })
+
+  it('orders open/closed-only inputs identically to the pre-rank comparator (byte-compat pin)', () => {
+    // The old comparator was: a.status !== b.status ? (a.status === 'open' ? -1 : 1) : slug cmp.
+    // Pin its output on a two-state permutation so the rank comparator provably reproduces it.
+    const input: Milestone[] = [
+      milestone({ slug: 'z-closed', status: 'closed' }),
+      milestone({ slug: 'a-open' }),
+      milestone({ slug: 'a-closed', status: 'closed' }),
+      milestone({ slug: 'z-open' }),
+      milestone({ slug: 'm-open' }),
+      milestone({ slug: 'm-closed', status: 'closed' }),
+    ]
+    const legacyComparator = (a: Milestone, b: Milestone): number => {
+      if (a.status !== b.status) return a.status === 'open' ? -1 : 1
+      return a.slug < b.slug ? -1 : a.slug > b.slug ? 1 : 0
+    }
+    const expected = [...input].sort(legacyComparator).map(m => m.slug)
+
+    const { rollups } = computeMilestoneRollups(input, [], [])
+    expect(rollups.map(r => r.slug)).toEqual(expected)
+    expect(rollups.map(r => r.slug)).toEqual([
+      'a-open',
+      'm-open',
+      'z-open',
+      'a-closed',
+      'm-closed',
+      'z-closed',
+    ])
+  })
+
+  it('passes abandoned through the rollup row', () => {
+    const { rollups, warnings } = computeMilestoneRollups(
+      [milestone({ slug: 'v0-2', status: 'abandoned' })],
+      [record({ slug: 'open-a', milestone: 'v0-2' })],
+      [record({ slug: 'done-a', milestone: 'v0-2' })],
+    )
+
+    expect(warnings).toEqual([])
+    expect(rollups).toHaveLength(1)
+    expect(rollups[0].status).toBe('abandoned')
+    expect(rollups[0].open).toBe(1)
+    expect(rollups[0].resolved).toBe(1)
+    expect(rollups[0].total).toBe(2)
+  })
+
   it('returns empty rollups and no warnings for empty inputs', () => {
     expect(computeMilestoneRollups([], [], [])).toEqual({ rollups: [], warnings: [] })
   })
@@ -144,5 +206,16 @@ describe('computeMilestoneRollups', () => {
   it('omits target when the milestone has none', () => {
     const { rollups } = computeMilestoneRollups([milestone({ slug: 'v0-6' })], [], [])
     expect('target' in rollups[0]).toBe(false)
+  })
+})
+
+describe('MILESTONE_MARKERS', () => {
+  it('covers all three statuses with distinct glyphs', () => {
+    expect(MILESTONE_MARKERS).toEqual({ open: '▸', closed: '✓', abandoned: '✗' })
+    const statuses: Array<Milestone['status']> = ['open', 'closed', 'abandoned']
+    for (const status of statuses) {
+      expect(MILESTONE_MARKERS[status]).toBeTruthy()
+    }
+    expect(new Set(Object.values(MILESTONE_MARKERS)).size).toBe(3)
   })
 })
