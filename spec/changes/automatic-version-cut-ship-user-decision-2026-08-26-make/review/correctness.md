@@ -1,0 +1,41 @@
+# Correctness Review: automatic-version-cut-ship-user-decision-2026-08-26-make
+
+Verdict: PASS_WITH_WARNINGS
+
+## Summary
+
+The implementation matches the design closely and the focus areas are all sound: `ReleasePipeline.cut()` is purely local (notes computed after `annotated-tag`, dry-run omits notes and lists exactly six skipped mutation steps, restore/abort logic byte-untouched), the status echo fields are schema-resolved, the `--github` stub fires before any context/config/pipeline work, the install scaffold branches correctly on `package.json`, the canonical block is byte-identical across all 12 ship-skill copies and both hook trees, the mint delta is the single `metta-fix-gap` scope append, and the grep-assert suite asserts what it claims (frozen sentence, exactly-once, post-merge/post-pull ordering, propose opt-in anchoring, metta-release zero `--github` + confirm-before-create ordering). `tsc --noEmit` clean; all 14 change-relevant and adjacent test files pass (855 tests). Remaining findings are spec-wording contradictions and design/file drift, not behavior bugs.
+
+## Critical issues
+
+None.
+
+## Warnings
+
+1. **Off-mode spec scenario contradicts the delivered skill instructions (internal spec inconsistency).**
+   `spec/changes/.../spec.md:132` ("Off mode ships without any release activity") requires "THEN no release status call, no bump derivation, and no cut runs" — but the canonical block (e.g. `src/templates/skills/metta-ship/SKILL.md:64`) must run `metta release status --json` first to resolve the effective `on_ship` mode (ADR-2 forbids skills parsing YAML), so exactly one read-only status call always happens in `off` mode. The same spec's "Post-Merge Release Flow" requirement (spec.md:47) mandates status as step (1) before the mode is knowable, so the spec contradicts itself. Behavior is harmless (read-only, allow-listed), but the scenario as written is unsatisfiable and will merge into the living spec. Fix: reword the scenario to "no release mutation — no derivation, no cut, no tag" or explicitly permit the single mode-resolving status probe.
+
+2. **Canonical sentence and design cite a "dist rebuild" step that five of six ship skills do not contain.**
+   The frozen sentence says the stage "runs only after the user-approved PR merge, git pull --ff-only, and dist rebuild" — but only `metta-ship` (step 9, `src/templates/skills/metta-ship/SKILL.md:59`) instructs a dist rebuild. `metta-quick`, `metta-auto`, `metta-fix-issues`, `metta-fix-gap`, and `metta-propose` contain no rebuild instruction at all (grep for `npm run build`/`rebuild` returns nothing in those five), and design.md §6's insertion table ("after steps 15/16 (pull + rebuild)" etc.) describes rebuild sub-steps that do not exist in those files — the block was correctly inserted after the pull instead. Spec.md:242 requires positioning "after the merge and the main fast-forward + rebuild"; for five skills the rebuild leg is vacuous. Not a behavior bug (a skill can't run a step it doesn't have), but the sentence asserts an ordering precondition those five files never establish. Consider either dropping "and dist rebuild" from a future revision of the canonical sentence or adding the rebuild step to the other ship paths (a known issue about stale main dist already exists).
+
+3. **`metta-fix-issues`/`metta-fix-gap`: release stage ordered before issue/gap removal (step 11).**
+   `src/templates/skills/metta-fix-issues/SKILL.md:124-136` and the fix-gap twin place the release cut + `git push --follow-tags origin main` *before* step 11 (`metta fix-issue --remove-issue` / `metta gaps remove`). The removal's spec mutations and any commit of them now land on main *after* the release push, so they are left unpushed at hand-back (pre-change ships also left them unpushed, so no regression) and will be attributed to the *next* release rather than the one just cut for the change that resolved them. Ordering removal before the stage would let the single authorized push carry it — worth a deliberate decision; as shipped it is consistent but slightly lossy.
+
+4. **Ordering assertions use first-occurrence `indexOf`.**
+   `tests/skill-release-ship-stage.test.ts:51,60` anchor on the first `gh pr merge <pr-number> --merge` / `git pull --ff-only` occurrence. Today each ship skill's first occurrence *is* the ship-path one, so the assertions are currently sound, but a future skill edit that mentions either string earlier (e.g. in a rules/notes section) would silently weaken the ordering check. Using `lastIndexOf` for the anchors (or asserting the stage precedes the final report step) would be more robust. Nice-to-have.
+
+5. **`metta-release` step 1 still tells the skill to parse "target version" from `release status --json`** (`src/templates/skills/metta-release/SKILL.md`, step 1) — `ReleaseStatusResult` has no target-version field (only `version` + `recommendedBump`; the target is computed at cut time). Pre-existing wording retained by the rewrite; harmless but inaccurate.
+
+6. **Spec scenario "Main-session ship path is authorized to cut" names `metta-ship` as the example** (spec.md:224-227), but `metta-ship` runs `context: fork` (Tier-1, `src/templates/skills/metta-ship/SKILL.md:5`); the actual main-session ship path is `metta-fix-gap`, which is what the mint-scope delta covers (`metta-session-mint.mjs:38`, verified against guard line 881 fork-tier authorization). The authorization matrix is correct end to end; only the scenario's parenthetical example is wrong.
+
+## Verified in detail
+
+- **Schema** (`src/schemas/project-config.ts:113-117`): enum + errorMap names `release.on_ship` and the three allowed values; `.default('auto')` / `.default(false)`; `.strict()` preserved; minimal `{scheme, version_file}` fixture regression-tested (no migration).
+- **Pipeline** (`src/release/release-pipeline.ts`): `MUTATION_STEPS` is exactly the six local steps; gh step, `gh-release.ts`, its barrel export, and its test are all deleted with zero residual references (repo-wide grep clean); notes computed via the unchanged `extractChangelogSection` only after `annotated-tag` passes (line 521); dry-run returns at line 371 without notes; abort points, mutation-group `restoreFiles`, and commit-failure unstage logic are byte-untouched; `status()` echo fields come from the Zod-parsed config (lines 231-233) and `requireReleaseConfig()` still throws before any version read when config is absent.
+- **CLI** (`src/cli/commands/release.ts:89-96`): `--github` stub throws `ReleaseError` before `createCliContext()`/config load — pre-mutation by construction; the old `github_release is disabled` fail-fast is gone; cut call drops `github`; hint and description updated; `--json` serializes `notes` and the echo fields automatically. Test asserts non-zero exit, message naming, and zero mutation (version file, releases.yaml, changelog, HEAD, tags, porcelain).
+- **Install** (`src/cli/commands/install.ts:279-303`): complete valid release block (never a bare `on_ship`) only when `package.json` exists; both branches parse under `ProjectConfigSchema` in tests; `wx` flag untouched.
+- **Skills**: canonical block byte-identical across all 12 files and both hook trees (direct `diff -q` clean); propose block sits inside the `--ship` opt-in section (after sub-step g, before step 9), PR-open path untouched; pre-1.0 guard bullet reads all three inputs from the status echo and downgrades major→minor with the prominent report; prompt mode fails closed; absent-config one-line notice keys off the exact `Release configuration is missing` message the error class produces.
+- **Guard/mint**: single functional delta (`metta-fix-gap` scope append) plus the comment update; guard classification tables and `workflow-primer.ts` untouched; fork-tier Tier-2 authorization at guard line 881 confirmed for the five forked ship skills.
+- **Tests**: `tsc --noEmit` clean; `schemas`, `release-pipeline`, `cli-release`, `cli-install`, `skill-release-ship-stage`, `template-deploy-sync`, `metta-session-mint`, `hooks-byte-identity`, `skill-uat-ship-gate`, `skill-propose-ship-gate`, `cli-skills`, `delivery`, `metta-guard-bash`, `metta-guard-mint-seam` all pass (855 passed, 2 pre-existing skips).
+
+Verdict: PASS_WITH_WARNINGS
