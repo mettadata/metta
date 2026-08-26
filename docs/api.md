@@ -1602,6 +1602,9 @@ Scenarios:
 - Unsupported scheme rejected with key named
 - Malformed version-file path rejected
 - Defaults applied for omitted optional keys
+- Explicit on_ship values accepted
+- Invalid on_ship value rejected with key named
+- Install scaffolds on_ship explicitly
 
 ### Product Version Distinct From Installed Version
 
@@ -1613,8 +1616,10 @@ Scenarios:
 ### Purely Additive When Unconfigured
 
 Scenarios:
-- Existing lifecycle unchanged without release config
+- Ship without release config skips with one-line notice
+- Absent config skip is not a ship blocker
 - Release command without config fails actionably
+- Skip paths leave tokens UAT and gates untouched
 
 ### Bump Derivation From Shipped Changes
 
@@ -1664,14 +1669,18 @@ Scenarios:
 ### Opt-In GitHub Release Publication
 
 Scenarios:
-- No confirmation means no gh invocation
-- Confirmed opt-in publishes release notes
+- Release created only after the tag is on the remote
+- Removed --github flag errors with a pointer to the fixed sequence
+- Idempotent probe skips an already-published release
+- cut --json supplies the notes body
+- On-demand release confirms the push before publishing
 
 ### Graceful Degradation When gh Unavailable
 
 Scenarios:
-- Missing gh binary degrades gracefully
-- Unauthenticated gh degrades gracefully
+- Missing gh binary warns with the manual command and the ship continues
+- Failed gh release create warns and continues, re-runnable later
+- Unauthenticated gh degrades the on-demand release the same way
 
 ### Release CLI Command Surface
 
@@ -1685,6 +1694,76 @@ Scenarios:
 - Skill-mediated release is authorized
 - Unauthorized AI invocation is blocked
 - Skill delivered as template file
+
+### Post-Merge Release Flow On Ship Paths
+
+Scenarios:
+- Cut runs after merge and rebuild in auto mode
+- No release activity at PR-open hand-back
+- Ship output reports the released version
+- All six ship paths carry the flow
+
+### Cut Then Push Then GitHub Release Sequencing
+
+Scenarios:
+- GitHub release created only after the tag is pushed
+- Absent gh degrades gracefully
+- Tag-not-on-remote race structurally impossible
+- No force push and no second unconfirmed push
+- GitHub opt-in disabled means no gh invocation
+
+### Prompt Mode Ship-Step Confirmation
+
+Scenarios:
+- Interactive prompt reports count and bump before asking
+- Confirmation proceeds identically to auto
+- Decline leaves the backlog for on-demand release
+- Non-interactive context fails closed with loud notice
+
+### Off Mode Preserves On-Demand Releasing
+
+Scenarios:
+- Off mode ships without any release mutation
+- Off mode leaves surrounding ship behavior untouched
+
+### Pre-1.0 Major Bump Guard
+
+Scenarios:
+- Pre-1.0 major downgraded to minor with prominent report
+- Escape hatch restores the major bump
+- Guard inert at 1.0.0 and above
+
+### Warn-And-Continue Cut Failure Posture
+
+Scenarios:
+- Failed cut never unwinds the merge
+- Warning names the failure and the on-demand remedy
+
+### Single Cut Path Through ReleasePipeline
+
+Scenarios:
+- Ship-step cut goes through the existing pipeline
+- On-demand release keeps working with fixed sequencing
+
+### Guard Authorization For Ship-Path Release Cut
+
+Scenarios:
+- Fork-context ship path is authorized to cut
+- Main-session ship path is authorized to cut
+- Unauthorized direct invocation still blocked
+- No other command scope widened
+
+### Ship-Step Instructions Include Post-Merge Release Flow
+
+Scenarios:
+- Ship skill wording carries the release stage in order
+- Run-to-merge skills carry the same stage
+
+### Grep-Assert Coverage Of Ship-Path Release Step
+
+Scenarios:
+- All six ship-path skills asserted
+- Removing the step from one skill fails the tests
 
 ## roadmap-feature
 
