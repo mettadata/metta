@@ -1,22 +1,46 @@
 workflow: standard
 created: 2026-08-26T03:05:29.397Z
 status: active
-current_artifact: intent
+current_artifact: stories
 base_versions: {}
 artifacts:
-  intent: ready
-  stories: pending
+  intent: complete
+  stories: ready
   spec: pending
   research: pending
   design: pending
   tasks: pending
   implementation: pending
   verification: pending
+complexity_score:
+  score: 1
+  signals:
+    file_count: 2
+  recommended_workflow: quick
 artifact_timings:
   intent:
     started: 2026-08-26T03:05:35.130Z
+    completed: 2026-08-26T03:07:04.484Z
 artifact_tokens:
   intent:
     context: 763
     budget: 20000
 worktree: /home/utx0/Code/metta/.metta/worktrees/fix-generated-workflow-primer-contradicts-bash-guard-blanket
+escalation:
+  from_tier: quick
+  to_tier: standard
+  justification: "kept standard: non-interactive fail-closed"
+  timestamp: 2026-08-26T03:07:04.539Z
+token_usage:
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 5049
+    timestamp: 2026-08-26T03:06:11.026Z
+    source: hook
+  - task: intent
+    agent: metta-proposer
+    model: fable
+    tokens: 4275
+    timestamp: 2026-08-26T03:06:53.662Z
+    source: hook
