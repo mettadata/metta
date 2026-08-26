@@ -3,6 +3,7 @@ import { createCliContext, outputJson, color, getErrorMessage } from '../helpers
 import { renderStatusLine } from '../../complexity/index.js'
 import { checkFinalizeLockStale } from '../../finalize/finalize-lock.js'
 import { loadMilestoneRollups, toMilestoneCountsRow } from './milestone.js'
+import { MILESTONE_MARKERS } from '../../milestones/milestone-rollup.js'
 import type { ChangeMetadata, ComplexityScore } from '../../schemas/change-metadata.js'
 
 type MilestoneSection = Awaited<ReturnType<typeof loadMilestoneRollups>>
@@ -24,13 +25,16 @@ function milestoneJsonKeys(section: MilestoneSection): Record<string, unknown> {
   return keys
 }
 
+/** ANSI color per milestone status — local to this render site by design. */
+const MILESTONE_MARKER_COLORS = { open: 36, closed: 32, abandoned: 31 } as const
+
 /** Text `Milestones:` section — omitted entirely when no milestones exist. */
 function printMilestoneSection(section: MilestoneSection): void {
   if (section === null) return
   console.log('')
   console.log('Milestones:')
   for (const r of section.rollups) {
-    const marker = r.status === 'closed' ? color('✓', 32) : color('▸', 36)
+    const marker = color(MILESTONE_MARKERS[r.status], MILESTONE_MARKER_COLORS[r.status])
     const target = r.target !== undefined ? `  target ${r.target}` : ''
     console.log(`  ${r.slug.padEnd(30)} ${marker} ${r.resolved}/${r.total} resolved (${r.percent}%)${target}`)
   }
