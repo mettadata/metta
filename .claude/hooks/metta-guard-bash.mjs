@@ -90,7 +90,7 @@ const BLOCKED_TWO_WORD = new Map([
   ['milestone', new Set(['create', 'close', 'update'])],
   ['roadmap', new Set(['add', 'reorder', 'next', 'remove'])],
   // `release cut` mutates state (version bump, tag, release commit) — Tier-2 scope
-  // key 'release:cut', minted only by the metta-release skill.
+  // key 'release:cut', minted by the metta-release and metta-fix-gap skills.
   ['release', new Set(['cut'])],
 ]);
 
