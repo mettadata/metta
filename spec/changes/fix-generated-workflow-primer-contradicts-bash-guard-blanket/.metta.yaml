@@ -11,7 +11,7 @@ artifacts:
   design: complete
   tasks: complete
   implementation: complete
-  verification: ready
+  verification: complete
 complexity_score:
   score: 1
   signals:
@@ -39,6 +39,8 @@ artifact_timings:
   implementation:
     started: 2026-08-26T03:22:18.581Z
     completed: 2026-08-26T03:47:18.963Z
+  verification:
+    completed: 2026-08-26T05:18:37.898Z
 artifact_tokens:
   intent:
     context: 763
@@ -61,6 +63,8 @@ artifact_tokens:
   implementation:
     context: 2847
     budget: 10000
+review_iterations: 1
+verify_iterations: 1
 worktree: /home/utx0/Code/metta/.metta/worktrees/fix-generated-workflow-primer-contradicts-bash-guard-blanket
 escalation:
   from_tier: quick
@@ -235,4 +239,76 @@ token_usage:
     model: fable
     tokens: 2813
     timestamp: 2026-08-26T03:46:22.101Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 39907
+    timestamp: 2026-08-26T03:47:55.428Z
+    source: hook
+  - task: implementation
+    agent: metta-reviewer
+    model: fable
+    tokens: 6276
+    timestamp: 2026-08-26T03:49:12.611Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 39934
+    timestamp: 2026-08-26T03:49:18.790Z
+    source: hook
+  - task: implementation
+    agent: metta-reviewer
+    model: fable
+    tokens: 9894
+    timestamp: 2026-08-26T03:51:06.670Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 40102
+    timestamp: 2026-08-26T03:51:20.617Z
+    source: hook
+  - task: implementation
+    agent: metta-reviewer
+    model: fable
+    tokens: 15840
+    timestamp: 2026-08-26T04:20:10.194Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 43540
+    timestamp: 2026-08-26T04:20:55.609Z
+    source: hook
+  - task: verification
+    agent: metta-verifier
+    model: fable
+    tokens: 534
+    timestamp: 2026-08-26T04:21:12.290Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 43580
+    timestamp: 2026-08-26T04:21:17.236Z
+    source: hook
+  - task: verification
+    agent: metta-verifier
+    model: fable
+    tokens: 10457
+    timestamp: 2026-08-26T04:30:09.828Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 43732
+    timestamp: 2026-08-26T04:30:15.173Z
+    source: hook
+  - task: verification
+    agent: metta-verifier
+    model: fable
+    tokens: 9826
+    timestamp: 2026-08-26T05:18:15.006Z
     source: hook
