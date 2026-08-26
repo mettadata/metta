@@ -27,3 +27,10 @@ Every task ran `npx tsc --noEmit` (clean) and its focused vitest suites (all gre
 
 - `status: abandoned` files fail validation under older metta builds (accepted one-way door, documented in intent).
 - `update` re-serializes frontmatter via YAML.stringify — hand-edited key order/comments are normalized (accepted; hand-editing is the workflow this change eliminates).
+
+## Verification (3 parallel verifiers, 2 iterations)
+
+- **Tests**: iteration 1 found 3 failures — pre-existing scope-pin suites (`tests/metta-session-mint.test.ts`, `tests/cli-metta-guard-bash-integration.test.ts`) still expected the old `metta-backlog` scope list without `milestone:close`/`milestone:update`. Expectations updated (commit `4a9b24382`); iteration 2: **135 files, 2802 passed, 2 skipped, 0 failed**.
+- **Typecheck/lint/build**: `npx tsc --noEmit` clean; `npm run lint` clean; `npm run build` (tsc + copy-templates + emit-build-stamp) succeeded.
+- **Spec coverage**: all 22 scenarios across the 6 spec.md requirements have cited passing tests (per-scenario evidence table produced by the verifier). One noted caveat: R5's byte-compatibility scenario is verified via unit-level pins (legacy-comparator reproduction, marker map, envelope shapes) rather than a literal pre/post output byte-diff — the guarantee is derived, since pre-change binaries are not available in-tree.
+- Review follow-up: the quality reviewer's single warning (no direct CLI test for `show` on an abandoned milestone) was closed by commit `26e0703f0`.
