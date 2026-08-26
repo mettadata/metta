@@ -1,4 +1,28 @@
 releases:
+  - version: 0.6.0
+    tag: v0.6.0
+    date: 2026-08-26
+    bump: minor
+    bump_source: override
+    backfilled: false
+    changes:
+      - 2026-08-16-rework-backlog-around-issue-store-as-single-source-truth
+      - 2026-08-17-fix-follow-ups-backlog-milestones-rework-review-pr-85
+      - 2026-08-17-fix-guard-bash-tokenizer-weaknesses
+      - 2026-08-18-fix-finalize-dry-run-diverges-applying-run-spec
+      - 2026-08-18-fix-five-src-side-test-files-still-live-outside-tests
+      - 2026-08-18-fix-guard-edit-worktree-write-friction-caused-cross-repo
+      - 2026-08-18-fix-intent-time-workflow-auto-downscale-misfires-file-count
+      - 2026-08-18-fix-json-output-c1-control-passthrough-json-stringify
+      - 2026-08-18-fix-metta-guard-bash-blocks-main-session-tier-2-lifecycle
+      - 2026-08-18-fix-metta-guard-edit-still-false-positive-blocks-subagent
+      - 2026-08-18-fix-remaining-13-title-description-render-sites-print-user
+      - 2026-08-18-fix-roadmap-entry-lifecycle-dangling-entries
+      - 2026-08-18-fix-spec-specs-roadmap-feature-spec-md-normative-drift-lines
+      - 2026-08-21-fix-metta-propose-runs-entire-lifecycle-through-finalize
+      - 2026-08-23-enforce-agent-executed-uat-run-results-attached-pr-before
+      - 2026-08-26-fix-generated-workflow-primer-contradicts-bash-guard-blanket
+      - 2026-08-26-fix-milestone-status-write-once-dead-field-no-close
   - version: 0.5.0
     tag: v0.5.0
     date: 2026-08-11

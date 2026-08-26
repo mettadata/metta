@@ -3,560 +3,234 @@
 <!-- Run `metta docs generate` to regenerate -->
 # Changelog
 
-## Unreleased
+## 0.6.0 — 2026-08-26
 
-### 2026-08-26 — fix-milestone-status-write-once-dead-field-no-close
+### 2026-08-16 — rework-backlog-around-issue-store-as-single-source-truth
 
-# Summary: fix-milestone-status-write-once-dead-field-no-close
-
-## What changed
-
-Milestones gained a validated write-back lifecycle. Previously `metta milestone create` wrote `status: open` permanently — no CLI path could close a milestone, edit its body, or change its target (issue `milestone-status-is-a-write-once-dead-field-with-no-close-or`).
-
-## Implementation (7 tasks, 4 batches)
-
-- **Schema** (`src/schemas/milestone-frontmatter.ts`): status enum extended to `open | closed | abandoned`; default and `.strict()` unchanged. Commit `3864badc5`.
-- **Store** (`src/milestones/milestones-store.ts`): exported `MilestonePatch` and `update(slug, patch)` — read → patch → full-frontmatter Zod re-validation **before any I/O** → write; failing patches provably leave the file byte-identical; `clearTarget` removes the key entirely. Commit `3864badc5`.
-- **Rollup** (`src/milestones/milestone-rollup.ts`): two-state sort replaced with a rank comparator (open first, terminal group slug-ascending — behavior-identical for open/closed-only inputs); exported shared `MILESTONE_MARKERS` (`▸`/`✓`/`✗`). Commit `959e2805d`.
-- **CLI** (`src/cli/commands/milestone.ts`): new `milestone close <slug> [--abandoned]` (conflict pre-check, `chore: close milestone <slug>` auto-commit) and `milestone update <slug>` (`--name/--target/--clear-target/--description/--status`, Commander `conflicts`/`choices`, `chore: update milestone <slug>`); shared `commitMilestones` helper extracted from `create`; all failures exit 4 with typed JSON envelopes (`branch_guard`/`not_found`/`milestone_conflict`/`milestone_error`). Commit `5a4e3406d`.
-- **Renderers** (`src/cli/commands/status.ts`, `progress.ts`): abandoned milestones render red `✗` via `MILESTONE_MARKERS`; open/closed output byte-identical to pre-change. Commits `e0063d78b`, `6429c7b88`.
-- **Guard/mint hooks** (deployed + `src/templates/hooks/` mirrors, byte-identical): `milestone close`/`update` join the Tier-2 blocked set; `SKILL_SCOPES['metta-backlog']` gains `milestone:close`/`milestone:update`; 7 new guard test cases close the previously-empty milestone coverage gap. Commit `8541e2f2b`.
-- **Skill** (`.claude/skills/metta-backlog/SKILL.md` + template mirror): milestone actions now `create | list | show | close | update` with dispatch branches for both new verbs. Commit `df57b4692`.
-
-## Verification during implementation
-
-Every task ran `npx tsc --noEmit` (clean) and its focused vitest suites (all green), including 309 guard-hook tests, byte-identity pins for hook mirrors, byte-compat ordering pins for the rollup sort, and byte-identical-file assertions for all failure paths.
-
-## Notable deviations
-
-- Task 1.1 pre-widened `MilestoneRollup.status` (one line) because the enum extension broke compilation — work the design assigned to the rollup component anyway.
-- Task 3.3's test landed in `tests/cli-status.test.ts` (the file actually covering progress milestone rendering) rather than the plan's speculative `progress-secondary-line.test.ts`; a brief mid-batch file overlap between tasks 3.2/3.3 was reconciled with no lost work.
-
-## Risks
-
-- `status: abandoned` files fail validation under older metta builds (accepted one-way door, documented in intent).
-- `update` re-serializes frontmatter via YAML.stringify — hand-edited key order/comments are normalized (accepted; hand-editing is the workflow this change eliminates).
-
-## Verification (3 parallel verifiers, 2 iterations)
-
-- **Tests**: iteration 1 found 3 failures — pre-existing scope-pin suites (`tests/metta-session-mint.test.ts`, `tests/cli-metta-guard-bash-integration.test.ts`) still expected the old `metta-backlog` scope list without `milestone:close`/`milestone:update`. Expectations updated (commit `4a9b24382`); iteration 2: **135 files, 2802 passed, 2 skipped, 0 failed**.
-- **Typecheck/lint/build**: `npx tsc --noEmit` clean; `npm run lint` clean; `npm run build` (tsc + copy-templates + emit-build-stamp) succeeded.
-- **Spec coverage**: all 22 scenarios across the 6 spec.md requirements have cited passing tests (per-scenario evidence table produced by the verifier). One noted caveat: R5's byte-compatibility scenario is verified via unit-level pins (legacy-comparator reproduction, marker map, envelope shapes) rather than a literal pre/post output byte-diff — the guarantee is derived, since pre-change binaries are not available in-tree.
-- Review follow-up: the quality reviewer's single warning (no direct CLI test for `show` on an abandoned milestone) was closed by commit `26e0703f0`.
-
-
-### 2026-08-26 — fix-generated-workflow-primer-contradicts-bash-guard-blanket
-
-# Summary: fix-generated-workflow-primer-contradicts-bash-guard-blanket
-
-## What changed
-
-The generated workflow primer claimed a blanket ban on direct `metta` CLI calls while the
-`metta-guard-bash` PreToolUse hook actually permits a read-only query surface. This change
-scopes the primer's mandate to state-mutating commands, documents the permitted read-only
-surface, and syncs all wording copies — hardened by a seam test so the hand-synced lists
-cannot silently drift again.
-
-## Implementation (by task)
-
-- **Task 1.1** (`c2e28796a`) — `src/delivery/workflow-primer.ts`: rewrote the shared
-  `MANDATE` constant (scoped to state-mutating commands, names `metta-guard-bash` as the
-  enforcement authority, fail-closed framing, humans-in-terminal carve-out preserved); added
-  `READ_ONLY_POINTER` (short variant) and `READ_ONLY_SURFACE_BULLETS` — the
-  `### Read-only queries (permitted directly)` subsection (long variant) enumerating the
-  hook's single-word, two-word, and bare allow surface with a generation-time qualifier,
-  bare-`metta` discovery pointer, and attempt-it fail-closed guidance; rewrote the Forbidden
-  bullet to enumerate the full blocked surface (including `verify`, `backlog migrate`,
-  `milestone`/`roadmap` mutating forms, `release cut`); added SYNC comments.
-  `tests/delivery.test.ts`: updated the old mandate pin; new "Workflow primer scoped
-  mandate" describe (byte-identity pin, blanket-wording absence, subsection/authority/
-  fail-closed pins, preservation pins); new "Workflow primer / guard allow-list seam"
-  describe extracting the hook's `ALLOWED_*`/`BLOCKED_*` entries from both hook copies and
-  asserting each appears in the rendered primer (ADR-4 pin pattern).
-- **Task 1.2** (`58e07d015`) — comment-only SYNC annotations above all five list
-  declarations in BOTH `src/templates/hooks/metta-guard-bash.mjs` and
-  `.claude/hooks/metta-guard-bash.mjs`; copies remain byte-identical; all four guard suites
-  pass unchanged (zero behavioral diff).
-- **Task 1.3** (`e5243acf3`) — `docs/workflows/README.md` "Core rule: skills, not CLI":
-  scoped mandate + read-only acknowledgment pointing at CLAUDE.md's subsection; mutating
-  surface enumerated; stub-prohibition sentence and "CLAUDE.md wins" note preserved
-  verbatim; blanket wording removed.
-- **Task 2.1** (`833aefa43`) — `tests/refresh.test.ts`: pinned the read-only subsection in
-  `buildWorkflowSection()` output.
-- **Task 2.2** (`8778db66b`) — metta's own `CLAUDE.md` `metta:workflow` region regenerated
-  byte-exact from `buildWorkflowSection()` via a scratchpad tsx splice (direct
-  `metta refresh` is guard-blocked for executors); no edits outside the marker region.
-- **Task 3.1** — verification sweep: PASS, no fixes needed.
-
-## Verification evidence
-
-- `npm test`: 135 files, 2812 passed / 2 skipped, 0 failed
-- `npx tsc --noEmit`: clean
-- Hook copies: `diff` empty (template vs deployed byte-identical)
-- CLAUDE.md workflow region: byte-exact match against `buildWorkflowSection()` output
-
-## Notes
-
-- Exported primer API unchanged (`workflowPrimerShort()` / `workflowPrimerLong()`); consumer
-  projects receive the corrected wording on their next `metta refresh` / install scaffold.
-- Known residual (out of scope, per design): `docs/internals/guard-hooks.md` carries a
-  fourth hand-synced copy of the allow-lists; deployment-level skew (consumer refresh
-  without reinstall) is not addressed by this change.
-
-## Verification (3 parallel verifiers, iteration 1)
-
-- **Test suite**: no deterministic failures attributable to the change. Full-suite runs on a
-  loaded machine hit 10s CLI-fixture timeout flakes (SIGTERM/exit 143, different test set
-  each run); every failed subset passes in isolation (151/151 final), and an earlier
-  fully green solo run recorded 135 files, 2812 passed / 2 skipped / 0 failed.
-- **Typecheck/lint**: `npx tsc --noEmit` clean, `npm run lint` clean (exit 0).
-- **Spec coverage**: PASS — all 15 scenarios across the 5 requirements have concrete
-  evidence (test names in tests/delivery.test.ts / tests/refresh.test.ts, or file/line
-  citations for doc-content scenarios). Both consumer-refresh scenarios rest on composed
-  evidence (content-agnostic region replacement + primer content pins) — sound, noted.
-- **Review**: correctness PASS_WITH_WARNINGS (minor test-hardening suggestions), security
-  PASS, quality PASS. No critical or major findings; see review.md.
-
-
-### 2026-08-23 — enforce-agent-executed-uat-run-results-attached-pr-before
-
-# Summary: enforce-agent-executed-uat-run-results-attached-pr-before
+# Implementation Summary: rework-backlog-around-issue-store-as-single-source-truth
 
 ## What was built
 
-Every ship-path skill now runs the archived UAT.md through the metta-uat-runner subagent between `metta finalize` and `git push`, attaches a `## UAT results` summary to the PR (body at create, `gh pr comment` on an existing PR), and treats any failed step as a hand-back blocker — the PR stays open, unmerged, and flagged. Manual-acceptance steps skip and never block; machine-verified steps pass automatically. Opt-out is `uat.enforce_on_ship: false` (default true).
+The issue store (`spec/issues/`) is now the single source of truth for all work items. The backlog is a pure view over issue-file YAML frontmatter; milestones are a first-class lightweight grouping concept; legacy `spec/backlog/` data was migrated on this repo itself.
 
-## Changes by area
+13 tasks across 7 batches, all executed and committed on branch `metta/rework-backlog-around-issue-store-as-single-source-truth`:
 
-- **Config schema** (`src/schemas/project-config.ts`): `enforce_on_ship: z.boolean().default(true)` added to the strict `UatConfigSchema`. Omitted key, omitted `uat` block, or missing config file all default to enforced; unknown keys and non-booleans still reject.
-- **Install scaffold** (`src/cli/commands/install.ts`): fresh `metta install` writes an explicit `uat:` block with `enforce_on_ship: true` and an opt-out comment; existing configs remain byte-untouched (`wx` flag preserved).
-- **Finalizer** (`src/finalize/finalizer.ts`): required `uatEnforceOnShip: boolean` on `FinalizeResult` — real config value on the success return (read before the `uat.enabled` branch so it is reported even when `uatPath` is null); hardcoded `true` on all abort paths and dry-run (fail-toward-enforce).
-- **Finalize CLI** (`src/cli/commands/finalize.ts`): emits `uatEnforceOnShip` beside `uatPath` in the `--json` success payload; human output prints `UAT enforcement: off` only when disabled.
-- **Six skill pairs** (template + deployed, 12 files, byte-identical per pair): shared frozen "UAT gate (before hand-back)" block (steps U0–U6) inserted between finalize and push in metta-ship, metta-propose, metta-quick, metta-auto, metta-fix-issues, metta-fix-gap. The canonical pinned sentence is byte-identical across all 12 files. Extras: metta-ship gained `Agent` in allowed-tools plus an already-finalized branch (archive glob fallback, reuse short-circuit, fail-toward-enforce); metta-propose's default-path hand-back now distinguishes "PR open, flagged — UAT failed" from the ready message while preserving the pinned handoff string; fix-issues/fix-gap tie issue/gap removal to a passed gate.
-- **Tests**: new `tests/skill-uat-ship-gate.test.ts` (39 assertions — sentence exactly-once, gate-before-`gh pr create --title`, gate-before-merge across all 12 files, metta-ship Agent frontmatter, aggregate offender listing); extensions to `tests/config-loader.test.ts`, `tests/cli-install.test.ts`, `tests/finalizer.test.ts`, `tests/cli-finalize.test.ts`; one Rule-1 fix in `tests/cli-finalize.test.ts` (duplicate YAML key from raw append → parse/stringify merge).
-- **Docs**: dated changelog entry covering the behavior change, the opt-out, and the new JSON field.
+- **Schemas** — `src/schemas/issue-frontmatter.ts` (`type` issue|idea, `backlog`, `priority`, `milestone`, `order`; `.strict()`, defaults) and `src/schemas/milestone-frontmatter.ts` (`name`, `target` real-calendar-date, `status` open|closed).
+- **Frontmatter round-trip** — pure `src/issues/issue-frontmatter.ts` (`splitFrontmatter` / `parseIssueFrontmatter` / `applyFrontmatterPatch`) using the existing `yaml` Document API; body carried as verbatim slice (byte preservation structural); 37 module tests.
+- **IssuesStore** — frontmatter-aware `show`/`list` (`IssueRecord`), `createIdea`, `updateFrontmatter` (`{ changed }`), `listResolved`, `create()` optional priority/milestone, `archive` carries frontmatter into `spec/issues/resolved/` and absorbs the `**Shipped-in**` stamp. All existing signatures preserved — zero `fix-issue.ts` call-site changes. Legacy frontmatter-less issues parse byte-unchanged.
+- **Backlog view** — pure `src/backlog/backlog-view.ts` filter (`backlog === true`) + deterministic sort (priority → order → captured → slug).
+- **Milestones** — `MilestonesStore` (`spec/milestones/<slug>.md`), pure `computeMilestoneRollups()` (percent, dangling-ref warnings never fail), `metta milestone create|list|show` CLI, rollups surfaced in `metta status` and `metta progress` via conditional `milestones`/`milestone_warnings` keys (absent when no milestone files exist — pre-change output structurally identical).
+- **Backlog CLI rework** — `add` flips frontmatter on the existing issue (or mints `type: idea` with `--new`), `list` never reads `spec/backlog/`, `promote` emits the `/metta-fix-issues <slug>` handoff, `done` archives through `spec/issues/resolved/`, new `migrate` subcommand. `BacklogStore` deleted; barrel exports updated (breaking export change, flagged for release notes). `roadmap.ts` repointed to `issuesStore`.
+- **Migration** — `migrateLegacyBacklog()`: derived-state idempotent, create-only writes, originals fs-renamed to `spec/archive/backlog-legacy/`, collisions reported never overwritten. Handles pre-BacklogStore legacy frontmatter blocks (bug found and fixed during self-migration).
+- **Issue logging** — `metta issue --priority/--milestone` written as frontmatter at log time; dangling milestone warns, never fails.
+- **Guard/hooks** — `milestone list/show` allowed; `milestone create` + `backlog migrate` Tier-2 blocked with mint scopes on `metta-backlog`; template and live hook copies byte-identical.
+- **Skills** — `metta-backlog` reworked (view-over-frontmatter framing, migrate + milestone menus), `metta-issue` optional priority/milestone question, `metta-fix-issues` frontmatter/idea touch points; all template↔deployed pairs byte-identical.
+- **Archive-scan hardening** — `isArchivedChangeDir()` filter in `progress.ts` and `release-pipeline.ts` so `spec/archive/backlog-legacy/` is never treated as a completed/unreleased change.
+- **Self-migration executed** — this repo's 8 archived backlog items converted to `spec/issues/resolved/` with `type: idea` frontmatter; second run no-op; `spec/backlog/` removed.
 
 ## Gate results
 
-`npm test`: 135 files, 2756 passed, 2 skipped, 0 failed. `npx tsc --noEmit`: clean. `npm run lint`: clean. `npm run build`: clean. Unchanged-by-design confirmed: metta-uat-runner agent pair, metta-uat skill, both guard-hook copies, and uat-generator carry no diff versus main.
+- `npx vitest run` — 127 files, 2284 tests, all passing
+- `npx tsc --noEmit` — clean
+- Hook byte-identity and skill template↔deployed identity — verified by diff and tests
 
-## Notable decisions
+## Notable deviations from plan
 
-- Toggle rides `metta finalize --json` (no guard-hook changes); absent field in older payloads is treated as `true`.
-- Reuse short-circuit: HEAD commit subject `docs(<change>): UAT run record` means the branch is unchanged since a recorded run — reuse as evidence, comment on the PR, no double-append.
-- Dry-run finalize reports hardcoded `true` (config never loaded there); skills gate only on the real payload.
+1. Migration gained a third collision candidate (existing archive copy) and wholesale replacement of pre-BacklogStore legacy frontmatter blocks — both defensive, both tested.
+2. `toMilestoneCountsRow` exported from `milestone.ts` so status/progress reuse the exact counts-row shape (separate refactor commit).
+3. `tests/metta-session-mint.test.ts` scope table updated as a direct consequence of the mint-scope extension.
 
-## Verification results (iteration 1)
+## Breaking changes / risks
 
-- Tests: PASS — 135/135 files, 2756 passed, 2 skipped, 0 failures (verify/tests.md)
-- Typecheck + lint: PASS — both exit 0 (verify/tsc-lint.md)
-- Spec traceability: PASS — all 24 scenarios across 8 delta requirements evidenced by named passing tests or mandating skill text in both copies (verify/scenarios.md)
+- `BacklogStore` removed from the public barrel (`src/index.ts`) — intended, flag in release notes.
+- Consumer projects (zeus) must run `metta backlog migrate` once; until then their `spec/backlog/` files are inert legacy input.
 
+## Verification results (final)
 
-### 2026-08-21 — fix-metta-propose-runs-entire-lifecycle-through-finalize
-
-# Summary: fix-metta-propose-runs-entire-lifecycle-through-finalize
-
-## What changed
-
-`/metta-propose`'s default terminal state is now **PR-open**: the skill runs the full pipeline (discovery → planning → implementation → verification → finalize → push → `gh pr create`) then stops and reports the PR URL. It no longer runs `gh pr merge` by default. Merging is an explicit opt-in via `--ship` (skill alias) or `--stop-after ship`, wired through the existing propose-stop-after machinery. `/metta-auto` and `/metta-fix-issues` keep run-to-merge behavior unchanged.
-
-## Implementation (per task)
-
-- **Task 1.1** (`9018ce0ab`) — Both propose SKILL.md copies (`.claude/skills/` + `src/templates/skills/`, byte-identical): Step 1 `--ship` alias parse rule; Step 3 clarifier that `ship` is not a planning boundary; Step 8 restructured — default path ends after `gh pr create` with the handoff `PR open for review: <pr-url>. Run /metta-ship to land it...`; `gh pr checks --watch` / `gh pr merge` / cleanup relocated under the ship-gate marker (`Ship opt-in — the following sub-steps run ONLY when STOP_AFTER = "ship" ...`); Critical section retitled `Critical: verify, finalize, and open the PR`. Forbidden strings (`Do NOT stop after the last artifact`, `finalize + ship must happen`, `unless the user asked to leave it open`, old Critical title) removed.
-- **Task 1.2** (`f78616379`) — `src/cli/commands/propose.ts`: `--stop-after` help names `ship`; `ship` short-circuits `buildOrder` validation; both error valid-lists include `ship`. No schema/persistence changes; absent flag still writes no `stop_after` field.
-- **Task 1.3** (`8338af2e1`) — `src/cli/commands/refresh.ts` generator bullet + checked-in `CLAUDE.md` lifecycle bullet updated in lockstep: "ends at an open PR — merge via `--ship` or `/metta-ship`".
-- **Task 2.1** (`7ee8d6253`) — New `tests/skill-propose-ship-gate.test.ts` (10 tests): split-on-marker placement of merge commands, default/handoff anchors present, forbidden phrases absent, local-merge prohibition and `gh pr create` survive, scope guard that metta-auto and metta-fix-issues templates still contain `gh pr merge`.
-- **Task 2.2** (`57111098e`) — `tests/cli-propose-stop-after.test.ts`: `--stop-after ship` accepted and persisted (`stop_after: ship` in `.metta.yaml`), unknown-value error lists `ship`, `--help` names `ship`.
-
-## Verification
-
-- `npx tsc --noEmit` — clean.
-- `npm test` — 134/134 files, 2709 passed, 2 skipped, 0 failed.
-- Targeted suite (ship-gate, cli-propose-stop-after, skill-discovery-loop, grounding, template-deploy-sync, cli-skills) — 110/110 passed.
-- Change surface confirmed: only the intended 7 files plus change artifacts; no edits to metta-auto/metta-fix-issues, schemas, workflow YAMLs, or workflow-primer.ts.
-
-## Notes / deviations
-
-- Commander wraps help text at 80 columns, so the help test asserts `ship` within the full `--stop-after` option entry (flag line + continuation) rather than one physical line — same intent, robust to wrapping.
-- Skill-level default is instruction-level, not runtime-enforced; the grep-assert tests guard the instructions.
-
-## Verify phase (3 verifiers, iteration #1)
-
-- **Test suite:** 134/134 files, 2709 passed, 2 skipped, 0 failed.
-- **Typecheck + lint:** `npx tsc --noEmit` clean; `npm run lint` clean.
-- **Spec coverage:** PASS — all 8 delta requirements verified, 22/23 scenarios COVERED, 1 PARTIAL (non-default-workflow stop-after id untestable due to known full-workflow template issue; validation is generically buildOrder-driven). Mutation test confirmed the ship-gate grep-assert fails when an unconditional `gh pr merge` is reinjected.
-
-## Review phase
-
-- Round 1: Correctness PASS, Security PASS_WITH_WARNINGS, Quality PASS_WITH_WARNINGS. Two majors fixed in `c53dfe94c`: quick-reroute now carries the PR-open default over; `--ship` parsing constrained to standalone flag token with a mandatory "Ship opt-in detected" announcement. Step 8.d made the exhaustive no-merge else-branch; stale "finalize/merge" label fixed.
-- Round 2: Correctness PASS, Security PASS_WITH_WARNINGS, Quality PASS_WITH_WARNINGS. Both majors confirmed closed; residual warnings all fail safe (worst case stops at open PR) — recorded in review.md with a follow-up recommendation.
+- Gate: tests — PASS (127 files, 2292 tests, 0 failures; full report: verify/tests.md)
+- Gate: tsc — PASS; Gate: lint — PASS (npm run lint = tsc --noEmit; report: verify/tsc-lint.md)
+- Gate: scenarios — PASS (33/33 spec scenarios traced to passing tests, 10 spot-check runs, zero gaps; report: verify/scenarios.md)
+- Review: 2 rounds, 3 personas; round-1 critical (silent slug-collision overwrite) fixed in 740bee3eb; final verdicts all PASS_WITH_WARNINGS (non-blocking follow-ups listed in review.md)
 
 
-### 2026-08-18 — fix-spec-specs-roadmap-feature-spec-md-normative-drift-lines
+### 2026-08-17 — fix-follow-ups-backlog-milestones-rework-review-pr-85
 
-# Implementation Summary — fix-spec-specs-roadmap-feature-spec-md-normative-drift-lines
+# Summary: fix-follow-ups-backlog-milestones-rework-review-pr-85
+
+Single hardening pass resolving the six residual defects from the backlog/milestones rework review (PR #85).
 
 ## What changed
 
-Spec-only reconciliation. `spec/specs/roadmap-feature/spec.md` rewritten to match the shipped issuesStore-backed implementation (PR #85 repointed roadmap.ts from the deleted BacklogStore to IssuesStore). Commit `c24364136`; no production code changed.
+1. **Sanitized list renderers** — new pure helper `stripControlSequences()` in `src/util/sanitize-text.ts` (CSI/OSC/DCS/Fe escapes + bare C0/DEL/C1); applied at the two defect render sites `src/cli/commands/backlog.ts` (list rows) and `src/cli/commands/milestone.ts` (milestone show issue rows). Render-only; `--json` output and files on disk stay byte-faithful. (commits afce54ea, 6d70e857, b7cf77bb)
+2. **Scoped backlog auto-commits** — the three `commitPaths` call sites in `backlog.ts` now stage explicit file paths instead of the `spec/issues` directory: `add` stages `spec/issues/<slug>.md`; `done` stages the deletion + `spec/issues/resolved/<slug>.md` creation; `migrate` stages `MigrationResult.changedPaths`, a new additive field populated inside `migrateLegacyBacklog`. Unrelated dirty files under `spec/issues/` are no longer swept into commits (regression tests per command). (commits 2cb736d8, 6d70e857)
+3. **Test consolidation + dist hygiene** — nine unique describe-blocks folded from `src/issues/issues-store.test.ts` into `tests/issues-store.test.ts` (38 tests); src copy deleted; `"src/**/*.test.ts"` added to tsconfig `exclude` so no test files compile into `dist/` (fixes five other src-side test files too). (deletion rode in f168e3a4; content commit 381102a1)
+4. **Bare `metta backlog` allowed** — `'backlog'` added to `ALLOWED_BARE` in both byte-identical guard-bash hook copies; `list` is now the backlog group's default subcommand (release precedent), so the bare form is a genuine read-only view. Write forms (`add`/`done`/`promote`) remain Tier-2 gated; `backlog <unknown>` stays fail-closed. (commits f168e3a4, 6d70e857)
+5. **Tier advisory capped at standard** — `renderBanner` clamps upscale recommendations at `MAX_UPSCALE_TIER = 'standard'`; a full-scored change never sees "upscale to full", including the current=standard/scored=full edge (states the cap without recommending a move). Scoring and persisted values untouched. (commit f90df160)
+6. **Stale `spec/backlog/` sweep** — `refresh.ts` TOC drops the Backlog row, widens the Issues description, adds a Milestones row; worktree CLAUDE.md hand-edited to match with a `not.toContain('spec/backlog/')` regression pin; guard-edit `ALLOW_PREFIXES` tightened to `spec/issues/` only (both hook copies, test flipped to assert blocked); `docs/workflows/README.md`, `docs/workflows/skills.md`, `docs/internals/architecture.md`, `docs/workflows/state.md`, `docs/guide/troubleshooting.md`, `docs/internals/guard-hooks.md` rewritten to the frontmatter-view model. (commits 1b0ff21c, 71c67930, 41e6ac37)
 
-## Drift sites rewritten (evidence-grounded)
+## Breaking/behavioral notes
 
-- L5: dropped reference to deleted `src/backlog/backlog-store.ts`; fixed stale test path to `tests/roadmap-store.test.ts`
-- L25/30: title resolution now `IssuesStore.show` from `spec/issues/<slug>.md` (backlog items are issues with `backlog: true`) — roadmap.ts:53, backlog-view.ts:29
-- L50/53: dangling = missing issue file in `spec/issues/`, surfaced via failed `IssuesStore.show` — roadmap.ts:52-57
-- L65/68/73: `roadmap add` existence check → `IssuesStore.exists`; fixtures/read-only clauses repointed — roadmap.ts:85-88, issues-store.ts:270-273
-- L98-105: `roadmap next` decoupled from `backlog promote` — next emits `metta propose "<title>"` via `buildPromoteHandoff`; promote independently emits zero-write `/metta-fix-issues <slug>` — roadmap.ts:153-167, promote-handoff.ts, backlog.ts:212-235
-- New normative coverage: ADR-4 dangling-top `not_found` no-pop failure (exit 4, no write/commit) and `roadmap_error` fallback discriminator — roadmap.ts:19-25, 157-165
-- L130/138/145/155: error contract, scenario premise, wiring clause, promote-handoff semantics updated accordingly
+- **Guard-edit tightening (intended):** out-of-band `.md` edits under the retired `spec/backlog/` path are now blocked (previously allowed).
+- **Bare `metta backlog` behavior change:** prints the backlog list (exit 0) instead of Commander group help (exit non-zero).
+- **Advisory wording change:** full-scored changes now render capped advisory text.
 
-Guard/skill requirements (L158-205) verified accurate and untouched per intent. Grep confirms zero remaining `BacklogStore`/`spec/backlog` references in the spec.
+## Incident log (orchestrator)
 
-## Findings
+Parallel executors sharing the worktree index raced on `git commit`: Task 1.3's original commit (06195af5c) was lost to a branch-ref reset during Task 1.5's recovery; its content survived staged and was recommitted by the orchestrator as 381102a1 (verified 38/38 green). The `src/issues/issues-store.test.ts` deletion rode along in f168e3a4. Net tree state audited correct; later batches used pathspec-scoped commits.
 
-- No true code defect found; shipped behavior matches the corrected spec everywhere
-- Cosmetic staleness noted out of scope: roadmap.ts:137 CLI description text; `buildPromoteHandoff` name
+## Follow-ups to log at ship time (per design ADR-1)
 
-## Gates (implementation phase)
+- Wrap the remaining ~13 title/description render sites with `stripControlSequences`, incl. newline-preserving variant for multi-line bodies.
+- `spec/specs/roadmap-feature/spec.md` normative drift (still requires deleted `BacklogStore`) — own gap/issue.
+- `--json` C1 (U+009B) passthrough in `JSON.stringify` output.
+- Relocate the five remaining src-side test files into `tests/`.
+
+## Verification (iteration 1 — 3 parallel verifiers)
+
+- **Tests:** `npm test` — 127/127 files, 2343/2343 tests, 0 failures.
+- **Gates:** `npx tsc --noEmit` clean; `npm run lint` clean; `npm run build` clean; `find dist -name '*.test.*'` empty.
+- **Spec coverage:** all 21 scenarios across 7 requirements PASS with cited tests or direct implementation evidence (see review.md and verifier table). Consolidated issues-store suite is a verbatim superset of the deleted src copy (27/27 case names carried).
+
+## Review outcome
+
+Three iterations: iteration 1 found 1 critical (stale integration test) + 1 major security (`--` operand-terminator bypass through ALLOWED_BARE); iteration 2 caught the surviving flag-before-`--` variant; iteration 3 exits clean (PASS / PASS_WITH_WARNINGS / PASS) after the structural full-span `--` fail-closed fix (commit 2ab040e4d). Remaining security warnings are pre-existing tokenizer classes on main, logged as follow-ups.
+
+
+### 2026-08-17 — fix-guard-bash-tokenizer-weaknesses
+
+# Verification: fix-guard-bash-tokenizer-weaknesses
+
+## Spec Scenarios
+
+Trivial workflow — intent.md is the spec. All four issue points verified with test-level evidence in `tests/metta-guard-bash.test.ts` (runs against both hook copies; byte-identity itself is pinned by a test):
+
+- [x] **1. Glued chain separators detected** — `;`-glued (line 302), `&&` (310), `||` (318), `|` (326), `&` (334); block reason cites the second invocation (`backlog add` in stderr, lines 375/384); spaced-separator regressions still block (358) and allowed-only chains still pass (366)
+- [x] **2. Newline/CRLF separators detected** — `\n` (342), `\r\n` (350)
+- [x] **3. Wrapper-prefix limitation acknowledged** — KNOWN LIMITATION comment in `src/templates/hooks/metta-guard-bash.mjs` (lines 113+) names `command`/`env`/`\metta`/`xargs`/`sh -c` wrappers plus dynamic indirection: `$(...)`, backticks, subshells, process substitution, brace groups, backslash-escaped quotes, quoted-whitespace env prefixes, quoted/split command names
+- [x] **4. Quote-aware `--`** — quoted-span `--` allowed (429, 438); whole-word quoted `--` (`"--"`, `'--'`, `""--`) blocks (470, 479, 488); unquoted `--` still blocks (447, 1103-1129); unterminated quotes fail closed (452, 460)
+- [x] **Review round-2 pins** — `FOO=';' metta finalize` blocked (396); `metta status "a;b"` allowed (402); quoted arg with separator + `--` allowed (408); `metta backlog add "see; metta finalize"` blocked for the genuine call (417)
+
+## Gate Results
 
 | Gate | Result |
 |------|--------|
-| `npx tsc --noEmit` | pass |
-| `npx vitest run tests/roadmap-store.test.ts tests/cli-roadmap.test.ts` | 36/36 pass |
-| Full `npm test` | deferred to finalize (no code change) |
+| tests (`npm test`) | PASS — 127 files, 2389/2389 (217 hook tests) |
+| typecheck (`npx tsc --noEmit`) | PASS |
+| lint (`npm run lint`) | PASS (tsc alias) |
+| build (`npm run build`) | PASS |
+| hook byte-identity (`cmp`) | PASS — template and `.claude/hooks` copy identical |
 
-## Verification
+Review: 2 iterations, 3 reviewers each (correctness/security/quality). Round 2: correctness PASS; security and quality PASS_WITH_WARNINGS — all warnings resolved in follow-up commits (see review.md).
 
-### Spec scenarios (verified against intent)
+## Summary
 
-- Issue-store resolution requirements (view titles, add existence check, next resolution) match code with passing tests — PASS
-- Dangling handling: non-fatal flag on view; ADR-4 dangling-top `not_found` exit 4, no pop/write/commit on next — PASS (test: "dangling top entry exits 4 with not_found naming both remedies and does not pop")
-- Handoff decoupling: next emits `metta propose` via sole-consumer `buildPromoteHandoff`; promote independently emits zero-write `/metta-fix-issues` — PASS
-- Error contract: four primary discriminators + `roadmap_error` fallback — PASS (envelope tests pass; fallback evidenced at roadmap.ts:24)
-- Zero remaining `BacklogStore`/`spec/backlog` references; guard/skill section byte-untouched — PASS
+Fixed the four tokenizer weaknesses in `metta-guard-bash.mjs` from issue `guard-bash-tokenizer-weaknesses-pre-existing-on-main` (severity major). Final implementation across commits `c3ee99531`, `95c83da4d`, `60f119809`:
 
-### Gate results (verification phase)
+1. **Quote-aware separator-first segmentation.** `splitCommandSegments()` computes a quote mask over the whole command and splits on runs of `;`, `|`, `&` (incl. `&&`, `||`) and `\r?\n` only when the run is entirely unquoted — glued forms like `metta backlog --json;metta backlog add x` now yield two invocations and the write call is blocked, while quoted separators (`metta status "a;b"`, `FOO=';' metta finalize`) neither hide invocations nor over-split. Unterminated quotes fall back to quote-unaware splitting, which can only over-block — it never hides a bash-executable invocation (such inputs are bash syntax errors).
+2. **Newline segmentation** — `\n` and `\r\n` are segment boundaries.
+3. **Wrapper-prefix limitation documented** — textual guarding cannot see wrapper/indirection forms; defense in depth is the two-tier trust model plus the audit log. No mechanical wrapper detection added (out of scope).
+4. **Quote-stripped `--` detection.** `computeQuoteMask()` + `hasUnquotedDoubleDash()` with `stripQuoteChars()`: a `--` inside a longer quoted span (`"hello -- world"`) is allowed, while any boundary-self-contained word whose quote-stripped form is `--` (`"--"`, `'--'`, `""--`, `--""`) is treated as a live operand terminator and blocked, matching bash quote removal. Unquoted `--` blocks unconditionally; unterminated quotes fail closed.
 
-| Gate | Result |
-|------|--------|
-| `npm test` (full) | 2405/2405 pass, 128/128 files |
-| `npx tsc --noEmit` | pass |
-| `npm run lint` | pass |
-| Targeted roadmap suites | 36/36 pass |
-
-### Review
-
-3 reviewers, 1 round: PASS / PASS / PASS_WITH_WARNINGS. Warnings procedural; follow-up issue `roadmap-ts-137-cli-help-text-for-roadmap-next-still-says` logged for stale CLI help text.
+Unchanged: tier/trust model, credential handling, allow/deny lists, audit logging semantics, exit codes.
 
 
-### 2026-08-18 — fix-roadmap-entry-lifecycle-dangling-entries
+### 2026-08-18 — fix-finalize-dry-run-diverges-applying-run-spec
 
-# Summary: fix-roadmap-entry-lifecycle-dangling-entries
+# Summary: fix-finalize-dry-run-diverges-applying-run-spec
 
 ## What was implemented
 
-Full roadmap entry lifecycle for the post-PR#85 world where dangling entries are the normal end state of every shipped roadmap entry (issue `roadmap-has-no-entry-lifecycle-after-its-referenced-issue`, major):
+Refactored `SpecMerger.merge()` (`src/finalize/spec-merger.ts`) into a two-phase stage-then-commit merge, eliminating both defects from the source issue:
 
-1. **Store surface** (`d0a944fb7`): `RoadmapStore.remove(target: string | number)` (typed `not_found`, 1-based position or slug), batched `removeSlugs(slugs[])` (single load/validate/save), no-throw duplicate-tolerant `retire(slug)` — all over a shared private `spliceAndSave` core with canonical renumbering; `removeTop` deleted (sole caller was `next`).
-2. **`roadmap remove <position|slug>`** (`5d184af26`): main-branch guard before any read, `/^\d+$/` input is always a position (all-digit slugs are legal, so no fallback rule), `autoCommitFile` with `chore: remove roadmap entry <slug>`, JSON `{removed, position, committed, commit_sha}`, typed `not_found` through the existing error envelope, zero `spec/issues/` access.
-3. **`next` skip-and-warn rewrite** (same commit): pure-plan phase (walk entries, classify healthy/dangling via `issuesStore.show` — which never reads `resolved/`, so resolved issues are dangling by construction) + mutate phase (`removeSlugs([activated])` by default — dangling entries stay in place; `--prune` folds skipped slugs into the same single write/commit with a `(pruned N dangling)` commit-message suffix). All-dangling or empty roadmap: no store call, `next: null` + `skipped` list, exit 0. Additive JSON `skipped`/`pruned` fields plus one stderr warning per skipped slug naming both remedies — the machine-detectable replacement for ADR-4's exit-4. The ADR-4 fail-stop is formally superseded (design.md ADR-3, citing `spec/archive/2026-07-26-roadmap-feature/design.md:17`; archive untouched).
-4. **Auto-retire on issue resolution** (`acb8012d0`): `backlog done` and `fix-issue --remove-issue` call `retire(slug)` after a successful archive and conditionally stage `spec/roadmap.md` into the SAME commit (never `autoCommitFile`, never unconditional staging); fail-open with a stderr remedy warning; additive `retired_roadmap_entry: string | null` JSON field. `fix-issue`'s no-branch-guard posture inherited by design.
+1. **Dry-run/apply parity by construction.** A shared pure compute phase — module-level `reconcileDelta()` and `renderNewCapabilitySpec()`, no I/O — runs the full conflict-detection set (capability-not-found, base-version/lock, requirement-not-found for MODIFIED/RENAMED/REMOVED) identically in both modes, and classifies merged/conflicts/noops identically, including ADDED-duplicate noop detection in dry-run. The `MergeResult.noops` doc-comment caveat about dry-run divergence is removed. The finalizer's step-3 dry-run gate now catches every conflict class step-5 would.
+2. **All-or-nothing apply.** The commit phase runs only when the compute phase produced zero conflicts; it iterates the staged `dirtyCapabilities` and performs `state.writeRaw` + `specLockManager.update` per capability. Any conflict → `status: 'conflict'` with zero files and zero locks written — the spec store is untouched.
+3. **Composition.** Multiple deltas targeting the same capability compose through a `stagedContent` map threaded across the delta loop.
+4. **Finalizer comment alignment** (`src/finalize/finalizer.ts` step 5): an apply-time conflict after a clean dry-run now indicates disk drift between the two calls, not a known blind spot; it still aborts with zero writes.
 
-**Not absorbed**: issue `metta-roadmap-next-mutates-on-invocation-with-no-read-only` — the skip design does not make `next` read-only (activation still pops/commits); kept out of scope per design ADR-8, with the pure-plan/mutate split banked so a future preview flag is trivial.
-
-## Tests and gates
-
-Store 29 (S1-S14 suites), cli-roadmap 30 (C1-C16 incl. the inverted ADR-4 fail-stop test), cli-issue-backlog 65 (R1-R6 incl. same-commit `git show --name-status` assertions and fail-open injection). Full suite 2496/2496 across 130 files; tsc/lint/build clean; `removeTop` swept to zero references; `spec/archive/` diff empty; scope confined to declared files.
-
-## Breaking change (intended, spec'd)
-
-Automation depending on `roadmap next` exit-4 on dangling heads must switch to the `skipped` JSON field / stderr warnings. Commit-message prefix `chore: pop roadmap entry <slug>` preserved for log-based checks.
-
-## Verification
-
-### Spec Scenarios
-
-All 6 requirements (3 MODIFIED, 3 ADDED) and all 19 scenarios verified with passing-test evidence (349/349 across the four touched suites; per-scenario citations in the verification report):
-
-- [x] `next` skip-and-warn: dangling head skipped with per-slug remedies, ghost survives (454/481); `--prune` same-write/same-commit with slug-listing commit body (508); all-dangling and empty no-ops, prune-inert byte-identically (541/332); old exit-4 fail-stop gone (inverted C12 at 427)
-- [x] Error contract: five failure types uniform (685); dangling no longer routes through the error envelope
-- [x] Branch/auto-commit discipline: all four verbs guarded, guard-before-validation (637/650/661), `--on-branch` escape (668)
-- [x] `roadmap remove`: position + slug + dangling, renumber, auto-commit, typed not_found, `spec/issues/` untouched (250/266/291; store S1-S14)
-- [x] Auto-retire: same-commit atomicity via `git show` (R1/R4), non-roadmapped byte-identical + pre-dirty stays out of commit (R2/R5), fail-open injection (R6), `retired_roadmap_entry` additivity (R3)
-- [x] Machine-detectable skip signal: `skipped`/`pruned` JSON ordering and distinction, empty-signal contract intact, one stderr line per slug (481/508/584/607)
-- [x] ENOENT-only dangling: malformed-existing-file NOT dangling and NOT pruned (385/404)
-- [x] Guard/mint/skill coverage of `roadmap remove` (guard tests 959/971/982; mint scope granted)
-
-Non-blocking note: `tests/metta-session-mint.test.ts` EXPECTED_SCOPES omits metta-roadmap, so mint-side granting of `roadmap:remove` is untested (guard-side verification is tested).
-
-### Gate Results
-
-| Gate | Result |
-|------|--------|
-| tests (`npm test`) | PASS — 129 files, 2504/2504, no flakes |
-| typecheck / lint | PASS |
-| build | PASS |
-| hook template/deployed/dist sync (guard-bash, session-mint) | PASS — byte-identical |
-| removeTop sweep | PASS — zero references |
-| archive immutability | PASS — spec/archive/ untouched |
-
-Review: 3 reviewers, 1 iteration — quality PASS, correctness/security PASS_WITH_WARNINGS; all warnings fixed in 991f5ed02 (ENOENT-only classification, guard/mint/skill coverage, pre-dirty acceptance recorded, prune audit trail, help text).
-
-
-### 2026-08-18 — fix-remaining-13-title-description-render-sites-print-user
-
-# Implementation Summary — fix-remaining-13-title-description-render-sites-print-user
-
-## What changed
-
-Wrapped every remaining human-rendered title/description print site behind control-sequence sanitization at the render edge, and added a newline-preserving helper variant for multi-line bodies. JSON output paths (`outputJson`) remain byte-faithful and untouched.
-
-Fix commit: `269e6f17bb998c9f0c67b22d4f824732edebeee2` — `fix(cli): sanitize remaining title/description render sites` (11 files, +150/−32).
-
-## Helper variant
-
-- `src/util/sanitize-text.ts` — added `stripControlSequencesMultiline(text)`: splits on `\n`, sanitizes each line via the existing `stripControlSequences`, rejoins with `\n`. Preserves LF, normalizes CRLF to LF, bounds unterminated OSC/DCS bodies to their line. Existing helper and regex untouched.
-
-## Sites wrapped
-
-- `src/cli/commands/issue.ts` — list row title, show heading; show body (multiline)
-- `src/cli/commands/fix-issue.ts` — show heading, `--all` row title, captured/context lines; show body (multiline)
-- `src/cli/commands/gaps.ts` — list row title, show heading, source/claim/evidence/impact/relatedSpec lines
-- `src/cli/commands/fix-gap.ts` — show heading, `--all` row title, source/claim/evidence/impact/relatedSpec lines
-- `src/cli/commands/roadmap.ts` — list row title label and note suffix
-- `src/cli/commands/validate-stories.ts` — story listing title
-- `src/cli/commands/backlog.ts` — show heading; show body (multiline)
-- `src/cli/commands/milestone.ts` — show heading (`item.name`); show body (multiline)
-
-All 16 intent-listed sites plus the intent's in-scope same-block free-text fields are wrapped. `gap.action` deliberately excluded per intent scope.
+Delta spec (`spec.md`, merge target `finalize-ship`): MODIFIED `Spec Delta Merge` + ADDED `Dry-Run And Apply Merge Result Parity`, `All-Or-Nothing Spec Merge Apply`, `Staged Composition Of Same-Capability Deltas`.
 
 ## Tests
 
-- `tests/sanitize-text.test.ts` — 8 new tests for the multiline variant (LF preservation, per-line CSI stripping, CRLF normalization, OSC/DCS/C1/lone-ESC parity, unterminated-OSC line bounding, Unicode pass-through, empty string, idempotence)
-- `tests/cli-issue-backlog.test.ts` — 3 new render-edge tests: list title stripped in text mode, show heading stripped + body newlines preserved, `--json` title/description byte-faithful
+`tests/spec-merger.test.ts`: 20/20 (12 existing unchanged + 8 new — dry-run requirement-not-found for MODIFIED/RENAMED/REMOVED, dry-run/apply parity, conflict-writes-nothing atomicity with byte-identical store assertion, staged composition in both modes, ADDED-duplicate noop parity). Full suite 128 files / 2431 tests green; tsc and build clean.
 
-## Gate results
+Commits: `73ad3200a` (spec delta), `9a23c806a` (refactor), `9f90e75d5` (tests).
 
-| Gate | Result |
-|------|--------|
-| `npm test` | 2399/2400 on first full run — sole failure was a fixture typo in a newly added test, fixed; targeted re-run of both touched test files: 85/85 pass |
-| `npm run lint` | pass |
-| `npx tsc --noEmit` | pass |
-| `npm run build` | pass |
+## Workflow note
 
-## Verification
-
-Fixup commit `b156eba4d` additionally sanitized `gap.action` (multiline), `stories.justification` (multiline), and the `roadmap next` handoff line (single-line, text branch only), with new tests in `tests/cli-gaps.test.ts` (new file), `tests/cli-roadmap.test.ts`, `tests/cli-status.test.ts`.
-
-### Spec scenarios (verified against intent — quick workflow)
-
-- All 16 intent-listed render sites wrapped with the correct variant — PASS (verifier cited file:line for each)
-- Newline-preserving helper `stripControlSequencesMultiline` behaves per intent (LF preserved, CRLF→LF, per-line OSC/DCS bounding, idempotent) — PASS
-- JSON output paths byte-faithful — PASS (zero `strip` on `outputJson` lines; `--json` tests assert exact hostile bytes round-trip)
-- Tests cover list, heading, and multi-line body sites plus JSON fidelity — PASS (85/85 targeted; 93/93 after fixup)
-
-### Gate results (verification phase)
-
-| Gate | Result |
-|------|--------|
-| `npm test` (full suite, pre-fixup) | 2400/2400 pass, 127/127 files |
-| Targeted vitest (post-fixup, 4 touched files) | 93/93 pass |
-| `npx tsc --noEmit` | pass (pre- and post-fixup) |
-| `npm run lint` | pass (pre- and post-fixup) |
-
-### Review
-
-3 reviewers × 2 rounds: round 1 PASS_WITH_WARNINGS (×3) → fixup `b156eba4d` → round 2 PASS (×3). Security reviewer fuzzed the sanitizer with 20k adversarial strings: zero control-byte leaks, no ReDoS, idempotent.
-
-
-### 2026-08-18 — fix-metta-guard-edit-still-false-positive-blocks-subagent
-
-# Summary: fix-metta-guard-edit-still-false-positive-blocks-subagent
-
-## What was implemented
-
-Fixed the metta-guard-edit PreToolUse hook false-positively blocking subagent Write/Edit calls into `.metta/worktrees/<change>/` under the inverted-hosting topology (change state in the main checkout, edit target in the worktree) — the production defect reported by the zeus consumer on 2026-08-18.
-
-Approach: research-selected **V1c host-derived probe root** (design ADR-1..5). Three parallel research tracks scored: two-root probe 8/10 (V1c variant selected), bidirectional CLI discovery 7/10 (durable but disproportionate blast radius — backlog candidate), canonical state hosting 3/10 (cannot satisfy the GIVEN-inverted acceptance scenarios).
-
-## Changes by task
-
-- **Task 1.1** (`6f01e7f23`): ADR-4 spec wording — R1/R3 now state the guarantee in terms of the *hosting checkout root* (the checkout whose `.metta/worktrees/` contains the target's checkout), the precise session-cwd-independent formulation.
-- **Task 1.2** (`419ce3131`): `deriveProbeRoot(checkoutRoot)` added to `src/templates/hooks/metta-guard-edit.mjs` (+ byte-identical `.claude/hooks` mirror): pure path math — if the target's git toplevel sits at `<H>/.metta/worktrees/<name>`, the `metta status --json` probe runs with `cwd: H` (whose answer is a verified strict superset of the worktree's); otherwise behavior is unchanged. All decision-path logic (outside-root allow, allow-lists, block message, single try/catch fail-open) untouched and still keyed on the target's own root.
-- **Task 2.1** (`61694d426`): real-CLI topology regression suite (R6) — delegating PATH shim exec'ing `npx tsx src/cli/index.ts`, 18 new cases across both hook copies: inverted topology (incl. subdirectory-cwd), canonical topology, no-change block, containment bound (unrelated checkout still blocks), and four probe-failure fail-open modes. Red-run demonstrated against the pre-fix hook (inverted cases exit 2 where 0 expected). ADR-5 shim update applied with a recorded Rule-1 deviation: the "active" answer moved into the single test needing it rather than the shared shim (the literal design text broke 3 tests because both worktrees derive the same probe root).
-- **Task 3.1**: gates — lint/tests/build all exit 0 (127 files, 2407 tests), template/dist/.claude hook copies byte-identical, tree clean.
-
-## Consumer impact
-
-Consumers heal via hook refresh alone — no CLI upgrade required. Subagent edits inside `.metta/worktrees/<change>/` during an active change are allowed regardless of which checkout hosts the change state; the heredoc fallback workaround is obsolete.
+The CLI auto-downscaled this change standard → quick at intent completion (complexity score 1, file_count 3) — another occurrence of open issue `intent-time-workflow-auto-downscale-misfires-on-file-count-0`. The quick routing was kept (no state hand-edits); the spec delta the intent commits to was authored anyway (SpecMerger merges `spec.md` independent of the artifact graph), and full 3-reviewer / 3-verifier fan-outs run regardless of tier.
 
 ## Verification
 
 ### Spec Scenarios
 
-All 6 requirements / 10 scenarios verified with test or commit-documented evidence (`tests/metta-guard-edit.test.ts`, both hook copies):
+All delta requirements/scenarios verified with cited test evidence (`tests/spec-merger.test.ts` 20/20, `tests/finalizer.test.ts` 33/33):
 
-- [x] R1 inverted topology allows (465-475) + V1c cwd-independence (477-489); empty target-root answer never decides (hook host-probe superset)
-- [x] R2 canonical topology still allows (491-501) + legacy case (283-316)
-- [x] R3 no state anywhere blocks with `metta-guard` stderr (503-512); ADR-2 containment bound — unrelated checkout still blocks (514-531)
-- [x] R4 all four probe-failure modes fail open: non-zero exit, garbage JSON, >5s timeout, metta absent (533-582)
-- [x] R5 allow-lists unchanged and pinned (64-115, 142-154, 338-346)
-- [x] R6 real-CLI delegating shim (execs `npx tsx src/cli/index.ts`, no cwd conditional); red-run against pre-fix hook documented in commit 61694d426 and independently reproduced by two reviewers
+- [x] MODIFIED `Spec Delta Merge` — merge-target name exists verbatim in the living spec; dry-run requirement-not-found for MODIFIED (501) / RENAMED (538) / REMOVED (576); apply-mode conflict + no-write (456); ADDED idempotency/noop scenarios (382, 426)
+- [x] `Dry-Run And Apply Merge Result Parity` — deep result equality on a fixture mixing noop + clean + three conflict classes (607, `toEqual` at 693) with zero-write assertion; finalizer step-3 gate catches requirement-not-found, applying merge never invoked (finalizer.test.ts:302, merge spy called once with dryRun)
+- [x] `All-Or-Nothing Spec Merge Apply` — conflicting delta N leaves spec.md, spec.lock, and specs/ tree byte-identical (702); zero-conflict multi-delta commits all staged results (783, 320)
+- [x] `Staged Composition Of Same-Capability Deltas` — ADDED-then-MODIFIED composes in apply (783) and classifies identically in dry-run (821)
+
+Non-blocking notes: finalizer-layer scenario uses MODIFIED where the spec text names REMOVED (same conflict class, covered at merger layer); multi-capability lock-hash assertion is composed from two tests rather than one verbatim scenario test.
 
 ### Gate Results
 
 | Gate | Result |
 |------|--------|
-| tests (`npm test`) | PASS — 127 files, 2407/2407 (49 guard-edit tests) |
+| tests (`npm test`) | PASS — 128 files, 2432/2432 |
 | typecheck / lint | PASS |
 | build | PASS |
-| hook byte-identity (template = .claude = dist) | PASS |
 
-Review: 3 reviewers, 1 iteration — correctness PASS, security and quality PASS_WITH_WARNINGS; all warnings doc-level, resolved in commit 6448def52; ADR-3 residual logged as issue `guard-edit-worktree-name-match-hardening-follow-up`.
-
-
-### 2026-08-18 — fix-metta-guard-bash-blocks-main-session-tier-2-lifecycle
-
-# Summary: fix-metta-guard-bash-blocks-main-session-tier-2-lifecycle
-
-## What changed
-
-Fixes the guard falsely blocking main-session Tier-2 lifecycle commands (`metta complete`, `metta finalize`) with `credential-expired` after subagent-delegation windows, and the same-event mint/guard parallel-hook race.
-
-Mechanism: guard-integrated deterministic re-prime, session-bound, with a 60-minute grace horizon (`GRACE_MS = 3_600_000` shared across both hooks).
-
-## Commits
-
-- `e51f162de` — mint hook: `sessionId: event.session_id ?? null` stamped into tokens; `cleanupSiblings` horizon extended to `ttlMs + GRACE_MS`; atomic temp+rename writes; stale `.tmp` orphan cleanup; header rewritten (+ byte-identical template mirror, extended mint suite — 43/43).
-- `63bdc0753` — guard hook: two-band freshness (fresh `age < ttlMs`; re-primable `sessionId === event.session_id && age < ttlMs + GRACE_MS`); `reprimeToken` (authorize-then-write, atomic, swallow-all — write failure never revokes); `readSessionTokens` returns `{tok, file}` for read/write path symmetry; audit gains `session-credential-reprimed` reason and `staleness_ms` on session-tier acceptances and `credential-expired` blocks (+ mirror, 3 sanctioned seed deepenings only — 344/344).
-- `d12b00b00` — new `tests/metta-guard-mint-seam.test.ts` (480 lines): A1–A4 regression armor, B1 re-prime bug pin, B2 sliding refresh, C1/C2 ordering invariance, C3 gated stress smoke, E1–E7 fail-closed armor, ADR-4 GRACE_MS constant pin across all four hook copies. Pre-fix red-check recorded: B1 and C1 both exit 2 `credential-expired` against the merge-base guard (`0873e03c5`).
-- `2fa949149` — docs: CLAUDE.md Tier-2 bullet corrected to per-slug two-band lifecycle; `docs/internals/guard-hooks.md` Bash-guard portion rewritten to the landed model (retired mechanisms marked retired).
-
-## Gates (Task 3.1, from change root)
-
-- `npm test`: 130 files, 2537 passed, 2 skipped, 0 failed
-- `npx tsc --noEmit`: exit 0
-- `npm run lint`: exit 0
-- `npm run build`: exit 0 (template->dist copy exercised for both hooks)
-- Hook/template byte-identity: `cmp` silent for both pairs
-
-## Behavior preserved (fail-closed boundary)
-
-Tier-1 fork identity, scope lists, tokenizer, `--` handling, `missing-credential`/`subcommand-not-in-scope` paths, retired single-file credential unhonored, block message text — all unchanged. Missing/non-string `session_id` degrades to exact pre-fix behavior. Old-format tokens (no `sessionId`) are never re-primable.
-
-## Open items
-
-- UAT: confirm `session_id` stability across `--resume`/`--fork` (undocumented; both outcomes fail-closed-safe).
-- Deviation note (Task 2.2): `docs/internals/guard-hooks.md` was stale beyond the lifecycle paragraph (retired inline `METTA_SKILL=1` bypass presented as current); the whole Bash-guard portion was rewritten to match the landed hooks.
-
-## Review (2 rounds)
-
-Round 1: correctness PASS_WITH_WARNINGS, security PASS_WITH_WARNINGS (M1), quality NEEDS_CHANGES (F1). Fixes landed: `24ef746b4` (F2 deferred re-prime to `!offender` branch + F3 authorizing-token attribution, with seam pin tests), `4f3099488` (F1 workflow-primer Tier-2 wording + delivery test pins). Round 2: all three reviewers PASS. Details in review.md.
-
-## Verification (3 parallel verifiers)
-
-- Full suite: 130 files, 2543 passed, 2 skipped (env-gated stress smokes), 0 failed; `npm run build` exit 0. (One vitest-internal worker RPC timeout note; no test implicated.)
-- `npx tsc --noEmit` and `npm run lint`: zero errors; both hook mirrors byte-identical (`cmp` silent).
-- Spec sweep: all 34 scenarios across R1–R8 discharged with cited test/doc evidence; zero gaps. Evidence notes (non-gaps): fork-tier audit `tier` field rests on code inspection + block-record test; B1/C1 red-pre-fix is documented verification (merge-base extraction), not an automated bi-version CI run.
+Review: 3 reviewers, 1 iteration — security PASS, correctness/quality PASS_WITH_WARNINGS; all warnings fixed in 5453a802a; pre-existing RENAMED-collision data loss logged as issue `spec-merger-renamed-delta-re-key-silently-loses-a`.
 
 
-### 2026-08-18 — fix-json-output-c1-control-passthrough-json-stringify
+### 2026-08-18 — fix-five-src-side-test-files-still-live-outside-tests
 
-# Implementation Summary — fix-json-output-c1-control-passthrough-json-stringify
+# Implementation Summary — fix-five-src-side-test-files-still-live-outside-tests
 
 ## What changed
 
-CLI stdout JSON now escapes DEL/C1 controls (U+007F-U+009F) as six-character JSON escapes (backslash-u00xx, lowercase) at the emission edge; stored data is never mutated and parsed-value fidelity is preserved (JSON.parse yields byte-identical strings).
+Mechanical relocation of the five remaining src-side test files to tests/ (repo convention), restoring convention consistency after PR #86 removed dist pollution but left the files in place. Commit `bf6f9ac3eb13a8f87e028bba4e96c2289a2a267e`.
 
-- Commit 99d49ac — feat(util): add escapeJsonControls C1/DEL JSON-edge escape helper: new pure escapeJsonControls(jsonText) in src/util/escape-json-controls.ts (global [x7f-x9f] replace with lowercase four-hex escapes; idempotent; no barrel change) + tests/escape-json-controls.test.ts (15 tests: range boundaries U+007E/U+007F/U+009F/U+00A0, non-targets, idempotence, empty, structure safety incl. keys, ~135KB payload smoke).
-- Commit ac67dd902 — fix(cli): escape DEL/C1 controls at stdout JSON emission edges: wired at exactly the three audited edges — outputJson in src/cli/helpers.ts (covers all --json output and handleError envelopes), config get object branch in src/cli/commands/config.ts (scalar branch untouched per ADR-4), renderJsonPlan in src/cli/commands/tasks-renderer.ts — plus one new render-edge CLI test with a fresh hostile-c1 fixture (raw U+009B/U+007F title appears as the backslash-u009b escape in stdout, JSON.parse round-trip byte-identical, disk file byte-identical). No other JSON.stringify site touched (file writes/hashing/hook logs are non-edges per the 29-site research audit).
+Moves (git mv, history preserved at 96-99% similarity):
+- src/config/build-stamp.test.ts → tests/build-stamp.test.ts
+- src/config/config-writer.test.ts → tests/config-writer.test.ts
+- src/config/repair-config.test.ts → tests/repair-config.test.ts
+- src/config/version-drift.test.ts → tests/version-drift.test.ts
+- src/finalize/finalize-lock.test.ts → tests/finalize-lock.test.ts
+
+Diff beyond renames: exactly one relative-import rewrite per file (5 insertions, 5 deletions), `.js` extensions preserved. `tests/build-stamp.test.ts:211` retains its `process.cwd()`-anchored scripts/ path (verified relocation-safe). Per the intent's explicit scope call, tsconfig's src-test exclusion (dist-pollution guard) and vitest's src include (stray tests still run) are both retained — zero config changes, zero test-logic changes.
 
 ## Gate results (implementation phase)
 
 | Gate | Result |
 |------|--------|
-| tests/escape-json-controls.test.ts | 15/15 pass |
-| tests/cli-issue-backlog.test.ts | 59/59 pass |
-| Byte-faithful suites (cli-gaps, cli-roadmap, cli-status) unmodified | 66/66 pass |
-| Full suite (npx vitest run) | 2421/2421 pass, 129 files |
+| Five relocated suites | 74/74 pass |
 | npx tsc --noEmit | clean |
+| npm run build | OK; 0 *.test.* files in dist/ |
+| Full npm test | 2439/2439 pass, 129 files |
 
 ## Verification
 
-### Spec scenarios (all 10 verified — see verifier evidence)
+### Intent commitments (all PASS, verifier evidence)
 
-- Requirement 1 (US-1): raw CSI/DEL escaped at stdout edge (CLI test cli-issue-backlog.test.ts:525-551); error envelopes covered structurally via outputJson; boundary neighbors U+007E/U+00A0 and multi-byte pass through — PASS
-- Requirement 2 (US-2): JSON.parse round-trip byte-identical; four byte-faithful suites pass byte-unmodified (diff-verified); stored files byte-identical post-emission — PASS
-- Requirement 3 (US-3): config get and tasks renderer route through the shared helper; helper idempotent and boundary-precise; escapeJsonControls used at exactly the three edges + tests (repo-wide grep) — PASS
+- Five files moved to stated targets via rename — git log --stat shows exactly 5 renames matching the intent table
+- Exactly one import rewrite per file, zero other body changes — 5 insertions/5 deletions total
+- No *.test.ts remains under src/ — find returns 0
+- tsconfig.json and vitest.config.ts byte-unchanged; both guards intact (exclude src/**/*.test.ts; include both test roots)
+- Targeted run of the five relocated suites — 74/74 pass; vitest list confirms collection from tests/
 
 ### Gate results (verification phase)
 
 | Gate | Result |
 |------|--------|
-| npm test (full) | 2421/2421 pass, 129/129 files (one vitest-internal worker RPC timeout logged; no test failure) |
+| npm test (full) | 2439/2439 pass, 129/129 files |
 | npx tsc --noEmit | pass |
 | npm run lint | pass |
-| npm run build | pass |
-| Mandated 5-suite run | 140/140 pass |
+| npm run build | pass; find dist -name '*.test.*' → none |
 
 ### Review
 
-3 reviewers, 1 round: PASS / PASS_WITH_WARNINGS / PASS_WITH_WARNINGS — no criticals. Security fuzzing found zero bypasses. Follow-up issue logged: text-mode-stderr-c1-sanitization-residuals-1-src-cli.
-
-
-### 2026-08-18 — fix-intent-time-workflow-auto-downscale-misfires-file-count
-
-# Summary: fix-intent-time-workflow-auto-downscale-misfires-file-count
-
-## What was implemented
-
-All three complementary fixes from the intent, eliminating silent intent-time workflow collapse (the zeus Jupiter incident and metta's own repeated occurrences):
-
-1. **Fix 1 — null-weighted zero-file intent scoring** (`de7f1ceac`, ADR-1): `scoreFromIntentImpact` returns `null` on any 0-file `## Impact` parse (missing-heading and present-but-empty merged — both are no-signal). Zero caller changes: `complete.ts` already gates persist + prompt on `score !== null`. `scoreFromSummaryFiles` untouched — 0 files at summary time remains a real trivial signal (intentional asymmetry, now documented in the doc comments).
-2. **Fix 3 schema half — `DownscaleDecisionSchema`** (`bbb385cc5`, ADR-3): standalone strict 4-field schema (`from_tier`, `to_tier`, `justification` min-1, `timestamp` datetime), mounted as a single optional `downscale_decision` on `ChangeMetadataSchema` next to `escalation`. Backward compatible.
-3. **`askYesNoDetailed`** (`0b3eb3a83`, ADR-4 — the one sanctioned scope addition): returns `{ value, viaDefault }` distinguishing explicit answers from defaults; `askYesNo` is now a thin wrapper, all other call sites untouched.
-4. **Fixes 2+3 in complete.ts** (`e97d234d7`, ADR-2/ADR-3): the intent-time downscale branch keeps `autoAccept` first (sole sanctioned non-interactive Yes), then fails closed when non-interactive (`!process.stdin.isTTY || json`) — routed through the existing No/decline path so the escalation record and advisory banner fire, with a third `non-interactive fail-closed` justification cause (`workflow_locked` precedence preserved). Every accepted downscale (auto-accept / interactive explicit-yes / TTY default-Yes, distinguished via `viaDefault`) folds a `downscale_decision` record into the same atomic `updateChange` that rewrites the workflow. Upscale branch and summary-time scoring untouched.
-
-Delta spec (merge target `adaptive-workflow-tier-selection`): MODIFIED `ComplexityScoreComputation`, MODIFIED `AutoDownscalePromptAtIntent`, ADDED `DownscaleDecisionSchema`, ADDED `DownscaleDecisionRecording`.
-
-## Tests
-
-280 tests across the four touched suites (complexity-scorer 15, schemas 193, cli-helpers 33, cli-complete 39+): T-S1 inverted + T-S2/T-S3 added; T-D1-D4 schema cases; T-H1 helper cases; 4 non-interactive auto-accept tests inverted to fail-closed; 7 regression guards extended with R1 record assertions (re-reading `.metta.yaml`); new greenfield, in-process TTY+`--json`, and explicit-yes cases. Full suite 129 files / 2457 tests green; lint/build clean; diff scope verified pure src/tests/spec (no templates or hooks).
-
-## Behavioral changes callers observe
-
-- Greenfield intents (0 files in Impact) no longer trigger a downscale prompt or persist a trivial recommendation.
-- Non-interactive/`--json` `metta complete intent` never changes workflow tier unless `auto_accept_recommendation: true`.
-- Accepted downscales write an auditable `downscale_decision` record.
-
-## Recovery note
-
-This change's original skill-host fork became unreachable after its proposer wrote intent.md; per the residual orphaning recovery protocol the orchestrator confirmed it dead and re-dispatched, resuming from persisted state (recorded in the research-synthesis commit `cd6e3580b`).
-
-## Verification
-
-### Spec Scenarios
-
-All requirements/scenarios verified with cited test evidence (281/281 across the four touched suites):
-
-- [x] `ComplexityScoreComputation` — greenfield 0-file intent: no score/prompt/banner/state change (cli-complete:787 + scorer units); 1-file still scores; summary-time 0 remains a real signal (unit); score persisted from Impact
-- [x] `AutoDownscalePromptAtIntent` — non-TTY fail-closed (307/384); in-process TTY+`--json` isolation (620); auto-accept opt-in still collapses (250/754); interactive `[Y/n]` default; locked `[y/N]` both halves (417 non-TTY, 648 interactive TTY); quick-run exemption
-- [x] `DownscaleDecisionRecording` — auto-accept, interactive explicit-yes, and TTY default-Yes causes each asserted as distinct justification strings with valid timestamps; decline paths assert escalation-without-record
-- [x] `DownscaleDecisionSchema` — T-D1-D4 accept/reject incl. `.strict()` unknown-key rejection
-
-Informational gaps (non-blocking): no test re-runs `complete intent` against an existing escalation record (first-record-wins untested end-to-end); summary-time 0-file scenario unit-level only (persist plumbing proven by 2/5/15-file CLI tests).
-
-### Gate Results
-
-| Gate | Result |
-|------|--------|
-| tests (`npm test`) | PASS — 129 files, 2458/2458 (no flakes this run) |
-| typecheck / lint | PASS |
-| build | PASS |
-| diff scope | PASS — src/cli, src/complexity, src/schemas, tests/, spec/changes only; no templates or hooks |
-
-Review: 3 reviewers, 1 iteration — correctness PASS, security/quality PASS_WITH_WARNINGS; all warnings fixed in 9b724ed84; follow-up issue `auto-accepted-workflow-upscales-mutate-workflow-with-no` logged for the upscale audit asymmetry.
+3 reviewers, 1 round: PASS / PASS / PASS — zero findings.
 
 
 ### 2026-08-18 — fix-guard-edit-worktree-write-friction-caused-cross-repo
@@ -726,232 +400,558 @@ evidence, three passing review rounds, and all gates green. No spec gaps found.
 > mandated path.
 
 
-### 2026-08-18 — fix-five-src-side-test-files-still-live-outside-tests
+### 2026-08-18 — fix-intent-time-workflow-auto-downscale-misfires-file-count
 
-# Implementation Summary — fix-five-src-side-test-files-still-live-outside-tests
-
-## What changed
-
-Mechanical relocation of the five remaining src-side test files to tests/ (repo convention), restoring convention consistency after PR #86 removed dist pollution but left the files in place. Commit `bf6f9ac3eb13a8f87e028bba4e96c2289a2a267e`.
-
-Moves (git mv, history preserved at 96-99% similarity):
-- src/config/build-stamp.test.ts → tests/build-stamp.test.ts
-- src/config/config-writer.test.ts → tests/config-writer.test.ts
-- src/config/repair-config.test.ts → tests/repair-config.test.ts
-- src/config/version-drift.test.ts → tests/version-drift.test.ts
-- src/finalize/finalize-lock.test.ts → tests/finalize-lock.test.ts
-
-Diff beyond renames: exactly one relative-import rewrite per file (5 insertions, 5 deletions), `.js` extensions preserved. `tests/build-stamp.test.ts:211` retains its `process.cwd()`-anchored scripts/ path (verified relocation-safe). Per the intent's explicit scope call, tsconfig's src-test exclusion (dist-pollution guard) and vitest's src include (stray tests still run) are both retained — zero config changes, zero test-logic changes.
-
-## Gate results (implementation phase)
-
-| Gate | Result |
-|------|--------|
-| Five relocated suites | 74/74 pass |
-| npx tsc --noEmit | clean |
-| npm run build | OK; 0 *.test.* files in dist/ |
-| Full npm test | 2439/2439 pass, 129 files |
-
-## Verification
-
-### Intent commitments (all PASS, verifier evidence)
-
-- Five files moved to stated targets via rename — git log --stat shows exactly 5 renames matching the intent table
-- Exactly one import rewrite per file, zero other body changes — 5 insertions/5 deletions total
-- No *.test.ts remains under src/ — find returns 0
-- tsconfig.json and vitest.config.ts byte-unchanged; both guards intact (exclude src/**/*.test.ts; include both test roots)
-- Targeted run of the five relocated suites — 74/74 pass; vitest list confirms collection from tests/
-
-### Gate results (verification phase)
-
-| Gate | Result |
-|------|--------|
-| npm test (full) | 2439/2439 pass, 129/129 files |
-| npx tsc --noEmit | pass |
-| npm run lint | pass |
-| npm run build | pass; find dist -name '*.test.*' → none |
-
-### Review
-
-3 reviewers, 1 round: PASS / PASS / PASS — zero findings.
-
-
-### 2026-08-18 — fix-finalize-dry-run-diverges-applying-run-spec
-
-# Summary: fix-finalize-dry-run-diverges-applying-run-spec
+# Summary: fix-intent-time-workflow-auto-downscale-misfires-file-count
 
 ## What was implemented
 
-Refactored `SpecMerger.merge()` (`src/finalize/spec-merger.ts`) into a two-phase stage-then-commit merge, eliminating both defects from the source issue:
+All three complementary fixes from the intent, eliminating silent intent-time workflow collapse (the zeus Jupiter incident and metta's own repeated occurrences):
 
-1. **Dry-run/apply parity by construction.** A shared pure compute phase — module-level `reconcileDelta()` and `renderNewCapabilitySpec()`, no I/O — runs the full conflict-detection set (capability-not-found, base-version/lock, requirement-not-found for MODIFIED/RENAMED/REMOVED) identically in both modes, and classifies merged/conflicts/noops identically, including ADDED-duplicate noop detection in dry-run. The `MergeResult.noops` doc-comment caveat about dry-run divergence is removed. The finalizer's step-3 dry-run gate now catches every conflict class step-5 would.
-2. **All-or-nothing apply.** The commit phase runs only when the compute phase produced zero conflicts; it iterates the staged `dirtyCapabilities` and performs `state.writeRaw` + `specLockManager.update` per capability. Any conflict → `status: 'conflict'` with zero files and zero locks written — the spec store is untouched.
-3. **Composition.** Multiple deltas targeting the same capability compose through a `stagedContent` map threaded across the delta loop.
-4. **Finalizer comment alignment** (`src/finalize/finalizer.ts` step 5): an apply-time conflict after a clean dry-run now indicates disk drift between the two calls, not a known blind spot; it still aborts with zero writes.
+1. **Fix 1 — null-weighted zero-file intent scoring** (`de7f1ceac`, ADR-1): `scoreFromIntentImpact` returns `null` on any 0-file `## Impact` parse (missing-heading and present-but-empty merged — both are no-signal). Zero caller changes: `complete.ts` already gates persist + prompt on `score !== null`. `scoreFromSummaryFiles` untouched — 0 files at summary time remains a real trivial signal (intentional asymmetry, now documented in the doc comments).
+2. **Fix 3 schema half — `DownscaleDecisionSchema`** (`bbb385cc5`, ADR-3): standalone strict 4-field schema (`from_tier`, `to_tier`, `justification` min-1, `timestamp` datetime), mounted as a single optional `downscale_decision` on `ChangeMetadataSchema` next to `escalation`. Backward compatible.
+3. **`askYesNoDetailed`** (`0b3eb3a83`, ADR-4 — the one sanctioned scope addition): returns `{ value, viaDefault }` distinguishing explicit answers from defaults; `askYesNo` is now a thin wrapper, all other call sites untouched.
+4. **Fixes 2+3 in complete.ts** (`e97d234d7`, ADR-2/ADR-3): the intent-time downscale branch keeps `autoAccept` first (sole sanctioned non-interactive Yes), then fails closed when non-interactive (`!process.stdin.isTTY || json`) — routed through the existing No/decline path so the escalation record and advisory banner fire, with a third `non-interactive fail-closed` justification cause (`workflow_locked` precedence preserved). Every accepted downscale (auto-accept / interactive explicit-yes / TTY default-Yes, distinguished via `viaDefault`) folds a `downscale_decision` record into the same atomic `updateChange` that rewrites the workflow. Upscale branch and summary-time scoring untouched.
 
-Delta spec (`spec.md`, merge target `finalize-ship`): MODIFIED `Spec Delta Merge` + ADDED `Dry-Run And Apply Merge Result Parity`, `All-Or-Nothing Spec Merge Apply`, `Staged Composition Of Same-Capability Deltas`.
+Delta spec (merge target `adaptive-workflow-tier-selection`): MODIFIED `ComplexityScoreComputation`, MODIFIED `AutoDownscalePromptAtIntent`, ADDED `DownscaleDecisionSchema`, ADDED `DownscaleDecisionRecording`.
 
 ## Tests
 
-`tests/spec-merger.test.ts`: 20/20 (12 existing unchanged + 8 new — dry-run requirement-not-found for MODIFIED/RENAMED/REMOVED, dry-run/apply parity, conflict-writes-nothing atomicity with byte-identical store assertion, staged composition in both modes, ADDED-duplicate noop parity). Full suite 128 files / 2431 tests green; tsc and build clean.
+280 tests across the four touched suites (complexity-scorer 15, schemas 193, cli-helpers 33, cli-complete 39+): T-S1 inverted + T-S2/T-S3 added; T-D1-D4 schema cases; T-H1 helper cases; 4 non-interactive auto-accept tests inverted to fail-closed; 7 regression guards extended with R1 record assertions (re-reading `.metta.yaml`); new greenfield, in-process TTY+`--json`, and explicit-yes cases. Full suite 129 files / 2457 tests green; lint/build clean; diff scope verified pure src/tests/spec (no templates or hooks).
 
-Commits: `73ad3200a` (spec delta), `9a23c806a` (refactor), `9f90e75d5` (tests).
+## Behavioral changes callers observe
 
-## Workflow note
+- Greenfield intents (0 files in Impact) no longer trigger a downscale prompt or persist a trivial recommendation.
+- Non-interactive/`--json` `metta complete intent` never changes workflow tier unless `auto_accept_recommendation: true`.
+- Accepted downscales write an auditable `downscale_decision` record.
 
-The CLI auto-downscaled this change standard → quick at intent completion (complexity score 1, file_count 3) — another occurrence of open issue `intent-time-workflow-auto-downscale-misfires-on-file-count-0`. The quick routing was kept (no state hand-edits); the spec delta the intent commits to was authored anyway (SpecMerger merges `spec.md` independent of the artifact graph), and full 3-reviewer / 3-verifier fan-outs run regardless of tier.
+## Recovery note
+
+This change's original skill-host fork became unreachable after its proposer wrote intent.md; per the residual orphaning recovery protocol the orchestrator confirmed it dead and re-dispatched, resuming from persisted state (recorded in the research-synthesis commit `cd6e3580b`).
 
 ## Verification
 
 ### Spec Scenarios
 
-All delta requirements/scenarios verified with cited test evidence (`tests/spec-merger.test.ts` 20/20, `tests/finalizer.test.ts` 33/33):
+All requirements/scenarios verified with cited test evidence (281/281 across the four touched suites):
 
-- [x] MODIFIED `Spec Delta Merge` — merge-target name exists verbatim in the living spec; dry-run requirement-not-found for MODIFIED (501) / RENAMED (538) / REMOVED (576); apply-mode conflict + no-write (456); ADDED idempotency/noop scenarios (382, 426)
-- [x] `Dry-Run And Apply Merge Result Parity` — deep result equality on a fixture mixing noop + clean + three conflict classes (607, `toEqual` at 693) with zero-write assertion; finalizer step-3 gate catches requirement-not-found, applying merge never invoked (finalizer.test.ts:302, merge spy called once with dryRun)
-- [x] `All-Or-Nothing Spec Merge Apply` — conflicting delta N leaves spec.md, spec.lock, and specs/ tree byte-identical (702); zero-conflict multi-delta commits all staged results (783, 320)
-- [x] `Staged Composition Of Same-Capability Deltas` — ADDED-then-MODIFIED composes in apply (783) and classifies identically in dry-run (821)
+- [x] `ComplexityScoreComputation` — greenfield 0-file intent: no score/prompt/banner/state change (cli-complete:787 + scorer units); 1-file still scores; summary-time 0 remains a real signal (unit); score persisted from Impact
+- [x] `AutoDownscalePromptAtIntent` — non-TTY fail-closed (307/384); in-process TTY+`--json` isolation (620); auto-accept opt-in still collapses (250/754); interactive `[Y/n]` default; locked `[y/N]` both halves (417 non-TTY, 648 interactive TTY); quick-run exemption
+- [x] `DownscaleDecisionRecording` — auto-accept, interactive explicit-yes, and TTY default-Yes causes each asserted as distinct justification strings with valid timestamps; decline paths assert escalation-without-record
+- [x] `DownscaleDecisionSchema` — T-D1-D4 accept/reject incl. `.strict()` unknown-key rejection
 
-Non-blocking notes: finalizer-layer scenario uses MODIFIED where the spec text names REMOVED (same conflict class, covered at merger layer); multi-capability lock-hash assertion is composed from two tests rather than one verbatim scenario test.
+Informational gaps (non-blocking): no test re-runs `complete intent` against an existing escalation record (first-record-wins untested end-to-end); summary-time 0-file scenario unit-level only (persist plumbing proven by 2/5/15-file CLI tests).
 
 ### Gate Results
 
 | Gate | Result |
 |------|--------|
-| tests (`npm test`) | PASS — 128 files, 2432/2432 |
+| tests (`npm test`) | PASS — 129 files, 2458/2458 (no flakes this run) |
 | typecheck / lint | PASS |
 | build | PASS |
+| diff scope | PASS — src/cli, src/complexity, src/schemas, tests/, spec/changes only; no templates or hooks |
 
-Review: 3 reviewers, 1 iteration — security PASS, correctness/quality PASS_WITH_WARNINGS; all warnings fixed in 5453a802a; pre-existing RENAMED-collision data loss logged as issue `spec-merger-renamed-delta-re-key-silently-loses-a`.
-
-
-### 2026-08-17 — fix-guard-bash-tokenizer-weaknesses
-
-# Verification: fix-guard-bash-tokenizer-weaknesses
-
-## Spec Scenarios
-
-Trivial workflow — intent.md is the spec. All four issue points verified with test-level evidence in `tests/metta-guard-bash.test.ts` (runs against both hook copies; byte-identity itself is pinned by a test):
-
-- [x] **1. Glued chain separators detected** — `;`-glued (line 302), `&&` (310), `||` (318), `|` (326), `&` (334); block reason cites the second invocation (`backlog add` in stderr, lines 375/384); spaced-separator regressions still block (358) and allowed-only chains still pass (366)
-- [x] **2. Newline/CRLF separators detected** — `\n` (342), `\r\n` (350)
-- [x] **3. Wrapper-prefix limitation acknowledged** — KNOWN LIMITATION comment in `src/templates/hooks/metta-guard-bash.mjs` (lines 113+) names `command`/`env`/`\metta`/`xargs`/`sh -c` wrappers plus dynamic indirection: `$(...)`, backticks, subshells, process substitution, brace groups, backslash-escaped quotes, quoted-whitespace env prefixes, quoted/split command names
-- [x] **4. Quote-aware `--`** — quoted-span `--` allowed (429, 438); whole-word quoted `--` (`"--"`, `'--'`, `""--`) blocks (470, 479, 488); unquoted `--` still blocks (447, 1103-1129); unterminated quotes fail closed (452, 460)
-- [x] **Review round-2 pins** — `FOO=';' metta finalize` blocked (396); `metta status "a;b"` allowed (402); quoted arg with separator + `--` allowed (408); `metta backlog add "see; metta finalize"` blocked for the genuine call (417)
-
-## Gate Results
-
-| Gate | Result |
-|------|--------|
-| tests (`npm test`) | PASS — 127 files, 2389/2389 (217 hook tests) |
-| typecheck (`npx tsc --noEmit`) | PASS |
-| lint (`npm run lint`) | PASS (tsc alias) |
-| build (`npm run build`) | PASS |
-| hook byte-identity (`cmp`) | PASS — template and `.claude/hooks` copy identical |
-
-Review: 2 iterations, 3 reviewers each (correctness/security/quality). Round 2: correctness PASS; security and quality PASS_WITH_WARNINGS — all warnings resolved in follow-up commits (see review.md).
-
-## Summary
-
-Fixed the four tokenizer weaknesses in `metta-guard-bash.mjs` from issue `guard-bash-tokenizer-weaknesses-pre-existing-on-main` (severity major). Final implementation across commits `c3ee99531`, `95c83da4d`, `60f119809`:
-
-1. **Quote-aware separator-first segmentation.** `splitCommandSegments()` computes a quote mask over the whole command and splits on runs of `;`, `|`, `&` (incl. `&&`, `||`) and `\r?\n` only when the run is entirely unquoted — glued forms like `metta backlog --json;metta backlog add x` now yield two invocations and the write call is blocked, while quoted separators (`metta status "a;b"`, `FOO=';' metta finalize`) neither hide invocations nor over-split. Unterminated quotes fall back to quote-unaware splitting, which can only over-block — it never hides a bash-executable invocation (such inputs are bash syntax errors).
-2. **Newline segmentation** — `\n` and `\r\n` are segment boundaries.
-3. **Wrapper-prefix limitation documented** — textual guarding cannot see wrapper/indirection forms; defense in depth is the two-tier trust model plus the audit log. No mechanical wrapper detection added (out of scope).
-4. **Quote-stripped `--` detection.** `computeQuoteMask()` + `hasUnquotedDoubleDash()` with `stripQuoteChars()`: a `--` inside a longer quoted span (`"hello -- world"`) is allowed, while any boundary-self-contained word whose quote-stripped form is `--` (`"--"`, `'--'`, `""--`, `--""`) is treated as a live operand terminator and blocked, matching bash quote removal. Unquoted `--` blocks unconditionally; unterminated quotes fail closed.
-
-Unchanged: tier/trust model, credential handling, allow/deny lists, audit logging semantics, exit codes.
+Review: 3 reviewers, 1 iteration — correctness PASS, security/quality PASS_WITH_WARNINGS; all warnings fixed in 9b724ed84; follow-up issue `auto-accepted-workflow-upscales-mutate-workflow-with-no` logged for the upscale audit asymmetry.
 
 
-### 2026-08-17 — fix-follow-ups-backlog-milestones-rework-review-pr-85
+### 2026-08-18 — fix-json-output-c1-control-passthrough-json-stringify
 
-# Summary: fix-follow-ups-backlog-milestones-rework-review-pr-85
-
-Single hardening pass resolving the six residual defects from the backlog/milestones rework review (PR #85).
+# Implementation Summary — fix-json-output-c1-control-passthrough-json-stringify
 
 ## What changed
 
-1. **Sanitized list renderers** — new pure helper `stripControlSequences()` in `src/util/sanitize-text.ts` (CSI/OSC/DCS/Fe escapes + bare C0/DEL/C1); applied at the two defect render sites `src/cli/commands/backlog.ts` (list rows) and `src/cli/commands/milestone.ts` (milestone show issue rows). Render-only; `--json` output and files on disk stay byte-faithful. (commits afce54ea, 6d70e857, b7cf77bb)
-2. **Scoped backlog auto-commits** — the three `commitPaths` call sites in `backlog.ts` now stage explicit file paths instead of the `spec/issues` directory: `add` stages `spec/issues/<slug>.md`; `done` stages the deletion + `spec/issues/resolved/<slug>.md` creation; `migrate` stages `MigrationResult.changedPaths`, a new additive field populated inside `migrateLegacyBacklog`. Unrelated dirty files under `spec/issues/` are no longer swept into commits (regression tests per command). (commits 2cb736d8, 6d70e857)
-3. **Test consolidation + dist hygiene** — nine unique describe-blocks folded from `src/issues/issues-store.test.ts` into `tests/issues-store.test.ts` (38 tests); src copy deleted; `"src/**/*.test.ts"` added to tsconfig `exclude` so no test files compile into `dist/` (fixes five other src-side test files too). (deletion rode in f168e3a4; content commit 381102a1)
-4. **Bare `metta backlog` allowed** — `'backlog'` added to `ALLOWED_BARE` in both byte-identical guard-bash hook copies; `list` is now the backlog group's default subcommand (release precedent), so the bare form is a genuine read-only view. Write forms (`add`/`done`/`promote`) remain Tier-2 gated; `backlog <unknown>` stays fail-closed. (commits f168e3a4, 6d70e857)
-5. **Tier advisory capped at standard** — `renderBanner` clamps upscale recommendations at `MAX_UPSCALE_TIER = 'standard'`; a full-scored change never sees "upscale to full", including the current=standard/scored=full edge (states the cap without recommending a move). Scoring and persisted values untouched. (commit f90df160)
-6. **Stale `spec/backlog/` sweep** — `refresh.ts` TOC drops the Backlog row, widens the Issues description, adds a Milestones row; worktree CLAUDE.md hand-edited to match with a `not.toContain('spec/backlog/')` regression pin; guard-edit `ALLOW_PREFIXES` tightened to `spec/issues/` only (both hook copies, test flipped to assert blocked); `docs/workflows/README.md`, `docs/workflows/skills.md`, `docs/internals/architecture.md`, `docs/workflows/state.md`, `docs/guide/troubleshooting.md`, `docs/internals/guard-hooks.md` rewritten to the frontmatter-view model. (commits 1b0ff21c, 71c67930, 41e6ac37)
+CLI stdout JSON now escapes DEL/C1 controls (U+007F-U+009F) as six-character JSON escapes (backslash-u00xx, lowercase) at the emission edge; stored data is never mutated and parsed-value fidelity is preserved (JSON.parse yields byte-identical strings).
 
-## Breaking/behavioral notes
+- Commit 99d49ac — feat(util): add escapeJsonControls C1/DEL JSON-edge escape helper: new pure escapeJsonControls(jsonText) in src/util/escape-json-controls.ts (global [x7f-x9f] replace with lowercase four-hex escapes; idempotent; no barrel change) + tests/escape-json-controls.test.ts (15 tests: range boundaries U+007E/U+007F/U+009F/U+00A0, non-targets, idempotence, empty, structure safety incl. keys, ~135KB payload smoke).
+- Commit ac67dd902 — fix(cli): escape DEL/C1 controls at stdout JSON emission edges: wired at exactly the three audited edges — outputJson in src/cli/helpers.ts (covers all --json output and handleError envelopes), config get object branch in src/cli/commands/config.ts (scalar branch untouched per ADR-4), renderJsonPlan in src/cli/commands/tasks-renderer.ts — plus one new render-edge CLI test with a fresh hostile-c1 fixture (raw U+009B/U+007F title appears as the backslash-u009b escape in stdout, JSON.parse round-trip byte-identical, disk file byte-identical). No other JSON.stringify site touched (file writes/hashing/hook logs are non-edges per the 29-site research audit).
 
-- **Guard-edit tightening (intended):** out-of-band `.md` edits under the retired `spec/backlog/` path are now blocked (previously allowed).
-- **Bare `metta backlog` behavior change:** prints the backlog list (exit 0) instead of Commander group help (exit non-zero).
-- **Advisory wording change:** full-scored changes now render capped advisory text.
+## Gate results (implementation phase)
 
-## Incident log (orchestrator)
+| Gate | Result |
+|------|--------|
+| tests/escape-json-controls.test.ts | 15/15 pass |
+| tests/cli-issue-backlog.test.ts | 59/59 pass |
+| Byte-faithful suites (cli-gaps, cli-roadmap, cli-status) unmodified | 66/66 pass |
+| Full suite (npx vitest run) | 2421/2421 pass, 129 files |
+| npx tsc --noEmit | clean |
 
-Parallel executors sharing the worktree index raced on `git commit`: Task 1.3's original commit (06195af5c) was lost to a branch-ref reset during Task 1.5's recovery; its content survived staged and was recommitted by the orchestrator as 381102a1 (verified 38/38 green). The `src/issues/issues-store.test.ts` deletion rode along in f168e3a4. Net tree state audited correct; later batches used pathspec-scoped commits.
+## Verification
 
-## Follow-ups to log at ship time (per design ADR-1)
+### Spec scenarios (all 10 verified — see verifier evidence)
 
-- Wrap the remaining ~13 title/description render sites with `stripControlSequences`, incl. newline-preserving variant for multi-line bodies.
-- `spec/specs/roadmap-feature/spec.md` normative drift (still requires deleted `BacklogStore`) — own gap/issue.
-- `--json` C1 (U+009B) passthrough in `JSON.stringify` output.
-- Relocate the five remaining src-side test files into `tests/`.
+- Requirement 1 (US-1): raw CSI/DEL escaped at stdout edge (CLI test cli-issue-backlog.test.ts:525-551); error envelopes covered structurally via outputJson; boundary neighbors U+007E/U+00A0 and multi-byte pass through — PASS
+- Requirement 2 (US-2): JSON.parse round-trip byte-identical; four byte-faithful suites pass byte-unmodified (diff-verified); stored files byte-identical post-emission — PASS
+- Requirement 3 (US-3): config get and tasks renderer route through the shared helper; helper idempotent and boundary-precise; escapeJsonControls used at exactly the three edges + tests (repo-wide grep) — PASS
 
-## Verification (iteration 1 — 3 parallel verifiers)
+### Gate results (verification phase)
 
-- **Tests:** `npm test` — 127/127 files, 2343/2343 tests, 0 failures.
-- **Gates:** `npx tsc --noEmit` clean; `npm run lint` clean; `npm run build` clean; `find dist -name '*.test.*'` empty.
-- **Spec coverage:** all 21 scenarios across 7 requirements PASS with cited tests or direct implementation evidence (see review.md and verifier table). Consolidated issues-store suite is a verbatim superset of the deleted src copy (27/27 case names carried).
+| Gate | Result |
+|------|--------|
+| npm test (full) | 2421/2421 pass, 129/129 files (one vitest-internal worker RPC timeout logged; no test failure) |
+| npx tsc --noEmit | pass |
+| npm run lint | pass |
+| npm run build | pass |
+| Mandated 5-suite run | 140/140 pass |
 
-## Review outcome
+### Review
 
-Three iterations: iteration 1 found 1 critical (stale integration test) + 1 major security (`--` operand-terminator bypass through ALLOWED_BARE); iteration 2 caught the surviving flag-before-`--` variant; iteration 3 exits clean (PASS / PASS_WITH_WARNINGS / PASS) after the structural full-span `--` fail-closed fix (commit 2ab040e4d). Remaining security warnings are pre-existing tokenizer classes on main, logged as follow-ups.
+3 reviewers, 1 round: PASS / PASS_WITH_WARNINGS / PASS_WITH_WARNINGS — no criticals. Security fuzzing found zero bypasses. Follow-up issue logged: text-mode-stderr-c1-sanitization-residuals-1-src-cli.
 
 
-### 2026-08-16 — rework-backlog-around-issue-store-as-single-source-truth
+### 2026-08-18 — fix-metta-guard-bash-blocks-main-session-tier-2-lifecycle
 
-# Implementation Summary: rework-backlog-around-issue-store-as-single-source-truth
+# Summary: fix-metta-guard-bash-blocks-main-session-tier-2-lifecycle
 
-## What was built
+## What changed
 
-The issue store (`spec/issues/`) is now the single source of truth for all work items. The backlog is a pure view over issue-file YAML frontmatter; milestones are a first-class lightweight grouping concept; legacy `spec/backlog/` data was migrated on this repo itself.
+Fixes the guard falsely blocking main-session Tier-2 lifecycle commands (`metta complete`, `metta finalize`) with `credential-expired` after subagent-delegation windows, and the same-event mint/guard parallel-hook race.
 
-13 tasks across 7 batches, all executed and committed on branch `metta/rework-backlog-around-issue-store-as-single-source-truth`:
+Mechanism: guard-integrated deterministic re-prime, session-bound, with a 60-minute grace horizon (`GRACE_MS = 3_600_000` shared across both hooks).
 
-- **Schemas** — `src/schemas/issue-frontmatter.ts` (`type` issue|idea, `backlog`, `priority`, `milestone`, `order`; `.strict()`, defaults) and `src/schemas/milestone-frontmatter.ts` (`name`, `target` real-calendar-date, `status` open|closed).
-- **Frontmatter round-trip** — pure `src/issues/issue-frontmatter.ts` (`splitFrontmatter` / `parseIssueFrontmatter` / `applyFrontmatterPatch`) using the existing `yaml` Document API; body carried as verbatim slice (byte preservation structural); 37 module tests.
-- **IssuesStore** — frontmatter-aware `show`/`list` (`IssueRecord`), `createIdea`, `updateFrontmatter` (`{ changed }`), `listResolved`, `create()` optional priority/milestone, `archive` carries frontmatter into `spec/issues/resolved/` and absorbs the `**Shipped-in**` stamp. All existing signatures preserved — zero `fix-issue.ts` call-site changes. Legacy frontmatter-less issues parse byte-unchanged.
-- **Backlog view** — pure `src/backlog/backlog-view.ts` filter (`backlog === true`) + deterministic sort (priority → order → captured → slug).
-- **Milestones** — `MilestonesStore` (`spec/milestones/<slug>.md`), pure `computeMilestoneRollups()` (percent, dangling-ref warnings never fail), `metta milestone create|list|show` CLI, rollups surfaced in `metta status` and `metta progress` via conditional `milestones`/`milestone_warnings` keys (absent when no milestone files exist — pre-change output structurally identical).
-- **Backlog CLI rework** — `add` flips frontmatter on the existing issue (or mints `type: idea` with `--new`), `list` never reads `spec/backlog/`, `promote` emits the `/metta-fix-issues <slug>` handoff, `done` archives through `spec/issues/resolved/`, new `migrate` subcommand. `BacklogStore` deleted; barrel exports updated (breaking export change, flagged for release notes). `roadmap.ts` repointed to `issuesStore`.
-- **Migration** — `migrateLegacyBacklog()`: derived-state idempotent, create-only writes, originals fs-renamed to `spec/archive/backlog-legacy/`, collisions reported never overwritten. Handles pre-BacklogStore legacy frontmatter blocks (bug found and fixed during self-migration).
-- **Issue logging** — `metta issue --priority/--milestone` written as frontmatter at log time; dangling milestone warns, never fails.
-- **Guard/hooks** — `milestone list/show` allowed; `milestone create` + `backlog migrate` Tier-2 blocked with mint scopes on `metta-backlog`; template and live hook copies byte-identical.
-- **Skills** — `metta-backlog` reworked (view-over-frontmatter framing, migrate + milestone menus), `metta-issue` optional priority/milestone question, `metta-fix-issues` frontmatter/idea touch points; all template↔deployed pairs byte-identical.
-- **Archive-scan hardening** — `isArchivedChangeDir()` filter in `progress.ts` and `release-pipeline.ts` so `spec/archive/backlog-legacy/` is never treated as a completed/unreleased change.
-- **Self-migration executed** — this repo's 8 archived backlog items converted to `spec/issues/resolved/` with `type: idea` frontmatter; second run no-op; `spec/backlog/` removed.
+## Commits
+
+- `e51f162de` — mint hook: `sessionId: event.session_id ?? null` stamped into tokens; `cleanupSiblings` horizon extended to `ttlMs + GRACE_MS`; atomic temp+rename writes; stale `.tmp` orphan cleanup; header rewritten (+ byte-identical template mirror, extended mint suite — 43/43).
+- `63bdc0753` — guard hook: two-band freshness (fresh `age < ttlMs`; re-primable `sessionId === event.session_id && age < ttlMs + GRACE_MS`); `reprimeToken` (authorize-then-write, atomic, swallow-all — write failure never revokes); `readSessionTokens` returns `{tok, file}` for read/write path symmetry; audit gains `session-credential-reprimed` reason and `staleness_ms` on session-tier acceptances and `credential-expired` blocks (+ mirror, 3 sanctioned seed deepenings only — 344/344).
+- `d12b00b00` — new `tests/metta-guard-mint-seam.test.ts` (480 lines): A1–A4 regression armor, B1 re-prime bug pin, B2 sliding refresh, C1/C2 ordering invariance, C3 gated stress smoke, E1–E7 fail-closed armor, ADR-4 GRACE_MS constant pin across all four hook copies. Pre-fix red-check recorded: B1 and C1 both exit 2 `credential-expired` against the merge-base guard (`0873e03c5`).
+- `2fa949149` — docs: CLAUDE.md Tier-2 bullet corrected to per-slug two-band lifecycle; `docs/internals/guard-hooks.md` Bash-guard portion rewritten to the landed model (retired mechanisms marked retired).
+
+## Gates (Task 3.1, from change root)
+
+- `npm test`: 130 files, 2537 passed, 2 skipped, 0 failed
+- `npx tsc --noEmit`: exit 0
+- `npm run lint`: exit 0
+- `npm run build`: exit 0 (template->dist copy exercised for both hooks)
+- Hook/template byte-identity: `cmp` silent for both pairs
+
+## Behavior preserved (fail-closed boundary)
+
+Tier-1 fork identity, scope lists, tokenizer, `--` handling, `missing-credential`/`subcommand-not-in-scope` paths, retired single-file credential unhonored, block message text — all unchanged. Missing/non-string `session_id` degrades to exact pre-fix behavior. Old-format tokens (no `sessionId`) are never re-primable.
+
+## Open items
+
+- UAT: confirm `session_id` stability across `--resume`/`--fork` (undocumented; both outcomes fail-closed-safe).
+- Deviation note (Task 2.2): `docs/internals/guard-hooks.md` was stale beyond the lifecycle paragraph (retired inline `METTA_SKILL=1` bypass presented as current); the whole Bash-guard portion was rewritten to match the landed hooks.
+
+## Review (2 rounds)
+
+Round 1: correctness PASS_WITH_WARNINGS, security PASS_WITH_WARNINGS (M1), quality NEEDS_CHANGES (F1). Fixes landed: `24ef746b4` (F2 deferred re-prime to `!offender` branch + F3 authorizing-token attribution, with seam pin tests), `4f3099488` (F1 workflow-primer Tier-2 wording + delivery test pins). Round 2: all three reviewers PASS. Details in review.md.
+
+## Verification (3 parallel verifiers)
+
+- Full suite: 130 files, 2543 passed, 2 skipped (env-gated stress smokes), 0 failed; `npm run build` exit 0. (One vitest-internal worker RPC timeout note; no test implicated.)
+- `npx tsc --noEmit` and `npm run lint`: zero errors; both hook mirrors byte-identical (`cmp` silent).
+- Spec sweep: all 34 scenarios across R1–R8 discharged with cited test/doc evidence; zero gaps. Evidence notes (non-gaps): fork-tier audit `tier` field rests on code inspection + block-record test; B1/C1 red-pre-fix is documented verification (merge-base extraction), not an automated bi-version CI run.
+
+
+### 2026-08-18 — fix-metta-guard-edit-still-false-positive-blocks-subagent
+
+# Summary: fix-metta-guard-edit-still-false-positive-blocks-subagent
+
+## What was implemented
+
+Fixed the metta-guard-edit PreToolUse hook false-positively blocking subagent Write/Edit calls into `.metta/worktrees/<change>/` under the inverted-hosting topology (change state in the main checkout, edit target in the worktree) — the production defect reported by the zeus consumer on 2026-08-18.
+
+Approach: research-selected **V1c host-derived probe root** (design ADR-1..5). Three parallel research tracks scored: two-root probe 8/10 (V1c variant selected), bidirectional CLI discovery 7/10 (durable but disproportionate blast radius — backlog candidate), canonical state hosting 3/10 (cannot satisfy the GIVEN-inverted acceptance scenarios).
+
+## Changes by task
+
+- **Task 1.1** (`6f01e7f23`): ADR-4 spec wording — R1/R3 now state the guarantee in terms of the *hosting checkout root* (the checkout whose `.metta/worktrees/` contains the target's checkout), the precise session-cwd-independent formulation.
+- **Task 1.2** (`419ce3131`): `deriveProbeRoot(checkoutRoot)` added to `src/templates/hooks/metta-guard-edit.mjs` (+ byte-identical `.claude/hooks` mirror): pure path math — if the target's git toplevel sits at `<H>/.metta/worktrees/<name>`, the `metta status --json` probe runs with `cwd: H` (whose answer is a verified strict superset of the worktree's); otherwise behavior is unchanged. All decision-path logic (outside-root allow, allow-lists, block message, single try/catch fail-open) untouched and still keyed on the target's own root.
+- **Task 2.1** (`61694d426`): real-CLI topology regression suite (R6) — delegating PATH shim exec'ing `npx tsx src/cli/index.ts`, 18 new cases across both hook copies: inverted topology (incl. subdirectory-cwd), canonical topology, no-change block, containment bound (unrelated checkout still blocks), and four probe-failure fail-open modes. Red-run demonstrated against the pre-fix hook (inverted cases exit 2 where 0 expected). ADR-5 shim update applied with a recorded Rule-1 deviation: the "active" answer moved into the single test needing it rather than the shared shim (the literal design text broke 3 tests because both worktrees derive the same probe root).
+- **Task 3.1**: gates — lint/tests/build all exit 0 (127 files, 2407 tests), template/dist/.claude hook copies byte-identical, tree clean.
+
+## Consumer impact
+
+Consumers heal via hook refresh alone — no CLI upgrade required. Subagent edits inside `.metta/worktrees/<change>/` during an active change are allowed regardless of which checkout hosts the change state; the heredoc fallback workaround is obsolete.
+
+## Verification
+
+### Spec Scenarios
+
+All 6 requirements / 10 scenarios verified with test or commit-documented evidence (`tests/metta-guard-edit.test.ts`, both hook copies):
+
+- [x] R1 inverted topology allows (465-475) + V1c cwd-independence (477-489); empty target-root answer never decides (hook host-probe superset)
+- [x] R2 canonical topology still allows (491-501) + legacy case (283-316)
+- [x] R3 no state anywhere blocks with `metta-guard` stderr (503-512); ADR-2 containment bound — unrelated checkout still blocks (514-531)
+- [x] R4 all four probe-failure modes fail open: non-zero exit, garbage JSON, >5s timeout, metta absent (533-582)
+- [x] R5 allow-lists unchanged and pinned (64-115, 142-154, 338-346)
+- [x] R6 real-CLI delegating shim (execs `npx tsx src/cli/index.ts`, no cwd conditional); red-run against pre-fix hook documented in commit 61694d426 and independently reproduced by two reviewers
+
+### Gate Results
+
+| Gate | Result |
+|------|--------|
+| tests (`npm test`) | PASS — 127 files, 2407/2407 (49 guard-edit tests) |
+| typecheck / lint | PASS |
+| build | PASS |
+| hook byte-identity (template = .claude = dist) | PASS |
+
+Review: 3 reviewers, 1 iteration — correctness PASS, security and quality PASS_WITH_WARNINGS; all warnings doc-level, resolved in commit 6448def52; ADR-3 residual logged as issue `guard-edit-worktree-name-match-hardening-follow-up`.
+
+
+### 2026-08-18 — fix-remaining-13-title-description-render-sites-print-user
+
+# Implementation Summary — fix-remaining-13-title-description-render-sites-print-user
+
+## What changed
+
+Wrapped every remaining human-rendered title/description print site behind control-sequence sanitization at the render edge, and added a newline-preserving helper variant for multi-line bodies. JSON output paths (`outputJson`) remain byte-faithful and untouched.
+
+Fix commit: `269e6f17bb998c9f0c67b22d4f824732edebeee2` — `fix(cli): sanitize remaining title/description render sites` (11 files, +150/−32).
+
+## Helper variant
+
+- `src/util/sanitize-text.ts` — added `stripControlSequencesMultiline(text)`: splits on `\n`, sanitizes each line via the existing `stripControlSequences`, rejoins with `\n`. Preserves LF, normalizes CRLF to LF, bounds unterminated OSC/DCS bodies to their line. Existing helper and regex untouched.
+
+## Sites wrapped
+
+- `src/cli/commands/issue.ts` — list row title, show heading; show body (multiline)
+- `src/cli/commands/fix-issue.ts` — show heading, `--all` row title, captured/context lines; show body (multiline)
+- `src/cli/commands/gaps.ts` — list row title, show heading, source/claim/evidence/impact/relatedSpec lines
+- `src/cli/commands/fix-gap.ts` — show heading, `--all` row title, source/claim/evidence/impact/relatedSpec lines
+- `src/cli/commands/roadmap.ts` — list row title label and note suffix
+- `src/cli/commands/validate-stories.ts` — story listing title
+- `src/cli/commands/backlog.ts` — show heading; show body (multiline)
+- `src/cli/commands/milestone.ts` — show heading (`item.name`); show body (multiline)
+
+All 16 intent-listed sites plus the intent's in-scope same-block free-text fields are wrapped. `gap.action` deliberately excluded per intent scope.
+
+## Tests
+
+- `tests/sanitize-text.test.ts` — 8 new tests for the multiline variant (LF preservation, per-line CSI stripping, CRLF normalization, OSC/DCS/C1/lone-ESC parity, unterminated-OSC line bounding, Unicode pass-through, empty string, idempotence)
+- `tests/cli-issue-backlog.test.ts` — 3 new render-edge tests: list title stripped in text mode, show heading stripped + body newlines preserved, `--json` title/description byte-faithful
 
 ## Gate results
 
-- `npx vitest run` — 127 files, 2284 tests, all passing
-- `npx tsc --noEmit` — clean
-- Hook byte-identity and skill template↔deployed identity — verified by diff and tests
+| Gate | Result |
+|------|--------|
+| `npm test` | 2399/2400 on first full run — sole failure was a fixture typo in a newly added test, fixed; targeted re-run of both touched test files: 85/85 pass |
+| `npm run lint` | pass |
+| `npx tsc --noEmit` | pass |
+| `npm run build` | pass |
 
-## Notable deviations from plan
+## Verification
 
-1. Migration gained a third collision candidate (existing archive copy) and wholesale replacement of pre-BacklogStore legacy frontmatter blocks — both defensive, both tested.
-2. `toMilestoneCountsRow` exported from `milestone.ts` so status/progress reuse the exact counts-row shape (separate refactor commit).
-3. `tests/metta-session-mint.test.ts` scope table updated as a direct consequence of the mint-scope extension.
+Fixup commit `b156eba4d` additionally sanitized `gap.action` (multiline), `stories.justification` (multiline), and the `roadmap next` handoff line (single-line, text branch only), with new tests in `tests/cli-gaps.test.ts` (new file), `tests/cli-roadmap.test.ts`, `tests/cli-status.test.ts`.
 
-## Breaking changes / risks
+### Spec scenarios (verified against intent — quick workflow)
 
-- `BacklogStore` removed from the public barrel (`src/index.ts`) — intended, flag in release notes.
-- Consumer projects (zeus) must run `metta backlog migrate` once; until then their `spec/backlog/` files are inert legacy input.
+- All 16 intent-listed render sites wrapped with the correct variant — PASS (verifier cited file:line for each)
+- Newline-preserving helper `stripControlSequencesMultiline` behaves per intent (LF preserved, CRLF→LF, per-line OSC/DCS bounding, idempotent) — PASS
+- JSON output paths byte-faithful — PASS (zero `strip` on `outputJson` lines; `--json` tests assert exact hostile bytes round-trip)
+- Tests cover list, heading, and multi-line body sites plus JSON fidelity — PASS (85/85 targeted; 93/93 after fixup)
 
-## Verification results (final)
+### Gate results (verification phase)
 
-- Gate: tests — PASS (127 files, 2292 tests, 0 failures; full report: verify/tests.md)
-- Gate: tsc — PASS; Gate: lint — PASS (npm run lint = tsc --noEmit; report: verify/tsc-lint.md)
-- Gate: scenarios — PASS (33/33 spec scenarios traced to passing tests, 10 spot-check runs, zero gaps; report: verify/scenarios.md)
-- Review: 2 rounds, 3 personas; round-1 critical (silent slug-collision overwrite) fixed in 740bee3eb; final verdicts all PASS_WITH_WARNINGS (non-blocking follow-ups listed in review.md)
+| Gate | Result |
+|------|--------|
+| `npm test` (full suite, pre-fixup) | 2400/2400 pass, 127/127 files |
+| Targeted vitest (post-fixup, 4 touched files) | 93/93 pass |
+| `npx tsc --noEmit` | pass (pre- and post-fixup) |
+| `npm run lint` | pass (pre- and post-fixup) |
+
+### Review
+
+3 reviewers × 2 rounds: round 1 PASS_WITH_WARNINGS (×3) → fixup `b156eba4d` → round 2 PASS (×3). Security reviewer fuzzed the sanitizer with 20k adversarial strings: zero control-byte leaks, no ReDoS, idempotent.
+
+
+### 2026-08-18 — fix-roadmap-entry-lifecycle-dangling-entries
+
+# Summary: fix-roadmap-entry-lifecycle-dangling-entries
+
+## What was implemented
+
+Full roadmap entry lifecycle for the post-PR#85 world where dangling entries are the normal end state of every shipped roadmap entry (issue `roadmap-has-no-entry-lifecycle-after-its-referenced-issue`, major):
+
+1. **Store surface** (`d0a944fb7`): `RoadmapStore.remove(target: string | number)` (typed `not_found`, 1-based position or slug), batched `removeSlugs(slugs[])` (single load/validate/save), no-throw duplicate-tolerant `retire(slug)` — all over a shared private `spliceAndSave` core with canonical renumbering; `removeTop` deleted (sole caller was `next`).
+2. **`roadmap remove <position|slug>`** (`5d184af26`): main-branch guard before any read, `/^\d+$/` input is always a position (all-digit slugs are legal, so no fallback rule), `autoCommitFile` with `chore: remove roadmap entry <slug>`, JSON `{removed, position, committed, commit_sha}`, typed `not_found` through the existing error envelope, zero `spec/issues/` access.
+3. **`next` skip-and-warn rewrite** (same commit): pure-plan phase (walk entries, classify healthy/dangling via `issuesStore.show` — which never reads `resolved/`, so resolved issues are dangling by construction) + mutate phase (`removeSlugs([activated])` by default — dangling entries stay in place; `--prune` folds skipped slugs into the same single write/commit with a `(pruned N dangling)` commit-message suffix). All-dangling or empty roadmap: no store call, `next: null` + `skipped` list, exit 0. Additive JSON `skipped`/`pruned` fields plus one stderr warning per skipped slug naming both remedies — the machine-detectable replacement for ADR-4's exit-4. The ADR-4 fail-stop is formally superseded (design.md ADR-3, citing `spec/archive/2026-07-26-roadmap-feature/design.md:17`; archive untouched).
+4. **Auto-retire on issue resolution** (`acb8012d0`): `backlog done` and `fix-issue --remove-issue` call `retire(slug)` after a successful archive and conditionally stage `spec/roadmap.md` into the SAME commit (never `autoCommitFile`, never unconditional staging); fail-open with a stderr remedy warning; additive `retired_roadmap_entry: string | null` JSON field. `fix-issue`'s no-branch-guard posture inherited by design.
+
+**Not absorbed**: issue `metta-roadmap-next-mutates-on-invocation-with-no-read-only` — the skip design does not make `next` read-only (activation still pops/commits); kept out of scope per design ADR-8, with the pure-plan/mutate split banked so a future preview flag is trivial.
+
+## Tests and gates
+
+Store 29 (S1-S14 suites), cli-roadmap 30 (C1-C16 incl. the inverted ADR-4 fail-stop test), cli-issue-backlog 65 (R1-R6 incl. same-commit `git show --name-status` assertions and fail-open injection). Full suite 2496/2496 across 130 files; tsc/lint/build clean; `removeTop` swept to zero references; `spec/archive/` diff empty; scope confined to declared files.
+
+## Breaking change (intended, spec'd)
+
+Automation depending on `roadmap next` exit-4 on dangling heads must switch to the `skipped` JSON field / stderr warnings. Commit-message prefix `chore: pop roadmap entry <slug>` preserved for log-based checks.
+
+## Verification
+
+### Spec Scenarios
+
+All 6 requirements (3 MODIFIED, 3 ADDED) and all 19 scenarios verified with passing-test evidence (349/349 across the four touched suites; per-scenario citations in the verification report):
+
+- [x] `next` skip-and-warn: dangling head skipped with per-slug remedies, ghost survives (454/481); `--prune` same-write/same-commit with slug-listing commit body (508); all-dangling and empty no-ops, prune-inert byte-identically (541/332); old exit-4 fail-stop gone (inverted C12 at 427)
+- [x] Error contract: five failure types uniform (685); dangling no longer routes through the error envelope
+- [x] Branch/auto-commit discipline: all four verbs guarded, guard-before-validation (637/650/661), `--on-branch` escape (668)
+- [x] `roadmap remove`: position + slug + dangling, renumber, auto-commit, typed not_found, `spec/issues/` untouched (250/266/291; store S1-S14)
+- [x] Auto-retire: same-commit atomicity via `git show` (R1/R4), non-roadmapped byte-identical + pre-dirty stays out of commit (R2/R5), fail-open injection (R6), `retired_roadmap_entry` additivity (R3)
+- [x] Machine-detectable skip signal: `skipped`/`pruned` JSON ordering and distinction, empty-signal contract intact, one stderr line per slug (481/508/584/607)
+- [x] ENOENT-only dangling: malformed-existing-file NOT dangling and NOT pruned (385/404)
+- [x] Guard/mint/skill coverage of `roadmap remove` (guard tests 959/971/982; mint scope granted)
+
+Non-blocking note: `tests/metta-session-mint.test.ts` EXPECTED_SCOPES omits metta-roadmap, so mint-side granting of `roadmap:remove` is untested (guard-side verification is tested).
+
+### Gate Results
+
+| Gate | Result |
+|------|--------|
+| tests (`npm test`) | PASS — 129 files, 2504/2504, no flakes |
+| typecheck / lint | PASS |
+| build | PASS |
+| hook template/deployed/dist sync (guard-bash, session-mint) | PASS — byte-identical |
+| removeTop sweep | PASS — zero references |
+| archive immutability | PASS — spec/archive/ untouched |
+
+Review: 3 reviewers, 1 iteration — quality PASS, correctness/security PASS_WITH_WARNINGS; all warnings fixed in 991f5ed02 (ENOENT-only classification, guard/mint/skill coverage, pre-dirty acceptance recorded, prune audit trail, help text).
+
+
+### 2026-08-18 — fix-spec-specs-roadmap-feature-spec-md-normative-drift-lines
+
+# Implementation Summary — fix-spec-specs-roadmap-feature-spec-md-normative-drift-lines
+
+## What changed
+
+Spec-only reconciliation. `spec/specs/roadmap-feature/spec.md` rewritten to match the shipped issuesStore-backed implementation (PR #85 repointed roadmap.ts from the deleted BacklogStore to IssuesStore). Commit `c24364136`; no production code changed.
+
+## Drift sites rewritten (evidence-grounded)
+
+- L5: dropped reference to deleted `src/backlog/backlog-store.ts`; fixed stale test path to `tests/roadmap-store.test.ts`
+- L25/30: title resolution now `IssuesStore.show` from `spec/issues/<slug>.md` (backlog items are issues with `backlog: true`) — roadmap.ts:53, backlog-view.ts:29
+- L50/53: dangling = missing issue file in `spec/issues/`, surfaced via failed `IssuesStore.show` — roadmap.ts:52-57
+- L65/68/73: `roadmap add` existence check → `IssuesStore.exists`; fixtures/read-only clauses repointed — roadmap.ts:85-88, issues-store.ts:270-273
+- L98-105: `roadmap next` decoupled from `backlog promote` — next emits `metta propose "<title>"` via `buildPromoteHandoff`; promote independently emits zero-write `/metta-fix-issues <slug>` — roadmap.ts:153-167, promote-handoff.ts, backlog.ts:212-235
+- New normative coverage: ADR-4 dangling-top `not_found` no-pop failure (exit 4, no write/commit) and `roadmap_error` fallback discriminator — roadmap.ts:19-25, 157-165
+- L130/138/145/155: error contract, scenario premise, wiring clause, promote-handoff semantics updated accordingly
+
+Guard/skill requirements (L158-205) verified accurate and untouched per intent. Grep confirms zero remaining `BacklogStore`/`spec/backlog` references in the spec.
+
+## Findings
+
+- No true code defect found; shipped behavior matches the corrected spec everywhere
+- Cosmetic staleness noted out of scope: roadmap.ts:137 CLI description text; `buildPromoteHandoff` name
+
+## Gates (implementation phase)
+
+| Gate | Result |
+|------|--------|
+| `npx tsc --noEmit` | pass |
+| `npx vitest run tests/roadmap-store.test.ts tests/cli-roadmap.test.ts` | 36/36 pass |
+| Full `npm test` | deferred to finalize (no code change) |
+
+## Verification
+
+### Spec scenarios (verified against intent)
+
+- Issue-store resolution requirements (view titles, add existence check, next resolution) match code with passing tests — PASS
+- Dangling handling: non-fatal flag on view; ADR-4 dangling-top `not_found` exit 4, no pop/write/commit on next — PASS (test: "dangling top entry exits 4 with not_found naming both remedies and does not pop")
+- Handoff decoupling: next emits `metta propose` via sole-consumer `buildPromoteHandoff`; promote independently emits zero-write `/metta-fix-issues` — PASS
+- Error contract: four primary discriminators + `roadmap_error` fallback — PASS (envelope tests pass; fallback evidenced at roadmap.ts:24)
+- Zero remaining `BacklogStore`/`spec/backlog` references; guard/skill section byte-untouched — PASS
+
+### Gate results (verification phase)
+
+| Gate | Result |
+|------|--------|
+| `npm test` (full) | 2405/2405 pass, 128/128 files |
+| `npx tsc --noEmit` | pass |
+| `npm run lint` | pass |
+| Targeted roadmap suites | 36/36 pass |
+
+### Review
+
+3 reviewers, 1 round: PASS / PASS / PASS_WITH_WARNINGS. Warnings procedural; follow-up issue `roadmap-ts-137-cli-help-text-for-roadmap-next-still-says` logged for stale CLI help text.
+
+
+### 2026-08-21 — fix-metta-propose-runs-entire-lifecycle-through-finalize
+
+# Summary: fix-metta-propose-runs-entire-lifecycle-through-finalize
+
+## What changed
+
+`/metta-propose`'s default terminal state is now **PR-open**: the skill runs the full pipeline (discovery → planning → implementation → verification → finalize → push → `gh pr create`) then stops and reports the PR URL. It no longer runs `gh pr merge` by default. Merging is an explicit opt-in via `--ship` (skill alias) or `--stop-after ship`, wired through the existing propose-stop-after machinery. `/metta-auto` and `/metta-fix-issues` keep run-to-merge behavior unchanged.
+
+## Implementation (per task)
+
+- **Task 1.1** (`9018ce0ab`) — Both propose SKILL.md copies (`.claude/skills/` + `src/templates/skills/`, byte-identical): Step 1 `--ship` alias parse rule; Step 3 clarifier that `ship` is not a planning boundary; Step 8 restructured — default path ends after `gh pr create` with the handoff `PR open for review: <pr-url>. Run /metta-ship to land it...`; `gh pr checks --watch` / `gh pr merge` / cleanup relocated under the ship-gate marker (`Ship opt-in — the following sub-steps run ONLY when STOP_AFTER = "ship" ...`); Critical section retitled `Critical: verify, finalize, and open the PR`. Forbidden strings (`Do NOT stop after the last artifact`, `finalize + ship must happen`, `unless the user asked to leave it open`, old Critical title) removed.
+- **Task 1.2** (`f78616379`) — `src/cli/commands/propose.ts`: `--stop-after` help names `ship`; `ship` short-circuits `buildOrder` validation; both error valid-lists include `ship`. No schema/persistence changes; absent flag still writes no `stop_after` field.
+- **Task 1.3** (`8338af2e1`) — `src/cli/commands/refresh.ts` generator bullet + checked-in `CLAUDE.md` lifecycle bullet updated in lockstep: "ends at an open PR — merge via `--ship` or `/metta-ship`".
+- **Task 2.1** (`7ee8d6253`) — New `tests/skill-propose-ship-gate.test.ts` (10 tests): split-on-marker placement of merge commands, default/handoff anchors present, forbidden phrases absent, local-merge prohibition and `gh pr create` survive, scope guard that metta-auto and metta-fix-issues templates still contain `gh pr merge`.
+- **Task 2.2** (`57111098e`) — `tests/cli-propose-stop-after.test.ts`: `--stop-after ship` accepted and persisted (`stop_after: ship` in `.metta.yaml`), unknown-value error lists `ship`, `--help` names `ship`.
+
+## Verification
+
+- `npx tsc --noEmit` — clean.
+- `npm test` — 134/134 files, 2709 passed, 2 skipped, 0 failed.
+- Targeted suite (ship-gate, cli-propose-stop-after, skill-discovery-loop, grounding, template-deploy-sync, cli-skills) — 110/110 passed.
+- Change surface confirmed: only the intended 7 files plus change artifacts; no edits to metta-auto/metta-fix-issues, schemas, workflow YAMLs, or workflow-primer.ts.
+
+## Notes / deviations
+
+- Commander wraps help text at 80 columns, so the help test asserts `ship` within the full `--stop-after` option entry (flag line + continuation) rather than one physical line — same intent, robust to wrapping.
+- Skill-level default is instruction-level, not runtime-enforced; the grep-assert tests guard the instructions.
+
+## Verify phase (3 verifiers, iteration #1)
+
+- **Test suite:** 134/134 files, 2709 passed, 2 skipped, 0 failed.
+- **Typecheck + lint:** `npx tsc --noEmit` clean; `npm run lint` clean.
+- **Spec coverage:** PASS — all 8 delta requirements verified, 22/23 scenarios COVERED, 1 PARTIAL (non-default-workflow stop-after id untestable due to known full-workflow template issue; validation is generically buildOrder-driven). Mutation test confirmed the ship-gate grep-assert fails when an unconditional `gh pr merge` is reinjected.
+
+## Review phase
+
+- Round 1: Correctness PASS, Security PASS_WITH_WARNINGS, Quality PASS_WITH_WARNINGS. Two majors fixed in `c53dfe94c`: quick-reroute now carries the PR-open default over; `--ship` parsing constrained to standalone flag token with a mandatory "Ship opt-in detected" announcement. Step 8.d made the exhaustive no-merge else-branch; stale "finalize/merge" label fixed.
+- Round 2: Correctness PASS, Security PASS_WITH_WARNINGS, Quality PASS_WITH_WARNINGS. Both majors confirmed closed; residual warnings all fail safe (worst case stops at open PR) — recorded in review.md with a follow-up recommendation.
+
+
+### 2026-08-23 — enforce-agent-executed-uat-run-results-attached-pr-before
+
+# Summary: enforce-agent-executed-uat-run-results-attached-pr-before
+
+## What was built
+
+Every ship-path skill now runs the archived UAT.md through the metta-uat-runner subagent between `metta finalize` and `git push`, attaches a `## UAT results` summary to the PR (body at create, `gh pr comment` on an existing PR), and treats any failed step as a hand-back blocker — the PR stays open, unmerged, and flagged. Manual-acceptance steps skip and never block; machine-verified steps pass automatically. Opt-out is `uat.enforce_on_ship: false` (default true).
+
+## Changes by area
+
+- **Config schema** (`src/schemas/project-config.ts`): `enforce_on_ship: z.boolean().default(true)` added to the strict `UatConfigSchema`. Omitted key, omitted `uat` block, or missing config file all default to enforced; unknown keys and non-booleans still reject.
+- **Install scaffold** (`src/cli/commands/install.ts`): fresh `metta install` writes an explicit `uat:` block with `enforce_on_ship: true` and an opt-out comment; existing configs remain byte-untouched (`wx` flag preserved).
+- **Finalizer** (`src/finalize/finalizer.ts`): required `uatEnforceOnShip: boolean` on `FinalizeResult` — real config value on the success return (read before the `uat.enabled` branch so it is reported even when `uatPath` is null); hardcoded `true` on all abort paths and dry-run (fail-toward-enforce).
+- **Finalize CLI** (`src/cli/commands/finalize.ts`): emits `uatEnforceOnShip` beside `uatPath` in the `--json` success payload; human output prints `UAT enforcement: off` only when disabled.
+- **Six skill pairs** (template + deployed, 12 files, byte-identical per pair): shared frozen "UAT gate (before hand-back)" block (steps U0–U6) inserted between finalize and push in metta-ship, metta-propose, metta-quick, metta-auto, metta-fix-issues, metta-fix-gap. The canonical pinned sentence is byte-identical across all 12 files. Extras: metta-ship gained `Agent` in allowed-tools plus an already-finalized branch (archive glob fallback, reuse short-circuit, fail-toward-enforce); metta-propose's default-path hand-back now distinguishes "PR open, flagged — UAT failed" from the ready message while preserving the pinned handoff string; fix-issues/fix-gap tie issue/gap removal to a passed gate.
+- **Tests**: new `tests/skill-uat-ship-gate.test.ts` (39 assertions — sentence exactly-once, gate-before-`gh pr create --title`, gate-before-merge across all 12 files, metta-ship Agent frontmatter, aggregate offender listing); extensions to `tests/config-loader.test.ts`, `tests/cli-install.test.ts`, `tests/finalizer.test.ts`, `tests/cli-finalize.test.ts`; one Rule-1 fix in `tests/cli-finalize.test.ts` (duplicate YAML key from raw append → parse/stringify merge).
+- **Docs**: dated changelog entry covering the behavior change, the opt-out, and the new JSON field.
+
+## Gate results
+
+`npm test`: 135 files, 2756 passed, 2 skipped, 0 failed. `npx tsc --noEmit`: clean. `npm run lint`: clean. `npm run build`: clean. Unchanged-by-design confirmed: metta-uat-runner agent pair, metta-uat skill, both guard-hook copies, and uat-generator carry no diff versus main.
+
+## Notable decisions
+
+- Toggle rides `metta finalize --json` (no guard-hook changes); absent field in older payloads is treated as `true`.
+- Reuse short-circuit: HEAD commit subject `docs(<change>): UAT run record` means the branch is unchanged since a recorded run — reuse as evidence, comment on the PR, no double-append.
+- Dry-run finalize reports hardcoded `true` (config never loaded there); skills gate only on the real payload.
+
+## Verification results (iteration 1)
+
+- Tests: PASS — 135/135 files, 2756 passed, 2 skipped, 0 failures (verify/tests.md)
+- Typecheck + lint: PASS — both exit 0 (verify/tsc-lint.md)
+- Spec traceability: PASS — all 24 scenarios across 8 delta requirements evidenced by named passing tests or mandating skill text in both copies (verify/scenarios.md)
+
+
+### 2026-08-26 — fix-generated-workflow-primer-contradicts-bash-guard-blanket
+
+# Summary: fix-generated-workflow-primer-contradicts-bash-guard-blanket
+
+## What changed
+
+The generated workflow primer claimed a blanket ban on direct `metta` CLI calls while the
+`metta-guard-bash` PreToolUse hook actually permits a read-only query surface. This change
+scopes the primer's mandate to state-mutating commands, documents the permitted read-only
+surface, and syncs all wording copies — hardened by a seam test so the hand-synced lists
+cannot silently drift again.
+
+## Implementation (by task)
+
+- **Task 1.1** (`c2e28796a`) — `src/delivery/workflow-primer.ts`: rewrote the shared
+  `MANDATE` constant (scoped to state-mutating commands, names `metta-guard-bash` as the
+  enforcement authority, fail-closed framing, humans-in-terminal carve-out preserved); added
+  `READ_ONLY_POINTER` (short variant) and `READ_ONLY_SURFACE_BULLETS` — the
+  `### Read-only queries (permitted directly)` subsection (long variant) enumerating the
+  hook's single-word, two-word, and bare allow surface with a generation-time qualifier,
+  bare-`metta` discovery pointer, and attempt-it fail-closed guidance; rewrote the Forbidden
+  bullet to enumerate the full blocked surface (including `verify`, `backlog migrate`,
+  `milestone`/`roadmap` mutating forms, `release cut`); added SYNC comments.
+  `tests/delivery.test.ts`: updated the old mandate pin; new "Workflow primer scoped
+  mandate" describe (byte-identity pin, blanket-wording absence, subsection/authority/
+  fail-closed pins, preservation pins); new "Workflow primer / guard allow-list seam"
+  describe extracting the hook's `ALLOWED_*`/`BLOCKED_*` entries from both hook copies and
+  asserting each appears in the rendered primer (ADR-4 pin pattern).
+- **Task 1.2** (`58e07d015`) — comment-only SYNC annotations above all five list
+  declarations in BOTH `src/templates/hooks/metta-guard-bash.mjs` and
+  `.claude/hooks/metta-guard-bash.mjs`; copies remain byte-identical; all four guard suites
+  pass unchanged (zero behavioral diff).
+- **Task 1.3** (`e5243acf3`) — `docs/workflows/README.md` "Core rule: skills, not CLI":
+  scoped mandate + read-only acknowledgment pointing at CLAUDE.md's subsection; mutating
+  surface enumerated; stub-prohibition sentence and "CLAUDE.md wins" note preserved
+  verbatim; blanket wording removed.
+- **Task 2.1** (`833aefa43`) — `tests/refresh.test.ts`: pinned the read-only subsection in
+  `buildWorkflowSection()` output.
+- **Task 2.2** (`8778db66b`) — metta's own `CLAUDE.md` `metta:workflow` region regenerated
+  byte-exact from `buildWorkflowSection()` via a scratchpad tsx splice (direct
+  `metta refresh` is guard-blocked for executors); no edits outside the marker region.
+- **Task 3.1** — verification sweep: PASS, no fixes needed.
+
+## Verification evidence
+
+- `npm test`: 135 files, 2812 passed / 2 skipped, 0 failed
+- `npx tsc --noEmit`: clean
+- Hook copies: `diff` empty (template vs deployed byte-identical)
+- CLAUDE.md workflow region: byte-exact match against `buildWorkflowSection()` output
+
+## Notes
+
+- Exported primer API unchanged (`workflowPrimerShort()` / `workflowPrimerLong()`); consumer
+  projects receive the corrected wording on their next `metta refresh` / install scaffold.
+- Known residual (out of scope, per design): `docs/internals/guard-hooks.md` carries a
+  fourth hand-synced copy of the allow-lists; deployment-level skew (consumer refresh
+  without reinstall) is not addressed by this change.
+
+## Verification (3 parallel verifiers, iteration 1)
+
+- **Test suite**: no deterministic failures attributable to the change. Full-suite runs on a
+  loaded machine hit 10s CLI-fixture timeout flakes (SIGTERM/exit 143, different test set
+  each run); every failed subset passes in isolation (151/151 final), and an earlier
+  fully green solo run recorded 135 files, 2812 passed / 2 skipped / 0 failed.
+- **Typecheck/lint**: `npx tsc --noEmit` clean, `npm run lint` clean (exit 0).
+- **Spec coverage**: PASS — all 15 scenarios across the 5 requirements have concrete
+  evidence (test names in tests/delivery.test.ts / tests/refresh.test.ts, or file/line
+  citations for doc-content scenarios). Both consumer-refresh scenarios rest on composed
+  evidence (content-agnostic region replacement + primer content pins) — sound, noted.
+- **Review**: correctness PASS_WITH_WARNINGS (minor test-hardening suggestions), security
+  PASS, quality PASS. No critical or major findings; see review.md.
+
+
+### 2026-08-26 — fix-milestone-status-write-once-dead-field-no-close
+
+# Summary: fix-milestone-status-write-once-dead-field-no-close
+
+## What changed
+
+Milestones gained a validated write-back lifecycle. Previously `metta milestone create` wrote `status: open` permanently — no CLI path could close a milestone, edit its body, or change its target (issue `milestone-status-is-a-write-once-dead-field-with-no-close-or`).
+
+## Implementation (7 tasks, 4 batches)
+
+- **Schema** (`src/schemas/milestone-frontmatter.ts`): status enum extended to `open | closed | abandoned`; default and `.strict()` unchanged. Commit `3864badc5`.
+- **Store** (`src/milestones/milestones-store.ts`): exported `MilestonePatch` and `update(slug, patch)` — read → patch → full-frontmatter Zod re-validation **before any I/O** → write; failing patches provably leave the file byte-identical; `clearTarget` removes the key entirely. Commit `3864badc5`.
+- **Rollup** (`src/milestones/milestone-rollup.ts`): two-state sort replaced with a rank comparator (open first, terminal group slug-ascending — behavior-identical for open/closed-only inputs); exported shared `MILESTONE_MARKERS` (`▸`/`✓`/`✗`). Commit `959e2805d`.
+- **CLI** (`src/cli/commands/milestone.ts`): new `milestone close <slug> [--abandoned]` (conflict pre-check, `chore: close milestone <slug>` auto-commit) and `milestone update <slug>` (`--name/--target/--clear-target/--description/--status`, Commander `conflicts`/`choices`, `chore: update milestone <slug>`); shared `commitMilestones` helper extracted from `create`; all failures exit 4 with typed JSON envelopes (`branch_guard`/`not_found`/`milestone_conflict`/`milestone_error`). Commit `5a4e3406d`.
+- **Renderers** (`src/cli/commands/status.ts`, `progress.ts`): abandoned milestones render red `✗` via `MILESTONE_MARKERS`; open/closed output byte-identical to pre-change. Commits `e0063d78b`, `6429c7b88`.
+- **Guard/mint hooks** (deployed + `src/templates/hooks/` mirrors, byte-identical): `milestone close`/`update` join the Tier-2 blocked set; `SKILL_SCOPES['metta-backlog']` gains `milestone:close`/`milestone:update`; 7 new guard test cases close the previously-empty milestone coverage gap. Commit `8541e2f2b`.
+- **Skill** (`.claude/skills/metta-backlog/SKILL.md` + template mirror): milestone actions now `create | list | show | close | update` with dispatch branches for both new verbs. Commit `df57b4692`.
+
+## Verification during implementation
+
+Every task ran `npx tsc --noEmit` (clean) and its focused vitest suites (all green), including 309 guard-hook tests, byte-identity pins for hook mirrors, byte-compat ordering pins for the rollup sort, and byte-identical-file assertions for all failure paths.
+
+## Notable deviations
+
+- Task 1.1 pre-widened `MilestoneRollup.status` (one line) because the enum extension broke compilation — work the design assigned to the rollup component anyway.
+- Task 3.3's test landed in `tests/cli-status.test.ts` (the file actually covering progress milestone rendering) rather than the plan's speculative `progress-secondary-line.test.ts`; a brief mid-batch file overlap between tasks 3.2/3.3 was reconciled with no lost work.
+
+## Risks
+
+- `status: abandoned` files fail validation under older metta builds (accepted one-way door, documented in intent).
+- `update` re-serializes frontmatter via YAML.stringify — hand-edited key order/comments are normalized (accepted; hand-editing is the workflow this change eliminates).
+
+## Verification (3 parallel verifiers, 2 iterations)
+
+- **Tests**: iteration 1 found 3 failures — pre-existing scope-pin suites (`tests/metta-session-mint.test.ts`, `tests/cli-metta-guard-bash-integration.test.ts`) still expected the old `metta-backlog` scope list without `milestone:close`/`milestone:update`. Expectations updated (commit `4a9b24382`); iteration 2: **135 files, 2802 passed, 2 skipped, 0 failed**.
+- **Typecheck/lint/build**: `npx tsc --noEmit` clean; `npm run lint` clean; `npm run build` (tsc + copy-templates + emit-build-stamp) succeeded.
+- **Spec coverage**: all 22 scenarios across the 6 spec.md requirements have cited passing tests (per-scenario evidence table produced by the verifier). One noted caveat: R5's byte-compatibility scenario is verified via unit-level pins (legacy-comparator reproduction, marker map, envelope shapes) rather than a literal pre/post output byte-diff — the guarantee is derived, since pre-change binaries are not available in-tree.
+- Review follow-up: the quality reviewer's single warning (no direct CLI test for `show` on an abandoned milestone) was closed by commit `26e0703f0`.
 
 
 ## 0.5.0 — 2026-08-11
