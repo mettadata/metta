@@ -111,6 +111,19 @@ This gate governs steps 12–13 and the step 14 cleanup: a failed gate stops the
 12. `gh pr checks <pr-number> --watch --fail-fast` → wait for all CI checks on the PR to complete before merging. If any check fails or is cancelled, do NOT merge — report the failing check(s) and the PR URL to the user and stop. If gh reports that no checks are reported yet (checks can lag PR creation by a few seconds), wait ~10s and retry the command
 13. `gh pr merge <pr-number> --merge` → land the PR immediately, unless the user asked to leave it open for review — in that case stop here and report the PR URL instead of merging
 14. Back on `main`: `git pull --ff-only`, then clean up the change branch and worktree
+
+### Post-merge release stage
+
+Post-merge release stage (runs only after the user-approved PR merge, git pull --ff-only, and dist rebuild — never at a PR-open hand-back): resolve the effective release.on_ship mode via metta release status --json, and on auto (or a confirmed prompt) derive the bump, run metta release cut --bump <level> --yes --json, push the release commit and tag with git push --follow-tags origin main, then — only when githubRelease is true — probe gh release view <tag> and publish with gh release create <tag> --verify-tag --notes-file -, treating every failure in this stage as warn-and-continue: report what failed, state that /metta-release cuts it on demand, and never unwind or block the completed ship.
+
+- **Absent config:** if `metta release status --json` fails with `Release configuration is missing`, emit exactly one loud line — `notice: release config absent — skipping the post-merge release cut (configure release: in .metta/config.yaml to enable)` — and continue to hand-back. Not an error, never a ship blocker. Any *other* status failure is warn-and-continue.
+- **`off`:** stop the stage immediately; no derivation, no cut, no gh — behavior identical to pre-change ships.
+- **`prompt`:** report `<unreleasedChanges> unreleased change(s), recommended bump: <recommendedBump>` and ask via AskUserQuestion **when the context can ask**; in any context that cannot collect an answer (forked skill execution, non-interactive run), fail closed — skip the cut and emit a loud notice that prompt mode could not ask. Decline = no cut, backlog stays for `/metta-release`. Confirm = proceed identically to `auto`.
+- **Pre-1.0 major guard:** when `version` < 1.0.0, `recommendedBump` is `major`, and `allowMajorPre1` is `false` → cut `minor` instead and prominently report both the original major derivation and the downgrade ("pre-1.0: derived major downgraded to minor; set release.allow_major_pre_1: true to allow"). `allowMajorPre1: true` or version ≥ 1.0.0 → apply as derived. All three inputs come from the status `--json` echo.
+- **Cut:** `metta release cut --bump <level> --yes --json`; on success parse `version`, `tag`, `notes`; the ship report MUST state the released version.
+- **Push:** `git push --follow-tags origin main` — the single authorized main push carrying the release commit and tag; never `--force`, never a second unconfirmed push.
+- **gh publish (only when `githubRelease` is true):** probe `gh release view <tag>`; if it exists, skip creation (idempotent). Otherwise `gh release create <tag> --verify-tag --title <tag> --notes-file -` with the `notes` string from cut `--json` fed on stdin via a quoted heredoc. Any gh failure (missing binary, unauthenticated, create error): warn naming the cause and the exact manual command `gh release create <tag> --verify-tag`, then continue. `githubRelease: false` → no `gh release` command at all.
+
 15. Report results to user
 
 ## Critical: You MUST review, verify, finalize, and ship
