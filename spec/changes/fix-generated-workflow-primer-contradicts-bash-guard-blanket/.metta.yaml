@@ -30,6 +30,8 @@ artifact_timings:
   research:
     started: 2026-08-26T03:11:15.427Z
     completed: 2026-08-26T03:15:41.804Z
+  design:
+    started: 2026-08-26T03:15:45.015Z
 artifact_tokens:
   intent:
     context: 763
@@ -43,6 +45,9 @@ artifact_tokens:
   research:
     context: 3561
     budget: 60000
+  design:
+    context: 4974
+    budget: 80000
 worktree: /home/utx0/Code/metta/.metta/worktrees/fix-generated-workflow-primer-contradicts-bash-guard-blanket
 escalation:
   from_tier: quick
