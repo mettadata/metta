@@ -1470,6 +1470,43 @@ Scenarios:
 - Baseline/compare module tests cover dirt attribution
 - New blocking tests fail against pre-change behavior
 
+### Workflow Primer Mandate Is Scoped to Mutating Commands
+
+Scenarios:
+- Mandate is scoped, names the guard, and acknowledges the read-only surface
+- Mandate is byte-identical across both variants
+- Forbidden section enumerates mutating families instead of a blanket ban
+- Primed session is directed to permitted queries for status questions
+
+### Workflow Primer Documents the Permitted Read-Only Surface
+
+Scenarios:
+- Long primer enumerates the full allow surface
+- Enumerated lists match the hook's current allow-lists exactly
+- Short primer carries a one-line read-only pointer
+
+### Workflow Primer Carries Fail-Closed Guidance as a Drift Safety Valve
+
+Scenarios:
+- Unlisted command triggers attempt-it guidance, not assumed prohibition
+- List is qualified as a generation-time mirror of the guard
+
+### All Workflow-Rule Copies Agree Across Primer, CLAUDE.md, and Docs
+
+Scenarios:
+- Metta's own CLAUDE.md region regenerates with corrected wording and preserved structure
+- Docs README core-rule section matches the scoped rule
+- No copy asserts a blanket ban
+- Refresh replaces old blanket-ban wording in a consumer project
+- Refresh over local hand-edits yields correct upstream wording
+
+### Cross-Referenced Sync Reminders Between Primer and Guard Allow-Lists
+
+Scenarios:
+- Primer lists point at the hook
+- Hook allow-lists point back at the primer
+- Hook diff is comment-only with zero behavior change
+
 ## propose-stop-after
 
 ### `metta propose` MUST accept a `--stop-after <artifact>` option

@@ -35,6 +35,8 @@ import { promisify } from 'node:util';
 const execFileAsync = promisify(execFile);
 
 // Explicit ALLOW list: known safe read-only single-subcommand forms.
+// SYNC: enumerated in src/delivery/workflow-primer.ts (read-only subsection / Forbidden
+// bullet) — edit both together; the seam test in tests/delivery.test.ts fails on drift.
 const ALLOWED_SUBCOMMANDS = new Set([
   'status', 'instructions', 'progress', 'doctor',
   'next', // read-only routing query (`metta next --json`); first Bash call of the metta-next skill body
@@ -45,6 +47,8 @@ const ALLOWED_SUBCOMMANDS = new Set([
 ]);
 
 // Explicit ALLOW list for two-word read-only forms.
+// SYNC: enumerated in src/delivery/workflow-primer.ts (read-only subsection / Forbidden
+// bullet) — edit both together; the seam test in tests/delivery.test.ts fails on drift.
 const ALLOWED_TWO_WORD = new Map([
   ['issues', new Set(['list'])],
   ['gate', new Set(['list'])],
@@ -64,6 +68,8 @@ const ALLOWED_TWO_WORD = new Map([
 ]);
 
 // Explicit BLOCK list: state-mutating single-subcommand forms.
+// SYNC: enumerated in src/delivery/workflow-primer.ts (read-only subsection / Forbidden
+// bullet) — edit both together; the seam test in tests/delivery.test.ts fails on drift.
 const BLOCKED_SUBCOMMANDS = new Set([
   'propose', 'quick', 'auto', 'complete', 'finalize', 'ship',
   'issue', 'fix-issue', 'fix-gap', 'refresh', 'import', 'init',
@@ -73,6 +79,8 @@ const BLOCKED_SUBCOMMANDS = new Set([
 ]);
 
 // Explicit BLOCK list for two-word mutating forms.
+// SYNC: enumerated in src/delivery/workflow-primer.ts (read-only subsection / Forbidden
+// bullet) — edit both together; the seam test in tests/delivery.test.ts fails on drift.
 const BLOCKED_TWO_WORD = new Map([
   ['backlog', new Set(['add', 'done', 'promote', 'migrate'])],
   ['changes', new Set(['abandon'])],
@@ -94,6 +102,8 @@ const BLOCKED_TWO_WORD = new Map([
 // Bare `metta release` defaults to the read-only status view (roadmap precedent).
 // Bare `metta backlog` defaults to the read-only list view; its mutating two-word
 // forms (`add`/`done`/`promote`/`migrate`) stay Tier-2 blocked above.
+// SYNC: enumerated in src/delivery/workflow-primer.ts (read-only subsection / Forbidden
+// bullet) — edit both together; the seam test in tests/delivery.test.ts fails on drift.
 const ALLOWED_BARE = new Set(['roadmap', 'release', 'backlog']);
 
 // Subcommands that require a trusted agent_type (caller identity set by the Claude Code
