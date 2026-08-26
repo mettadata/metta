@@ -41,7 +41,7 @@ Stack: **Language:** TypeScript (strict mode, ES2022 target), **Runtime:** Node.
 
 ### How to work
 
-**AI orchestrators MUST invoke the matching metta skill — never call the CLI directly.** (Humans running the CLI in a terminal are unaffected — this rule scopes to AI-driven sessions.) The skills wrap artifact authoring, review, and verification with the correct subagent personas; calling the CLI directly bypasses those guarantees and has shipped broken artifacts (see `spec/issues/metta-complete-accepts-stub-placeholder-artifacts-on-intent-.md`).
+**State-mutating metta commands MUST go through the matching metta skill — never as direct CLI calls from an AI orchestrator session.** Enforcement authority is the `metta-guard-bash` PreToolUse hook: it blocks mutating and unrecognized commands (fail-closed) but permits a read-only query surface directly. (Humans running the CLI in a terminal are unaffected — this rule scopes to AI-driven sessions.) The skills wrap artifact authoring, review, and verification with the correct subagent personas; calling the CLI directly bypasses those guarantees and has shipped broken artifacts (see `spec/issues/metta-complete-accepts-stub-placeholder-artifacts-on-intent-.md`).
 
 Primary entry points:
 - `/metta-quick <description>` — small, scoped fixes (bug fixes, one-file edits, tiny refactors)
@@ -59,8 +59,17 @@ Doc-only fixes and edits to this workflow section itself are the exceptions.
 
 ### Forbidden
 
-- Invoking `metta quick`, `metta propose`, `metta finalize`, `metta complete`, `metta issue`, or any other `metta <cmd>` directly from an AI orchestrator session. Use the matching skill.
+- Invoking any state-mutating metta command directly from an AI orchestrator session: `propose`, `quick`, `auto`, `complete`, `finalize`, `ship`, `issue`, `fix-issue`, `fix-gap`, `refresh`, `import`, `init`, `verify`, `backlog add/done/promote/migrate`, `changes abandon`, `milestone create/close/update`, `roadmap add/reorder/next/remove`, `release cut`. Use the matching skill.
 - Writing placeholder content like `"intent stub"` or `"summary stub"` to any artifact file to satisfy `metta complete`. Artifacts must carry real content authored by the matching `metta-*` subagent.
+
+### Read-only queries (permitted directly)
+
+The `metta-guard-bash` hook allows these directly — no skill needed. This list mirrors the hook's allow-lists at generation time; the hook, not this text, is authoritative:
+- Single-word: `status`, `instructions`, `progress`, `doctor`, `next`, `iteration`, `model-escalation`, `tokens`, `install` (`iteration`/`model-escalation`/`tokens` append instrumentation records and `install` writes scaffolding — guard-allowed, though not strictly read-only)
+- Two-word: `issues list`, `gate list`, `changes list`, `backlog list|show`, `gaps list|show`, `milestone list|show`, `release status`
+- Bare (flags only): `roadmap`, `release`, `backlog` (e.g. `metta roadmap --json`)
+
+Run bare `metta` for the full current command listing. When in doubt about a command not listed here, attempt it — the guard fails closed and blocks anything unrecognized, so an attempt is always safe and never mutates state.
 
 ### Research discipline
 
