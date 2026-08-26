@@ -49,3 +49,15 @@ token_usage:
     tokens: 5206
     timestamp: 2026-08-26T07:46:21.230Z
     source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 14313
+    timestamp: 2026-08-26T07:47:23.128Z
+    source: hook
+  - task: stories
+    agent: metta-product
+    model: fable
+    tokens: 3772
+    timestamp: 2026-08-26T07:48:02.999Z
+    source: hook
