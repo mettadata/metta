@@ -804,6 +804,20 @@ describe("CLI: status / next / changes / doctor / gate / validate-stories", { ti
         expect(human.stdout.indexOf('v0-7')).toBeLessThan(human.stdout.indexOf('v0-4'))
       })
 
+      it('progress text renders abandoned milestone with ✗ after open milestones', async () => {
+        await installFixture(tempDir)
+        await disableWorktrees(tempDir)
+        await seedMilestone('v0-7', 'v0.7')
+        await seedMilestone('v0-4', 'v0.4', { status: 'abandoned' })
+        await seedIssue('open-one', 'Open one', 'v0-7')
+
+        const human = await runCli(['progress'], tempDir)
+        expect(human.code).toBe(0)
+        expect(human.stdout).toContain('Milestones:')
+        expect(human.stdout).toContain('✗')
+        // Open sorts before abandoned (terminal statuses sort last).
+        expect(human.stdout.indexOf('v0-7')).toBeLessThan(human.stdout.indexOf('v0-4'))
+      })
     })
   })
 

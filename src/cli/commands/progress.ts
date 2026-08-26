@@ -7,6 +7,7 @@ import { getGitLogTimings } from '../../util/git-log-timings.js'
 import { getCeremonyCommitRatio, getArtifactsPerSmallChange, getModelEscalationRate, getAvgTokensPerChangeByTier, getLatestTag } from '../../util/ceremony-metrics.js'
 import { isArchivedChangeDir } from '../../util/archive-dirs.js'
 import { loadMilestoneRollups, toMilestoneCountsRow } from './milestone.js'
+import { MILESTONE_MARKERS } from '../../milestones/milestone-rollup.js'
 import type { ArtifactTiming, ArtifactTokens } from '../../schemas/change-metadata.js'
 
 export function registerProgressCommand(program: Command): void {
@@ -209,12 +210,14 @@ export function registerProgressCommand(program: Command): void {
         }
 
         // Milestones — section omitted entirely when no milestone files
-        // exist (closed milestones marked ✓, sorted after open by the
-        // rollup function).
+        // exist (terminal milestones marked ✓/✗, sorted after open by the
+        // rollup function). Abandoned renders red — distinct from the
+        // adjacent 90-grey target text.
+        const MILESTONE_MARKER_COLORS = { open: 36, closed: 32, abandoned: 31 } as const
         if (milestoneSection !== null) {
           console.log(color('  Milestones:', 36))
           for (const r of milestoneSection.rollups) {
-            const marker = r.status === 'closed' ? color('✓', 32) : color('▸', 36)
+            const marker = color(MILESTONE_MARKERS[r.status], MILESTONE_MARKER_COLORS[r.status])
             const target = r.target !== undefined ? `  ${color(`target ${r.target}`, 90)}` : ''
             console.log(`    ${r.slug.padEnd(30)} ${marker} ${r.resolved}/${r.total} resolved (${r.percent}%)${target}`)
           }
