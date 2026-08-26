@@ -1,6 +1,6 @@
-version: 20
-hash: sha256:c13a700cfc42
-updated: 2026-08-18T16:16:20.200Z
+version: 21
+hash: sha256:2dda53a2d136
+updated: 2026-08-26T05:28:04.624Z
 status: draft
 source: change
 requirements:
@@ -207,3 +207,35 @@ requirements:
       - write-target-matrix-distinguishes-blocked-from-allowed
       - baseline-compare-module-tests-cover-dirt-attribution
       - new-blocking-tests-fail-against-pre-change-behavior
+  - id: workflow-primer-mandate-is-scoped-to-mutating-commands
+    hash: sha256:bf3234aa8f19
+    scenarios:
+      - mandate-is-scoped-names-the-guard-and-acknowledges-the-read-only-surface
+      - mandate-is-byte-identical-across-both-variants
+      - forbidden-section-enumerates-mutating-families-instead-of-a-blanket-ban
+      - primed-session-is-directed-to-permitted-queries-for-status-questions
+  - id: workflow-primer-documents-the-permitted-read-only-surface
+    hash: sha256:84002ebf169b
+    scenarios:
+      - long-primer-enumerates-the-full-allow-surface
+      - enumerated-lists-match-the-hook-s-current-allow-lists-exactly
+      - short-primer-carries-a-one-line-read-only-pointer
+  - id: workflow-primer-carries-fail-closed-guidance-as-a-drift-safety-valve
+    hash: sha256:3c502f6e3faf
+    scenarios:
+      - unlisted-command-triggers-attempt-it-guidance-not-assumed-prohibition
+      - list-is-qualified-as-a-generation-time-mirror-of-the-guard
+  - id: all-workflow-rule-copies-agree-across-primer-claude-md-and-docs
+    hash: sha256:34648274d8c7
+    scenarios:
+      - metta-s-own-claude-md-region-regenerates-with-corrected-wording-and-preserved-structure
+      - docs-readme-core-rule-section-matches-the-scoped-rule
+      - no-copy-asserts-a-blanket-ban
+      - refresh-replaces-old-blanket-ban-wording-in-a-consumer-project
+      - refresh-over-local-hand-edits-yields-correct-upstream-wording
+  - id: cross-referenced-sync-reminders-between-primer-and-guard-allow-lists
+    hash: sha256:f583a698a818
+    scenarios:
+      - primer-lists-point-at-the-hook
+      - hook-allow-lists-point-back-at-the-primer
+      - hook-diff-is-comment-only-with-zero-behavior-change
