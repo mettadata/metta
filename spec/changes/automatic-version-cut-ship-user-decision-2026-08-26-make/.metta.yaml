@@ -30,6 +30,8 @@ artifact_timings:
   research:
     started: 2026-08-26T07:51:44.675Z
     completed: 2026-08-26T07:56:56.969Z
+  design:
+    started: 2026-08-26T07:59:28.593Z
 artifact_tokens:
   intent:
     context: 763
@@ -43,6 +45,9 @@ artifact_tokens:
   research:
     context: 6055
     budget: 60000
+  design:
+    context: 9050
+    budget: 80000
 worktree: /home/utx0/Code/metta/.metta/worktrees/automatic-version-cut-ship-user-decision-2026-08-26-make
 escalation:
   from_tier: quick
@@ -121,4 +126,16 @@ token_usage:
     model: fable
     tokens: 14837
     timestamp: 2026-08-26T07:55:33.190Z
+    source: hook
+  - task: metta-skill-host
+    agent: metta-skill-host
+    model: fable
+    tokens: 28072
+    timestamp: 2026-08-26T07:57:17.954Z
+    source: hook
+  - task: spec
+    agent: metta-specifier
+    model: fable
+    tokens: 13087
+    timestamp: 2026-08-26T07:59:22.372Z
     source: hook
