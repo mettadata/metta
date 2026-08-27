@@ -1,4 +1,12 @@
 releases:
+  - version: 0.7.0
+    tag: v0.7.0
+    date: 2026-08-27
+    bump: minor
+    bump_source: override
+    backfilled: false
+    changes:
+      - 2026-08-26-automatic-version-cut-ship-user-decision-2026-08-26-make
   - version: 0.6.0
     tag: v0.6.0
     date: 2026-08-26

@@ -3,7 +3,7 @@
 <!-- Run `metta docs generate` to regenerate -->
 # Changelog
 
-## Unreleased
+## 0.7.0 — 2026-08-27
 
 ### 2026-08-26 — automatic-version-cut-ship-user-decision-2026-08-26-make
 
