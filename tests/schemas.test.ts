@@ -1263,6 +1263,8 @@ describe('ReleaseConfigSchema', () => {
       version_file: 'package.json',
       tag_prefix: 'v',
       github_release: false,
+      on_ship: 'auto',
+      allow_major_pre_1: false,
     })
   })
 
@@ -1310,6 +1312,64 @@ describe('ReleaseConfigSchema', () => {
     expect(result.success).toBe(false)
   })
 
+  it('defaults on_ship to auto when omitted', () => {
+    const result = ReleaseConfigSchema.parse({
+      scheme: 'semver',
+      version_file: 'package.json',
+    })
+    expect(result.on_ship).toBe('auto')
+  })
+
+  it('accepts each of auto, prompt, off for on_ship', () => {
+    for (const value of ['auto', 'prompt', 'off'] as const) {
+      const result = ReleaseConfigSchema.parse({
+        scheme: 'semver',
+        version_file: 'package.json',
+        on_ship: value,
+      })
+      expect(result.on_ship).toBe(value)
+    }
+  })
+
+  it('rejects an invalid on_ship value with a message naming release.on_ship and the allowed values', () => {
+    const result = ReleaseConfigSchema.safeParse({
+      scheme: 'semver',
+      version_file: 'package.json',
+      on_ship: 'always',
+    })
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      const issue = result.error.issues.find((i) => i.path.join('.') === 'on_ship')
+      expect(issue).toBeDefined()
+      expect(issue?.message).toBe("release.on_ship: must be one of 'auto', 'prompt', 'off'")
+    }
+  })
+
+  it('defaults allow_major_pre_1 to false when omitted', () => {
+    const result = ReleaseConfigSchema.parse({
+      scheme: 'semver',
+      version_file: 'package.json',
+    })
+    expect(result.allow_major_pre_1).toBe(false)
+  })
+
+  it('accepts an explicit allow_major_pre_1: true', () => {
+    const result = ReleaseConfigSchema.parse({
+      scheme: 'semver',
+      version_file: 'package.json',
+      allow_major_pre_1: true,
+    })
+    expect(result.allow_major_pre_1).toBe(true)
+  })
+
+  it('still parses the minimal {scheme, version_file} fixture (no migration required)', () => {
+    const result = ReleaseConfigSchema.safeParse({
+      scheme: 'semver',
+      version_file: 'package.json',
+    })
+    expect(result.success).toBe(true)
+  })
+
   it('is accepted under ProjectConfigSchema as the optional release key', () => {
     const result = ProjectConfigSchema.safeParse({
       release: { scheme: 'semver', version_file: 'package.json' },
@@ -1321,6 +1381,8 @@ describe('ReleaseConfigSchema', () => {
         version_file: 'package.json',
         tag_prefix: 'v',
         github_release: false,
+        on_ship: 'auto',
+        allow_major_pre_1: false,
       })
     }
   })

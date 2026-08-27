@@ -34,7 +34,8 @@ const EXPECTED_SCOPES: Record<string, string[]> = {
   'metta-import': ['import'],
   'metta-init': ['init', 'refresh'],
   'metta-backlog': ['backlog:add', 'backlog:done', 'backlog:promote', 'backlog:migrate', 'milestone:create', 'milestone:close', 'milestone:update'],
-  'metta-fix-gap': ['fix-gap', 'complete', 'finalize'],
+  // 'release:cut' lets a fix-gap lifecycle finish its ship stage (design.md §8).
+  'metta-fix-gap': ['fix-gap', 'complete', 'finalize', 'release:cut'],
 }
 
 const V4_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i

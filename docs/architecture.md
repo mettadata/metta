@@ -56,7 +56,7 @@
 13 requirements
 
 ### release-versioning
-14 requirements
+24 requirements
 
 ### roadmap-feature
 15 requirements

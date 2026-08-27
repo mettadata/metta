@@ -275,7 +275,20 @@ export function registerInstallCommand(program: Command): void {
         await mkdir(join(root, 'spec', 'changes'), { recursive: true })
         await mkdir(join(root, 'spec', 'archive'), { recursive: true })
 
-        // Create minimal config
+        // Create minimal config. The release block requires a detectable
+        // version file (ReleaseConfigSchema is strict and mandates
+        // scheme + version_file), so it is scaffolded only when package.json
+        // exists; other projects keep the absent-config skip behavior.
+        const releaseBlock = existsSync(join(root, 'package.json'))
+          ? `release:
+  scheme: semver
+  version_file: package.json
+  github_release: false
+  # Ship-path skills cut a release automatically after each merged ship;
+  # set prompt to be asked each time, or off for on-demand /metta-release only.
+  on_ship: auto
+`
+          : ''
         const configContent = `project:
   name: "${root.split('/').pop()}"
   description: ""
@@ -287,7 +300,7 @@ models:
 uat:
   # Ship-path skills run the archived UAT.md before hand-back; set false to opt out.
   enforce_on_ship: true
-`
+${releaseBlock}`
         await writeFile(join(root, '.metta', 'config.yaml'), configContent, { flag: 'wx' }).catch(() => {
           // Config already exists
         })

@@ -12,7 +12,6 @@ import {
   type ReleaseCutOptions,
   type ReleaseStep,
 } from '../src/release/release-pipeline.js'
-import type { GhExec } from '../src/release/gh-release.js'
 import { ProjectConfigSchema, type ProjectConfig } from '../src/schemas/project-config.js'
 import { ReleasesRecordSchema, type ReleasesRecord } from '../src/schemas/releases-record.js'
 import { DocGenerator } from '../src/docs/doc-generator.js'
@@ -63,7 +62,6 @@ function makeConfig(overrides: Record<string, unknown> = {}): ProjectConfig {
 function cutOptions(overrides: Partial<ReleaseCutOptions> = {}): ReleaseCutOptions {
   return {
     confirmVersion: async () => true,
-    github: false,
     dryRun: false,
     ...overrides,
   }
@@ -116,12 +114,22 @@ describe('ReleasePipeline', { timeout: 60000 }, () => {
       expect(result.status).toBe('success')
       expect(result.version).toBe('0.2.0') // feat → minor from 0.1.0
       expect(result.tag).toBe('v0.2.0')
-      expect(result.gh).toBeUndefined()
 
       // No prior tag is not an error; backfill skipped.
       expect(stepByName(result.steps, 'last-tag')).toMatchObject({ status: 'pass', detail: 'none' })
       expect(stepByName(result.steps, 'backfill-record')?.status).toBe('skip')
-      expect(stepByName(result.steps, 'gh')?.status).toBe('skip')
+      // The cut is purely local — no gh step exists.
+      expect(stepByName(result.steps, 'gh')).toBeUndefined()
+
+      // Notes carry the extracted changelog section for the cut version.
+      const changelogContent = await readFile(join(root, 'docs', 'changelog.md'), 'utf-8')
+      const sectionMatch = /^## 0\.2\.0 — .*$/m.exec(changelogContent)
+      expect(sectionMatch).not.toBeNull()
+      const afterHeading = changelogContent.slice(sectionMatch!.index + sectionMatch![0].length)
+      const nextHeading = /^## /m.exec(afterHeading)
+      const expectedNotes = (nextHeading ? afterHeading.slice(0, nextHeading.index) : afterHeading).trim()
+      expect(result.notes).toBe(expectedNotes)
+      expect(result.notes).toContain('Added change a.')
 
       // Version file rewritten, formatting preserved.
       expect(await readPackageVersion(root)).toBe('0.2.0')
@@ -333,12 +341,17 @@ describe('ReleasePipeline', { timeout: 60000 }, () => {
       expect(result.version).toBe('0.2.0')
       expect(result.tag).toBe('v0.2.0')
       expect(stepByName(result.steps, 'target-tag-absent')?.status).toBe('pass')
-      for (const name of [
+      const skippedMutationSteps = [
         'backfill-record', 'write-version-file', 'write-releases-record',
-        'regen-changelog', 'commit', 'annotated-tag', 'gh',
-      ]) {
+        'regen-changelog', 'commit', 'annotated-tag',
+      ]
+      // Dry-run lists exactly six skipped mutation steps — the cut is local-only.
+      expect(result.steps.filter(s => s.status === 'skip')).toHaveLength(6)
+      for (const name of skippedMutationSteps) {
         expect(stepByName(result.steps, name)).toMatchObject({ status: 'skip', detail: 'dry-run' })
       }
+      // Dry-run carries no notes — the changelog was not regenerated.
+      expect(result.notes).toBeUndefined()
       await expectNothingWritten(head)
       expect(await git(root, ['tag', '--list', 'v0.2.0'])).toBe('')
     })
@@ -417,92 +430,28 @@ describe('ReleasePipeline', { timeout: 60000 }, () => {
     })
   })
 
-  describe('cut — gh isolation', () => {
-    async function seed(): Promise<void> {
+  describe('cut — local-only (no gh step)', () => {
+    it('emits no gh step and no gh commands even when github_release is enabled in config', async () => {
       await writePackageJson(root, '0.1.0')
       await addArchiveEntry(root, '2026-01-01-change-a', 'Added change a.')
       await commitAll(root, 'feat: add change a')
-    }
 
-    it('gh failure never changes local success', async () => {
-      await seed()
-      const failingExec: GhExec = async () => {
-        throw new Error('gh: command not found')
-      }
       const config = makeConfig({
         release: { scheme: 'semver', version_file: 'package.json', github_release: true },
       })
       const pipeline = new ReleasePipeline(root, config)
-      const result = await pipeline.cut(cutOptions({ github: true, ghExec: failingExec }))
+      const result = await pipeline.cut(cutOptions())
 
       expect(result.status).toBe('success')
-      expect(result.gh?.status).toBe('missing-binary')
-      expect(stepByName(result.steps, 'gh')?.status).toBe('fail')
+      expect(stepByName(result.steps, 'gh')).toBeUndefined()
+      expect(result.steps.map(s => s.step)).not.toContain('gh')
+      // Notes are still emitted for the downstream (skill-side) publisher.
+      expect(result.notes).toContain('Added change a.')
 
       // The local release is fully intact.
       expect(await readPackageVersion(root)).toBe('0.2.0')
       expect(await git(root, ['cat-file', '-t', 'v0.2.0'])).toBe('tag')
       expect(await git(root, ['log', '-1', '--format=%s'])).toBe('chore(release): 0.2.0')
-    })
-
-    it('creates the GitHub release with notes from the version section when gh succeeds', async () => {
-      await seed()
-      const calls: string[][] = []
-      const okExec: GhExec = async (_file, args) => {
-        calls.push([...args])
-        return { stdout: '', stderr: '' }
-      }
-      const config = makeConfig({
-        release: { scheme: 'semver', version_file: 'package.json', github_release: true },
-      })
-      const pipeline = new ReleasePipeline(root, config)
-      const result = await pipeline.cut(cutOptions({ github: true, ghExec: okExec }))
-
-      expect(result.status).toBe('success')
-      expect(result.gh).toEqual({ status: 'created', tag: 'v0.2.0' })
-      const createCall = calls.find(args => args[0] === 'release' && args[1] === 'create')
-      expect(createCall).toBeDefined()
-      expect(createCall).toContain('v0.2.0')
-      const notes = createCall![createCall!.indexOf('--notes') + 1]
-      expect(notes).toContain('Added change a.')
-    })
-
-    it('does not invoke gh when publication is not requested for this cut', async () => {
-      await seed()
-      let invoked = false
-      const spyExec: GhExec = async () => {
-        invoked = true
-        return { stdout: '', stderr: '' }
-      }
-      const config = makeConfig({
-        release: { scheme: 'semver', version_file: 'package.json', github_release: true },
-      })
-      const pipeline = new ReleasePipeline(root, config)
-      const result = await pipeline.cut(cutOptions({ github: false, ghExec: spyExec }))
-
-      expect(result.status).toBe('success')
-      expect(result.gh).toBeUndefined()
-      expect(invoked).toBe(false)
-      expect(stepByName(result.steps, 'gh')?.status).toBe('skip')
-    })
-
-    it('does not invoke gh when config disables github_release even if requested', async () => {
-      await seed()
-      let invoked = false
-      const spyExec: GhExec = async () => {
-        invoked = true
-        return { stdout: '', stderr: '' }
-      }
-      const pipeline = new ReleasePipeline(root, makeConfig())
-      const result = await pipeline.cut(cutOptions({ github: true, ghExec: spyExec }))
-
-      expect(result.status).toBe('success')
-      expect(result.gh).toBeUndefined()
-      expect(invoked).toBe(false)
-      expect(stepByName(result.steps, 'gh')).toMatchObject({
-        status: 'skip',
-        detail: 'release.github_release is disabled in config',
-      })
     })
   })
 
@@ -557,6 +506,52 @@ describe('ReleasePipeline', { timeout: 60000 }, () => {
       const status = await new ReleasePipeline(root, makeConfig()).status()
       expect(status.lastTag).toBeNull()
       expect(status.recommendedBump).toBe('patch')
+    })
+
+    it('echoes explicit on_ship, allow_major_pre_1, and github_release values', async () => {
+      await writePackageJson(root, '0.1.0')
+      await commitAll(root, 'chore: seed')
+
+      const config = makeConfig({
+        release: {
+          scheme: 'semver',
+          version_file: 'package.json',
+          github_release: true,
+          on_ship: 'prompt',
+          allow_major_pre_1: true,
+        },
+      })
+      const status = await new ReleasePipeline(root, config).status()
+
+      expect(status.onShip).toBe('prompt')
+      expect(status.allowMajorPre1).toBe(true)
+      expect(status.githubRelease).toBe(true)
+    })
+
+    it('echoes schema defaults when the keys are omitted from the release config', async () => {
+      await writePackageJson(root, '0.1.0')
+      await commitAll(root, 'chore: seed')
+
+      // Minimal config: scheme + version_file only — all echo keys omitted.
+      const status = await new ReleasePipeline(root, makeConfig()).status()
+
+      expect(status.onShip).toBe('auto')
+      expect(status.allowMajorPre1).toBe(false)
+      expect(status.githubRelease).toBe(false)
+    })
+
+    it("echoes 'off' on_ship without touching the other defaults", async () => {
+      await writePackageJson(root, '0.1.0')
+      await commitAll(root, 'chore: seed')
+
+      const config = makeConfig({
+        release: { scheme: 'semver', version_file: 'package.json', on_ship: 'off' },
+      })
+      const status = await new ReleasePipeline(root, config).status()
+
+      expect(status.onShip).toBe('off')
+      expect(status.allowMajorPre1).toBe(false)
+      expect(status.githubRelease).toBe(false)
     })
 
     it('degrades to version-only with a warning when git is disabled', async () => {

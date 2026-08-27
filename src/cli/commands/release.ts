@@ -23,11 +23,10 @@ function renderCutResult(result: ReleaseCutResult, dryRun: boolean): void {
       return
     }
     console.log(`Release ${result.version ?? ''} cut (tag ${result.tag ?? ''}).`)
-    if (result.gh !== undefined && result.gh.status !== 'created') {
-      const remedy = 'remedy' in result.gh ? result.gh.remedy : result.gh.detail
-      console.error(`warn: GitHub release not created (${result.gh.status}): ${remedy}`)
-    }
-    console.log('The tag was NOT pushed. Publish it manually with: git push --follow-tags')
+    console.log(
+      'The tag was NOT pushed. Push it with: git push --follow-tags origin main — then publish ' +
+        `the GitHub release (if configured) with: gh release create ${result.tag ?? '<tag>'} --verify-tag`,
+    )
     return
   }
   if (result.status === 'aborted') {
@@ -64,6 +63,7 @@ export function registerReleaseCommand(program: Command): void {
           console.log(`Commits since:      ${result.commitCount ?? 'unavailable'}`)
           console.log(`Recommended bump:   ${result.recommendedBump ?? 'unavailable'}`)
           console.log(`Unreleased changes: ${result.unreleasedChanges}`)
+          console.log(`On-ship mode:       ${result.onShip}`)
           for (const warning of result.warnings) {
             console.error(`warn: ${warning}`)
           }
@@ -75,15 +75,26 @@ export function registerReleaseCommand(program: Command): void {
 
   release
     .command('cut')
-    .description('Cut a release: bump version, update record and changelog, commit, and tag (never pushes)')
+    .description('Cut a release locally: bump version, update record and changelog, commit, and tag (never pushes; GitHub publication happens after the tag push)')
     .option('--bump <level>', 'Override the derived bump level (patch|minor|major)')
     .option('--yes', 'Skip the interactive target-version confirmation')
-    .option('--github', 'Publish a GitHub release for this cut (requires release.github_release: true)')
+    .option('--github', '(removed) GitHub publication now happens after the tag push — see error for the sequence')
     .option('--dry-run', 'Run all checks but write nothing')
     .option('--json', 'Machine-readable JSON output')
     .action(async (opts: { bump?: string; yes?: boolean; github?: boolean; dryRun?: boolean; json?: boolean }) => {
       const json = (opts.json ?? false) || (program.opts().json ?? false)
       try {
+        // --github is removed: error BEFORE any context/config/pipeline work,
+        // naming the fixed cut → push → publish sequence. No mutation occurs.
+        if (opts.github === true) {
+          throw new ReleaseError(
+            "--github has been removed from 'release cut': the cut is local-only. " +
+              'Publish after the tag is on the remote: (1) metta release cut --bump <level> --yes, ' +
+              '(2) git push --follow-tags origin main, ' +
+              '(3) gh release create <tag> --verify-tag --notes-file - (requires release.github_release: true).',
+          )
+        }
+
         // Validate --bump against the three levels before touching anything.
         const levels = BumpLevelEnum.options
         if (opts.bump !== undefined && !levels.includes(opts.bump as BumpLevel)) {
@@ -104,12 +115,6 @@ export function registerReleaseCommand(program: Command): void {
           throw new ReleaseConfigMissingError()
         }
 
-        // --github is only valid when the config opts in — fail fast BEFORE
-        // any mutation.
-        if (opts.github === true && config.release.github_release !== true) {
-          throw new ReleaseError('release.github_release is disabled in config')
-        }
-
         const pipeline = new ReleasePipeline(ctx.projectRoot, config)
         const confirmVersion =
           opts.yes === true
@@ -123,7 +128,6 @@ export function registerReleaseCommand(program: Command): void {
         const result = await pipeline.cut({
           bumpOverride: opts.bump as BumpLevel | undefined,
           confirmVersion,
-          github: opts.github ?? false,
           dryRun: opts.dryRun ?? false,
         })
 

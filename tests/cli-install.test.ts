@@ -99,6 +99,37 @@ describe("CLI: install / init / stack detection", { timeout: 30000 }, () => {
       expect(result.success).toBe(true)
     })
 
+    it('scaffolds a complete release block with on_ship auto when package.json exists', async () => {
+      await writeFile(join(tempDir, 'package.json'), '{"name": "x", "version": "0.0.0"}')
+      const { code } = await runCli(['install', '--git-init'], tempDir)
+      expect(code).toBe(0)
+      const { readFile } = await import('node:fs/promises')
+      const configRaw = await readFile(join(tempDir, '.metta', 'config.yaml'), 'utf8')
+      expect(configRaw).toContain('release:')
+      expect(configRaw).toContain('on_ship: auto')
+      const parsed = parse(configRaw)
+      expect(parsed.release.scheme).toBe('semver')
+      expect(parsed.release.version_file).toBe('package.json')
+      expect(parsed.release.github_release).toBe(false)
+      expect(parsed.release.on_ship).toBe('auto')
+      // The scaffolded content must validate against the strict config schema —
+      // never a bare on_ship without scheme/version_file.
+      const result = ProjectConfigSchema.safeParse(parsed)
+      expect(result.success).toBe(true)
+    })
+
+    it('writes no release key at all when package.json is absent, and config still parses', async () => {
+      const { code } = await runCli(['install', '--git-init'], tempDir)
+      expect(code).toBe(0)
+      const { readFile } = await import('node:fs/promises')
+      const configRaw = await readFile(join(tempDir, '.metta', 'config.yaml'), 'utf8')
+      expect(configRaw).not.toContain('release:')
+      const parsed = parse(configRaw)
+      expect(parsed.release).toBeUndefined()
+      const result = ProjectConfigSchema.safeParse(parsed)
+      expect(result.success).toBe(true)
+    })
+
     it('re-install leaves an existing config.yaml byte-untouched — no uat block injected (wx semantics)', async () => {
       await runCli(['install', '--git-init'], tempDir)
       const { readFile, writeFile } = await import('node:fs/promises')

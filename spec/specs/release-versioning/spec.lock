@@ -1,16 +1,19 @@
-version: 14
-hash: sha256:d2c33de78655
-updated: 2026-08-11T00:12:53.800Z
+version: 15
+hash: sha256:59134fd4d27d
+updated: 2026-08-26T08:48:33.737Z
 status: draft
 source: change
 requirements:
   - id: release-configuration-schema
-    hash: sha256:fe668687876c
+    hash: sha256:0ac776feaad0
     scenarios:
       - valid-semver-config-accepted
       - unsupported-scheme-rejected-with-key-named
       - malformed-version-file-path-rejected
       - defaults-applied-for-omitted-optional-keys
+      - explicit-on-ship-values-accepted
+      - invalid-on-ship-value-rejected-with-key-named
+      - install-scaffolds-on-ship-explicitly
   - id: product-version-distinct-from-installed-version
     hash: sha256:b953d9d844fb
     scenarios:
@@ -18,10 +21,12 @@ requirements:
       - version-file-missing-yields-distinguishing-error
       - version-drift-stamp-untouched-by-release-operations
   - id: purely-additive-when-unconfigured
-    hash: sha256:9153ebc3eeb9
+    hash: sha256:e053d57e9862
     scenarios:
-      - existing-lifecycle-unchanged-without-release-config
+      - ship-without-release-config-skips-with-one-line-notice
+      - absent-config-skip-is-not-a-ship-blocker
       - release-command-without-config-fails-actionably
+      - skip-paths-leave-tokens-uat-and-gates-untouched
   - id: bump-derivation-from-shipped-changes
     hash: sha256:0a26f8cd8dc8
     scenarios:
@@ -61,15 +66,19 @@ requirements:
     scenarios:
       - manual-tags-render-without-losing-entries
   - id: opt-in-github-release-publication
-    hash: sha256:b1a426719cce
+    hash: sha256:9be9da96a8f0
     scenarios:
-      - no-confirmation-means-no-gh-invocation
-      - confirmed-opt-in-publishes-release-notes
+      - release-created-only-after-the-tag-is-on-the-remote
+      - removed-github-flag-errors-with-a-pointer-to-the-fixed-sequence
+      - idempotent-probe-skips-an-already-published-release
+      - cut-json-supplies-the-notes-body
+      - on-demand-release-confirms-the-push-before-publishing
   - id: graceful-degradation-when-gh-unavailable
-    hash: sha256:af9c78d53b64
+    hash: sha256:69ea9ba25c6e
     scenarios:
-      - missing-gh-binary-degrades-gracefully
-      - unauthenticated-gh-degrades-gracefully
+      - missing-gh-binary-warns-with-the-manual-command-and-the-ship-continues
+      - failed-gh-release-create-warns-and-continues-re-runnable-later
+      - unauthenticated-gh-degrades-the-on-demand-release-the-same-way
   - id: release-cli-command-surface
     hash: sha256:654dd397033a
     scenarios:
@@ -81,3 +90,63 @@ requirements:
       - skill-mediated-release-is-authorized
       - unauthorized-ai-invocation-is-blocked
       - skill-delivered-as-template-file
+  - id: post-merge-release-flow-on-ship-paths
+    hash: sha256:95111d7733aa
+    scenarios:
+      - cut-runs-after-merge-and-rebuild-in-auto-mode
+      - no-release-activity-at-pr-open-hand-back
+      - ship-output-reports-the-released-version
+      - all-six-ship-paths-carry-the-flow
+  - id: cut-then-push-then-github-release-sequencing
+    hash: sha256:16b7ac256945
+    scenarios:
+      - github-release-created-only-after-the-tag-is-pushed
+      - absent-gh-degrades-gracefully
+      - tag-not-on-remote-race-structurally-impossible
+      - no-force-push-and-no-second-unconfirmed-push
+      - github-opt-in-disabled-means-no-gh-invocation
+  - id: prompt-mode-ship-step-confirmation
+    hash: sha256:6f4050655f58
+    scenarios:
+      - interactive-prompt-reports-count-and-bump-before-asking
+      - confirmation-proceeds-identically-to-auto
+      - decline-leaves-the-backlog-for-on-demand-release
+      - non-interactive-context-fails-closed-with-loud-notice
+  - id: off-mode-preserves-on-demand-releasing
+    hash: sha256:2b245b1c7aee
+    scenarios:
+      - off-mode-ships-without-any-release-mutation
+      - off-mode-leaves-surrounding-ship-behavior-untouched
+  - id: pre-1-0-major-bump-guard
+    hash: sha256:5e510d240b4c
+    scenarios:
+      - pre-1-0-major-downgraded-to-minor-with-prominent-report
+      - escape-hatch-restores-the-major-bump
+      - guard-inert-at-1-0-0-and-above
+  - id: warn-and-continue-cut-failure-posture
+    hash: sha256:b512e3a170fb
+    scenarios:
+      - failed-cut-never-unwinds-the-merge
+      - warning-names-the-failure-and-the-on-demand-remedy
+  - id: single-cut-path-through-releasepipeline
+    hash: sha256:a317185fb3f8
+    scenarios:
+      - ship-step-cut-goes-through-the-existing-pipeline
+      - on-demand-release-keeps-working-with-fixed-sequencing
+  - id: guard-authorization-for-ship-path-release-cut
+    hash: sha256:9c9588ece711
+    scenarios:
+      - fork-context-ship-path-is-authorized-to-cut
+      - main-session-ship-path-is-authorized-to-cut
+      - unauthorized-direct-invocation-still-blocked
+      - no-other-command-scope-widened
+  - id: ship-step-instructions-include-post-merge-release-flow
+    hash: sha256:01efce1b40a5
+    scenarios:
+      - ship-skill-wording-carries-the-release-stage-in-order
+      - run-to-merge-skills-carry-the-same-stage
+  - id: grep-assert-coverage-of-ship-path-release-step
+    hash: sha256:229769484aa2
+    scenarios:
+      - all-six-ship-path-skills-asserted
+      - removing-the-step-from-one-skill-fails-the-tests

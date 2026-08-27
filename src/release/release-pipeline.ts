@@ -14,7 +14,6 @@ import {
   collectCommitsSince,
   attributeArchiveDirsToTags,
 } from './git-release-tags.js'
-import { createGithubRelease, type GhExec, type GhOutcome } from './gh-release.js'
 import { DocGenerator, type DocType } from '../docs/doc-generator.js'
 import { isArchivedChangeDir } from '../util/archive-dirs.js'
 
@@ -61,6 +60,12 @@ export interface ReleaseStatusResult {
   recommendedBump: BumpLevel | null
   unreleasedChanges: number
   warnings: string[]
+  /** Schema-resolved echo of release.on_ship (skills never parse YAML). */
+  onShip: 'auto' | 'prompt' | 'off'
+  /** Schema-resolved echo of release.allow_major_pre_1. */
+  allowMajorPre1: boolean
+  /** Schema-resolved echo of release.github_release. */
+  githubRelease: boolean
 }
 
 /**
@@ -79,11 +84,7 @@ export interface ReleaseCutOptions {
     recommended: BumpLevel,
     source: 'derived' | 'override',
   ) => Promise<boolean>
-  /** Explicit per-cut confirmation for GitHub publication. */
-  github: boolean
   dryRun: boolean
-  /** Injection seam for the gh subprocess (tests); production uses the default. */
-  ghExec?: GhExec
   /** Injection seam for the changelog generator (tests); production uses the real DocGenerator. */
   docGenerator?: ChangelogGenerator
 }
@@ -93,8 +94,8 @@ export interface ReleaseCutResult {
   steps: ReleaseStep[]
   version?: string
   tag?: string
-  /** Present only when github publication was attempted. */
-  gh?: GhOutcome
+  /** Extracted changelog section for the cut version; present on non-dry-run success. */
+  notes?: string
 }
 
 // ---------------------------------------------------------------------------
@@ -110,7 +111,6 @@ const MUTATION_STEPS = [
   'regen-changelog',
   'commit',
   'annotated-tag',
-  'gh',
 ] as const
 
 function errorMessage(error: unknown): string {
@@ -221,7 +221,17 @@ export class ReleasePipeline {
     const archiveDirs = await this.listArchiveDirs()
     const unreleasedChanges = archiveDirs.filter(d => !claimed.has(d)).length
 
-    return { version, lastTag, commitCount, recommendedBump, unreleasedChanges, warnings }
+    return {
+      version,
+      lastTag,
+      commitCount,
+      recommendedBump,
+      unreleasedChanges,
+      warnings,
+      onShip: release.on_ship,
+      allowMajorPre1: release.allow_major_pre_1,
+      githubRelease: release.github_release,
+    }
   }
 
   // -----------------------------------------------------------------------
@@ -506,35 +516,15 @@ export class ReleasePipeline {
       return { status: 'failure', steps, version: target }
     }
 
-    // Step: gh — optional, isolated; its outcome never changes local success.
-    let gh: GhOutcome | undefined
-    if (release.github_release === true && opts.github === true) {
-      const notes = await this.extractChangelogSection(changelogPath, target)
-      gh = await createGithubRelease(this.projectRoot, tag, tag, notes, opts.ghExec)
-      steps.push({
-        step: 'gh',
-        status: gh.status === 'created' ? 'pass' : 'fail',
-        detail: gh.status === 'created' ? `GitHub release created for ${tag}` : gh.status,
-      })
-    } else {
-      steps.push({
-        step: 'gh',
-        status: 'skip',
-        detail:
-          release.github_release !== true
-            ? 'release.github_release is disabled in config'
-            : 'GitHub publication not requested for this cut',
-      })
-    }
-
-    const result: ReleaseCutResult = { status: 'success', steps, version: target, tag }
-    if (gh !== undefined) result.gh = gh
-    return result
+    // The cut ends here — purely local. Emit the extracted changelog section
+    // as `notes` so downstream publishers never re-parse docs/changelog.md.
+    const notes = await this.extractChangelogSection(changelogPath, target)
+    return { status: 'success', steps, version: target, tag, notes }
   }
 
   /**
    * Extract the `## {version} — {date}` section from the regenerated
-   * changelog for use as GitHub release notes. Falls back to a minimal note
+   * changelog for use as release notes. Falls back to a minimal note
    * when the section cannot be located.
    */
   private async extractChangelogSection(changelogPath: string, version: string): Promise<string> {
