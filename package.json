@@ -34,7 +34,7 @@
   ],
   "license": "MIT",
   "dependencies": {
-    "commander": "^13.1.0",
+    "commander": "^15.1.0",
     "remark-parse": "^11.0.0",
     "unified": "^11.0.5",
     "yaml": "^2.7.1",
